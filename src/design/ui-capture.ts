@@ -7,7 +7,7 @@
 // successful capture and, unlike a stored sha, is recomputed in whatever
 // history is present (this repo squash-merges every PR, so a branch sha would
 // be unreachable in a fresh clone and the check would degrade to `skipped`
-// forever). BINDING is `baselineDigest`: without it an operator could commit
+// forever). BINDING is `baselineBlob`: without it an operator could commit
 // the freshly written receipt while leaving the regenerated `.pen` out of the
 // commit, and the surface would read `fresh` over a baseline HEAD never got.
 
@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { dirname } from 'node:path';
 
 import { atomicWriteFileSync } from '../core/atomic-write.js';
+import { errMessage } from '../core/err-message.js';
 import { parseSlug } from '../core/slug.js';
 import { slugPath, pathErrorMessage } from '../core/slug-paths.js';
 
@@ -137,9 +138,17 @@ export function writeReceipt(
 ): { ok: true; path: string } | { ok: false; message: string } {
   const path = receiptPath(repoRoot, surface);
   if (!path.ok) return path;
-  // The atomic write puts its temp file beside the target, so the directory has
-  // to exist first — on a repo capturing its first surface it does not.
-  mkdirSync(dirname(path.path), { recursive: true });
-  atomicWriteFileSync(path.path, `${JSON.stringify(receipt, null, 2)}\n`);
+  try {
+    // The atomic write puts its temp file beside the target, so the directory
+    // has to exist first — on a repo capturing its first surface it does not.
+    mkdirSync(dirname(path.path), { recursive: true });
+    atomicWriteFileSync(path.path, `${JSON.stringify(receipt, null, 2)}\n`);
+  } catch (err) {
+    // The filesystem is the boundary this function owns, and it advertises a
+    // result type: letting EACCES or ENOSPC escape would abort a whole
+    // multi-surface capture on one unwritable receipt instead of recording that
+    // surface as failed and continuing with the rest.
+    return { ok: false, message: `could not write ${path.path}: ${errMessage(err)}` };
+  }
   return { ok: true, path: path.path };
 }

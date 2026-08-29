@@ -19,24 +19,28 @@ export interface PromptContext {
 }
 
 /**
- * Generated output, excluded from every review diff.
+ * Build output, excluded from every review diff.
  *
- * Not a size optimisation — a correctness one. These files are machine-written,
- * so there is nothing in them for a reviewer to judge, and they are large
- * enough to crowd out the code that IS being reviewed: a regenerated
- * `graphify-out/` alone contributed ~5MB to one branch's diff, past the codex
- * lane's 1MB input cap, so the whole review failed on content nobody reads.
- * Deliberately NOT the graph-freshness exclusion list, which drops tests and
- * markdown — a reviewer must see both.
+ * Not a size optimisation — a correctness one. These files are machine-written
+ * from sources that ARE in the diff, so a reviewer judges the generator rather
+ * than its output, and they are large enough to crowd out the code under
+ * review: one branch's regenerated `graphify-out/` was 97.5% of a 5.2MB diff,
+ * past the codex lane's 1MB input cap, so the whole review failed on content
+ * nobody reads.
+ *
+ * The list is deliberately narrow. **Lockfiles are NOT excluded**: a
+ * dependency-only change lives entirely in the lock, and the security-relevant
+ * half of it — a new transitive package, a changed `resolution:` URL, an
+ * altered integrity hash — has no other representation in the diff. Dropping
+ * them would let a lockfile-only commit reach the mandatory lane as an empty
+ * diff and pass unreviewed. Nor is this the graph-freshness exclusion list,
+ * which drops tests and markdown a reviewer must see.
  *
  * `:(exclude,glob)` magic: `glob` makes the double-star cross directory
  * boundaries so the pattern matches at any depth, including the repo root.
  */
 export const REVIEW_IRRELEVANT_EXCLUDES: readonly string[] = [
   ':(exclude,glob)graphify-out/**',
-  ':(exclude,glob)**/pnpm-lock.yaml',
-  ':(exclude,glob)**/package-lock.json',
-  ':(exclude,glob)**/yarn.lock',
   ':(exclude,glob)dist/**',
 ];
 

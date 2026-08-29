@@ -407,4 +407,41 @@ describe('screenshotCommand quoting rule', () => {
       }),
     ).toThrow(/may not contain single quotes/);
   });
+
+  describe('uiCapture reachability', () => {
+    it('rejects a uiCapture block when nothing is UI-bearing', () => {
+      // Such a config parses today but `design capture` refuses every surface, so
+      // the declared command could never run — a config that validates while
+      // being permanently unreachable is worse than one that fails to parse.
+      const r = ConsumerConfigSchema.safeParse({
+        name: 'x',
+        repoUrl: 'https://example.com/x',
+        lockstepPackages: ['x'],
+        e2ePrefix: 'e2e',
+        samplesPath: 'samples',
+        packagePrefix: '@x/',
+        appPathPrefix: 'apps/',
+        uiCapture: { app: { command: 'capture' } },
+      });
+      expect(r.success).toBe(false);
+      if (!r.success) {
+        expect(r.error.issues.some((i) => i.message.includes('nothing is UI-bearing'))).toBe(true);
+      }
+    });
+
+    it('accepts the same block once uiPaths declares a surface', () => {
+      const r = ConsumerConfigSchema.safeParse({
+        name: 'x',
+        repoUrl: 'https://example.com/x',
+        lockstepPackages: ['x'],
+        e2ePrefix: 'e2e',
+        samplesPath: 'samples',
+        packagePrefix: '@x/',
+        appPathPrefix: 'apps/',
+        uiPaths: ['src/**'],
+        uiCapture: { app: { command: 'capture' } },
+      });
+      expect(r.success).toBe(true);
+    });
+  });
 });

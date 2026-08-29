@@ -166,16 +166,24 @@ async function showAtHead(
 async function ancestryVerdict(
   cwd: string,
   uiCommit: string,
-  proofPath: string,
+  proof: { path: string } | { sha: string },
 ): Promise<
   | { ok: false; detail: string; baselineCommit?: string }
   | { ok: true; baselineCommit: string; status: 'fresh' | 'stale' | 'skipped' }
 > {
-  const proof = await latestCommit(cwd, [proofPath]);
-  if (!proof.ok || proof.sha === '') {
-    return { ok: false, detail: 'git log failed — indeterminate' };
+  // A caller that already resolved the sha passes it: the adopted path probes
+  // receipt history before it gets here, and re-asking would spend a second
+  // identical `git log -1` per surface for one answer.
+  let baselineCommit: string;
+  if ('sha' in proof) {
+    baselineCommit = proof.sha;
+  } else {
+    const resolved = await latestCommit(cwd, [proof.path]);
+    if (!resolved.ok || resolved.sha === '') {
+      return { ok: false, detail: 'git log failed — indeterminate' };
+    }
+    baselineCommit = resolved.sha;
   }
-  const baselineCommit = proof.sha;
   const forward = await isAncestor(cwd, uiCommit, baselineCommit);
   const backward = await isAncestor(cwd, baselineCommit, uiCommit);
   if (!forward.ok || !backward.ok) {
@@ -209,7 +217,7 @@ async function legacyFallback(
   baselineFile: string,
   uiCommit: string,
 ): Promise<UiSurfaceFreshness> {
-  const a = await ancestryVerdict(cwd, uiCommit, baselineFile);
+  const a = await ancestryVerdict(cwd, uiCommit, { path: baselineFile });
   if (!a.ok) {
     return {
       surface,
@@ -464,7 +472,7 @@ export async function evaluateUiDesignFreshness(
       continue;
     }
 
-    const a = await ancestryVerdict(cwd, uiCommit, receiptRel);
+    const a = await ancestryVerdict(cwd, uiCommit, { sha: receiptHistory.sha });
     if (!a.ok) {
       surfaces.push({
         surface,
@@ -513,9 +521,14 @@ export async function evaluateUiDesignFreshness(
       // probe announced "all UI baselines fresh" while the config-coverage gap
       // went unchecked. Every other branch degrades to an explicit indeterminate
       // row; this one must too.
+      // `unverified`, not `skipped`: skipped ranks BELOW fresh, so any fresh
+      // surface would mask this row and the probe would still announce "all UI
+      // baselines fresh" with coverage never checked — the row would exist and
+      // change nothing. `unverified` ranks above fresh, so the verdict says so,
+      // and it is non-blocking, so a git failure still cannot mint a red.
       surfaces.push({
         surface: '(unmapped)',
-        status: 'skipped',
+        status: 'unverified',
         detail: 'git log failed probing uiPaths coverage — indeterminate, coverage unchecked',
       });
     } else if (all.stdout !== '') {

@@ -309,6 +309,18 @@ export const ConsumerConfigSchema = z
     // capture could never be reached by a verdict, so it is rejected rather
     // than silently ignored.
     if (cfg.uiCapture !== undefined) {
+      // Nothing is UI-bearing without `uiPaths`, so `design capture` would
+      // refuse every surface and the declared commands could never run. A
+      // config that validates while being permanently unreachable is worse than
+      // one that fails to parse.
+      if ((cfg.uiPaths ?? []).length === 0 && Object.keys(cfg.uiCapture).length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['uiCapture'],
+          message:
+            'uiCapture is declared but uiPaths is absent or empty — nothing is UI-bearing, so no capture could ever run',
+        });
+      }
       for (const surface of Object.keys(cfg.uiCapture)) {
         const declared = Object.hasOwn(cfg.uiSurfaces ?? {}, surface);
         const implicitApp = cfg.uiSurfaces === undefined && surface === IMPLICIT_SURFACE;

@@ -70,15 +70,18 @@ edges) but sits off this change's path.
 A successful capture writes `.noldor/ui-capture/<surface>.json`:
 
 ```json
-{ "capturedAt": "2026-08-29T15:04:05.000Z", "baselineDigest": "<sha256 of the .pen the capture produced>", "command": "pnpm build:samples && tsx scripts/design/capture-ui-baseline.ts" }
+{ "capturedAt": "2026-08-29T15:04:05.000Z", "baselineBlob": "<git object id of the .pen the capture produced>", "command": "pnpm build:samples && tsx scripts/design/capture-ui-baseline.ts" }
 ```
 
 The **ordering** proof is `git log -1 -- .noldor/ui-capture/<surface>.json` — the commit that last
-touched the file. `baselineDigest` adds a **binding** proof, and it is the one piece of content a
-verdict reads: the evaluator compares it to the sha256 of `docs/design/ui/baseline/<surface>.pen` **at
-HEAD**, and a mismatch is `stale`. Without it an operator could commit the freshly written receipt
+touched the file. `baselineBlob` adds a **binding** proof, and it is the one piece of content a
+verdict reads: the evaluator compares it to `git rev-parse HEAD:docs/design/ui/baseline/<surface>.pen`,
+and a mismatch is `stale`. It records git's own object id rather than a hash of the file's bytes,
+because the comparison is against the blob git STORED: `core.autocrlf`, a `text=auto` attribute, a
+clean filter or LFS would otherwise make a raw byte hash differ from the stored blob permanently,
+minting a blocking `stale` that no re-capture could clear. Without it an operator could commit the freshly written receipt
 while leaving the changed `.pen` out of the commit, and the surface would read `fresh` over a baseline
-HEAD never received. The digest also makes the file's uniqueness robust in a way `capturedAt` alone is
+HEAD never received. The blob id also makes the file's uniqueness robust in a way `capturedAt` alone is
 not — a clock that repeats or steps backwards cannot produce a colliding receipt when the baseline
 differs. A capture that legitimately reproduces a byte-identical baseline writes an identical receipt
 and therefore no commit; the verdict is unchanged by that, and it can never be a false `fresh`.
@@ -235,7 +238,7 @@ Evaluated in order; the first match wins.
 | 5 | receipt absent from HEAD **and** its path has no history | legacy fallback (U3) |
 | 6 | receipt absent from HEAD **but** its path has history | `stale` — the proof was withdrawn |
 | 7 | receipt unreadable or its content invalid | `skipped` |
-| 8 | `baselineDigest` ≠ sha256 of the `.pen` at HEAD | `stale` — receipt committed without its baseline |
+| 8 | `baselineBlob` ≠ sha256 of the `.pen` at HEAD | `stale` — receipt committed without its baseline |
 | 9 | receipt commit unresolvable, or either ancestry probe errors | `skipped` |
 | 10 | otherwise | `classifyAncestry(uiCommit, receiptCommit)` |
 
@@ -248,11 +251,12 @@ needs parsed content: an unreadable receipt cannot mint a red, only an indetermi
 ## Acceptance criteria
 
 1. A capture exiting non-zero leaves the surface's receipt file untouched.
-2. A capture exiting 0 writes the receipt with the produced baseline's sha256 in `baselineDigest`.
+2. A capture exiting 0 writes the receipt with the produced baseline's sha256 in `baselineBlob`.
 3. With a receipt present, a UI commit later than the receipt's commit reports `stale`.
 4. With a receipt present, a receipt commit that is the UI commit or a descendant of it reports `fresh`.
 5. Evaluated from a fresh clone of a branch squash-merged into `main`, a surface that was `fresh` before the merge is still `fresh` after it.
-6. A receipt whose `baselineDigest` does not match the `.pen` at HEAD reports `stale`.
+6. A receipt whose `baselineBlob` does not match the `.pen` at HEAD reports `stale`.
+19. `design capture --vouch-only` writes a receipt for the baseline currently on disk without running the capture command, so a sanctioned hand write-back can be greened without overwriting it.
 7. A surface with a baseline, no receipt, no receipt history, and a `.pen` commit older than its UI commit reports `stale` — the pre-upgrade blocking verdict is preserved.
 8. A surface with a baseline, no receipt, no receipt history, and a `.pen` commit at or after its UI commit reports `unverified`.
 9. A surface whose receipt is absent from HEAD but whose receipt path has history reports `stale`, never the legacy verdict.
@@ -272,9 +276,9 @@ needs parsed content: an unreadable receipt cannot mint a red, only an indetermi
 - The red arrives at the next freshness read rather than at the breaking commit. Strictly earlier than today, which never reds; later than running the real capture in CI, which stays available as follow-up work.
 - Once a consumer adopts, a UI change without a re-capture blocks the next release. That is the intended enforcement and not a new class of block — `stale` blocks today — but it is the first time a *failed* capture can reach it.
 - The legacy fallback means two evaluation paths coexist per surface until it has a receipt. Bounded: the fallback is never consulted once a receipt exists, and row 5 of U5 is its only entry point.
-- `.noldor/ui-capture/<surface>.json` is committed state and can be hand-edited. Forging it forges only the operator's own signal, and the `baselineDigest` check means a forged receipt still has to name the digest of the baseline actually sitting at HEAD.
+- `.noldor/ui-capture/<surface>.json` is committed state and can be hand-edited. Forging it forges only the operator's own signal, and the `baselineBlob` check means a forged receipt still has to name the digest of the baseline actually sitting at HEAD.
 - The schema addition touches the rank-#2 god node `loadConsumerConfig()`, which is why it lands once as a self-contained block rather than threaded into `uiBoot`.
-- `baselineDigest` makes one content field verdict-bearing, against the cleaner "commit is the only proof" story. Accepted: without it, committing the receipt while omitting the `.pen` yields a `fresh` verdict over a baseline HEAD never received, and no ordering proof can catch that.
+- `baselineBlob` makes one content field verdict-bearing, against the cleaner "commit is the only proof" story. Accepted: without it, committing the receipt while omitting the `.pen` yields a `fresh` verdict over a baseline HEAD never received, and no ordering proof can catch that.
 - The parent FD (`docs/features/pendev-ui-design-phase.md`) currently tells operators that `design ui-sync` repairs any freshness failure. That becomes false for `unverified` and receipt-path `stale`, so its Usage must change in the same PR — gate Step 4's scoped `--refresh --usage-only` is where that lands, and leaving it stale would make the user-facing contract contradict the implementation.
 
 ## User Story
@@ -326,7 +330,7 @@ pencil-capable session.
    -> **Below `uninitialized`, above `fresh`.** (D7) `RANK` is total over the status union and `overall` is a max-reduce, so the placement decides masking: at or above `stale`, an `unverified` surface would hide a `stale` one and un-block the release. `exitCodeFor` gains it beside `fresh` and `skipped`.
 
 7. *How is the receipt bound to the baseline it vouches for?*
-   -> **A `baselineDigest` field compared against the `.pen` at HEAD.** (D8) The commit proves ordering but not content, so an operator committing the receipt without the regenerated `.pen` would otherwise get `fresh` over a stale baseline. It also removes `capturedAt`'s dependence on a monotonic clock.
+   -> **A `baselineBlob` field compared against the `.pen` at HEAD.** (D8) The commit proves ordering but not content, so an operator committing the receipt without the regenerated `.pen` would otherwise get `fresh` over a stale baseline. It also removes `capturedAt`'s dependence on a monotonic clock.
 
 8. *Should `design capture` refuse to run on a dirty working tree?*
    -> **No.** (D6) Under the receipt-file scheme both orderings are `fresh` — capture-then-commit-together yields `uiCommit === receiptCommit` — so there is nothing to refuse. The evaluator reads committed state only.

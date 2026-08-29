@@ -208,6 +208,46 @@ describe('design capture', () => {
     expect(stored).toBe(viaGit);
   });
 
+  it('--vouch-only records the baseline on disk without running the command', async () => {
+    // The gate's sanctioned Step 4 write-back pencil-edits the baseline by
+    // hand. That changes the blob, so the surface mints stale — and re-running
+    // the consumer's capture to clear it would overwrite the very edit just
+    // made. Vouching is the only move that keeps both.
+    await writeConfig({ uiPaths: ['src/**'], uiCapture: { app: { command: 'capture-app' } } });
+    await writeBaseline('app', 'HAND-EDITED-BY-PENCIL');
+    const { deps: d, ran } = deps({});
+
+    expect(await captureMain(['--vouch-only'], cwd, d)).toBe(0);
+
+    expect(ran).toEqual([]);
+    expect(await readFile(join(cwd, 'docs/design/ui/baseline/app.pen'), 'utf8')).toBe(
+      'HAND-EDITED-BY-PENCIL',
+    );
+    expect(readReceipt(cwd, 'app')?.baselineBlob).toBe(
+      blobIdOfWorktreeFile(cwd, 'docs/design/ui/baseline/app.pen'),
+    );
+  });
+
+  it('reports an unwritable receipt as a failed surface instead of aborting the run', async () => {
+    await writeConfig({
+      uiPaths: ['src/a/**', 'src/b/**'],
+      uiSurfaces: { a: ['src/a/**'], b: ['src/b/**'] },
+      uiCapture: { a: { command: 'capture-a' }, b: { command: 'capture-b' } },
+    });
+    await writeBaseline('a', 'A');
+    await writeBaseline('b', 'B');
+    // A regular file where the receipt directory must go: mkdirSync throws
+    // ENOTDIR, which would otherwise escape writeReceipt's result type and kill
+    // the whole multi-surface run on its first surface.
+    await mkdir(join(cwd, '.noldor'), { recursive: true });
+    await writeFile(join(cwd, '.noldor/ui-capture'), 'not a directory', 'utf8');
+    const { deps: d, ran } = deps({});
+
+    expect(await captureMain([], cwd, d)).toBe(1);
+    // Both surfaces were still attempted — the failure did not abort the loop.
+    expect(ran).toEqual(['capture-a', 'capture-b']);
+  });
+
   it('exits 2 on an unknown surface and builds no path for it', async () => {
     await writeConfig({ uiPaths: ['src/**'], uiCapture: { app: { command: 'capture-app' } } });
     await writeBaseline('app', 'PEN');

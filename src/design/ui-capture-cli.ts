@@ -63,8 +63,17 @@ export async function captureSurface(
   recipe: UiCaptureRecipe,
   run: CaptureRunner,
   now: () => string,
+  vouchOnly = false,
 ): Promise<SurfaceCaptureOutcome> {
-  const result = await run(recipe.command, cwd, recipe.timeoutMs);
+  // `--vouch-only` exists for the gate's sanctioned baseline write-back
+  // (Step 4, `NOLDOR_ALLOW_PEN_WRITE=1`), which pencil-edits the baseline by
+  // hand. That edit changes the blob, so the surface mints `stale` — and
+  // re-running the consumer's capture command to clear it would overwrite the
+  // very edit that was just made. Vouching for what is on disk is the only
+  // move that keeps a hand write-back and a green check compatible.
+  const result = vouchOnly
+    ? { code: 0, timedOut: false, stderrTail: '' }
+    : await run(recipe.command, cwd, recipe.timeoutMs);
   if (result.timedOut) {
     return {
       surface,
@@ -104,10 +113,14 @@ export async function captureSurface(
   const written = writeReceipt(cwd, surface, {
     capturedAt: now(),
     baselineBlob: blob,
-    command: recipe.command,
+    command: vouchOnly ? `${recipe.command} (vouched by hand, not re-run)` : recipe.command,
   });
   if (!written.ok) return { surface, ok: false, detail: written.message };
-  return { surface, ok: true, detail: `captured — wrote ${receiptRelPath(surface)}` };
+  return {
+    surface,
+    ok: true,
+    detail: `${vouchOnly ? 'vouched for the baseline on disk' : 'captured'} — wrote ${receiptRelPath(surface)}`,
+  };
 }
 
 export interface CaptureDeps {
@@ -125,6 +138,7 @@ export async function main(
     console.error(flag.error);
     return 2;
   }
+  const vouchOnly = argv.includes('--vouch-only');
   const ui = loadUiConfig(cwd);
   if (ui === null) {
     console.error('design capture: no consumer config');
@@ -158,7 +172,7 @@ export async function main(
   for (const surface of targets) {
     const recipe = capture[surface];
     if (recipe === undefined) continue;
-    const outcome = await captureSurface(cwd, surface, recipe, deps.run, deps.now);
+    const outcome = await captureSurface(cwd, surface, recipe, deps.run, deps.now, vouchOnly);
     outcomes.push(outcome);
     console.log(`${outcome.surface}: ${outcome.ok ? 'ok' : 'FAILED'} — ${outcome.detail}`);
   }

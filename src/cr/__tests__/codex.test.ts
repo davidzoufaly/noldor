@@ -531,6 +531,33 @@ describe('sh — the codex lane git seam', () => {
 });
 
 describe('buildContext — generated output', () => {
+  it('excludes build output but keeps source, against real git', () => {
+    // The other cases script a fake git keyed on argv, so a wrong pathspec
+    // magic — `:(exclude)` without `glob`, a typo, or git reading an
+    // exclude-only pathspec as "matches nothing" — would empty EVERY review
+    // diff and let every lane approve on no content, with the suite green.
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, 'src'), { recursive: true });
+    mkdirSync(join(cwd, 'graphify-out'), { recursive: true });
+    writeFileSync(join(cwd, 'src', 'real.ts'), 'export const REVIEWABLE = 1;\n');
+    writeFileSync(join(cwd, 'graphify-out', 'graph.json'), '{"GENERATED":true}\n');
+    writeFileSync(join(cwd, 'pnpm-lock.yaml'), 'lockfileVersion: LOCK_MARKER\n');
+    spawnSync('git', ['add', '-A'], { cwd });
+    spawnSync('git', ['commit', '-q', '-m', 'work'], { cwd });
+
+    const ctx = buildContext({
+      lane: { kind: 'range', from: 'HEAD~1', to: 'HEAD' },
+      runGit: (args) => sh(cwd, args),
+      featureMd: '',
+      rules: '',
+    });
+
+    expect(ctx.diff).toContain('REVIEWABLE');
+    expect(ctx.diff).not.toContain('GENERATED');
+    // Lockfiles stay reviewable: a dependency-only change lives entirely here.
+    expect(ctx.diff).toContain('LOCK_MARKER');
+  });
+
   it('keeps regenerated graph output out of the review diff', () => {
     // Not a size optimisation: the codex lane caps input at 1MB, and one
     // branch's regenerated `graphify-out/` alone was ~5MB, so the entire review
@@ -549,9 +576,9 @@ describe('buildContext — generated output', () => {
     expect(ctx.diff).toBe('DIFF');
     const args = asked[0];
     expect(args).toContain(':(exclude,glob)graphify-out/**');
-    expect(args).toContain(':(exclude,glob)**/pnpm-lock.yaml');
-    // Tests and markdown ARE reviewable — the graph-freshness exclusion list is
-    // deliberately not reused here.
+    // Tests, markdown and lockfiles ARE reviewable — the graph-freshness
+    // exclusion list is deliberately not reused here.
+    expect(args.some((a) => a.includes('lock'))).toBe(false);
     expect(args.some((a) => a.includes('*.test.ts'))).toBe(false);
     expect(args.some((a) => a.includes('*.md'))).toBe(false);
   });
