@@ -10,11 +10,7 @@ import { promisify } from 'node:util';
 import { braceExpand } from 'minimatch';
 
 import { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.js';
-import {
-  receiptRelPath,
-  uiCaptureReceiptSchema,
-  type UiCaptureReceipt,
-} from '../design/ui-capture.js';
+import { parseReceiptBytes, receiptRelPath } from '../design/ui-capture.js';
 import { isUiBearing, type UiConfig } from '../core/ui-predicate.js';
 import { GRAPH_IRRELEVANT_EXCLUDES } from './graph-freshness.js';
 
@@ -149,20 +145,6 @@ async function showAtHead(
     return { ok: true, bytes: stdout as unknown as Buffer };
   } catch {
     return { ok: false };
-  }
-}
-
-/**
- * Receipt bytes → validated receipt, or `null` for anything unusable. The
- * causes are deliberately collapsed: every one of them degrades to `skipped`,
- * so no caller needs to tell a truncated file from a schema mismatch.
- */
-function parseReceipt(bytes: Buffer): UiCaptureReceipt | null {
-  try {
-    const parsed = uiCaptureReceiptSchema.safeParse(JSON.parse(bytes.toString('utf8')));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
   }
 }
 
@@ -331,6 +313,25 @@ export async function evaluateUiDesignFreshness(
       surfaces.push({ surface, status: 'skipped', detail: 'no commits touch this surface' });
       continue;
     }
+    // Has this surface EVER had a receipt? Probed before anything else,
+    // because both "file is missing at HEAD" branches below have to know:
+    // withdrawing either file must not soften a verdict. Deleting the baseline
+    // would otherwise turn an adopted, blocking `stale` into a non-blocking
+    // `uninitialized` — the same escape hatch the receipt branch closes, on the
+    // other file.
+    const receiptRel = receiptRelPath(surface);
+    const receiptHistory = await latestCommit(cwd, [receiptRel]);
+    if (!receiptHistory.ok) {
+      surfaces.push({
+        surface,
+        status: 'skipped',
+        uiCommit,
+        detail: 'git log failed — indeterminate',
+      });
+      continue;
+    }
+    const adopted = receiptHistory.sha !== '';
+
     // Existence AT HEAD decides `uninitialized`, not history and not the
     // working tree: `git log` still returns the commit that DELETED the
     // baseline (a delete postdating the UI commit would classify as fresh with
@@ -342,13 +343,23 @@ export async function evaluateUiDesignFreshness(
       continue;
     }
     if (!atHead.exists) {
-      surfaces.push({
-        surface,
-        status: 'uninitialized',
-        uiCommit,
-        remediation: 'ui-sync',
-        detail: `${baselineFile} is not in HEAD — bootstrap and commit: ${SYNC_REMEDIATION}`,
-      });
+      surfaces.push(
+        adopted
+          ? {
+              surface,
+              status: 'stale',
+              uiCommit,
+              remediation: 'capture',
+              detail: `${baselineFile} is not in HEAD but ${receiptRel} has vouched for it before (last at ${receiptHistory.sha.slice(0, 8)}) — the baseline was removed after adoption; ${CAPTURE_REMEDIATION}`,
+            }
+          : {
+              surface,
+              status: 'uninitialized',
+              uiCommit,
+              remediation: 'ui-sync',
+              detail: `${baselineFile} is not in HEAD — bootstrap and commit: ${SYNC_REMEDIATION}`,
+            },
+      );
       continue;
     }
     // --- the ordering proof: the RECEIPT file's commit, not the .pen's ---
@@ -361,7 +372,6 @@ export async function evaluateUiDesignFreshness(
     // stored inside it is what survives squash-merge: a branch sha is
     // unreachable in a fresh clone of main, and the probe below would then
     // degrade to `skipped` permanently.
-    const receiptRel = receiptRelPath(surface);
     const receiptAtHead = await existsAtHead(cwd, receiptRel);
     if (!receiptAtHead.ok) {
       surfaces.push({
@@ -374,17 +384,7 @@ export async function evaluateUiDesignFreshness(
     }
 
     if (!receiptAtHead.exists) {
-      const history = await latestCommit(cwd, [receiptRel]);
-      if (!history.ok) {
-        surfaces.push({
-          surface,
-          status: 'skipped',
-          uiCommit,
-          detail: 'git log failed — indeterminate',
-        });
-        continue;
-      }
-      if (history.sha !== '') {
+      if (adopted) {
         // Absent at HEAD but with history: the proof was WITHDRAWN after
         // adoption. Routing this back through the legacy read would be an
         // escape hatch — an adopted surface sitting at a blocking `stale`
@@ -395,7 +395,7 @@ export async function evaluateUiDesignFreshness(
           status: 'stale',
           uiCommit,
           remediation: 'capture',
-          detail: `${receiptRel} was removed after adoption (last at ${history.sha.slice(0, 8)}) — ${CAPTURE_REMEDIATION}`,
+          detail: `${receiptRel} was removed after adoption (last at ${receiptHistory.sha.slice(0, 8)}) — ${CAPTURE_REMEDIATION}`,
         });
         continue;
       }
@@ -419,7 +419,7 @@ export async function evaluateUiDesignFreshness(
       });
       continue;
     }
-    const receipt = parseReceipt(receiptBlob.bytes);
+    const receipt = parseReceiptBytes(receiptBlob.bytes);
     if (receipt === null) {
       // Unreadable content cannot mint a red — only an indeterminate. This
       // ordering matters: the digest comparison below needs parsed content, so

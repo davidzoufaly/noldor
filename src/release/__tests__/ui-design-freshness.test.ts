@@ -305,6 +305,27 @@ describe('evaluateUiDesignFreshness', () => {
     expect(v.surfaces[0].detail).toContain('removed after adoption');
   });
 
+  it('deleting the baseline of an adopted surface stays stale, never uninitialized', async () => {
+    // Symmetric to the receipt-withdrawal hatch: the baseline-existence check
+    // runs first, so without the adoption probe an adopted surface sitting at a
+    // blocking `stale` could be un-blocked by deleting its .pen — preflight
+    // renders `uninitialized` as a non-blocking warn.
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    await commit(['src/app/page.tsx'], 'feat: ui');
+    await commitReceipt('app', 'chore: capture');
+    await commit(['src/app/page.tsx'], 'feat: ui drift');
+    expect((await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] })).overall).toBe(
+      'stale',
+    );
+
+    await rm(join(cwd, 'docs/design/ui/baseline/app.pen'), { force: true });
+    await commitAt(repo, 'chore: delete baseline');
+
+    const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
+    expect(v.overall).toBe('stale');
+    expect(v.surfaces[0].remediation).toBe('capture');
+  });
+
   it('a malformed receipt is indeterminate, never a red', async () => {
     await commit(['src/app/page.tsx'], 'feat: ui');
     await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');

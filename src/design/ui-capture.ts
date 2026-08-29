@@ -98,7 +98,25 @@ export function readReceipt(repoRoot: string, surface: string): UiCaptureReceipt
   const path = receiptPath(repoRoot, surface);
   if (!path.ok) return null;
   try {
-    const parsed = uiCaptureReceiptSchema.safeParse(JSON.parse(readFileSync(path.path, 'utf8')));
+    return parseReceiptBytes(readFileSync(path.path));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Receipt bytes → validated receipt, or `null` for anything unusable. Lives
+ * beside the schema so the freshness evaluator — which reads the blob out of
+ * HEAD rather than off disk — shares one parse policy instead of carrying a
+ * second copy that can drift from this one.
+ *
+ * The causes are deliberately collapsed: every one of them degrades to
+ * `skipped` at the verdict, so no caller needs a truncated file told apart from
+ * a schema mismatch.
+ */
+export function parseReceiptBytes(bytes: Buffer | string): UiCaptureReceipt | null {
+  try {
+    const parsed = uiCaptureReceiptSchema.safeParse(JSON.parse(bytes.toString()));
     return parsed.success ? parsed.data : null;
   } catch {
     return null;
