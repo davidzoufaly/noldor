@@ -148,6 +148,17 @@ export function readRules(cwd: string): string {
   return readIfExists(cwd, '.claude/engineering-rules.md') || readIfExists(cwd, 'AGENTS.md');
 }
 
+/**
+ * Git seam for the codex lane.
+ *
+ * `maxBuffer` is explicit because Node's default is 1MB and this helper reads
+ * whole diffs: a branch carrying a regenerated graph, a lockfile, or any large
+ * generated artifact overruns it, and `execFileSync` then fails with ENOBUFS.
+ * The lane converts that into a blocking `code review failed: spawnSync git
+ * ENOBUFS` finding — so a diff being big reads as the code being bad, on a lane
+ * that is mandatory for M/L/XL sessions. 64MB matches every other git read in
+ * the repo (`metrics/facts.ts`, `dashboard/data.ts`, `ui-design-freshness.ts`).
+ */
 export function sh(cwd: string, args: string[]): string {
-  return execFileSync('git', args, { cwd, encoding: 'utf8' });
+  return execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 }
