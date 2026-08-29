@@ -71,8 +71,19 @@ against:
 
 `commit` is `git rev-parse HEAD` at the moment the capture exited 0. The file is committed alongside
 the baseline it vouches for, and it advances on success only — that single property is what removes
-the false-fresh. The shape and posture mirror `src/garden/garden-receipt.ts` (**c17**), which exists
-for the same reason: an evaluator that cannot otherwise see whether its generator ran.
+the false-fresh. The shape is modelled on `src/garden/garden-receipt.ts` (**c17**), which exists for
+the same reason: an evaluator that cannot otherwise see whether its generator ran.
+
+The write is a **read-merge-write**: `design capture --surface app` in a multi-surface repo re-reads
+the existing `surfaces` map and replaces only its own key, so a single-surface run cannot drop the
+other surfaces' entries (which would silently demote them to `unverified`). It lands through
+`atomicWriteFileSync` — temp-then-rename — so an interrupted write cannot leave a truncated receipt.
+
+The **reader is not** a literal mirror of `readGardenReceipt`, which is
+`GardenReceiptSchema.parse(JSON.parse(…))` (`src/garden/garden-receipt.ts:29`) and therefore throws
+on malformed content. AC6 requires degrading to `skipped`, so the receipt reader is `safeParse`
+inside a `try`/`catch`, returning `null` on any unreadable or invalid file and letting the evaluator
+take its existing indeterminate branch.
 
 ### U2 — freshness reads the receipt, not the baseline file's commit
 
@@ -89,7 +100,21 @@ A surface with a baseline at HEAD but no receipt entry gets a new status, `unver
 *baseline file missing* and sends the operator to `design ui-sync`, while `unverified` is *baseline
 present, never vouched for* and sends them to `design capture`. `unverified` is non-blocking
 everywhere, so a consumer that upgrades without wiring anything up sees a visible prompt rather than
-a new failure. Every existing degradation rule survives verbatim — an unreadable, unparseable or
+a new failure — but that is not free, because two readers branch on the status set explicitly and
+both must be extended in the same change:
+
+- `src/release/preflight-probes.ts:348` branches `skipped` / `fresh` / `uninitialized` and then falls
+  through **unconditionally** to `status: 'blocking'`, with `detail` built by filtering surfaces to
+  `stale`. A new `unverified` overall would therefore reach that fall-through and block the release
+  with an *empty* detail string — the exact opposite of Goal 3, and what every consumer would hit on
+  upgrade. The probe gains an explicit `unverified` → `warn` branch, naming the surfaces and the
+  `design capture` remediation.
+- `src/cli/commands/doctor.ts:119` filters its warn lines to `stale || uninitialized`, so
+  `unverified` would be invisible in the reader whose whole job is surfacing this debt early. The
+  filter gains the status.
+
+`exitCodeFor` (`src/checks/check-ui-design-freshness.ts:16`) gains it alongside `fresh` and
+`skipped`. Every existing degradation rule survives verbatim — an unreadable, unparseable or
 unresolvable receipt is `skipped` with detail, never a red — because `preflight-probes.ts:348` treats
 `stale` as blocking and `classifyAncestry`'s standing invariant is that no blocking verdict may be
 minted from an operational failure.
@@ -106,11 +131,28 @@ success — reproduces the original defect one level up: a forgotten call, or on
 `finally`, silently restores the false-fresh with no diagnostic.
 
 The command is declared in a new `consumer.uiCapture` record keyed by surface name,
-`{ command, timeoutMs }`, validated the way `uiBoot` already is. It does not hang off `uiBoot`
+`{ command, timeoutMs }`. Its validation deliberately **differs** from `uiBoot`'s: that block's
+`superRefine` (`src/core/consumer-config.ts:276`) rejects any key not declared in `uiSurfaces`, and
+charuy declares `uiPaths` only — so the implicit `app` surface exists at evaluation time but not in
+config, and a literal copy of that rule would reject the one consumer this feature exists for. The
+`uiCapture` cross-check therefore accepts a key that is either declared in `uiSurfaces` **or** is the
+implicit `app` surface used when `uiSurfaces` is absent, and rejects any other key as an orphan. It does not hang off `uiBoot`
 because `UiBootRecipeSchema` makes `verifyCommand`, `route` and `screenshotCommand` all required, so
 that placement would make authoring a full render-compare recipe the price of capture verification —
 and charuy, the only consumer with `uiPaths` today, declares no `uiBoot` at all. Capture produces the
 baseline; render-compare consumes screenshots. Separate concerns, separate blocks.
+
+**Execution contract.** The command is spawned as `/bin/sh -c <command>` with `detached: true` from
+the repo root, reusing the process-group idiom already established at `src/verify/boot.ts:61` — the
+declared commands are shell strings containing `&&`, and a `pnpm …` capture spawns a whole tree that
+a bare child-pid kill would orphan. On `timeoutMs` the group is signalled, and **a timeout counts as
+a failed capture**: the receipt is left unchanged, exactly as a non-zero exit would. A spawn error
+(command not found) is likewise a failed capture, not a crash.
+
+**Multi-surface.** `design capture` with no `--surface` runs every declared surface **sequentially**
+and does not stop at the first failure. Each success is persisted as it happens, through the
+read-merge-write above, so a partially successful run leaves the surfaces that worked vouched for and
+the ones that failed untouched. The aggregate exit code is non-zero when any surface failed.
 
 ### U4 — no live capture at any seam
 
@@ -130,6 +172,11 @@ runs only when an operator invokes `design capture` deliberately.
 6. An unreadable, unparseable, or unresolvable-sha receipt reports `skipped`, never `stale`.
 7. A repo with no `consumer.uiCapture` declared can still run every existing freshness reader without a new failure.
 8. `design capture` on a surface with no declared command exits non-zero with a message naming the missing config key, and writes no receipt.
+9. `design capture --surface a` in a repo whose receipt also holds surface `b` leaves `b`'s entry byte-identical.
+10. A capture killed by `timeoutMs` leaves the receipt unchanged and exits non-zero.
+11. A run over three surfaces where one fails persists the two that succeeded and exits non-zero.
+12. An `unverified` overall verdict resolves to a non-blocking release-preflight result, asserted against the probe rather than against `exitCodeFor` alone.
+13. A `uiCapture` key naming the implicit `app` surface validates in a config that declares `uiPaths` and no `uiSurfaces`.
 
 ## Risks / trade-offs
 
