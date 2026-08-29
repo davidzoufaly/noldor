@@ -18,6 +18,61 @@ const exec = (cmd: string, args: string[], cwd: string, env?: Record<string, str
     });
   });
 
+/** A throwaway git repo plus its own commit clock, so both suites below share
+ * one harness instead of each re-implementing `git init` + dated commits. */
+interface Repo {
+  cwd: string;
+  epoch: number;
+}
+
+async function initRepo(prefix: string): Promise<Repo> {
+  const cwd = await mkdtemp(join(tmpdir(), prefix));
+  await exec('git', ['init', '-q'], cwd);
+  await exec('git', ['config', 'user.email', 't@e'], cwd);
+  await exec('git', ['config', 'user.name', 't'], cwd);
+  return { cwd, epoch: 1000 };
+}
+
+/** Commit at a fixed, advancing date so ancestry — not wall-clock — decides. */
+async function commitAt(repo: Repo, msg: string): Promise<void> {
+  repo.epoch += 100;
+  await exec('git', ['add', '-A'], repo.cwd);
+  await exec('git', ['commit', '-q', '-m', msg], repo.cwd, {
+    GIT_AUTHOR_DATE: `@${repo.epoch} +0000`,
+    GIT_COMMITTER_DATE: `@${repo.epoch} +0000`,
+  });
+}
+
+async function commitFiles(repo: Repo, paths: string[], msg: string): Promise<void> {
+  for (const path of paths) {
+    const abs = join(repo.cwd, path);
+    await mkdir(dirname(abs), { recursive: true });
+    await writeFile(abs, `${msg}\n`, 'utf8');
+  }
+  await commitAt(repo, msg);
+}
+
+/** Minimal `.noldor/config.json` whose consumer block declares `uiPaths`. */
+async function writeUiConfig(cwd: string, uiPaths: string[]): Promise<void> {
+  await mkdir(join(cwd, '.noldor'), { recursive: true });
+  await writeFile(
+    join(cwd, '.noldor/config.json'),
+    JSON.stringify({
+      consumer: {
+        name: 'x',
+        repoUrl: 'https://example.com/x',
+        lockstepPackages: ['x'],
+        e2ePrefix: 'e2e',
+        samplesPath: 'samples',
+        packagePrefix: '@x/',
+        appPathPrefix: 'apps/',
+        uiPaths,
+      },
+    }),
+    'utf8',
+  );
+}
+
 describe('classifyAncestry', () => {
   it('fresh when UI commit is ancestor of (or equal to) baseline commit', () => {
     expect(classifyAncestry(true, false)).toBe('fresh');
@@ -32,34 +87,19 @@ describe('classifyAncestry', () => {
 });
 
 describe('evaluateUiDesignFreshness', () => {
+  let repo: Repo;
   let cwd: string;
-  let epoch = 1000;
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'ui-fresh-'));
-    epoch = 1000;
-    await exec('git', ['init', '-q'], cwd);
-    await exec('git', ['config', 'user.email', 't@e'], cwd);
-    await exec('git', ['config', 'user.name', 't'], cwd);
+    repo = await initRepo('ui-fresh-');
+    cwd = repo.cwd;
   });
 
   afterEach(async () => {
     await rm(cwd, { recursive: true, force: true });
   });
 
-  async function commitFiles(paths: string[], msg: string): Promise<void> {
-    for (const path of paths) {
-      const abs = join(cwd, path);
-      await mkdir(dirname(abs), { recursive: true });
-      await writeFile(abs, `${msg}\n`, 'utf8');
-    }
-    epoch += 100;
-    await exec('git', ['add', '-A'], cwd);
-    await exec('git', ['commit', '-q', '-m', msg], cwd, {
-      GIT_AUTHOR_DATE: `@${epoch} +0000`,
-      GIT_COMMITTER_DATE: `@${epoch} +0000`,
-    });
-  }
+  const commit = (paths: string[], msg: string) => commitFiles(repo, paths, msg);
 
   /**
    * Commit a capture receipt for `surface`, bound to whatever its baseline
@@ -74,19 +114,14 @@ describe('evaluateUiDesignFreshness', () => {
     await mkdir(dirname(abs), { recursive: true });
     await writeFile(
       abs,
-      `${JSON.stringify({ capturedAt: new Date(epoch * 1000).toISOString(), baselineDigest: bound, command: 'pnpm capture' }, null, 2)}\n`,
+      `${JSON.stringify({ capturedAt: new Date(repo.epoch * 1000).toISOString(), baselineDigest: bound, command: 'pnpm capture' }, null, 2)}\n`,
       'utf8',
     );
-    epoch += 100;
-    await exec('git', ['add', '-A'], cwd);
-    await exec('git', ['commit', '-q', '-m', msg], cwd, {
-      GIT_AUTHOR_DATE: `@${epoch} +0000`,
-      GIT_COMMITTER_DATE: `@${epoch} +0000`,
-    });
+    await commitAt(repo, msg);
   }
 
   it('whole check skipped when uiPaths absent or empty', async () => {
-    await commitFiles(['src/app/page.tsx'], 'feat: ui');
+    await commit(['src/app/page.tsx'], 'feat: ui');
     for (const config of [{}, { uiPaths: [] }]) {
       const v = await evaluateUiDesignFreshness(cwd, config);
       expect(v.overall).toBe('skipped');
@@ -95,35 +130,35 @@ describe('evaluateUiDesignFreshness', () => {
   });
 
   it('uninitialized when surface globs have commits but baseline file is absent', async () => {
-    await commitFiles(['src/app/page.tsx'], 'feat: ui');
+    await commit(['src/app/page.tsx'], 'feat: ui');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.overall).toBe('uninitialized');
     expect(v.surfaces[0]).toMatchObject({ surface: 'app', status: 'uninitialized' });
   });
 
   it('per-surface skipped when no commit ever touched the globs', async () => {
-    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.surfaces[0].status).toBe('skipped');
   });
 
   it('legacy-fresh baseline with no receipt reports unverified, not fresh', async () => {
-    await commitFiles(['src/app/page.tsx'], 'feat: ui');
-    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline sync');
+    await commit(['src/app/page.tsx'], 'feat: ui');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline sync');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.overall).toBe('unverified');
     expect(v.surfaces[0].remediation).toBe('capture');
   });
 
   it('legacy fallback still reports unverified when one commit touches both', async () => {
-    await commitFiles(['src/app/page.tsx', 'docs/design/ui/baseline/app.pen'], 'feat: ui+baseline');
+    await commit(['src/app/page.tsx', 'docs/design/ui/baseline/app.pen'], 'feat: ui+baseline');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.overall).toBe('unverified');
   });
 
   it('stale when UI moved after the baseline, with both commits named', async () => {
-    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
-    await commitFiles(['src/app/page.tsx'], 'feat: ui drift');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    await commit(['src/app/page.tsx'], 'feat: ui drift');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.overall).toBe('stale');
     expect(v.surfaces[0].uiCommit).toBeTruthy();
@@ -132,34 +167,29 @@ describe('evaluateUiDesignFreshness', () => {
   });
 
   it('test/doc-only commits do not stale a surface', async () => {
-    await commitFiles(['src/app/page.tsx'], 'feat: ui');
-    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    await commit(['src/app/page.tsx'], 'feat: ui');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
     await commitReceipt('app', 'chore: capture');
-    await commitFiles(['src/app/__tests__/page.test.tsx'], 'test: only');
-    await commitFiles(['src/app/README.md'], 'docs: only');
+    await commit(['src/app/__tests__/page.test.tsx'], 'test: only');
+    await commit(['src/app/README.md'], 'docs: only');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.overall).toBe('fresh');
   });
 
   it('committed deletion of the baseline reads uninitialized, never fresh', async () => {
-    await commitFiles(['src/app/page.tsx'], 'feat: ui');
-    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    await commit(['src/app/page.tsx'], 'feat: ui');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
     const { rm: rmFile } = await import('node:fs/promises');
     await rmFile(join(cwd, 'docs/design/ui/baseline/app.pen'));
-    epoch += 100;
-    await exec('git', ['add', '-A'], cwd);
-    await exec('git', ['commit', '-q', '-m', 'chore: delete baseline'], cwd, {
-      GIT_AUTHOR_DATE: `@${epoch} +0000`,
-      GIT_COMMITTER_DATE: `@${epoch} +0000`,
-    });
+    await commitAt(repo, 'chore: delete baseline');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.surfaces[0].status).toBe('uninitialized');
   });
 
   it('flags UI commits outside every declared surface as an (unmapped) stale row', async () => {
-    await commitFiles(['src/a/x.tsx'], 'feat: a');
-    await commitFiles(['docs/design/ui/baseline/a.pen'], 'docs: a baseline');
-    await commitFiles(['src/other/y.tsx'], 'feat: unmapped ui');
+    await commit(['src/a/x.tsx'], 'feat: a');
+    await commit(['docs/design/ui/baseline/a.pen'], 'docs: a baseline');
+    await commit(['src/other/y.tsx'], 'feat: unmapped ui');
     const v = await evaluateUiDesignFreshness(cwd, {
       uiPaths: ['src/a/**', 'src/other/**'],
       uiSurfaces: { a: ['src/a/**'] },
@@ -169,10 +199,10 @@ describe('evaluateUiDesignFreshness', () => {
   });
 
   it('multi-surface worst-of aggregation, rows sorted by surface name', async () => {
-    await commitFiles(['docs/design/ui/baseline/a.pen'], 'docs: a');
-    await commitFiles(['src/a/x.tsx'], 'feat: a drift');
-    await commitFiles(['src/b/y.tsx'], 'feat: b');
-    await commitFiles(['docs/design/ui/baseline/b.pen'], 'docs: b');
+    await commit(['docs/design/ui/baseline/a.pen'], 'docs: a');
+    await commit(['src/a/x.tsx'], 'feat: a drift');
+    await commit(['src/b/y.tsx'], 'feat: b');
+    await commit(['docs/design/ui/baseline/b.pen'], 'docs: b');
     const v = await evaluateUiDesignFreshness(cwd, {
       uiPaths: ['src/a/**', 'src/b/**'],
       uiSurfaces: { a: ['src/a/**'], b: ['src/b/**'] },
@@ -184,8 +214,8 @@ describe('evaluateUiDesignFreshness', () => {
     ]);
   });
   it('fresh when the capture receipt commit is at or after the UI commit', async () => {
-    await commitFiles(['src/app/page.tsx'], 'feat: ui');
-    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    await commit(['src/app/page.tsx'], 'feat: ui');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
     await commitReceipt('app', 'chore: capture');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.overall).toBe('fresh');
@@ -193,13 +223,13 @@ describe('evaluateUiDesignFreshness', () => {
   });
 
   it('a failed capture leaves the receipt behind, so a later UI commit reads stale', async () => {
-    await commitFiles(['src/app/page.tsx'], 'feat: ui');
-    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    await commit(['src/app/page.tsx'], 'feat: ui');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
     await commitReceipt('app', 'chore: capture');
     // The capture that would have re-vouched for this UI change never wrote a
     // receipt, and the .pen it would have rewritten is untouched — exactly the
     // shape that read `fresh` before this feature.
-    await commitFiles(['src/app/page.tsx'], 'feat: ui moved the buttons');
+    await commit(['src/app/page.tsx'], 'feat: ui moved the buttons');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.overall).toBe('stale');
     expect(v.surfaces[0].remediation).toBe('capture');
@@ -207,8 +237,8 @@ describe('evaluateUiDesignFreshness', () => {
   });
 
   it('survives squash-merge: a fresh surface stays fresh in a squashed clone', async () => {
-    await commitFiles(['src/app/page.tsx'], 'feat: ui');
-    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    await commit(['src/app/page.tsx'], 'feat: ui');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
     await commitReceipt('app', 'chore: capture');
     const before = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(before.overall).toBe('fresh');
@@ -247,8 +277,8 @@ describe('evaluateUiDesignFreshness', () => {
   });
 
   it('stale when the receipt was committed without its baseline (digest mismatch)', async () => {
-    await commitFiles(['src/app/page.tsx'], 'feat: ui');
-    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    await commit(['src/app/page.tsx'], 'feat: ui');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
     await commitReceipt('app', 'chore: capture', 'f'.repeat(64));
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.overall).toBe('stale');
@@ -256,10 +286,10 @@ describe('evaluateUiDesignFreshness', () => {
   });
 
   it('removing an adopted receipt reads stale, never back through the legacy path', async () => {
-    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
-    await commitFiles(['src/app/page.tsx'], 'feat: ui');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    await commit(['src/app/page.tsx'], 'feat: ui');
     await commitReceipt('app', 'chore: capture');
-    await commitFiles(['src/app/page.tsx'], 'feat: ui drift');
+    await commit(['src/app/page.tsx'], 'feat: ui drift');
     expect((await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] })).overall).toBe(
       'stale',
     );
@@ -268,29 +298,19 @@ describe('evaluateUiDesignFreshness', () => {
     // of this recently committed baseline would otherwise be reported
     // `unverified`, and the block would vanish.
     await rm(join(cwd, receiptRelPath('app')), { force: true });
-    epoch += 100;
-    await exec('git', ['add', '-A'], cwd);
-    await exec('git', ['commit', '-q', '-m', 'chore: drop receipt'], cwd, {
-      GIT_AUTHOR_DATE: `@${epoch} +0000`,
-      GIT_COMMITTER_DATE: `@${epoch} +0000`,
-    });
+    await commitAt(repo, 'chore: drop receipt');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.overall).toBe('stale');
     expect(v.surfaces[0].detail).toContain('removed after adoption');
   });
 
   it('a malformed receipt is indeterminate, never a red', async () => {
-    await commitFiles(['src/app/page.tsx'], 'feat: ui');
-    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    await commit(['src/app/page.tsx'], 'feat: ui');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
     await commitReceipt('app', 'chore: capture');
     const abs = join(cwd, receiptRelPath('app'));
     await writeFile(abs, 'not json at all', 'utf8');
-    epoch += 100;
-    await exec('git', ['add', '-A'], cwd);
-    await exec('git', ['commit', '-q', '-m', 'chore: corrupt receipt'], cwd, {
-      GIT_AUTHOR_DATE: `@${epoch} +0000`,
-      GIT_COMMITTER_DATE: `@${epoch} +0000`,
-    });
+    await commitAt(repo, 'chore: corrupt receipt');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.surfaces[0].status).toBe('skipped');
   });
@@ -298,10 +318,10 @@ describe('evaluateUiDesignFreshness', () => {
   it('a stale surface still drives the overall verdict when another is unverified', async () => {
     // The RANK ordering is what makes this hold: if `unverified` outranked
     // `stale`, the blocking surface would be masked and the release would pass.
-    await commitFiles(['docs/design/ui/baseline/a.pen'], 'docs: a baseline');
-    await commitFiles(['src/a/x.tsx'], 'feat: a drift');
-    await commitFiles(['src/b/y.tsx'], 'feat: b');
-    await commitFiles(['docs/design/ui/baseline/b.pen'], 'docs: b baseline');
+    await commit(['docs/design/ui/baseline/a.pen'], 'docs: a baseline');
+    await commit(['src/a/x.tsx'], 'feat: a drift');
+    await commit(['src/b/y.tsx'], 'feat: b');
+    await commit(['docs/design/ui/baseline/b.pen'], 'docs: b baseline');
     const v = await evaluateUiDesignFreshness(cwd, {
       uiPaths: ['src/a/**', 'src/b/**'],
       uiSurfaces: { a: ['src/a/**'], b: ['src/b/**'] },
@@ -315,53 +335,18 @@ describe('evaluateUiDesignFreshness', () => {
 });
 
 describe('release preflight — ui-design-freshness row', () => {
+  let repo: Repo;
   let cwd: string;
-  let epoch = 1000;
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'ui-probe-'));
-    epoch = 1000;
-    await exec('git', ['init', '-q'], cwd);
-    await exec('git', ['config', 'user.email', 't@e'], cwd);
-    await exec('git', ['config', 'user.name', 't'], cwd);
+    repo = await initRepo('ui-probe-');
+    cwd = repo.cwd;
   });
   afterEach(async () => {
     await rm(cwd, { recursive: true, force: true });
   });
 
-  async function commit(paths: string[], msg: string): Promise<void> {
-    for (const path of paths) {
-      const abs = join(cwd, path);
-      await mkdir(dirname(abs), { recursive: true });
-      await writeFile(abs, `${msg}\n`, 'utf8');
-    }
-    epoch += 100;
-    await exec('git', ['add', '-A'], cwd);
-    await exec('git', ['commit', '-q', '-m', msg], cwd, {
-      GIT_AUTHOR_DATE: `@${epoch} +0000`,
-      GIT_COMMITTER_DATE: `@${epoch} +0000`,
-    });
-  }
-
-  async function writeConfig(uiPaths: string[]): Promise<void> {
-    await mkdir(join(cwd, '.noldor'), { recursive: true });
-    await writeFile(
-      join(cwd, '.noldor/config.json'),
-      JSON.stringify({
-        consumer: {
-          name: 'x',
-          repoUrl: 'https://example.com/x',
-          lockstepPackages: ['x'],
-          e2ePrefix: 'e2e',
-          samplesPath: 'samples',
-          packagePrefix: '@x/',
-          appPathPrefix: 'apps/',
-          uiPaths,
-        },
-      }),
-      'utf8',
-    );
-  }
+  const commit = (paths: string[], msg: string) => commitFiles(repo, paths, msg);
 
   const ctx = (): ProbeContext => ({
     cwd,
@@ -383,7 +368,7 @@ describe('release preflight — ui-design-freshness row', () => {
     // reason.
     await commit(['src/app/page.tsx'], 'feat: ui');
     await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
-    await writeConfig(['src/app/**']);
+    await writeUiConfig(cwd, ['src/app/**']);
 
     const row = await runProbe('ui-design-freshness', ctx());
     expect(row.status).toBe('warn');
@@ -393,7 +378,7 @@ describe('release preflight — ui-design-freshness row', () => {
   it('still blocks a release on a genuinely stale surface', async () => {
     await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
     await commit(['src/app/page.tsx'], 'feat: ui drift');
-    await writeConfig(['src/app/**']);
+    await writeUiConfig(cwd, ['src/app/**']);
 
     const row = await runProbe('ui-design-freshness', ctx());
     expect(row.status).toBe('blocking');

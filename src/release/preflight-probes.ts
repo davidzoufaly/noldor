@@ -27,6 +27,7 @@ import { loadUiConfig } from '../core/consumer-config.js';
 import { inspectTreeState, type TreeState } from './clean-tree.js';
 import { evaluateGraphFreshness } from './graph-freshness.js';
 import { evaluateUiDesignFreshness } from './ui-design-freshness.js';
+import type { UiFreshnessVerdict, UiSurfaceFreshness } from './ui-design-freshness.js';
 import { readPkgIdentity } from './release-publish.js';
 import { checkCrGate } from './release-cr-gate.js';
 import { readReleaseState } from './release-state.js';
@@ -98,6 +99,17 @@ export function makeProbeContext(base: {
     // resolve against process.cwd() instead of the repo we were handed.
     config: () => (cfg ??= { v: loadConfigSync(join(base.cwd, '.noldor/config.json')) }).v,
   };
+}
+
+/** Comma-joined surface names carrying `status`, for a freshness detail line. */
+function namesWithStatus(
+  verdict: UiFreshnessVerdict,
+  status: UiSurfaceFreshness['status'],
+): string {
+  return verdict.surfaces
+    .filter((s) => s.status === status)
+    .map((s) => s.surface)
+    .join(', ');
 }
 
 /** Run one probe by id. Any unexpected throw becomes a blocking row, never a crash. */
@@ -363,31 +375,20 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     if (verdict.overall === 'fresh') {
       return { id: 'ui-design-freshness', status: 'ok', detail: 'all UI baselines fresh' };
     }
-    if (verdict.overall === 'unverified') {
-      // Adoption debt, not drift: the baseline is present, no capture has
-      // vouched for it. Every consumer reads this on the upgrade that
-      // introduces the receipt, so it must not block — and it must be an
-      // EXPLICIT branch, because the fall-through below is `blocking` and
-      // filters `detail` to `stale`, which would block with an empty reason.
+    // Both non-blocking verdicts are advisory for the same reason — adoption
+    // must not brick a release — and both must be EXPLICIT branches, because
+    // the fall-through below is `blocking` with `detail` filtered to `stale`,
+    // so any status that reaches it blocks with an empty reason.
+    if (verdict.overall === 'unverified' || verdict.overall === 'uninitialized') {
       return {
         id: 'ui-design-freshness',
         status: 'warn',
-        detail: `unverified baseline surface(s): ${verdict.surfaces
-          .filter((s) => s.status === 'unverified')
-          .map((s) => s.surface)
-          .join(', ')}`,
-        fix: 'Declare `consumer.uiCapture` for the surface, run `pnpm noldor design capture`, and commit the baseline with its receipt.',
-      };
-    }
-    if (verdict.overall === 'uninitialized') {
-      // v1: adoption must not brick releases — advisory only.
-      return {
-        id: 'ui-design-freshness',
-        status: 'warn',
-        detail: `uninitialized baseline surface(s): ${verdict.surfaces
-          .filter((s) => s.status === 'uninitialized')
-          .map((s) => s.surface)
-          .join(', ')}`,
+        detail: `${verdict.overall} baseline surface(s): ${namesWithStatus(verdict, verdict.overall)}`,
+        ...(verdict.overall === 'unverified'
+          ? {
+              fix: 'Declare `consumer.uiCapture` for the surface, run `pnpm noldor design capture`, and commit the baseline with its receipt.',
+            }
+          : {}),
       };
     }
     return {
