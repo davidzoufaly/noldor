@@ -235,5 +235,10 @@
   "Q-0188": {
     "slug": "ui-design-step-pencil-recipe-corrections",
     "retiredAt": "2026-08-30"
+  },
+  "Q-0185": {
+    "slug": "mandatory-c4-diagram-for-new-feature-mds",
+    "retiredInto": "consumer-architecture-doc-surface",
+    "retiredAt": "2026-08-29"
   }
 }

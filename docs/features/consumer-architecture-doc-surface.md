@@ -17,7 +17,7 @@ links:
 name: Consumer Architecture Doc Surface
 packages:
   - noldor
-phase: done
+phase: in-progress
 since: 2026-08-11T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0
