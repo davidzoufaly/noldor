@@ -47,6 +47,12 @@ noldor-tier: <specs-only | full>
 
 <!-- TODO 1-3 sentences. What the feature is. -->
 
+## Diagram
+
+<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
+     two beside it for readers that do not render mermaid. No shape worth drawing?
+     Replace this comment with: noldor:cut <reason> -->
+
 ## User Story
 
 <!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->

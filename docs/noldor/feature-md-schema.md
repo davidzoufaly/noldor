@@ -96,11 +96,14 @@ Transition rules (per Workflow):
 
 ## Body sections
 
-The FD body has three required sections, in order, per the original framework design spec:
+The FD body has four required sections, in order:
 
 - **`## Summary`** — one-paragraph capability description (1–3 sentences). What the feature is.
+- **`## Diagram`** — one mermaid fence at the C4 *level of abstraction* that fits the feature, plus a sentence or two beside it. "C4" names the altitude, not the notation: a `flowchart` of modules, a `sequenceDiagram` of one runtime flow and a `C4Component` fence are all valid, and nothing checks which kind you picked. The prose is the textual equivalent for readers and agents that do not render mermaid, so it is required alongside the fence rather than instead of it. Decline deliberately with a `noldor:cut <reason>` line inside the section when the feature has no shape worth drawing — the reason is required, a bare marker declines nothing.
 - **`## User Story`** — `As a user (human or agent), I want to <action>, so that <outcome>.` Persona-agnostic. Multi-story features may use a bullet list.
 - **`## Usage`** — how to invoke. UI steps, keyboard shortcut, agent API call.
+
+`## Diagram` is scaffolded by `/noldor-promote` and `/noldor-new-feature` at both tiers, and `pnpm noldor garden detect` reports a scaffolded section still holding its placeholder, holding prose with no fence, or holding a fence with too little prose beside it. That report is advisory and blocks nothing. It is also **presence-gated**: an FD carrying no `## Diagram` heading is out of scope entirely, which is what keeps the requirement off every FD written before it existed. `validate features` checks frontmatter only and does not enforce this section, exactly as it does not enforce the other three.
 
 Optional follow-up sections used by some FDs: `## Why`, `## How it works`, `## Notes`. None of these are validator-enforced — only the frontmatter is schema-checked.
 

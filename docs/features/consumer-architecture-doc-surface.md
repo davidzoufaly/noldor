@@ -5,14 +5,19 @@ deps: []
 entry-id: Q-0093
 links:
   code:
+    - src/core/fd-diagram-contract.ts
+    - src/core/markdown-section-scan.ts
     - src/docs/architecture-form.ts
     - src/docs/architecture-schema.ts
     - src/docs/docs-architecture.ts
     - src/garden/detectors/architecture.ts
+    - src/garden/detectors/fd-diagram.ts
   tests:
+    - src/core/__tests__/markdown-section-scan.test.ts
     - src/docs/__tests__/architecture-form.test.ts
     - src/docs/__tests__/docs-architecture.test.ts
     - src/garden/detectors/__tests__/architecture.test.ts
+    - src/garden/detectors/__tests__/fd-diagram.test.ts
     - src/utils/__tests__/word-count.test.ts
 name: Consumer Architecture Doc Surface
 packages:

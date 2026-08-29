@@ -117,6 +117,12 @@ noldor-tier: <specs-only | full>
 
 <first paragraph of the source block's body, with the trailing `Touches: <paths>` clause stripped (see step 6.4)>
 
+## Diagram
+
+<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
+     two beside it for readers that do not render mermaid. No shape worth drawing?
+     Replace this comment with: noldor:cut <reason> -->
+
 ## User Story
 
 <!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->

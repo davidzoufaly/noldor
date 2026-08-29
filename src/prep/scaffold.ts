@@ -1,6 +1,7 @@
 import matter from 'gray-matter';
 
 import { loadAreaCategories } from '../core/consumer-config.js';
+import { FD_DIAGRAM_HEADING, FD_DIAGRAM_PLACEHOLDER } from '../core/fd-diagram-contract.js';
 import { extractTouches } from '../core/extract-touches.js';
 import { areaToCategory } from '../lib/area-category.js';
 
@@ -94,6 +95,14 @@ export function scaffoldFd(entry: PrepEntry, opts: ScaffoldOpts): string {
     '## Summary',
     '',
     stripped.trim() || entry.name,
+    '',
+    // Shape before story: the reader who has just read one paragraph of what the
+    // feature IS is exactly the reader a diagram serves. Written at both tiers —
+    // the detector is presence-gated, so a writer that omits this silently
+    // exempts every FD it creates.
+    `## ${FD_DIAGRAM_HEADING}`,
+    '',
+    FD_DIAGRAM_PLACEHOLDER,
     '',
     '## User Story',
     '',
