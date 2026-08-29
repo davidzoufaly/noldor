@@ -70,13 +70,18 @@ edges) but sits off this change's path.
 A successful capture writes `.noldor/ui-capture/<surface>.json`:
 
 ```json
-{ "capturedAt": "2026-08-29T15:04:05.000Z", "command": "pnpm build:samples && tsx scripts/design/capture-ui-baseline.ts" }
+{ "capturedAt": "2026-08-29T15:04:05.000Z", "baselineDigest": "<sha256 of the .pen the capture produced>", "command": "pnpm build:samples && tsx scripts/design/capture-ui-baseline.ts" }
 ```
 
-**Nothing in the content is read to compute a verdict.** The proof is
-`git log -1 -- .noldor/ui-capture/<surface>.json` — the commit that last touched the file. `capturedAt`
-exists to guarantee the file differs after every successful run, so a capture always produces a
-committable diff; both fields exist for the operator reading a detail line.
+The **ordering** proof is `git log -1 -- .noldor/ui-capture/<surface>.json` — the commit that last
+touched the file. `baselineDigest` adds a **binding** proof, and it is the one piece of content a
+verdict reads: the evaluator compares it to the sha256 of `docs/design/ui/baseline/<surface>.pen` **at
+HEAD**, and a mismatch is `stale`. Without it an operator could commit the freshly written receipt
+while leaving the changed `.pen` out of the commit, and the surface would read `fresh` over a baseline
+HEAD never received. The digest also makes the file's uniqueness robust in a way `capturedAt` alone is
+not — a clock that repeats or steps backwards cannot produce a colliding receipt when the baseline
+differs. A capture that legitimately reproduces a byte-identical baseline writes an identical receipt
+and therefore no commit; the verdict is unchanged by that, and it can never be a false `fresh`.
 
 Two properties follow, and they are the whole reason for this shape:
 
@@ -97,8 +102,17 @@ machine-local file has no commit to read.
 
 `evaluateUiDesignFreshness` keeps its shape, its per-surface loop, and `classifyAncestry` untouched.
 One input changes: `baselineCommit` is derived from the surface's receipt file rather than from its
-`.pen`. Everything downstream — the ancestry probes, the `RANK` reduction, the degrade-to-`skipped`
-posture on any git failure — is unchanged.
+`.pen`. The ancestry probes and the degrade-to-`skipped` posture on any git failure are unchanged.
+
+`RANK` (`src/release/ui-design-freshness.ts:115`) is **not** unchanged, and its new entry is
+safety-critical rather than cosmetic. It is a `Record<UiSurfaceFreshness['status'], number>` — total
+over the status union, so widening the union forces an entry — and it is the sole input to `overall`,
+a max-reduce (`:264`). The ordering becomes `stale` > `uninitialized` > `unverified` > `fresh` >
+`skipped`. Ranking `unverified` at or above `stale` would let a repo with one `stale` surface and one
+legacy-fresh `unverified` surface reduce to an overall `unverified`, hit the new non-blocking branch,
+and stop blocking the release — precisely the regression U3 exists to prevent.
+`UiFreshnessVerdict['overall']` widens with the same member, since AC8 turns on an `unverified`
+overall.
 
 Because both orderings now land on the same commit relation, the operator's working loop is
 unconstrained: committing the UI first and capturing after gives `uiCommit` an ancestor of
@@ -113,12 +127,20 @@ routes to `design ui-sync`; `unverified` is *baseline present, never vouched for
 `design capture`. `src/release/ui-design-freshness.ts`'s single `REMEDIATION` constant splits into
 those two strings.
 
-Three readers branch on the status set explicitly and all three must be extended in the same change,
-or the new status is worse than useless:
+**Four** readers branch on the status set explicitly, and all four must be extended in the same
+change, or the new status is worse than useless — it would report clean:
 
 - `src/release/preflight-probes.ts:348` branches `skipped` / `fresh` / `uninitialized` and then falls through **unconditionally** to `status: 'blocking'`, with `detail` built by filtering to `stale`. An unhandled `unverified` would reach that fall-through and block the release with an *empty* detail string. It gains an explicit `unverified` → `warn` branch.
 - `src/cli/commands/doctor.ts:119` filters its warn lines to `stale || uninitialized`; the filter gains the status, since surfacing this debt early is that reader's entire job.
+- `src/design/ui-sync-cli.ts` is the one Usage positions as the remediation reporter, and it ignores the status twice: `renderSurfaceReport` falls through to `'no action'`, and its staging loop filters `stale || uninitialized`, so `pending` stays 0 and the command exits 0 announcing nothing pending. Both sites gain the status.
 - `exitCodeFor` (`src/checks/check-ui-design-freshness.ts:16`) gains it alongside `fresh` and `skipped`.
+
+`REMEDIATION` (`:33`) has **three** call sites, not two — `uninitialized` (`:190`), `stale` (`:224`)
+and the synthetic `(unmapped)` row (`:258`) — so it becomes a per-status lookup rather than one
+constant: `uninitialized` → `design ui-sync` (bootstrap the baseline by hand); `unverified` and a
+receipt-path `stale` → `design capture`; a **legacy-fallback** `stale` → `design ui-sync`, because
+that surface has no receipt and typically no `uiCapture` block, so handing it `design capture` would
+name a command it cannot run; `(unmapped)` → extend `uiSurfaces`, which neither command fixes.
 
 ### U3 — the legacy fallback, so adoption removes no existing block
 
@@ -134,8 +156,15 @@ exactly as today, and then reports:
 - legacy `fresh` ⇒ **`unverified`** — fresh under the old rule, but never vouched for; visible, non-blocking, and prompting adoption.
 - legacy `uninitialized` / `skipped` ⇒ unchanged.
 
-The fallback is not a permanent second mode: once a surface has a receipt, its `.pen` commit is never
-consulted again.
+The fallback is gated on the receipt path having **no history at all** (`git log -- <path>` empty),
+not merely on its being absent from HEAD. Absent-but-with-history means the proof was withdrawn after
+adoption, and routing that back through the legacy path would be an escape hatch: an adopted surface
+sitting at a blocking `stale` could be un-blocked by deleting its receipt, since the legacy read of a
+recently captured `.pen` may well be `fresh` and would then report the non-blocking `unverified`. A
+receipt path with history and nothing at HEAD is therefore `stale`.
+
+So the fallback is not a permanent second mode: once a surface has ever had a receipt, its `.pen`
+commit is never consulted again.
 
 ### U4 — `noldor design capture` owns the exit-code branch
 
@@ -160,13 +189,33 @@ The command is not a `verifyCommands` entry of `kind: "cli"`, despite the shape 
 capture there would make `noldor verify` run it — a slow, app-dependent side effect on an unrelated
 command.
 
-**Execution.** Spawned as `/bin/sh -c <command>` with `detached: true` from the repo root, reusing the
-process-group idiom at `src/verify/boot.ts:61` — declared commands are shell strings containing `&&`,
-and a `pnpm …` capture spawns a tree a bare child-pid kill would orphan. stdio is inherited so the
-operator sees the capture's own output. On `timeoutMs` the process group is signalled. A timeout, a
-non-zero exit, and a spawn error are all **failed captures**: the receipt is left untouched and the
-command exits non-zero. There is no dirty-tree refusal — the evaluator reads committed state only, and
-both working orderings are `fresh` under U2.
+**Execution reuses `runCapture`** (`src/cr/lanes/render-compare.ts:82`) rather than reimplementing it:
+`spawn('/bin/sh', ['-c', command], { cwd, detached: true })`, a `timeoutMs` timer that group-kills, a
+`reapGroup` on **every** exit path (a capture whose command exits while a browser or daemonized helper
+lives on would otherwise leak it), an `'exit'`-plus-stderr-drain resolution so a descendant holding the
+pipe cannot turn a good capture into a timeout, and a `{ code, timedOut, stderrTail }` result. It is
+already a capture runner for a consumer-declared command under its own timeout — the same problem —
+so it is lifted into a shared module and called from both. `src/verify/boot.ts:61` is deliberately not
+the model: it boots servers, its success condition is an HTTP 200, and it never surfaces an exit code,
+which is the only thing this feature needs.
+
+A timeout, a non-zero exit, and a spawn error are all **failed captures**: the receipt is left
+untouched and the command exits non-zero. There is no dirty-tree refusal — the evaluator reads
+committed state only, and both working orderings are `fresh` under U2.
+
+**Surface resolution precedes path construction.** `--surface <s>` is resolved against the declared
+`uiCapture` keys first; an undeclared name exits 2 with `no surface named '<s>'`, mirroring
+`src/design/ui-sync-cli.ts:85`. Only a resolved key reaches the filesystem, and it does so through
+`slugPath(repoRoot, ['.noldor', 'ui-capture'], surface, { suffix: '.json' })`
+(`src/core/slug-paths.ts:64`) — the repo's existing containment choke point — so a key that somehow
+carried separators or `..` is refused rather than escaping the receipt directory. Config keys already
+match `SURFACE_NAME_RE` (`src/core/consumer-config.ts:110`), which admits none of those characters;
+the choke point is the second lock, not the first.
+
+**Missing declarations are failures, never quiet successes.** `design capture` with no
+`consumer.uiCapture` block at all exits non-zero naming the missing key. An all-surfaces run reports
+every UI surface that has no declared command and exits non-zero, so a repo that declares commands for
+two of its three surfaces cannot come back green having captured two.
 
 **Multi-surface.** With no `--surface`, every declared surface runs **sequentially**, and a failure
 does not stop the run. Each success writes its own file as it happens, so a partial run leaves the
@@ -183,31 +232,39 @@ Evaluated in order; the first match wins.
 | 2 | shallow clone | `skipped` (whole check) |
 | 3 | no commit touches the surface's globs | `skipped` |
 | 4 | `docs/design/ui/baseline/<surface>.pen` not in HEAD | `uninitialized` |
-| 5 | `.noldor/ui-capture/<surface>.json` not in HEAD | legacy fallback (U3) |
-| 6 | receipt commit unresolvable, or either ancestry probe errors | `skipped` |
-| 7 | otherwise | `classifyAncestry(uiCommit, receiptCommit)` |
+| 5 | receipt absent from HEAD **and** its path has no history | legacy fallback (U3) |
+| 6 | receipt absent from HEAD **but** its path has history | `stale` — the proof was withdrawn |
+| 7 | receipt unreadable or its content invalid | `skipped` |
+| 8 | `baselineDigest` ≠ sha256 of the `.pen` at HEAD | `stale` — receipt committed without its baseline |
+| 9 | receipt commit unresolvable, or either ancestry probe errors | `skipped` |
+| 10 | otherwise | `classifyAncestry(uiCommit, receiptCommit)` |
 
-Rows 1–4 and 6–7 are today's branches with one input renamed; row 5 is the only new one. Existence is
-read **at HEAD** throughout, as `existsAtHead` already does — the working tree is never consulted, so
-an uncommitted or untracked receipt does not change a verdict. Malformed receipt *content* is
-cosmetic: it costs the `capturedAt` in the detail line and nothing else, because no verdict reads it.
+Rows 1–4 and 9–10 are today's branches with one input renamed; 5–8 are new. Existence is read **at
+HEAD** throughout, as `existsAtHead` already does — the working tree is never consulted, so an
+uncommitted or untracked receipt does not change a verdict, and the row-8 digest is taken over the
+`.pen` blob at HEAD rather than the file on disk. Row 7 sits above row 8 because the digest comparison
+needs parsed content: an unreadable receipt cannot mint a red, only an indeterminate.
 
 ## Acceptance criteria
 
 1. A capture exiting non-zero leaves the surface's receipt file untouched.
-2. A capture exiting 0 writes the surface's receipt file with a `capturedAt` that differs from the previous run's.
+2. A capture exiting 0 writes the receipt with the produced baseline's sha256 in `baselineDigest`.
 3. With a receipt present, a UI commit later than the receipt's commit reports `stale`.
 4. With a receipt present, a receipt commit that is the UI commit or a descendant of it reports `fresh`.
 5. Evaluated from a fresh clone of a branch squash-merged into `main`, a surface that was `fresh` before the merge is still `fresh` after it.
-6. A surface with a baseline, no receipt, and a `.pen` commit older than its UI commit reports `stale` — the pre-upgrade blocking verdict is preserved.
-7. A surface with a baseline, no receipt, and a `.pen` commit at or after its UI commit reports `unverified`.
-8. An `unverified` overall verdict produces a non-blocking release-preflight result, asserted against the probe rather than `exitCodeFor` alone.
-9. A receipt whose recorded commit cannot be resolved reports `skipped`, never `stale`.
-10. A receipt file with malformed content does not change the surface's verdict.
-11. `design capture --surface a` leaves surface `b`'s receipt file byte-identical.
-12. A run over three surfaces where one fails writes the two successful receipts and exits non-zero.
-13. A capture killed by `timeoutMs` leaves the receipt untouched and exits non-zero.
-14. A `uiCapture` key naming the implicit `app` surface validates in a config declaring `uiPaths` and no `uiSurfaces`; an orphan key does not.
+6. A receipt whose `baselineDigest` does not match the `.pen` at HEAD reports `stale`.
+7. A surface with a baseline, no receipt, no receipt history, and a `.pen` commit older than its UI commit reports `stale` — the pre-upgrade blocking verdict is preserved.
+8. A surface with a baseline, no receipt, no receipt history, and a `.pen` commit at or after its UI commit reports `unverified`.
+9. A surface whose receipt is absent from HEAD but whose receipt path has history reports `stale`, never the legacy verdict.
+10. Given one `stale` surface and one `unverified` surface, the overall verdict is `stale` and the release preflight result is blocking.
+11. An `unverified` overall produces a non-blocking release-preflight result, and `design ui-sync` reports the surface as pending rather than exiting 0 with nothing to do.
+12. A receipt with unreadable or invalid content reports `skipped`, never `stale`.
+13. `design capture --surface a` leaves surface `b`'s receipt file byte-identical.
+14. A run over three surfaces where one fails writes the two successful receipts and exits non-zero.
+15. A capture killed by `timeoutMs` leaves the receipt untouched and exits non-zero, and its process group is reaped.
+16. `design capture --surface <undeclared>` exits 2 and constructs no path under `.noldor/ui-capture/`.
+17. An all-surfaces run in a repo where some UI surface has no declared command exits non-zero and names that surface.
+18. A `uiCapture` key naming the implicit `app` surface validates in a config declaring `uiPaths` and no `uiSurfaces`; an orphan key does not.
 
 ## Risks / trade-offs
 
@@ -215,8 +272,10 @@ cosmetic: it costs the `capturedAt` in the detail line and nothing else, because
 - The red arrives at the next freshness read rather than at the breaking commit. Strictly earlier than today, which never reds; later than running the real capture in CI, which stays available as follow-up work.
 - Once a consumer adopts, a UI change without a re-capture blocks the next release. That is the intended enforcement and not a new class of block — `stale` blocks today — but it is the first time a *failed* capture can reach it.
 - The legacy fallback means two evaluation paths coexist per surface until it has a receipt. Bounded: the fallback is never consulted once a receipt exists, and row 5 of U5 is its only entry point.
-- `.noldor/ui-capture/<surface>.json` is committed state and can be hand-edited or committed without a real capture. Forging it forges only the operator's own signal, and no verdict reads its content.
+- `.noldor/ui-capture/<surface>.json` is committed state and can be hand-edited. Forging it forges only the operator's own signal, and the `baselineDigest` check means a forged receipt still has to name the digest of the baseline actually sitting at HEAD.
 - The schema addition touches the rank-#2 god node `loadConsumerConfig()`, which is why it lands once as a self-contained block rather than threaded into `uiBoot`.
+- `baselineDigest` makes one content field verdict-bearing, against the cleaner "commit is the only proof" story. Accepted: without it, committing the receipt while omitting the `.pen` yields a `fresh` verdict over a baseline HEAD never received, and no ordering proof can catch that.
+- The parent FD (`docs/features/pendev-ui-design-phase.md`) currently tells operators that `design ui-sync` repairs any freshness failure. That becomes false for `unverified` and receipt-path `stale`, so its Usage must change in the same PR — gate Step 4's scoped `--refresh --usage-only` is where that lands, and leaving it stale would make the user-facing contract contradict the implementation.
 
 ## User Story
 
@@ -251,8 +310,8 @@ pencil-capable session.
 1. *What makes a broken capture visible — a success-receipt, a real capture run in CI on any `uiPaths` diff, or a dry-run of the drivers inside the freshness check?*
    -> **A success-receipt.** (D1) It removes the false-fresh at its input rather than adding a second detector beside it, and it boots nothing, so one implementation serves the local advisory check and the blocking release probe unchanged.
 
-2. *What does the receipt record — the sha of the commit captured against, or nothing verdict-bearing at all?*
-   -> **Nothing verdict-bearing; the file's own commit is the proof.** (D2) A stored sha does not survive the squash-merge this repo performs on every PR: it becomes unreachable in a fresh clone, the ancestry probe errors, and the surface degrades to `skipped` forever — a silently disabled check. A file's last-touching commit is recomputed in whatever history exists.
+2. *What proves ordering — a sha stored in the receipt, or the receipt file's own commit?*
+   -> **The file's own commit.** (D2) A stored sha does not survive the squash-merge this repo performs on every PR: it becomes unreachable in a fresh clone, the ancestry probe errors, and the surface degrades to `skipped` forever — a silently disabled check. A file's last-touching commit is recomputed in whatever history exists. Ordering is all the commit proves; content binding is D8's job.
 
 3. *One receipt file keyed by surface, or one file per surface?*
    -> **One per surface.** (D3) `git log` is per-path, so a shared file would let one surface's capture advance another's proof; per-surface files also make partial multi-surface runs correct without a merge or concurrency contract.
@@ -263,5 +322,11 @@ pencil-capable session.
 5. *Where is the capture command declared?*
    -> **A new `consumer.uiCapture` block.** (D5) `uiBoot` requires three render-compare fields and rejects keys absent from `uiSurfaces`, which charuy does not declare; `verifyCommands` entries are booted by the smoke floor (`src/verify/smoke.ts:71`), so a capture declared there would run on every `noldor verify`.
 
-6. *Should `design capture` refuse to run on a dirty working tree?*
+6. *Where does `unverified` sit in the `RANK` reduction?*
+   -> **Below `uninitialized`, above `fresh`.** (D7) `RANK` is total over the status union and `overall` is a max-reduce, so the placement decides masking: at or above `stale`, an `unverified` surface would hide a `stale` one and un-block the release. `exitCodeFor` gains it beside `fresh` and `skipped`.
+
+7. *How is the receipt bound to the baseline it vouches for?*
+   -> **A `baselineDigest` field compared against the `.pen` at HEAD.** (D8) The commit proves ordering but not content, so an operator committing the receipt without the regenerated `.pen` would otherwise get `fresh` over a stale baseline. It also removes `capturedAt`'s dependence on a monotonic clock.
+
+8. *Should `design capture` refuse to run on a dirty working tree?*
    -> **No.** (D6) Under the receipt-file scheme both orderings are `fresh` — capture-then-commit-together yields `uiCommit === receiptCommit` — so there is nothing to refuse. The evaluator reads committed state only.
