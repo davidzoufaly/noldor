@@ -23,8 +23,13 @@ feature as shipped.
 
 ## Goals
 
-- Every FD — `noldor-tier: full` and `specs-only` alike — carries one mermaid diagram at
-  whatever C4 level fits it, so a reader can depend on the section being there.
+- **The invariant:** every FD produced by a supported scaffold carries a `## Diagram`
+  section holding either a completed diagram or a reasoned cut — at `noldor-tier: full`
+  and `specs-only` alike. It is deliberately *not* "every file under `docs/features/`":
+  presence-gating (D2) exempts anything the scaffolds did not write, which is what makes
+  the requirement non-retrospective. `docs/noldor/feature-md-schema.md` records the
+  section and its position as convention; the detector enforces neither presence nor
+  ordering, only the content of a section that exists.
 - The scaffold writes the section, so the requirement is visible at creation rather than
   at review — and so that scaffolding is the whole of the enrolment mechanism (D2).
 - A check reports an FD whose diagram section is still a stub, and never blocks a ship.
@@ -81,14 +86,38 @@ into a shared home.
 skills' twin templates and the detector can all read the same facts without pulling the
 filesystem into `prep/scaffold.ts`.
 
-It exports `FD_DIAGRAM_HEADING = 'Diagram'`, the placeholder block the scaffold writes,
-and `MIN_FD_DIAGRAM_PROSE_CHARS`. It exports no floor constant of any kind: D2 makes
+It exports `FD_DIAGRAM_HEADING = 'Diagram'`, `FD_DIAGRAM_PLACEHOLDER` (the exact block
+below, so the one TypeScript writer emits what the Markdown templates hand-copy) and
+`MIN_FD_DIAGRAM_PROSE_CHARS = 24`. It does **not** re-declare the placeholder *marker*:
+that is `PLACEHOLDER_MARKER` from `src/docs/architecture-schema.ts`, already `<!-- TODO:`
+and already meaning "scaffolded but untouched". Nor does it re-declare `CUT_MARKER`.
+Three Markdown twins cannot import a TypeScript constant, so the templates carry the
+block as literal text and `pnpm noldor doctor` is what keeps them equal to each other —
+the constant is the authority for `scaffoldFd` and for placeholder detection.
+
+It exports no floor constant of any kind: D2 makes
 scope a property of the document (does it carry the heading?) rather than of a stamped
 version or date, which removes the class of bug `ADR_FLOOR_NUMBER`'s docstring warns
 about — there is nothing here that could be recomputed wrongly. `CUT_MARKER` is re-used
 from `structural-context-contract.ts` rather than re-declared: this is an ordinary
 ladder cut, not a section decline, so the `noldor:cut-section` fork that
 `architecture-form.ts` needed does not arise here.
+
+### What "C4" means here
+
+The entry asks for "a mermaid diagram at the C4 level that fits it", and that phrase is
+about **level of abstraction, not notation**. An FD picks the altitude its feature is
+legible at — the context around it, the containers it spans, or the components inside it
+— and draws that. Which mermaid keyword expresses it is free: a `flowchart` of modules,
+a `sequenceDiagram` of one runtime flow and a `C4Component` fence are all acceptable
+answers, and the detector reads only that *some* kind is declared (D10).
+
+This is a deliberate departure from `ARCHITECTURE_PAGES`, where each of the four
+registry pages constrains `allowedKinds` because each answers one fixed C4 question. No
+fixed question exists per FD, so a constrained set here would be the framework guessing
+at a feature's shape. Nothing requires C4 notation, and no fidelity metadata is written
+or checked — the surface asserts that the question is answered, exactly as
+`assessPageForm` does for registry sections.
 
 ### Where the section lives in the FD body
 
@@ -98,20 +127,75 @@ exactly the reader the diagram serves, and the ordering matches how the registry
 read (fence first, prose beside it). `docs/noldor/feature-md-schema.md` §Body sections
 gains it as a fourth required entry, at both tiers.
 
+### The scaffolded block
+
+Every writer emits exactly this, verbatim:
+
+```markdown
+## Diagram
+
+<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
+     two beside it for readers that do not render mermaid. No shape worth drawing?
+     Replace this comment with: noldor:cut <reason> -->
+```
+
+The marker is `PLACEHOLDER_MARKER` from `src/docs/architecture-schema.ts` — the literal
+`<!-- TODO:` the architecture surface already uses for the same purpose, reused rather
+than re-declared so the two scaffolds cannot drift into two spellings of "untouched".
+Detection is **substring**, not exact-block matching: the wording above is prose that
+will be reworded, and an exact match would silently stop recognising the placeholder the
+first time someone improved it.
+
+Because the block is an HTML comment it contributes nothing to prose density (below), so
+a scaffolded-but-untouched section measures as empty — which is what makes
+`placeholder-only` distinguishable from a section someone deleted the comment from and
+then abandoned.
+
 ### What counts as filled
 
 Two conditions, both required, mirroring the parent surface's own doctrine that a
 diagram without prose beside it is not a documented shape:
 
-1. The section carries at least one mermaid fence whose declared kind is non-empty —
-   read with `fenceKinds` from `src/docs/docs-architecture.ts`, which already handles
-   YAML front-matter blocks, `%%` comments and unterminated fences.
-2. The section's non-fence prose passes `MIN_FD_DIAGRAM_PROSE_CHARS`, same measure
-   (`density`, non-whitespace characters) and same reasoning as
-   `MIN_STRUCTURAL_CONTEXT_CHARS = 24`.
+1. **`hasFence`** — the section carries at least one mermaid fence whose declared kind is
+   non-empty, read with `fenceKinds` from `src/docs/docs-architecture.ts` (it already
+   handles YAML front-matter blocks, `%%` comments and unterminated fences). Several
+   fences satisfy it as one: `fenceKinds` returns every kind it finds and the test is
+   that the list is non-empty, so a page may carry extra diagrams — the same rule
+   `ArchitecturePage.allowedKinds` states for the registry.
+2. **`density ≥ MIN_FD_DIAGRAM_PROSE_CHARS`** — prose beside the diagram, at 24
+   non-whitespace characters (D9).
 
-A `noldor:cut <reason>` line inside the section suppresses both, provided the reason
-clears the same floor. The floor value is inherited rather than measured — O4.
+**What `density` counts.** Exactly the section body with four things removed, in this
+order: fenced regions (via `stripCodeRegions`), any line matching the cut grammar below,
+HTML comments (`<!--` … `-->`, non-greedy, which removes the scaffolded placeholder),
+and heading lines. What remains is the visible textual equivalent a non-rendering reader
+gets, and nothing else — a hidden comment must not be able to satisfy a requirement that
+exists to produce visible prose. The count is then non-whitespace characters, so 23
+characters is a stub and 24 is clean.
+
+**Cut grammar.** Same as `structural-context.ts`: a line, outside any fence, inside this
+section, whose trimmed text is `noldor:cut` followed by whitespace or end-of-line. Not an
+HTML comment — a decline should be visible in the rendered FD. The reason is the
+remainder of the line and must itself reach 24 non-whitespace characters, so a bare
+marker declines nothing. When several markers appear, the first well-formed one wins; if
+none is well-formed the section is treated as uncut and classified normally.
+
+**The decision table.** Evaluated in order, at most one row per FD:
+
+| # | Condition | Result |
+|---|---|---|
+| 1 | no `## Diagram` H2 | not in scope — no row (D2) |
+| 2 | a well-formed cut is present | clean |
+| 3 | `hasFence` and `density ≥ 24` | clean |
+| 4 | `hasFence` and `density < 24` | `stub-section` |
+| 5 | no fence, `density ≥ 24` | `no-fence` |
+| 6 | no fence, `density < 24`, `PLACEHOLDER_MARKER` present | `placeholder-only` |
+| 7 | no fence, `density < 24`, no marker | `stub-section` |
+
+Row 3 before rows 6 and 7 is what makes a leftover `<!-- TODO:` beside a real diagram and
+real prose harmless: the placeholder is only ever *reported* when nothing else is there.
+An empty section falls to row 7. A section holding only the scaffolded block falls to
+row 6.
 
 ### The shared section scanner
 
@@ -151,10 +235,50 @@ encodes the tier decision made at scaffold time.
 The trade the gating makes: `missing-section` cannot exist as a rule, so an author who
 deletes the scaffolded heading escapes the check silently. O1 answers that.
 
-It rides a new `GardenFindings` key `fdDiagramStubs`, deliberately absent from
-`FINDING_CATEGORIES` in `garden-detect-runner.ts` for the reason that key's siblings
-document: that list gates the garden auto-restamp, an unstamped receipt is a blocking
-release row, and an undrawn diagram must never stop a ship.
+**Discovery.** `*.md` directly inside `loadDocRoots(repo).features` (`docs/features/`),
+non-recursive and unsorted-then-`toSorted()`, exactly as `listMd` does for specs. A file
+that cannot be read is skipped rather than reported — the same fail-open `readText`
+already applies, and reporting a file the detector could not open would produce a row
+nobody can clear. Frontmatter is not parsed: neither `noldor-tier` nor `introduced` is
+consulted (D1, D2).
+
+**Heading match.** Exact, case-sensitive `## Diagram` on a trimmed unfenced line — the
+`locateSection` contract. A second `## Diagram` at the same depth *terminates* the first
+section rather than opening a rival one, so the classified section is always the first,
+and a valid duplicate lower down cannot hide a stub above it. That is the conservative
+direction: the reader's eye lands on the first one too.
+
+**Exact API.**
+
+```ts
+export type FdDiagramRule = 'placeholder-only' | 'no-fence' | 'stub-section';
+
+export interface FdDiagramStub {
+  /** Repo-relative POSIX path, e.g. `docs/features/plan-runner.md`. */
+  readonly file: string;
+  readonly rule: FdDiagramRule;
+  readonly message: string;
+}
+
+export function detectFdDiagramStubs(repo: string): Promise<FdDiagramStub[]>;
+export function toGaps(stubs: readonly FdDiagramStub[]): Gap[];
+```
+
+`repo` is an absolute repository root, as every sibling detector takes. `toGaps` always
+takes its argument; the parameterless spelling that appeared in an earlier draft was a
+typo. Gap identity is `` `${file}#${rule}` `` — the same `<file>#<rule>` shape
+`structural-context.ts` uses, which is stable across runs and cannot collide, since the
+table yields at most one rule per file.
+
+`GardenFindings.fdDiagramStubs` carries the **raw `FdDiagramStub[]`**, not converted
+gaps — matching `structuralContextStubs`, whose key is typed `readonly
+StructuralContextStub[]`. `toGaps` exists for callers that want the report shape and is
+not applied on the way into the payload.
+
+The key is deliberately absent from `FINDING_CATEGORIES` in `garden-detect-runner.ts`
+for the reason its siblings document: that list gates the garden auto-restamp, an
+unstamped receipt is a blocking release row, and an undrawn diagram must never stop a
+ship.
 
 ### The scaffold sites
 
@@ -184,7 +308,11 @@ O2 — it currently rewrites only `User Story` and `Usage`.
 9. Running the detector over `docs/features/` as it stands today yields zero rows.
 10. `garden detect --json` carries `fdDiagramStubs`; `FINDING_CATEGORIES` does not, so a stub never fails the runner and never blocks a release.
 11. `structural-context.ts`'s existing test suite passes unchanged after the scanner moves to its shared module.
-12. A mermaid fence declaring any kind satisfies condition 1; the detector never rejects a kind.
+12. A mermaid fence declaring any kind satisfies the fence condition, and two fences satisfy it as one; the detector never rejects a kind.
+13. Each of the four writers — `scaffoldFd`, both skill templates and the schema doc — emits the section, and `pnpm noldor doctor` is green across all three `templates/` twins.
+14. Prose of 23 non-whitespace characters beside a valid fence yields `stub-section`; 24 yields no row.
+15. A section holding a valid fence, sufficient prose and a leftover `<!-- TODO:` comment yields no row.
+16. An FD carrying two `## Diagram` headings is classified on the first; a filled second one does not clear a stub in the first.
 
 ## Risks / trade-offs
 
@@ -266,14 +394,21 @@ which without reconstructing it from `links.code`.
    so it ships as sibling entry Q-0197.
 
 4. *What prose floor beside the fence?*
-   -> **24 non-whitespace characters, as its own constant.** (D9) Same value and same
-   reasoning as `MIN_STRUCTURAL_CONTEXT_CHARS` — long enough to reject a two-word
-   gesture, short enough not to punish an honest one-liner. A separate constant so the
-   two contracts may diverge, matching how `structural-context-contract.ts` deliberately
-   forked from `summary-body-contract.ts`.
+   -> **24 non-whitespace characters, as its own `MIN_FD_DIAGRAM_PROSE_CHARS`.** (D9)
+   Same value and same reasoning as `MIN_STRUCTURAL_CONTEXT_CHARS` — long enough to
+   reject a two-word gesture, short enough not to punish an honest one-liner. A separate
+   constant so the two contracts may diverge, matching how `structural-context-contract.ts`
+   deliberately forked from `summary-body-contract.ts`.
 
 5. *Which mermaid kinds are allowed in the fence?*
    -> **Any kind, so long as one is declared.** (D10) The four registry pages constrain
    kinds because each answers a fixed C4 question; an FD picks its own level, so
-   constraining the set here would be the framework guessing at a feature's shape. The
-   check reads that a kind exists, not which.
+   constraining the set here would be the framework guessing at a feature's shape. "C4"
+   names the altitude, not the notation — see *What "C4" means here*.
+
+6. *Should the `## Diagram` heading itself be validator-enforced, since the schema doc
+   will call it required?*
+   -> **No.** (D11) `validate features` checks frontmatter only; `docs/noldor/feature-md-schema.md`
+   already records `Summary` / `User Story` / `Usage` as required body sections with no
+   validator behind them, and adding one here would turn presence-gating's grandfathering
+   into 83 hard failures. The schema doc states convention; the detector reports content.
