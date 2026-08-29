@@ -10,6 +10,12 @@ import { promisify } from 'node:util';
 import { braceExpand } from 'minimatch';
 
 import { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.js';
+import {
+  digestBytes,
+  receiptRelPath,
+  uiCaptureReceiptSchema,
+  type UiCaptureReceipt,
+} from '../design/ui-capture.js';
 import { isUiBearing, type UiConfig } from '../core/ui-predicate.js';
 import { GRAPH_IRRELEVANT_EXCLUDES } from './graph-freshness.js';
 
@@ -17,20 +23,31 @@ const execFileAsync = promisify(execFile);
 
 export interface UiSurfaceFreshness {
   surface: string;
-  status: 'fresh' | 'stale' | 'uninitialized' | 'skipped';
+  status: 'fresh' | 'stale' | 'uninitialized' | 'unverified' | 'skipped';
   uiCommit?: string;
   baselineCommit?: string;
+  /**
+   * Which command repairs this row. Structural rather than left for readers to
+   * infer from {@link detail}, because `stale` no longer implies one answer: a
+   * surface with a receipt is repaired by re-capturing, while a surface still
+   * on the legacy read has no capture wired up and is repaired by hand in a
+   * pencil session. Absent on rows nothing repairs (`fresh`, `skipped`).
+   */
+  remediation?: 'ui-sync' | 'capture';
   detail: string;
 }
 
 export interface UiFreshnessVerdict {
-  overall: 'fresh' | 'stale' | 'uninitialized' | 'skipped';
+  overall: 'fresh' | 'stale' | 'uninitialized' | 'unverified' | 'skipped';
   surfaces: UiSurfaceFreshness[];
 }
 
 export { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.js';
 
-const REMEDIATION = 'run `pnpm noldor design ui-sync` in a pencil-capable session, then commit';
+const SYNC_REMEDIATION =
+  'run `pnpm noldor design ui-sync` in a pencil-capable session, then commit';
+const CAPTURE_REMEDIATION =
+  'run `pnpm noldor design capture`, then commit the baseline and its receipt';
 
 /**
  * Pure ancestry classifier — the U7 decision procedure, testable without a
@@ -112,9 +129,119 @@ async function isAncestor(
   }
 }
 
+/**
+ * A path's bytes as they exist in the HEAD commit, or `ok: false` on any git
+ * failure. HEAD rather than the working tree, matching {@link existsAtHead}:
+ * committed state is the only thing a verdict may depend on, so an uncommitted
+ * receipt or a locally regenerated baseline changes nothing.
+ */
+async function showAtHead(
+  cwd: string,
+  path: string,
+): Promise<{ ok: true; bytes: Buffer } | { ok: false }> {
+  try {
+    const { stdout } = await execFileAsync('git', ['show', `HEAD:${path}`], {
+      cwd,
+      encoding: 'buffer',
+      // A `.pen` is a design document, not source; the cap is generous enough
+      // that a real baseline never trips it and a runaway read still stops.
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return { ok: true, bytes: stdout as unknown as Buffer };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * Receipt bytes → validated receipt, or `null` for anything unusable. The
+ * causes are deliberately collapsed: every one of them degrades to `skipped`,
+ * so no caller needs to tell a truncated file from a schema mismatch.
+ */
+function parseReceipt(bytes: Buffer): UiCaptureReceipt | null {
+  try {
+    const parsed = uiCaptureReceiptSchema.safeParse(JSON.parse(bytes.toString('utf8')));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The pre-adoption read, for a surface that has never had a receipt: derive the
+ * verdict from the baseline file's own commit exactly as this check always did,
+ * then report a legacy `stale` AS `stale` and a legacy `fresh` as `unverified`.
+ *
+ * The asymmetry is the point. Reporting every receipt-less surface `unverified`
+ * would turn an existing BLOCKING `stale` — a consumer whose baseline is
+ * genuinely behind its UI — into a non-blocking status the moment they upgrade
+ * the framework. Adoption may add no new block; it may not silently remove one
+ * either.
+ */
+async function legacyFallback(
+  cwd: string,
+  surface: string,
+  baselineFile: string,
+  uiCommit: string,
+): Promise<UiSurfaceFreshness> {
+  const baseline = await latestCommit(cwd, [baselineFile]);
+  if (!baseline.ok || baseline.sha === '') {
+    return { surface, status: 'skipped', uiCommit, detail: 'git log failed — indeterminate' };
+  }
+  const baselineCommit = baseline.sha;
+  const forward = await isAncestor(cwd, uiCommit, baselineCommit);
+  const backward = await isAncestor(cwd, baselineCommit, uiCommit);
+  if (!forward.ok || !backward.ok) {
+    return {
+      surface,
+      status: 'skipped',
+      uiCommit,
+      baselineCommit,
+      detail: `git merge-base failed probing ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} — indeterminate, never a false red`,
+    };
+  }
+  const legacy = classifyAncestry(forward.isAncestor, backward.isAncestor);
+  if (legacy === 'stale') {
+    return {
+      surface,
+      status: 'stale',
+      uiCommit,
+      baselineCommit,
+      remediation: 'ui-sync',
+      detail: `UI ${uiCommit.slice(0, 8)} newer than baseline ${baselineCommit.slice(0, 8)} — ${SYNC_REMEDIATION}`,
+    };
+  }
+  if (legacy === 'fresh') {
+    return {
+      surface,
+      status: 'unverified',
+      uiCommit,
+      baselineCommit,
+      remediation: 'capture',
+      detail: `baseline at/after UI (${baselineCommit.slice(0, 8)}) but no capture has vouched for it — ${CAPTURE_REMEDIATION}`,
+    };
+  }
+  return {
+    surface,
+    status: 'skipped',
+    uiCommit,
+    baselineCommit,
+    detail: `commits ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} share no ancestry — indeterminate`,
+  };
+}
+
+/**
+ * Reduction order for {@link UiFreshnessVerdict.overall}, which is a max over
+ * the per-surface statuses. The placement of `unverified` is safety-critical,
+ * not cosmetic: at or above `stale`, a repo with one `stale` surface and one
+ * `unverified` surface would reduce to an overall `unverified`, take the
+ * non-blocking preflight branch, and stop blocking the release — the exact
+ * regression the legacy fallback below exists to prevent.
+ */
 const RANK: Record<UiSurfaceFreshness['status'], number> = {
-  stale: 3,
-  uninitialized: 2,
+  stale: 4,
+  uninitialized: 3,
+  unverified: 2,
   fresh: 1,
   skipped: 0,
 };
@@ -187,18 +314,127 @@ export async function evaluateUiDesignFreshness(
         surface,
         status: 'uninitialized',
         uiCommit,
-        detail: `${baselineFile} is not in HEAD — bootstrap and commit: ${REMEDIATION}`,
+        remediation: 'ui-sync',
+        detail: `${baselineFile} is not in HEAD — bootstrap and commit: ${SYNC_REMEDIATION}`,
       });
       continue;
     }
-    const baseline = await latestCommit(cwd, [baselineFile]);
-    if (!baseline.ok || baseline.sha === '') {
-      // Present at HEAD but log yields nothing — an inconsistent read, never a
-      // verdict to enforce on.
-      surfaces.push({ surface, status: 'skipped', detail: 'git log failed — indeterminate' });
+    // --- the ordering proof: the RECEIPT file's commit, not the .pen's ---
+    //
+    // The .pen cannot be its own proof. A capture writes temp-then-rename, so a
+    // FAILED run leaves the baseline — and therefore its commit — untouched,
+    // and the last good capture keeps satisfying ancestry forever. The receipt
+    // is written only on exit 0, so its commit history contains successful
+    // captures and nothing else. Reading the FILE's commit rather than a sha
+    // stored inside it is what survives squash-merge: a branch sha is
+    // unreachable in a fresh clone of main, and the probe below would then
+    // degrade to `skipped` permanently.
+    const receiptRel = receiptRelPath(surface);
+    const receiptAtHead = await existsAtHead(cwd, receiptRel);
+    if (!receiptAtHead.ok) {
+      surfaces.push({
+        surface,
+        status: 'skipped',
+        uiCommit,
+        detail: 'git cat-file failed — indeterminate',
+      });
       continue;
     }
-    const baselineCommit = baseline.sha;
+
+    if (!receiptAtHead.exists) {
+      const history = await latestCommit(cwd, [receiptRel]);
+      if (!history.ok) {
+        surfaces.push({
+          surface,
+          status: 'skipped',
+          uiCommit,
+          detail: 'git log failed — indeterminate',
+        });
+        continue;
+      }
+      if (history.sha !== '') {
+        // Absent at HEAD but with history: the proof was WITHDRAWN after
+        // adoption. Routing this back through the legacy read would be an
+        // escape hatch — an adopted surface sitting at a blocking `stale`
+        // could be un-blocked by deleting its receipt, because the legacy read
+        // of a recently captured .pen may well be `fresh`.
+        surfaces.push({
+          surface,
+          status: 'stale',
+          uiCommit,
+          remediation: 'capture',
+          detail: `${receiptRel} was removed after adoption (last at ${history.sha.slice(0, 8)}) — ${CAPTURE_REMEDIATION}`,
+        });
+        continue;
+      }
+      surfaces.push(await legacyFallback(cwd, surface, baselineFile, uiCommit));
+      continue;
+    }
+
+    // --- the binding proof: does the receipt describe the .pen at HEAD? ---
+    //
+    // The commit proves ordering but says nothing about content: an operator
+    // can commit the freshly written receipt and leave the regenerated .pen out
+    // of the commit, which would otherwise read `fresh` over a baseline HEAD
+    // never received.
+    const receiptBlob = await showAtHead(cwd, receiptRel);
+    if (!receiptBlob.ok) {
+      surfaces.push({
+        surface,
+        status: 'skipped',
+        uiCommit,
+        detail: 'git show failed — indeterminate',
+      });
+      continue;
+    }
+    const receipt = parseReceipt(receiptBlob.bytes);
+    if (receipt === null) {
+      // Unreadable content cannot mint a red — only an indeterminate. This
+      // ordering matters: the digest comparison below needs parsed content, so
+      // a malformed receipt must land here rather than fall through to `stale`.
+      surfaces.push({
+        surface,
+        status: 'skipped',
+        uiCommit,
+        detail: `${receiptRel} is unreadable or does not match the receipt schema — indeterminate`,
+      });
+      continue;
+    }
+    const baselineBlob = await showAtHead(cwd, baselineFile);
+    if (!baselineBlob.ok) {
+      surfaces.push({
+        surface,
+        status: 'skipped',
+        uiCommit,
+        detail: 'git show failed — indeterminate',
+      });
+      continue;
+    }
+    const headDigest = digestBytes(baselineBlob.bytes);
+    if (headDigest !== receipt.baselineDigest) {
+      surfaces.push({
+        surface,
+        status: 'stale',
+        uiCommit,
+        remediation: 'capture',
+        detail: `${receiptRel} vouches for ${receipt.baselineDigest.slice(0, 12)} but ${baselineFile} at HEAD is ${headDigest.slice(0, 12)} — the receipt was committed without its baseline; ${CAPTURE_REMEDIATION}`,
+      });
+      continue;
+    }
+
+    const receiptCommit = await latestCommit(cwd, [receiptRel]);
+    if (!receiptCommit.ok || receiptCommit.sha === '') {
+      // Present at HEAD but log yields nothing — an inconsistent read, never a
+      // verdict to enforce on.
+      surfaces.push({
+        surface,
+        status: 'skipped',
+        uiCommit,
+        detail: 'git log failed — indeterminate',
+      });
+      continue;
+    }
+    const baselineCommit = receiptCommit.sha;
     const forward = await isAncestor(cwd, uiCommit, baselineCommit);
     const backward = await isAncestor(cwd, baselineCommit, uiCommit);
     if (!forward.ok || !backward.ok) {
@@ -217,11 +453,12 @@ export async function evaluateUiDesignFreshness(
       status,
       uiCommit,
       baselineCommit,
+      ...(status === 'stale' ? { remediation: 'capture' as const } : {}),
       detail:
         status === 'fresh'
-          ? `baseline at/after UI (${baselineCommit.slice(0, 8)})`
+          ? `capture receipt at/after UI (${baselineCommit.slice(0, 8)}, captured ${receipt.capturedAt})`
           : status === 'stale'
-            ? `UI ${uiCommit.slice(0, 8)} newer than baseline ${baselineCommit.slice(0, 8)} — ${REMEDIATION}`
+            ? `UI ${uiCommit.slice(0, 8)} newer than capture receipt ${baselineCommit.slice(0, 8)} — ${CAPTURE_REMEDIATION}`
             : `commits ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} share no ancestry — indeterminate`,
     });
   }
@@ -255,7 +492,7 @@ export async function evaluateUiDesignFreshness(
           surface: '(unmapped)',
           status: 'stale',
           uiCommit: sha,
-          detail: `UI commit ${sha.slice(0, 8)} touches uiPaths outside every declared surface (${unmapped[0]}${unmapped.length > 1 ? ` +${unmapped.length - 1}` : ''}) — extend uiSurfaces, then ${REMEDIATION}`,
+          detail: `UI commit ${sha.slice(0, 8)} touches uiPaths outside every declared surface (${unmapped[0]}${unmapped.length > 1 ? ` +${unmapped.length - 1}` : ''}) — extend uiSurfaces, then ${SYNC_REMEDIATION}`,
         });
       }
     }

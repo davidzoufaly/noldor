@@ -4,6 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { exitCodeFor, renderRows } from '../check-ui-design-freshness.js';
 
 describe('exitCodeFor', () => {
+  it('does not fail a repo that has a baseline but no capture receipt yet', () => {
+    // Adoption debt, not drift. Every consumer reads `unverified` on the
+    // upgrade that introduces the receipt, so a non-zero here would break them
+    // all at once.
+    expect(exitCodeFor('unverified')).toBe(0);
+  });
+
   it('0 on fresh and skipped', () => {
     expect(exitCodeFor('fresh')).toBe(0);
     expect(exitCodeFor('skipped')).toBe(0);

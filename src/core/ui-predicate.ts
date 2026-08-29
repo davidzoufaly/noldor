@@ -28,7 +28,8 @@ export interface UiConfig {
 }
 
 const GLOB_META_RE = /[*?[{]/;
-const IMPLICIT_SURFACE = 'app';
+/** The single surface a `uiPaths`-only consumer has when `uiSurfaces` is absent. */
+export const IMPLICIT_SURFACE = 'app';
 
 const matches = (path: string, glob: string): boolean => minimatch(path, glob, { dot: true });
 

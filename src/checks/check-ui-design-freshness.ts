@@ -11,8 +11,14 @@ import {
   type UiSurfaceFreshness,
 } from '../release/ui-design-freshness.js';
 
+/**
+ * `unverified` exits 0 alongside `fresh` and `skipped`: it means a baseline
+ * exists but no capture has vouched for it, which is adoption debt rather than
+ * drift, and a framework upgrade must not start failing this check for every
+ * consumer that has not wired up `design capture` yet.
+ */
 export function exitCodeFor(overall: UiFreshnessVerdict['overall']): number {
-  return overall === 'fresh' || overall === 'skipped' ? 0 : 1;
+  return overall === 'fresh' || overall === 'skipped' || overall === 'unverified' ? 0 : 1;
 }
 
 export function renderRows(surfaces: readonly UiSurfaceFreshness[]): string {

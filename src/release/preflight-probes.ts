@@ -363,6 +363,22 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     if (verdict.overall === 'fresh') {
       return { id: 'ui-design-freshness', status: 'ok', detail: 'all UI baselines fresh' };
     }
+    if (verdict.overall === 'unverified') {
+      // Adoption debt, not drift: the baseline is present, no capture has
+      // vouched for it. Every consumer reads this on the upgrade that
+      // introduces the receipt, so it must not block — and it must be an
+      // EXPLICIT branch, because the fall-through below is `blocking` and
+      // filters `detail` to `stale`, which would block with an empty reason.
+      return {
+        id: 'ui-design-freshness',
+        status: 'warn',
+        detail: `unverified baseline surface(s): ${verdict.surfaces
+          .filter((s) => s.status === 'unverified')
+          .map((s) => s.surface)
+          .join(', ')}`,
+        fix: 'Declare `consumer.uiCapture` for the surface, run `pnpm noldor design capture`, and commit the baseline with its receipt.',
+      };
+    }
     if (verdict.overall === 'uninitialized') {
       // v1: adoption must not brick releases — advisory only.
       return {

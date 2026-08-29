@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { ROUTE_CHARSET_RE, sanitizationIssues, screenshotTemplateIssues } from './ui-boot.js';
+import { IMPLICIT_SURFACE } from './ui-predicate.js';
 
 // Boundary rules mirror dependency-cruiser's forbidden-rule shape.
 // `from.path` / `to.path` are REGEX STRINGS consumed by dep-cruiser, not
@@ -155,6 +156,27 @@ export const UiBootRecipeSchema = z
 export type UiBootRecipe = z.infer<typeof UiBootRecipeSchema>;
 
 /**
+ * How one surface's UI baseline is regenerated. `command` is a consumer-owned
+ * shell string run by `noldor design capture`; the receipt at
+ * `.noldor/ui-capture/<surface>.json` advances only when it exits 0.
+ *
+ * Deliberately NOT a `verifyCommands` reference the way `uiBoot.verifyCommand`
+ * is: every `verifyCommands` surface is booted by the smoke floor
+ * (`src/verify/smoke.ts`), so declaring a capture there would make `noldor
+ * verify` run it — a slow, app-dependent side effect on an unrelated command.
+ */
+export const uiCaptureRecipeSchema = z
+  .object({
+    command: z.string().min(1),
+    // Rejected at validate when out of contract, never clamped — same posture
+    // as `UiBootRecipeSchema.captureTimeoutMs`.
+    timeoutMs: z.number().int().min(1).max(600_000).default(300_000),
+  })
+  .strict();
+
+export type UiCaptureRecipe = z.infer<typeof uiCaptureRecipeSchema>;
+
+/**
  * A declined toolchain-floor requirement. `id` is the floor check's id (see
  * `src/invariants/toolchain-floor.ts`); `reason` is why this repo does not meet
  * it. A waiver does not silence the finding — it downgrades it to a `warn` that
@@ -241,6 +263,14 @@ export const ConsumerConfigSchema = z
      */
     uiBoot: z.record(z.string().regex(SURFACE_NAME_RE), UiBootRecipeSchema).optional(),
     /**
+     * Per-surface capture commands for `noldor design capture`. Unlike
+     * `uiBoot`, a key may also be the IMPLICIT `app` surface that exists when
+     * `uiPaths` is set and `uiSurfaces` is not — the cross-check below allows
+     * it, because requiring a `uiSurfaces` declaration would lock out the only
+     * shape a `uiPaths`-only consumer can express.
+     */
+    uiCapture: z.record(z.string().regex(SURFACE_NAME_RE), uiCaptureRecipeSchema).optional(),
+    /**
      * Floor requirements this repo deliberately does not meet, each with a
      * reason. Read by the `toolchain-floor` invariant. Absent ⇒ the full floor
      * applies.
@@ -265,11 +295,36 @@ export const ConsumerConfigSchema = z
   // `validate noldor-config` included — rejects a drifted block at parse time.
   .superRefine((cfg, ctx) => {
     const surfaceNames = [
-      ...new Set([...Object.keys(cfg.uiSurfaces ?? {}), ...Object.keys(cfg.uiBoot ?? {})]),
+      ...new Set([
+        ...Object.keys(cfg.uiSurfaces ?? {}),
+        ...Object.keys(cfg.uiBoot ?? {}),
+        ...Object.keys(cfg.uiCapture ?? {}),
+      ]),
     ];
     for (const issue of sanitizationIssues(surfaceNames)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['uiSurfaces'], message: issue });
     }
+    // `uiCapture` keys: a declared `uiSurfaces` surface, or the implicit `app`
+    // surface when `uiSurfaces` is absent. Anything else is an orphan whose
+    // capture could never be reached by a verdict, so it is rejected rather
+    // than silently ignored.
+    if (cfg.uiCapture !== undefined) {
+      for (const surface of Object.keys(cfg.uiCapture)) {
+        const declared = Object.hasOwn(cfg.uiSurfaces ?? {}, surface);
+        const implicitApp = cfg.uiSurfaces === undefined && surface === IMPLICIT_SURFACE;
+        if (!declared && !implicitApp) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['uiCapture', surface],
+            message:
+              cfg.uiSurfaces === undefined
+                ? `uiCapture surface '${surface}' is not '${IMPLICIT_SURFACE}'; with no uiSurfaces block the only surface is the implicit '${IMPLICIT_SURFACE}'`
+                : `uiCapture surface '${surface}' is not declared in uiSurfaces`,
+          });
+        }
+      }
+    }
+
     if (cfg.uiBoot === undefined) return;
     for (const [surface, recipe] of Object.entries(cfg.uiBoot)) {
       if (!Object.hasOwn(cfg.uiSurfaces ?? {}, surface)) {
@@ -306,12 +361,18 @@ export type BoundaryRule = z.infer<typeof BoundaryRuleSchema>;
  * parse still throws: swallowing it would silently disable the blocking
  * release check for a repo that did adopt the feature.
  */
-export function loadUiConfig(
-  cwd: string,
-): { uiPaths?: string[]; uiSurfaces?: Record<string, string[]> } | null {
+export function loadUiConfig(cwd: string): {
+  uiPaths?: string[];
+  uiSurfaces?: Record<string, string[]>;
+  uiCapture?: Record<string, UiCaptureRecipe>;
+} | null {
   if (!existsSync(join(cwd, CONFIG_FILE))) return null;
   const consumer = loadConsumerConfig(cwd);
-  return { uiPaths: consumer.uiPaths, uiSurfaces: consumer.uiSurfaces };
+  return {
+    uiPaths: consumer.uiPaths,
+    uiSurfaces: consumer.uiSurfaces,
+    uiCapture: consumer.uiCapture,
+  };
 }
 
 const CONFIG_FILE = '.noldor/config.json';
