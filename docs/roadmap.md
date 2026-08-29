@@ -126,19 +126,20 @@ Q-0130's re-round cap (2, controller prose) has no tooling enforcement and no os
 
 The architecture module advisory fires on `src/graphify-out` — a gitignored generated AST cache (`.gitignore:54`), not a module. `docs/architecture/modules.md` is asked to name a directory that must never be documented, so the advisory can only be silenced by writing a lie into the registry. The module scan needs the same ignore-generated-trees treatment PR #360 gave the runtime-asset scan. Advisory-only, so it never blocks a release — which is also why it has sat there unfixed. (found 2026-08-23 closing SDD gaps before the 1.5.0 release)
 
-### Advisory Garden Findings Have No Prose Surface
+### Garden Skill Checklist Enumerates a Fixed Section List
 
 - id: Q-0197
 - area: tooling
-- type: feat
+- type: fix
 - since: 2026-08-29
 - size: S
 - impact: med
 - confidence: high
 - split-from: Q-0185
+- blocked-by: Q-0185
 - recovered: 2026-08-29
 
-Three `GardenFindings` keys are deliberately non-blocking and, as a consequence, effectively invisible: `architectureAdvisories` (Q-0093), `structuralContextStubs` (Q-0194) and `fdDiagramStubs` (Q-0185). Each is absent from `FINDING_CATEGORIES` in `src/garden/garden-detect-runner.ts` for a good reason — that list gates the garden auto-restamp and an unstamped receipt is a blocking release row — but the consequence is that all three ride `garden detect --json` and nothing renders them anywhere a human or agent reads. Grepping the tree for `structuralContextStubs` finds only its declaration, its assignment and one docstring; no renderer, no dashboard row, no `sdd-report` line. An advisory nobody sees is indistinguishable from a check that was never written, which is the failure mode advisory-with-teeth exists to avoid. Wanted: one prose surface covering all three keys together — a `garden detect` text section, an `sdd-report` advisory block, or a dashboard panel — chosen once rather than per-key, since a renderer that covers one and not its siblings is the wrong shape. Deletion test: an operator who runs the ordinary garden pass sees that an FD's diagram section is still a stub without passing `--json` and reading raw keys. (carved out of Q-0185's spec dialogue, 2026-08-29 — D8)
+`/noldor-garden` step 1 orders "check every key the payload carries, not a fixed count — `structuralContextStubs` is a finding like any other, and a gate that enumerates a subset silently swallows whichever key it predates". Step 4 of the same skill then enumerates a fixed checklist: Stale plans, Stale specs, Manual sweep, Unused backlog, Rule contradictions, SDD gaps, Structural context stubs, Architecture invariant violations. The two steps contradict each other, and the cost is already live: `architectureAdvisories` (Q-0093) has no row — the checklist's "Architecture invariant violations" renders `invariantViolations`, a different key — so every module-advisory row `detectArchitectureAdvisories` produces is parsed by step 1 and then dropped by step 4. `structuralContextStubs` has a row only because it was added by hand when Q-0194 shipped, which is the pattern step 1 exists to end. The `fdDiagramStubs` key Q-0185 introduces will land in the same hole. Wanted: step 4 renders whatever non-empty keys the payload carries rather than a hand-maintained list, in the skill and its `templates/` twin. Note `garden detect` stdout is pure JSON by contract (step 1 parses it, and `--ci` deliberately routes its message to stderr), so the fix is in the skill's rendering, not a new text mode on the CLI. Deletion test: a new advisory `GardenFindings` key reaches the operator checklist with no edit to `/noldor-garden`. (carved out of Q-0185's spec dialogue, 2026-08-29 — D8, corrected at CR round 1)
 
 ### Main-Module Guard Fails on Percent-Encoded Paths
 

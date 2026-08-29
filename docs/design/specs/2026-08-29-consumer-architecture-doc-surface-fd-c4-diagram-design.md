@@ -193,8 +193,9 @@ O2 — it currently rewrites only `User Story` and `Usage`.
   who removes the scaffolded section is indistinguishable from an FD that predates the
   contract. O1.
 - **Advisory that nobody reads.** `structuralContextStubs` and `architectureAdvisories`
-  both ride `garden detect --json` and nothing renders them in prose today. A third
-  invisible key is a real risk; O3.
+  both ride `garden detect`'s JSON payload, and `/noldor-garden`'s step-4 checklist
+  renders a hand-maintained subset of them — `structuralContextStubs` has a row,
+  `architectureAdvisories` does not. A third key lands in the same hole; O3.
 - **A fence is not a diagram.** Nothing stops a two-node `graph TD`. The check asserts
   the *question* is on the page, exactly as `assessPageForm` does for registry sections —
   a check that guessed at diagram quality would be arguable precisely where it matters.
@@ -229,8 +230,9 @@ which without reconstructing it from `links.code`.
 
 **Reporting**
 
-- `pnpm noldor garden detect --json` carries `fdDiagramStubs[]`, each row naming the FD,
-  the rule, and the remediation.
+- `pnpm noldor garden detect` carries `fdDiagramStubs[]` in its JSON payload, each row
+  naming the FD, the rule, and the remediation. There is no `--json` flag — the command's
+  stdout is always JSON by contract, which `/noldor-garden` step 1 parses.
 - Nothing blocks. Not `pnpm noldor commit`, not the pre-push chain, not `pnpm release`.
 - An FD that carries no `## Diagram` heading is never reported — that is how the 83
   existing FDs stay out of it.
@@ -255,12 +257,13 @@ which without reconstructing it from `links.code`.
    diagram would be a generated guess at a shape the author is the authority on, and gate
    Step 4 runs it with `--yes` in autonomous mode — so a wrong guess would land unread.
 
-3. *Should this feature also render the advisory keys in prose?*
-   -> **No — scope it out and emit it as residue.** (D8) `fdDiagramStubs`,
-   `structuralContextStubs` and `architectureAdvisories` share one gap: all three ride
-   `garden detect --json` and nothing renders them. A renderer covering one key and not
-   its two siblings is the wrong shape, so this ships as a sibling roadmap entry rather
-   than as scope creep here.
+3. *Should this feature also fix how the advisory keys reach the operator?*
+   -> **No — scope it out and emit it as residue.** (D8) The defect is not a missing
+   renderer: `/noldor-garden` step 1 already parses every key, and step 4 renders a
+   hand-maintained checklist that happens to include `structuralContextStubs` and to omit
+   `architectureAdvisories`. `fdDiagramStubs` will land in the same hole. That is a
+   contradiction between two steps of one skill, not a surface this feature should build,
+   so it ships as sibling entry Q-0197.
 
 4. *What prose floor beside the fence?*
    -> **24 non-whitespace characters, as its own constant.** (D9) Same value and same
