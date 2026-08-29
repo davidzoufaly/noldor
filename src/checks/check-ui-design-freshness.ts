@@ -18,7 +18,21 @@ import {
  * consumer that has not wired up `design capture` yet.
  */
 export function exitCodeFor(overall: UiFreshnessVerdict['overall']): number {
-  return overall === 'fresh' || overall === 'skipped' || overall === 'unverified' ? 0 : 1;
+  switch (overall) {
+    case 'fresh':
+    case 'skipped':
+    case 'unverified':
+      return 0;
+    case 'stale':
+    case 'uninitialized':
+      return 1;
+    default: {
+      // Exhaustive by construction: a sixth status becomes a typecheck error
+      // here rather than silently inheriting a non-zero exit.
+      const never: never = overall;
+      return never;
+    }
+  }
 }
 
 export function renderRows(surfaces: readonly UiSurfaceFreshness[]): string {

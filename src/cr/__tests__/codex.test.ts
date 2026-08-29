@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { runCli } from '../codex.js';
 import { findingSchema } from '../findings-schema.js';
+import { buildContext } from '../context.js';
 import { sh } from '../review-with-codex.js';
 
 function makeRepo(): string {
@@ -526,5 +527,32 @@ describe('sh — the codex lane git seam', () => {
     spawnSync('git', ['commit', '-q', '-m', 'big'], { cwd });
 
     expect(sh(cwd, ['show', '--format=', 'HEAD']).length).toBeGreaterThan(1024 * 1024);
+  });
+});
+
+describe('buildContext — generated output', () => {
+  it('keeps regenerated graph output out of the review diff', () => {
+    // Not a size optimisation: the codex lane caps input at 1MB, and one
+    // branch's regenerated `graphify-out/` alone was ~5MB, so the entire review
+    // failed on content no reviewer reads.
+    const asked: string[][] = [];
+    const ctx = buildContext({
+      lane: { kind: 'range', from: 'BASE', to: 'HEAD' },
+      runGit: (args) => {
+        asked.push(args);
+        return 'DIFF';
+      },
+      featureMd: '',
+      rules: '',
+    });
+
+    expect(ctx.diff).toBe('DIFF');
+    const args = asked[0];
+    expect(args).toContain(':(exclude,glob)graphify-out/**');
+    expect(args).toContain(':(exclude,glob)**/pnpm-lock.yaml');
+    // Tests and markdown ARE reviewable — the graph-freshness exclusion list is
+    // deliberately not reused here.
+    expect(args.some((a) => a.includes('*.test.ts'))).toBe(false);
+    expect(args.some((a) => a.includes('*.md'))).toBe(false);
   });
 });

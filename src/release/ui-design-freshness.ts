@@ -11,7 +11,7 @@ import { braceExpand } from 'minimatch';
 
 import { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.js';
 import { parseReceiptBytes, receiptRelPath } from '../design/ui-capture.js';
-import { isUiBearing, type UiConfig } from '../core/ui-predicate.js';
+import { IMPLICIT_SURFACE, isUiBearing, type UiConfig } from '../core/ui-predicate.js';
 import { GRAPH_IRRELEVANT_EXCLUDES } from './graph-freshness.js';
 
 const execFileAsync = promisify(execFile);
@@ -60,7 +60,12 @@ export function classifyAncestry(
 
 async function git(cwd: string, args: string[]): Promise<{ ok: boolean; stdout: string }> {
   try {
-    const { stdout } = await execFileAsync('git', args, { cwd });
+    // Explicit buffer: node defaults to 1MB, and the unmapped-surface probe
+    // asks for `--name-only` over a whole commit. An overrun here would land in
+    // the `catch` as an ordinary "git failed", which is survivable only because
+    // every caller degrades to `skipped` — but it would silently drop the
+    // enforcement it was asked to perform.
+    const { stdout } = await execFileAsync('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 });
     return { ok: true, stdout: stdout.trim() };
   } catch {
     return { ok: false, stdout: '' };
@@ -285,7 +290,7 @@ export async function evaluateUiDesignFreshness(
     };
   }
 
-  const surfaceMap: Record<string, string[]> = config.uiSurfaces ?? { app: uiPaths };
+  const surfaceMap: Record<string, string[]> = config.uiSurfaces ?? { [IMPLICIT_SURFACE]: uiPaths };
   const surfaces: UiSurfaceFreshness[] = [];
 
   for (const [surface, globs] of Object.entries(surfaceMap).sort(([a], [b]) =>
@@ -502,7 +507,18 @@ export async function evaluateUiDesignFreshness(
       ...uiPaths.flatMap((g) => braceExpand(g)).map((g) => `:(glob)${g}`),
       ...GRAPH_IRRELEVANT_EXCLUDES,
     ]);
-    if (all.ok && all.stdout !== '') {
+    if (!all.ok) {
+      // The one git failure in this function that used to produce NO row: with
+      // every declared surface fresh, `overall` reduced to `fresh` and the
+      // probe announced "all UI baselines fresh" while the config-coverage gap
+      // went unchecked. Every other branch degrades to an explicit indeterminate
+      // row; this one must too.
+      surfaces.push({
+        surface: '(unmapped)',
+        status: 'skipped',
+        detail: 'git log failed probing uiPaths coverage — indeterminate, coverage unchecked',
+      });
+    } else if (all.stdout !== '') {
       const lines = all.stdout.split('\n');
       const sha = lines[0].trim();
       const files = lines.slice(1).filter((l) => l.trim().length > 0);

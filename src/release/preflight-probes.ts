@@ -391,6 +391,16 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
           : {}),
       };
     }
+    // Exhaustive by construction. The fall-through below renders `blocking`
+    // with a `stale`-filtered detail, so a status that reaches it unhandled
+    // blocks every consumer with an empty reason. Naming `stale` explicitly and
+    // asserting `never` on the rest makes a sixth status a typecheck error here
+    // instead of a silent release block.
+    if (verdict.overall !== 'stale') {
+      const never: never = verdict.overall;
+      return never;
+    }
+
     // The fix line is DERIVED from the blocking rows, not fixed text: `stale`
     // no longer implies one remedy. A surface whose receipt is behind its UI is
     // repaired by re-capturing, and `design ui-sync` explicitly refuses those
