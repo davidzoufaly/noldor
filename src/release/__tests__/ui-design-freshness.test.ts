@@ -1,12 +1,12 @@
 // @tests: pendev-ui-design-phase
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { digestBytes, receiptRelPath } from '../../design/ui-capture.js';
+import { blobIdOfWorktreeFile, receiptRelPath } from '../../design/ui-capture.js';
 import { runProbe, type ProbeContext } from '../preflight-probes.js';
 import { classifyAncestry, evaluateUiDesignFreshness } from '../ui-design-freshness.js';
 
@@ -107,14 +107,15 @@ describe('evaluateUiDesignFreshness', () => {
    * receipt committed WITHOUT its baseline.
    */
   async function commitReceipt(surface: string, msg: string, digest?: string): Promise<void> {
-    const baseline = join(cwd, `docs/design/ui/baseline/${surface}.pen`);
-    const bound = digest ?? digestBytes(await readFile(baseline));
+    const baselineRel = `docs/design/ui/baseline/${surface}.pen`;
+    const bound = digest ?? blobIdOfWorktreeFile(cwd, baselineRel);
+    if (bound === null) throw new Error(`no blob id for ${baselineRel}`);
     const rel = receiptRelPath(surface);
     const abs = join(cwd, rel);
     await mkdir(dirname(abs), { recursive: true });
     await writeFile(
       abs,
-      `${JSON.stringify({ capturedAt: new Date(repo.epoch * 1000).toISOString(), baselineDigest: bound, command: 'pnpm capture' }, null, 2)}\n`,
+      `${JSON.stringify({ capturedAt: new Date(repo.epoch * 1000).toISOString(), baselineBlob: bound, command: 'pnpm capture' }, null, 2)}\n`,
       'utf8',
     );
     await commitAt(repo, msg);
@@ -279,7 +280,7 @@ describe('evaluateUiDesignFreshness', () => {
   it('stale when the receipt was committed without its baseline (digest mismatch)', async () => {
     await commit(['src/app/page.tsx'], 'feat: ui');
     await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
-    await commitReceipt('app', 'chore: capture', 'f'.repeat(64));
+    await commitReceipt('app', 'chore: capture', 'f'.repeat(40));
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
     expect(v.overall).toBe('stale');
     expect(v.surfaces[0].detail).toContain('committed without its baseline');
@@ -375,6 +376,31 @@ describe('release preflight — ui-design-freshness row', () => {
     expect(row.detail).toContain('app');
   });
 
+  it('names design capture in the fix line when the blocking surface has a receipt', async () => {
+    // `stale` no longer implies one remedy, and `design ui-sync` refuses a
+    // receipt-backed row — it stages nothing and exits 1 — so a hardcoded
+    // ui-sync fix line would send the operator nowhere and leave the release
+    // blocked.
+    await commit(['src/app/page.tsx'], 'feat: ui');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    const blob = blobIdOfWorktreeFile(cwd, 'docs/design/ui/baseline/app.pen');
+    const abs = join(cwd, receiptRelPath('app'));
+    await mkdir(dirname(abs), { recursive: true });
+    await writeFile(
+      abs,
+      `${JSON.stringify({ capturedAt: '2026-08-29T00:00:00.000Z', baselineBlob: blob, command: 'c' })}\n`,
+      'utf8',
+    );
+    await commitAt(repo, 'chore: capture');
+    await commit(['src/app/page.tsx'], 'feat: ui drift');
+    await writeUiConfig(cwd, ['src/app/**']);
+
+    const row = await runProbe('ui-design-freshness', ctx());
+    expect(row.status).toBe('blocking');
+    expect(row.fix).toContain('design capture');
+    expect(row.fix).not.toContain('design ui-sync');
+  });
+
   it('still blocks a release on a genuinely stale surface', async () => {
     await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
     await commit(['src/app/page.tsx'], 'feat: ui drift');
@@ -383,5 +409,7 @@ describe('release preflight — ui-design-freshness row', () => {
     const row = await runProbe('ui-design-freshness', ctx());
     expect(row.status).toBe('blocking');
     expect(row.detail).toContain('app');
+    // No receipt was ever written, so this one IS repaired by hand.
+    expect(row.fix).toContain('design ui-sync');
   });
 });

@@ -10,7 +10,7 @@
 // the false-fresh with no diagnostic. Owning the exit-code branch here is what
 // makes "receipt advanced" and "capture succeeded" the same thing.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
@@ -20,7 +20,7 @@ import { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.j
 import { runCapture } from '../core/run-capture.js';
 import type { CaptureResult } from '../core/run-capture.js';
 import { IMPLICIT_SURFACE } from '../core/ui-predicate.js';
-import { digestBytes, receiptRelPath, writeReceipt } from './ui-capture.js';
+import { blobIdOfWorktreeFile, receiptRelPath, writeReceipt } from './ui-capture.js';
 
 /** One surface's outcome, so the aggregate exit code is derived, not maintained. */
 export interface SurfaceCaptureOutcome {
@@ -90,9 +90,20 @@ export async function captureSurface(
       detail: `capture exited 0 but ${BASELINE_DIR}/${surface}.pen does not exist — receipt unchanged`,
     };
   }
+  const rel = `${BASELINE_DIR}/${surface}.pen`;
+  const blob = blobIdOfWorktreeFile(cwd, rel);
+  if (blob === null) {
+    // No id means no binding proof, and a receipt without one would vouch for a
+    // baseline nothing can check. Refuse rather than write a weaker receipt.
+    return {
+      surface,
+      ok: false,
+      detail: `could not compute a git object id for ${rel} — receipt unchanged`,
+    };
+  }
   const written = writeReceipt(cwd, surface, {
     capturedAt: now(),
-    baselineDigest: digestBytes(readFileSync(baseline)),
+    baselineBlob: blob,
     command: recipe.command,
   });
   if (!written.ok) return { surface, ok: false, detail: written.message };

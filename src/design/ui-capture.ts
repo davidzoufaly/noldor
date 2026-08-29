@@ -11,7 +11,7 @@
 // the freshly written receipt while leaving the regenerated `.pen` out of the
 // commit, and the surface would read `fresh` over a baseline HEAD never got.
 
-import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 
@@ -27,8 +27,19 @@ export const RECEIPT_DIR_SEGMENTS = ['.noldor', 'ui-capture'] as const;
 export const uiCaptureReceiptSchema = z
   .object({
     capturedAt: z.string().min(1),
-    /** sha256 of the `.pen` the capture produced, lowercase hex. */
-    baselineDigest: z.string().regex(/^[0-9a-f]{64}$/),
+    /**
+     * Git's own object id for the `.pen` the capture produced — 40 hex under
+     * sha1, 64 under a sha256 repo.
+     *
+     * Git's id, not a sha256 over the file's bytes, because the comparison at
+     * verdict time is against the blob git STORED. Any transform between
+     * working tree and object store — `core.autocrlf` (on by default in
+     * Git-for-Windows), a `text=auto` attribute, a clean filter, LFS — would
+     * make a raw byte hash differ from the stored blob permanently, minting a
+     * blocking `stale` that no re-capture can clear. Both sides are computed by
+     * git, so both see the same transforms.
+     */
+    baselineBlob: z.string().regex(/^[0-9a-f]{40}$|^[0-9a-f]{64}$/),
     command: z.string().min(1),
   })
   .strict();
@@ -59,9 +70,20 @@ export function receiptRelPath(surface: string): string {
   return `${RECEIPT_DIR_SEGMENTS.join('/')}/${surface}.json`;
 }
 
-/** sha256 of `bytes`, lowercase hex — the `baselineDigest` encoding. */
-export function digestBytes(bytes: Buffer | string): string {
-  return createHash('sha256').update(bytes).digest('hex');
+/**
+ * Git's object id for the file at `relPath`, as git would store it — filters and
+ * eol conversion applied, because `--path` makes `hash-object` honour the same
+ * attributes the index does. `null` when git cannot answer.
+ */
+export function blobIdOfWorktreeFile(repoRoot: string, relPath: string): string | null {
+  try {
+    return execFileSync('git', ['hash-object', '--path', relPath, '--', relPath], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    }).trim();
+  } catch {
+    return null;
+  }
 }
 
 /**

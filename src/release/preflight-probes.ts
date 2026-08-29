@@ -391,14 +391,28 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
           : {}),
       };
     }
+    // The fix line is DERIVED from the blocking rows, not fixed text: `stale`
+    // no longer implies one remedy. A surface whose receipt is behind its UI is
+    // repaired by re-capturing, and `design ui-sync` explicitly refuses those
+    // rows — it stages nothing and exits 1 — so a hardcoded ui-sync line would
+    // send the operator to a command that cannot clear the block.
+    const blocking = verdict.surfaces.filter((s) => s.status === 'stale');
+    const needsCapture = blocking.some((s) => s.remediation === 'capture');
+    const needsSync = blocking.some((s) => s.remediation !== 'capture');
     return {
       id: 'ui-design-freshness',
       status: 'blocking',
-      detail: verdict.surfaces
-        .filter((s) => s.status === 'stale')
-        .map((s) => `${s.surface}: ${s.detail}`)
-        .join('; '),
-      fix: 'Run `pnpm noldor design ui-sync` in a pencil-capable session and commit the baseline. Not auto-fixable — baseline editing is an agent skill.',
+      detail: blocking.map((s) => `${s.surface}: ${s.detail}`).join('; '),
+      fix: [
+        needsCapture
+          ? 'Run `pnpm noldor design capture` for the receipt-backed surface(s) and commit the baseline with its receipt.'
+          : '',
+        needsSync
+          ? 'Run `pnpm noldor design ui-sync` in a pencil-capable session and commit the baseline — not auto-fixable, baseline editing is an agent skill.'
+          : '',
+      ]
+        .filter((line) => line.length > 0)
+        .join(' '),
     };
   },
 

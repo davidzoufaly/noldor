@@ -11,7 +11,6 @@ import { braceExpand } from 'minimatch';
 
 import { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.js';
 import {
-  digestBytes,
   receiptRelPath,
   uiCaptureReceiptSchema,
   type UiCaptureReceipt,
@@ -47,7 +46,7 @@ export { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.j
 const SYNC_REMEDIATION =
   'run `pnpm noldor design ui-sync` in a pencil-capable session, then commit';
 const CAPTURE_REMEDIATION =
-  'run `pnpm noldor design capture`, then commit the baseline and its receipt';
+  'declare `consumer.uiCapture` for the surface if it has none, run `pnpm noldor design capture`, then commit the baseline and its receipt';
 
 /**
  * Pure ancestry classifier — the U7 decision procedure, testable without a
@@ -168,6 +167,45 @@ function parseReceipt(bytes: Buffer): UiCaptureReceipt | null {
 }
 
 /**
+ * Resolve `proofPath`'s latest commit and classify it against `uiCommit`.
+ *
+ * The receipt path and the legacy fallback ask git exactly the same three
+ * questions — what commit last touched the proof, and is it an ancestor of the
+ * UI commit either way — and differ only in which file is the proof and how
+ * they word the result. Keeping one implementation is what stops the two
+ * drifting into different degradation behaviour, which is the half that must
+ * never diverge: an indeterminate answer may not become a blocking verdict.
+ */
+async function ancestryVerdict(
+  cwd: string,
+  uiCommit: string,
+  proofPath: string,
+): Promise<
+  | { ok: false; detail: string; baselineCommit?: string }
+  | { ok: true; baselineCommit: string; status: 'fresh' | 'stale' | 'skipped' }
+> {
+  const proof = await latestCommit(cwd, [proofPath]);
+  if (!proof.ok || proof.sha === '') {
+    return { ok: false, detail: 'git log failed — indeterminate' };
+  }
+  const baselineCommit = proof.sha;
+  const forward = await isAncestor(cwd, uiCommit, baselineCommit);
+  const backward = await isAncestor(cwd, baselineCommit, uiCommit);
+  if (!forward.ok || !backward.ok) {
+    return {
+      ok: false,
+      baselineCommit,
+      detail: `git merge-base failed probing ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} — indeterminate, never a false red`,
+    };
+  }
+  return {
+    ok: true,
+    baselineCommit,
+    status: classifyAncestry(forward.isAncestor, backward.isAncestor),
+  };
+}
+
+/**
  * The pre-adoption read, for a surface that has never had a receipt: derive the
  * verdict from the baseline file's own commit exactly as this check always did,
  * then report a legacy `stale` AS `stale` and a legacy `fresh` as `unverified`.
@@ -184,24 +222,18 @@ async function legacyFallback(
   baselineFile: string,
   uiCommit: string,
 ): Promise<UiSurfaceFreshness> {
-  const baseline = await latestCommit(cwd, [baselineFile]);
-  if (!baseline.ok || baseline.sha === '') {
-    return { surface, status: 'skipped', uiCommit, detail: 'git log failed — indeterminate' };
-  }
-  const baselineCommit = baseline.sha;
-  const forward = await isAncestor(cwd, uiCommit, baselineCommit);
-  const backward = await isAncestor(cwd, baselineCommit, uiCommit);
-  if (!forward.ok || !backward.ok) {
+  const a = await ancestryVerdict(cwd, uiCommit, baselineFile);
+  if (!a.ok) {
     return {
       surface,
       status: 'skipped',
       uiCommit,
-      baselineCommit,
-      detail: `git merge-base failed probing ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} — indeterminate, never a false red`,
+      ...(a.baselineCommit === undefined ? {} : { baselineCommit: a.baselineCommit }),
+      detail: a.detail,
     };
   }
-  const legacy = classifyAncestry(forward.isAncestor, backward.isAncestor);
-  if (legacy === 'stale') {
+  const { baselineCommit } = a;
+  if (a.status === 'stale') {
     return {
       surface,
       status: 'stale',
@@ -211,7 +243,7 @@ async function legacyFallback(
       detail: `UI ${uiCommit.slice(0, 8)} newer than baseline ${baselineCommit.slice(0, 8)} — ${SYNC_REMEDIATION}`,
     };
   }
-  if (legacy === 'fresh') {
+  if (a.status === 'fresh') {
     return {
       surface,
       status: 'unverified',
@@ -400,54 +432,45 @@ export async function evaluateUiDesignFreshness(
       });
       continue;
     }
-    const baselineBlob = await showAtHead(cwd, baselineFile);
-    if (!baselineBlob.ok) {
+    // Git's stored blob id, compared against the id git computed at capture
+    // time. Both sides come from git, so `core.autocrlf`, a `text=auto`
+    // attribute, a clean filter or LFS apply to both — a raw byte hash of the
+    // working tree would differ from the stored blob permanently on any repo
+    // with those on, minting a blocking `stale` no re-capture could clear.
+    const headBlob = await git(cwd, ['rev-parse', `HEAD:${baselineFile}`]);
+    if (!headBlob.ok || headBlob.stdout === '') {
       surfaces.push({
         surface,
         status: 'skipped',
         uiCommit,
-        detail: 'git show failed — indeterminate',
+        detail: 'git rev-parse failed — indeterminate',
       });
       continue;
     }
-    const headDigest = digestBytes(baselineBlob.bytes);
-    if (headDigest !== receipt.baselineDigest) {
+    const headDigest = headBlob.stdout;
+    if (headDigest !== receipt.baselineBlob) {
       surfaces.push({
         surface,
         status: 'stale',
         uiCommit,
         remediation: 'capture',
-        detail: `${receiptRel} vouches for ${receipt.baselineDigest.slice(0, 12)} but ${baselineFile} at HEAD is ${headDigest.slice(0, 12)} — the receipt was committed without its baseline; ${CAPTURE_REMEDIATION}`,
+        detail: `${receiptRel} vouches for baseline blob ${receipt.baselineBlob.slice(0, 12)} but ${baselineFile} at HEAD is ${headDigest.slice(0, 12)} — the receipt was committed without its baseline; ${CAPTURE_REMEDIATION}`,
       });
       continue;
     }
 
-    const receiptCommit = await latestCommit(cwd, [receiptRel]);
-    if (!receiptCommit.ok || receiptCommit.sha === '') {
-      // Present at HEAD but log yields nothing — an inconsistent read, never a
-      // verdict to enforce on.
+    const a = await ancestryVerdict(cwd, uiCommit, receiptRel);
+    if (!a.ok) {
       surfaces.push({
         surface,
         status: 'skipped',
         uiCommit,
-        detail: 'git log failed — indeterminate',
+        ...(a.baselineCommit === undefined ? {} : { baselineCommit: a.baselineCommit }),
+        detail: a.detail,
       });
       continue;
     }
-    const baselineCommit = receiptCommit.sha;
-    const forward = await isAncestor(cwd, uiCommit, baselineCommit);
-    const backward = await isAncestor(cwd, baselineCommit, uiCommit);
-    if (!forward.ok || !backward.ok) {
-      surfaces.push({
-        surface,
-        status: 'skipped',
-        uiCommit,
-        baselineCommit,
-        detail: `git merge-base failed probing ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} — indeterminate, never a false red`,
-      });
-      continue;
-    }
-    const status = classifyAncestry(forward.isAncestor, backward.isAncestor);
+    const { baselineCommit, status } = a;
     surfaces.push({
       surface,
       status,

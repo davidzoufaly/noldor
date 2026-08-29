@@ -1,4 +1,5 @@
 // @tests: pendev-ui-design-phase
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { CaptureResult } from '../../core/run-capture.js';
 import { main as captureMain, declaredSurfaces } from '../ui-capture-cli.js';
-import { digestBytes, readReceipt, receiptPath, receiptRelPath } from '../ui-capture.js';
+import { blobIdOfWorktreeFile, readReceipt, receiptPath, receiptRelPath } from '../ui-capture.js';
 
 /**
  * Scripted capture runner: a command prefix → the result it produces, plus a
@@ -106,7 +107,9 @@ describe('design capture', () => {
 
     const receipt = readReceipt(cwd, 'app');
     expect(receipt).not.toBeNull();
-    expect(receipt?.baselineDigest).toBe(digestBytes('PEN-BYTES'));
+    expect(receipt?.baselineBlob).toBe(
+      blobIdOfWorktreeFile(cwd, 'docs/design/ui/baseline/app.pen'),
+    );
     expect(receipt?.command).toBe('capture-app');
   });
 
@@ -118,7 +121,7 @@ describe('design capture', () => {
     await mkdir(join(cwd, '.noldor/ui-capture'), { recursive: true });
     const prior = JSON.stringify({
       capturedAt: '2020-01-01T00:00:00.000Z',
-      baselineDigest: digestBytes('OLD'),
+      baselineBlob: 'a'.repeat(40),
       command: 'capture-app',
     });
     await writeFile(priorPath.path, prior, 'utf8');
@@ -185,6 +188,24 @@ describe('design capture', () => {
     expect(readReceipt(cwd, 'a')).not.toBeNull();
     expect(readReceipt(cwd, 'b')).toBeNull();
     expect(readReceipt(cwd, 'c')).not.toBeNull();
+  });
+
+  it('records the id git would store, not a hash of the working-tree bytes', async () => {
+    // Both sides of the binding check must come from git, or `core.autocrlf`, a
+    // `text=auto` attribute, a clean filter or LFS would make the receipt
+    // disagree with the stored blob permanently — a blocking stale no capture
+    // can clear.
+    await writeConfig({ uiPaths: ['src/**'], uiCapture: { app: { command: 'capture-app' } } });
+    await writeBaseline('app', 'PEN-BYTES');
+    const { deps: d } = deps({});
+    await captureMain([], cwd, d);
+
+    const stored = readReceipt(cwd, 'app')?.baselineBlob;
+    const viaGit = execFileSync('git', ['hash-object', '--', 'docs/design/ui/baseline/app.pen'], {
+      cwd,
+      encoding: 'utf8',
+    }).trim();
+    expect(stored).toBe(viaGit);
   });
 
   it('exits 2 on an unknown surface and builds no path for it', async () => {
