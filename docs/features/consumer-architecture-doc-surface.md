@@ -22,7 +22,7 @@ links:
 name: Consumer Architecture Doc Surface
 packages:
   - noldor
-phase: in-progress
+phase: done
 since: 2026-08-11T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0
@@ -79,6 +79,28 @@ traversing archived design artifacts.
 - Presence is heading-presence: section order is not checked, extra headings pass,
   and nothing inspects what was written beneath a heading.
 
+**Feature-MD diagrams**
+
+1. `/noldor-promote <slug>` and `/noldor-new-feature <slug>` scaffold `## Diagram`
+   between `## Summary` and `## User Story`, at both tiers, carrying a placeholder.
+2. Replace it with one mermaid fence at the C4 *level of abstraction* that fits the
+   feature — "C4" names the altitude, not the notation, so a `flowchart`, a
+   `sequenceDiagram` and a `C4Component` fence are all valid and nothing checks which
+   you picked. Write a sentence or two beside it; that prose is the textual equivalent
+   for readers and agents that do not render mermaid, required alongside the fence
+   rather than instead of it.
+3. Decline deliberately with a `noldor:cut <reason>` line inside the section when the
+   feature has no shape worth drawing. The reason must clear the same 24-character
+   floor; a bare marker declines nothing.
+4. `pnpm noldor garden detect` reports a section still holding its placeholder
+   (`placeholder-only`), holding prose with no fence (`no-fence`), or holding a fence
+   with too little prose beside it (`stub-section`). Advisory only — the rows ride
+   `fdDiagramStubs`, absent from `FINDING_CATEGORIES`, so they never fail the runner
+   and never block a release.
+5. An FD carrying no `## Diagram` heading is out of scope entirely — no row, ever.
+   That presence-gating is what keeps the requirement off every FD written before it
+   existed, with no floor date, floor version or git read anywhere in the detector.
+
 **Agent/Programmatic API**
 
 - `checkArchitecture(cwd)` → `{ status: 'absent' | 'ok' | 'incomplete', findings, advisories }`.
@@ -98,6 +120,17 @@ traversing archived design artifacts.
 - `detectArchitectureFindings(repo)` → `Gap[]` for the blocking class, run inside
   `collectGaps` so it reaches `docs/sdd-report.md`, `garden detect` and the
   dashboard alike.
+- `detectFdDiagramStubs(repo)` → `FdDiagramStub[]` — `{ file, rule, message }`, `rule`
+  being `placeholder-only | no-fence | stub-section`. Rows are sorted by filename, and
+  an FD that cannot be read is skipped rather than reported.
+- `FD_DIAGRAM_HEADING`, `FD_DIAGRAM_PLACEHOLDER` and `MIN_FD_DIAGRAM_PROSE_CHARS`
+  (`src/core/fd-diagram-contract.ts`) are the leaf contract every scaffold writes from.
+  The placeholder *marker* it is detected by stays `PLACEHOLDER_MARKER` in
+  `architecture-schema.ts`, imported by the detector rather than by the contract, so
+  nothing under `src/core` reaches into `src/docs`.
+- `locateSection`, `tagLines`, `density`, `cutReason` and `docsRelativeDir`
+  (`src/core/markdown-section-scan.ts`) are the shared fence-aware section scanner this
+  detector and `structural-context.ts` both read sections with.
 - `detectArchitectureAdvisories(repo)` → `Gap[]` for every advisory row, which
   ride garden's own `architectureAdvisories` key and never gate a release. Each
   row's `itemId` is `<page>#<kind>:<discriminator>`, so two rows on one page
