@@ -16,6 +16,7 @@ import {
   BASELINE_DIR,
   evaluateUiDesignFreshness,
   type UiSurfaceFreshness,
+  captureRemediation,
 } from '../release/ui-design-freshness.js';
 
 /** The freshness engine's synthetic config-gap row — not a real baseline file. */
@@ -34,7 +35,7 @@ export function renderSurfaceReport(s: UiSurfaceFreshness): string {
   // the freshness detail points operators at — announce nothing to do.
   const action =
     s.remediation === 'capture'
-      ? `declare \`consumer.uiCapture\` for this surface if it has none, run \`pnpm noldor design capture --surface ${s.surface}\`, then commit ${file} with its receipt`
+      ? captureRemediation(s.surface)
       : s.status === 'uninitialized'
         ? `create ${file} in a pencil-capable session (bootstrap)`
         : s.status === 'stale'

@@ -10,7 +10,7 @@
 // the false-fresh with no diagnostic. Owning the exit-code branch here is what
 // makes "receipt advanced" and "capture succeeded" the same thing.
 
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
@@ -73,7 +73,7 @@ export async function captureSurface(
   // a misconfigured command can succeed without writing anything, and an old
   // baseline sitting on disk would then satisfy the existence check and advance
   // the receipt — the false-fresh, restored.
-  const before = vouchOnly ? null : blobIdOfWorktreeFile(cwd, rel);
+  const before = vouchOnly ? null : baselineStamp(cwd, rel);
   const result = vouchOnly
     ? { code: 0, timedOut: false, stderrTail: '' }
     : await run(recipe.command, cwd, recipe.timeoutMs);
@@ -103,15 +103,21 @@ export async function captureSurface(
     };
   }
   const blob = blobIdOfWorktreeFile(cwd, rel);
-  if (!vouchOnly && before !== null && before === blob) {
-    // The file predates the run and is byte-identical, so this command did not
-    // produce it. Reporting success would vouch for a baseline nothing
-    // regenerated. A capture that legitimately reproduces identical bytes lands
-    // here too; `--vouch-only` is the deliberate way to say so.
+  if (!vouchOnly && before !== null && sameStamp(before, baselineStamp(cwd, rel))) {
+    // Untouched: neither the bytes nor the mtime moved, so this command did not
+    // write the file and an older baseline is sitting there. Reporting success
+    // would vouch for something nothing regenerated.
+    //
+    // mtime is what keeps a LEGITIMATE identical capture out of this branch. A
+    // commit under `uiPaths` that changes no rendered pixel — a refactor, a
+    // comment, a prop rename — makes the capture reproduce byte-identical
+    // output, and judging on bytes alone would fail it, block the surface, and
+    // leave `--vouch-only` (which records "vouched by hand") as the only exit:
+    // a false claim, since the command did run and did produce the right bytes.
     return {
       surface,
       ok: false,
-      detail: `capture exited 0 but left ${rel} unchanged — nothing was regenerated, so the receipt is unchanged; use --vouch-only to vouch for the file on disk deliberately`,
+      detail: `capture exited 0 but never wrote ${rel} — nothing was regenerated, so the receipt is unchanged`,
     };
   }
   if (blob === null) {
@@ -136,6 +142,20 @@ export async function captureSurface(
   };
 }
 
+/** Bytes-and-mtime fingerprint of a baseline, or null when it is absent. */
+function baselineStamp(cwd: string, rel: string): { blob: string | null; mtimeMs: number } | null {
+  const abs = join(cwd, rel);
+  if (!existsSync(abs)) return null;
+  return { blob: blobIdOfWorktreeFile(cwd, rel), mtimeMs: statSync(abs).mtimeMs };
+}
+
+function sameStamp(
+  a: { blob: string | null; mtimeMs: number },
+  b: { blob: string | null; mtimeMs: number } | null,
+): boolean {
+  return b !== null && a.blob === b.blob && a.mtimeMs === b.mtimeMs;
+}
+
 /** Stand-in recipe for a vouch of a surface with no declared command; never run. */
 const VOUCH_ONLY_RECIPE: UiCaptureRecipe = {
   command: '(no capture command declared)',
@@ -147,11 +167,37 @@ export interface CaptureDeps {
   now: () => string;
 }
 
+/** Marks the spawned capture's environment so a self-invoking alias is caught. */
+const NESTING_FLAG = 'NOLDOR_CAPTURE_RUNNING';
+
 export async function main(
   argv: string[],
   cwd: string = process.cwd(),
   deps: CaptureDeps = { run: runCapture, now: () => new Date().toISOString() },
 ): Promise<number> {
+  // Set for the children this run spawns, and restored on every path out —
+  // leaving it set would make a second in-process invocation refuse itself.
+  const prior = process.env[NESTING_FLAG];
+  if (prior === '1') {
+    // Already inside a `design capture`: the consumer pointed
+    // `uiCapture.command` at the alias that invokes this wrapper. Each nesting
+    // level would spawn another detached process group the outer timeout cannot
+    // reap, so the failure mode is process exhaustion rather than a clean error.
+    console.error(
+      'design capture: refusing to run inside another `design capture` — `consumer.uiCapture.command` must be the underlying capture command, not the alias that invokes this wrapper',
+    );
+    return 2;
+  }
+  process.env[NESTING_FLAG] = '1';
+  try {
+    return await runCaptureCommand(argv, cwd, deps);
+  } finally {
+    if (prior === undefined) delete process.env[NESTING_FLAG];
+    else process.env[NESTING_FLAG] = prior;
+  }
+}
+
+async function runCaptureCommand(argv: string[], cwd: string, deps: CaptureDeps): Promise<number> {
   const flag = optionalFlag(argv, '--surface', 'design capture');
   if (!flag.ok) {
     console.error(flag.error);
@@ -165,6 +211,10 @@ export async function main(
     console.error('design capture: --vouch-only requires --surface <name>');
     return 2;
   }
+  // A consumer that points `uiCapture.command` at the very alias it repointed
+  // here makes this command invoke itself. Each nesting level spawns another
+  // detached process group, which the outer timeout cannot reap, so the failure
+  // mode is process exhaustion rather than a clean error.
   const ui = loadUiConfig(cwd);
   if (ui === null) {
     console.error('design capture: no consumer config');

@@ -41,8 +41,16 @@ export { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.j
 
 const SYNC_REMEDIATION =
   'run `pnpm noldor design ui-sync` in a pencil-capable session, then commit';
-const CAPTURE_REMEDIATION =
-  'declare `consumer.uiCapture` for the surface if it has none, run `pnpm noldor design capture`, then commit the baseline and its receipt';
+/**
+ * The one capture-remediation sentence, parameterised by surface. Exported and
+ * imported rather than restated: three copies had drifted, and the drift was
+ * load-bearing — the version the BLOCKING verdict printed omitted `--surface`,
+ * and a bare all-surfaces run reds on any surface the command leaves untouched.
+ */
+export function captureRemediation(surface?: string): string {
+  const target = surface === undefined ? '' : ` --surface ${surface}`;
+  return `declare \`consumer.uiCapture\` for the surface if it has none, run \`pnpm noldor design capture${target}\`, then commit the baseline and its receipt`;
+}
 
 /**
  * Pure ancestry classifier — the U7 decision procedure, testable without a
@@ -245,7 +253,7 @@ async function legacyFallback(
       uiCommit,
       baselineCommit,
       remediation: 'capture',
-      detail: `baseline at/after UI (${baselineCommit.slice(0, 8)}) but no capture has vouched for it — ${CAPTURE_REMEDIATION}`,
+      detail: `baseline at/after UI (${baselineCommit.slice(0, 8)}) but no capture has vouched for it — ${captureRemediation(surface)}`,
     };
   }
   return {
@@ -361,7 +369,7 @@ export async function evaluateUiDesignFreshness(
               status: 'stale',
               uiCommit,
               remediation: 'capture',
-              detail: `${baselineFile} is not in HEAD but ${receiptRel} has vouched for it before (last at ${receiptHistory.sha.slice(0, 8)}) — the baseline was removed after adoption; ${CAPTURE_REMEDIATION}`,
+              detail: `${baselineFile} is not in HEAD but ${receiptRel} has vouched for it before (last at ${receiptHistory.sha.slice(0, 8)}) — the baseline was removed after adoption; ${captureRemediation(surface)}`,
             }
           : {
               surface,
@@ -406,7 +414,7 @@ export async function evaluateUiDesignFreshness(
           status: 'stale',
           uiCommit,
           remediation: 'capture',
-          detail: `${receiptRel} was removed after adoption (last at ${receiptHistory.sha.slice(0, 8)}) — ${CAPTURE_REMEDIATION}`,
+          detail: `${receiptRel} was removed after adoption (last at ${receiptHistory.sha.slice(0, 8)}) — ${captureRemediation(surface)}`,
         });
         continue;
       }
@@ -465,7 +473,7 @@ export async function evaluateUiDesignFreshness(
         status: 'stale',
         uiCommit,
         remediation: 'capture',
-        detail: `${receiptRel} vouches for baseline blob ${receipt.baselineBlob.slice(0, 12)} but ${baselineFile} at HEAD is ${headDigest.slice(0, 12)} — the receipt was committed without its baseline; ${CAPTURE_REMEDIATION}`,
+        detail: `${receiptRel} vouches for baseline blob ${receipt.baselineBlob.slice(0, 12)} but ${baselineFile} at HEAD is ${headDigest.slice(0, 12)} — the receipt was committed without its baseline; ${captureRemediation(surface)}`,
       });
       continue;
     }
@@ -492,7 +500,7 @@ export async function evaluateUiDesignFreshness(
         status === 'fresh'
           ? `capture receipt at/after UI (${baselineCommit.slice(0, 8)}, captured ${receipt.capturedAt})`
           : status === 'stale'
-            ? `UI ${uiCommit.slice(0, 8)} newer than capture receipt ${baselineCommit.slice(0, 8)} — ${CAPTURE_REMEDIATION}`
+            ? `UI ${uiCommit.slice(0, 8)} newer than capture receipt ${baselineCommit.slice(0, 8)} — ${captureRemediation(surface)}`
             : `commits ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} share no ancestry — indeterminate`,
     });
   }
@@ -509,6 +517,11 @@ export async function evaluateUiDesignFreshness(
       '-1',
       '--format=%H',
       '--name-only',
+      // A merge commit prints NO file list by default, so `files` would be
+      // empty, no unmapped path would be found, and coverage would silently go
+      // unchecked while the verdict read fresh — the same false-green the
+      // failure branch above exists to prevent.
+      '--diff-merges=first-parent',
       '--',
       ...uiPaths.flatMap((g) => braceExpand(g)).map((g) => `:(glob)${g}`),
       ...GRAPH_IRRELEVANT_EXCLUDES,

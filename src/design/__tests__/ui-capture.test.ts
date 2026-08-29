@@ -262,6 +262,32 @@ describe('design capture', () => {
     );
   });
 
+  it('refuses to nest, so a self-invoking alias fails cleanly', async () => {
+    // Pointing uiCapture.command at the alias that invokes this wrapper makes
+    // it call itself; each level spawns another detached group the outer
+    // timeout cannot reap, so the failure mode is process exhaustion.
+    await writeConfig({ uiPaths: ['src/**'], uiCapture: { app: { command: 'capture-app' } } });
+    await writeBaseline('app', 'PEN');
+    const { deps: d, ran } = deps({});
+    const prior = process.env.NOLDOR_CAPTURE_RUNNING;
+    process.env.NOLDOR_CAPTURE_RUNNING = '1';
+    try {
+      expect(await captureMain([], cwd, d)).toBe(2);
+      expect(ran).toEqual([]);
+    } finally {
+      if (prior === undefined) delete process.env.NOLDOR_CAPTURE_RUNNING;
+      else process.env.NOLDOR_CAPTURE_RUNNING = prior;
+    }
+  });
+
+  it('restores the nesting flag so a second in-process run is not refused', async () => {
+    await writeConfig({ uiPaths: ['src/**'], uiCapture: { app: { command: 'capture-app' } } });
+    await writeBaseline('app', 'PEN');
+    const { deps: d } = deps({});
+    expect(await captureMain([], cwd, d)).toBe(0);
+    expect(process.env.NOLDOR_CAPTURE_RUNNING).toBeUndefined();
+  });
+
   it('does not resolve a surface named after an Object prototype key', async () => {
     // SURFACE_NAME_RE admits `constructor`, and a plain index would resolve it
     // to `Object` rather than undefined — spawning `/bin/sh -c undefined` with

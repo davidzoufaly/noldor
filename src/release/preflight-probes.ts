@@ -26,7 +26,7 @@ import {
 import { loadUiConfig } from '../core/consumer-config.js';
 import { inspectTreeState, type TreeState } from './clean-tree.js';
 import { evaluateGraphFreshness } from './graph-freshness.js';
-import { evaluateUiDesignFreshness } from './ui-design-freshness.js';
+import { captureRemediation, evaluateUiDesignFreshness } from './ui-design-freshness.js';
 import type { UiFreshnessVerdict, UiSurfaceFreshness } from './ui-design-freshness.js';
 import { readPkgIdentity } from './release-publish.js';
 import { checkCrGate } from './release-cr-gate.js';
@@ -101,15 +101,12 @@ export function makeProbeContext(base: {
   };
 }
 
-/**
- * The one remediation sentence for a surface that needs a capture. Single-
- * sourced because `ui-sync` renders the same advice: its earlier wording said
- * only "run design capture", which dead-ends for a legacy row that has no
- * `uiCapture` block — `design capture` exits 2 telling the operator to declare
- * one. The declare-first half is load-bearing.
- */
-export const CAPTURE_FIX =
-  'Declare `consumer.uiCapture` for the surface if it has none, run `pnpm noldor design capture --surface <name>`, and commit the baseline with its receipt.';
+/** The first surface needing a capture, so the advice can name a concrete `--surface`. */
+function captureSurfaceName(verdict: UiFreshnessVerdict): string | undefined {
+  return verdict.surfaces.find((s) => s.remediation === 'capture')?.surface;
+}
+
+const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Comma-joined surface names carrying `status`, for a freshness detail line. */
 function namesWithStatus(
@@ -402,7 +399,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
         ...(verdict.surfaces.some(
           (s) => s.status === verdict.overall && s.remediation === 'capture',
         )
-          ? { fix: CAPTURE_FIX }
+          ? { fix: capitalize(captureRemediation(captureSurfaceName(verdict))) }
           : {}),
       };
     }
@@ -429,7 +426,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       status: 'blocking',
       detail: blocking.map((s) => `${s.surface}: ${s.detail}`).join('; '),
       fix: [
-        needsCapture ? CAPTURE_FIX : '',
+        needsCapture ? capitalize(captureRemediation(captureSurfaceName(verdict))) : '',
         needsSync
           ? 'Run `pnpm noldor design ui-sync` in a pencil-capable session and commit the baseline — not auto-fixable, baseline editing is an agent skill.'
           : '',
