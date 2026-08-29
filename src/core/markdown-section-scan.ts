@@ -82,6 +82,10 @@ export interface LocatedSection {
   scanned: string;
   /** Every line between the boundaries, fences included — what a floor measures. */
   raw: string;
+  /** First body line of the section, 0-based, in the line array of the text passed in. */
+  startLine: number;
+  /** One past the last body line, so `lines.slice(startLine, endLine)` is the window. */
+  endLine: number;
 }
 
 /**
@@ -129,6 +133,8 @@ export function locateSection(
       .map((l) => l.text)
       .join('\n'),
     raw: window.map((l) => l.text).join('\n'),
+    startLine: start + 1,
+    endLine: end,
   };
 }
 
@@ -183,23 +189,28 @@ export async function readText(path: string): Promise<string | null> {
 }
 
 /**
- * The reason attached to this section's first `noldor:cut` line, or `null` when
- * the section carries none.
+ * The reason attached to every `noldor:cut` line in this section, in document
+ * order. Empty when the section carries no marker at all.
+ *
+ * Returns them ALL rather than the first, because the caller owns the floor that
+ * decides which are well formed: a bare marker followed by a real one must not
+ * mask it, and only the caller knows how many characters "real" is. An empty
+ * array and an array of empty strings mean different things — no decline at all,
+ * versus declines with no reason — and callers must not collapse them.
  *
  * Suppression must come from THIS section, not from anywhere in the artifact: a
  * marker under an unrelated heading says nothing about this one. The marker must
  * also be its own token — a bare `startsWith` let `noldor:cutlery` suppress a
  * section, with `lery ...` counting as the reason.
  *
- * An empty string is a real result: a bare marker declines nothing, and it is
- * the caller's floor that decides so. `null` and `''` therefore mean different
- * things and callers must not collapse them.
- *
- * @param scanned - The section's fence-stripped view, comment-stripped by callers that need it
+ * @param scanned - The section's fence-stripped view, comment-blanked by {@link blankComments}
  */
-export function cutReason(scanned: string): string | null {
-  const marker = scanned.split('\n').find((line) => CUT_MARKER_RE.test(line.trim()));
-  return marker === undefined ? null : marker.trim().replace(CUT_MARKER_RE, '');
+export function cutReasons(scanned: string): string[] {
+  return scanned
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => CUT_MARKER_RE.test(line))
+    .map((line) => line.replace(CUT_MARKER_RE, ''));
 }
 
 /**
@@ -231,4 +242,33 @@ export function visibleProse(scanned: string): string {
       return !CUT_MARKER_RE.test(t) && !/^#{1,6}\s/.test(t);
     })
     .join('\n');
+}
+
+/**
+ * Blank the contents of every HTML comment, preserving line structure.
+ *
+ * Every character inside `<!-- ... -->` becomes a space and newlines are kept,
+ * so line numbers and section boundaries are identical to the original text.
+ * That is what lets a caller run the whole scan over the blanked body — a
+ * comment can then neither open a fence, nor introduce a heading, nor declare a
+ * cut, nor count as prose — while still slicing the ORIGINAL lines by
+ * {@link LocatedSection.startLine} when it needs to see what a comment said.
+ *
+ * An unterminated `<!--` blanks the remainder of the text. That is the safe
+ * direction: the section measures as empty and reports a stub rather than being
+ * cleared by content nothing renders.
+ *
+ * A comment ends at the FIRST `-->`, exactly as HTML does, and that is load
+ * bearing rather than incidental: a mermaid flowchart arrow IS `-->`, so
+ * commenting out a `flowchart` fence does not hide it — the comment closes on
+ * the first edge and the rest of the fence is visible text again. Fences are not
+ * treated as comment-proof, deliberately: the rule this serves is that hidden
+ * content can never clear a section, and giving fences precedence would carve
+ * out the one hiding place that rule exists to close.
+ */
+export function blankComments(text: string): string {
+  const blank = (run: string): string => run.replaceAll(/[^\n]/gu, ' ');
+  const closed = text.replaceAll(/<!--[\s\S]*?-->/gu, blank);
+  const dangling = closed.indexOf('<!--');
+  return dangling === -1 ? closed : closed.slice(0, dangling) + blank(closed.slice(dangling));
 }

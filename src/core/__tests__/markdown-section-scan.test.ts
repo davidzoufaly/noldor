@@ -1,26 +1,52 @@
 // @tests: consumer-architecture-doc-surface
 import { describe, expect, it } from 'vitest';
 
-import { cutReason, docsRelativeDir, locateSection } from '../markdown-section-scan.js';
+import {
+  blankComments,
+  cutReasons,
+  docsRelativeDir,
+  locateSection,
+} from '../markdown-section-scan.js';
 
-describe('cutReason', () => {
+describe('cutReasons', () => {
   it('distinguishes an absent marker from a bare one', () => {
-    // `null` and `''` mean different things — no decline at all, versus a
+    // `[]` and `['']` mean different things — no decline at all, versus a
     // decline with no reason — and a caller that collapsed them would let a
     // bare marker suppress a section.
-    expect(cutReason('just prose here')).toBeNull();
-    expect(cutReason('noldor:cut')).toBe('');
+    expect(cutReasons('just prose here')).toEqual([]);
+    expect(cutReasons('noldor:cut')).toEqual(['']);
   });
 
   it('returns the reason after the marker, and ignores a marker inside a longer word', () => {
-    expect(cutReason('noldor:cut a pure function — the signature is the shape')).toBe(
+    expect(cutReasons('noldor:cut a pure function — the signature is the shape')).toEqual([
       'a pure function — the signature is the shape',
-    );
-    expect(cutReason('noldor:cutlery is not a marker')).toBeNull();
+    ]);
+    expect(cutReasons('noldor:cutlery is not a marker')).toEqual([]);
   });
 
-  it('takes the first marker when a section carries several', () => {
-    expect(cutReason('noldor:cut first reason\nnoldor:cut second reason')).toBe('first reason');
+  it('returns every marker in order, so a bare one cannot mask a well-formed one', () => {
+    expect(cutReasons('noldor:cut\nnoldor:cut second reason')).toEqual(['', 'second reason']);
+  });
+});
+
+describe('blankComments', () => {
+  it('blanks comment contents while preserving line count and offsets', () => {
+    const out = blankComments('a\n<!-- hidden -->\nb');
+    expect(out.split('\n')).toHaveLength(3);
+    expect(out).not.toContain('hidden');
+    expect(out.split('\n')[2]).toBe('b');
+    expect(out.split('\n')[1]).toHaveLength('<!-- hidden -->'.length);
+  });
+
+  it('blanks the remainder when a comment is never closed', () => {
+    expect(blankComments('a\n<!-- forever\nb').trim()).toBe('a');
+  });
+
+  it('closes at the first --> exactly as HTML does, so a mermaid arrow ends it', () => {
+    // Load-bearing for feature-MD diagrams: `<!--` around a flowchart does not
+    // hide it, because the first edge closes the comment.
+    expect(blankComments('<!--\nflowchart LR\n  a --> b\n-->\nafter')).toContain('b');
+    expect(blankComments('<!--\nflowchart LR\n  a --> b\n-->\nafter')).not.toContain('flowchart');
   });
 });
 

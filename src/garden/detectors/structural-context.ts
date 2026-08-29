@@ -8,7 +8,8 @@ import { ADR_FILENAME_RE } from '../../docs/adr-schema.js';
 import { specDateFromFilename } from '../../core/design-artifact-names.js';
 import { loadDocRoots } from '../../core/doc-roots.js';
 import {
-  cutReason,
+  blankComments,
+  cutReasons,
   density,
   docsRelativeDir,
   listMd,
@@ -150,14 +151,23 @@ function classify(
   placeholder: string | null,
   requireAncestor: string | null,
 ): StructuralContextRule | null {
-  const located = locateSection(body, depth, STRUCTURAL_CONTEXT_HEADING, requireAncestor);
+  // Comments are blanked before the scan, not after it: hidden text must not be
+  // able to open a fence, introduce a heading, declare a cut, or count as prose.
+  // Line structure is preserved, so boundaries are identical to the raw body.
+  const located = locateSection(
+    blankComments(body),
+    depth,
+    STRUCTURAL_CONTEXT_HEADING,
+    requireAncestor,
+  );
   if (located === null) return 'missing-section';
   const { scanned: section, raw } = located;
 
-  // A bare marker is still a stub — the reason is what makes a skip a decision.
-  const reason = cutReason(section);
-  if (reason !== null) {
-    return density(reason) >= MIN_STRUCTURAL_CONTEXT_CHARS ? null : 'stub-section';
+  // A bare marker is still a stub — the reason is what makes a skip a decision —
+  // but a bare one must not mask a well-formed marker further down.
+  const reasons = cutReasons(section);
+  if (reasons.length > 0) {
+    return reasons.some((r) => density(r) >= MIN_STRUCTURAL_CONTEXT_CHARS) ? null : 'stub-section';
   }
 
   if (placeholder !== null && section.trim() === placeholder) return 'placeholder-only';

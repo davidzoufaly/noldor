@@ -1,9 +1,9 @@
 // @tests: consumer-architecture-doc-surface
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import {
   FD_DIAGRAM_PLACEHOLDER,
@@ -12,13 +12,32 @@ import {
 import { PLACEHOLDER_MARKER } from '../../../docs/architecture-schema.js';
 import { detectFdDiagramStubs } from '../fd-diagram.js';
 
+/**
+ * Every temp repo this file creates, removed in `afterAll`.
+ *
+ * A suite-scoped owner, so `using` has no scope to bind to — the
+ * `deterministic-cleanup` rule's `try/finally` carve-out for a release that must
+ * outlive the block. Without it each run leaves one directory per case behind.
+ */
+const tempRepos: string[] = [];
+
+afterAll(async () => {
+  await Promise.all(tempRepos.map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
 /** A real repo on disk with `docs/features/<name>.md` per entry — no fs shim. */
 async function repoWith(features: Record<string, string>): Promise<string> {
-  const repo = await mkdtemp(join(tmpdir(), 'fd-diagram-'));
+  const repo = await newTempRepo();
   await mkdir(join(repo, 'docs', 'features'), { recursive: true });
   for (const [name, body] of Object.entries(features)) {
     await writeFile(join(repo, 'docs', 'features', `${name}.md`), body, 'utf8');
   }
+  return repo;
+}
+
+async function newTempRepo(): Promise<string> {
+  const repo = await mkdtemp(join(tmpdir(), 'fd-diagram-'));
+  tempRepos.push(repo);
   return repo;
 }
 
@@ -93,9 +112,22 @@ describe('detectFdDiagramStubs', () => {
   });
 
   it('does not let a fence hidden inside an HTML comment clear the section', async () => {
-    const repo = await repoWith({ sneaky: fd(`<!--\n${FENCE}\n-->\n\n${PROSE}`) });
+    // Deliberately a fence with no `-->` in it: a mermaid arrow would close the
+    // comment early, which is what HTML actually does and is covered below.
+    const arrowless = ['```mermaid', 'sequenceDiagram', '  a->>b: go', '```'].join('\n');
+    const repo = await repoWith({ sneaky: fd(`<!--\n${arrowless}\n-->\n\n${PROSE}`) });
     const rows = await detectFdDiagramStubs(repo);
     expect(rows.map((r) => r.rule)).toEqual(['no-fence']);
+  });
+
+  it('lets a mermaid --> arrow close a comment, exactly as HTML does', async () => {
+    // `<!--` + a flowchart arrow is not a hiding place: the first `-->` ends the
+    // comment, so the rest of the fence is visible text and counts normally.
+    // The realistic shape — a closed placeholder followed by an arrow-bearing
+    // fence — is covered by the leftover-placeholder case above.
+    const repo = await repoWith({ arrowy: fd(`<!--\n${FENCE}\n-->\n\n${PROSE}`) });
+    const rows = await detectFdDiagramStubs(repo);
+    expect(rows.map((r) => r.rule)).toEqual(['stub-section']);
   });
 
   it('does not let a cut hidden inside an HTML comment clear the section', async () => {
@@ -196,7 +228,49 @@ describe('detectFdDiagramStubs', () => {
   });
 
   it('returns an empty list for a repo with no features directory', async () => {
-    const repo = await mkdtemp(join(tmpdir(), 'fd-diagram-bare-'));
+    expect(await detectFdDiagramStubs(await newTempRepo())).toEqual([]);
+  });
+
+  it('does not enrol an FD whose only Diagram heading sits inside an HTML comment', async () => {
+    // Presence-gating is the whole no-retrospective guarantee: a commented-out
+    // heading in a legacy FD must not put it in scope.
+    const commented = [
+      '---',
+      'name: X',
+      '---',
+      '',
+      '## Summary',
+      '',
+      'A thing.',
+      '',
+      '<!--',
+      '## Diagram',
+      '-->',
+      '',
+      '## Usage',
+      '',
+      'Run it.',
+      '',
+    ].join('\n');
+    const repo = await repoWith({ legacy: commented, real: fd('') });
+    const rows = await detectFdDiagramStubs(repo);
+    expect(rows.map((r) => r.file)).toEqual(['docs/features/real.md']);
+  });
+
+  it('does not let a fence inside a comment mis-tag the visible lines after it', async () => {
+    // An unmatched ``` inside a comment used to leave the following prose
+    // tagged as fenced, so it vanished from the density measure.
+    const section = ['<!--', '```mermaid', '-->', '', FENCE, '', PROSE].join('\n');
+    const repo = await repoWith({ tricky: fd(section) });
+    expect(await detectFdDiagramStubs(repo)).toEqual([]);
+  });
+
+  it('lets a well-formed cut win even when a bare marker precedes it', async () => {
+    const section = [
+      'noldor:cut',
+      'noldor:cut a single pure function — the signature is the shape',
+    ].join('\n');
+    const repo = await repoWith({ ordered: fd(section) });
     expect(await detectFdDiagramStubs(repo)).toEqual([]);
   });
 });

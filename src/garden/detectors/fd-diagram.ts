@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { loadDocRoots } from '../../core/doc-roots.js';
 import { FD_DIAGRAM_HEADING, MIN_FD_DIAGRAM_PROSE_CHARS } from '../../core/fd-diagram-contract.js';
 import {
-  cutReason,
+  blankComments,
+  cutReasons,
   density,
   docsRelativeDir,
   listMd,
@@ -18,14 +19,6 @@ import {
 import { CUT_MARKER } from '../../core/structural-context-contract.js';
 import { PLACEHOLDER_MARKER } from '../../docs/architecture-schema.js';
 import { fenceKinds } from '../../docs/docs-architecture.js';
-
-/**
- * HTML comments, non-greedy to the first `-->`. An unterminated `<!--` is
- * handled separately by {@link stripComments} — it swallows the remainder,
- * which is the safe direction: the section then measures as empty and reports a
- * stub rather than being cleared by text nothing renders.
- */
-const COMMENT_RE = /<!--[\s\S]*?-->/g;
 
 /** Why one FD was reported. */
 export type FdDiagramRule = 'placeholder-only' | 'no-fence' | 'stub-section';
@@ -95,20 +88,27 @@ export async function detectFdDiagramStubs(repo: string): Promise<FdDiagramStub[
  * nothing else is there.
  */
 function classify(body: string): FdDiagramRule | null {
-  const located = locateSection(body, 2, FD_DIAGRAM_HEADING, null);
+  // Comments are blanked BEFORE the section is located, not after: a `## Diagram`
+  // inside a multiline comment would otherwise enrol an FD that predates the
+  // contract, and an unmatched fence inside one would mis-tag the visible lines
+  // after it. Blanking preserves line structure, so the window below still
+  // indexes the original body.
+  const lines = body.split('\n');
+  const located = locateSection(blankComments(body), 2, FD_DIAGRAM_HEADING, null);
   if (located === null) return null;
 
-  // The comment strip runs FIRST and governs every test below, not just the
-  // density floor: a `noldor:cut` line or a whole ```mermaid fence can sit
-  // inside a multiline `<!-- ... -->`, render as nothing, and would otherwise
-  // clear the section.
-  const hasPlaceholder = located.raw.includes(PLACEHOLDER_MARKER);
-  const visibleRaw = stripComments(located.raw);
-  const visibleScanned = stripComments(located.scanned);
+  // The one thing that must be read from the ORIGINAL text: the placeholder is
+  // itself a comment, so the blanked view can never see it.
+  const hasPlaceholder = lines
+    .slice(located.startLine, located.endLine)
+    .join('\n')
+    .includes(PLACEHOLDER_MARKER);
+  const visibleRaw = located.raw;
+  const visibleScanned = located.scanned;
 
-  // A bare marker is still a stub — the reason is what makes a skip a decision.
-  const reason = cutReason(visibleScanned);
-  if (reason !== null && density(reason) >= MIN_FD_DIAGRAM_PROSE_CHARS) return null;
+  // A bare marker is still a stub — the reason is what makes a skip a decision —
+  // but a bare one must not mask a well-formed marker further down.
+  if (cutReasons(visibleScanned).some((r) => density(r) >= MIN_FD_DIAGRAM_PROSE_CHARS)) return null;
 
   // `fenceKinds` reads the DECLARED kind of every mermaid fence, so several
   // fences satisfy this as one and a page may carry extra diagrams — the rule
@@ -124,19 +124,6 @@ function classify(body: string): FdDiagramRule | null {
   if (hasFence) return prose >= MIN_FD_DIAGRAM_PROSE_CHARS ? null : 'stub-section';
   if (prose >= MIN_FD_DIAGRAM_PROSE_CHARS) return 'no-fence';
   return hasPlaceholder ? 'placeholder-only' : 'stub-section';
-}
-
-/**
- * Remove HTML comments, including an unterminated one and everything after it.
- *
- * Hidden text must never satisfy a requirement that exists to produce visible
- * prose, and it must never open a fence or declare a cut either — which is why
- * every caller strips before it measures anything.
- */
-function stripComments(text: string): string {
-  const stripped = text.replaceAll(COMMENT_RE, '');
-  const dangling = stripped.indexOf('<!--');
-  return dangling === -1 ? stripped : stripped.slice(0, dangling);
 }
 
 function message(rule: FdDiagramRule, name: string): string {
