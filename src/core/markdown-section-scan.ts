@@ -27,11 +27,8 @@ import { CUT_MARKER } from './structural-context-contract.js';
  * literal — `platform-over-dependency` binds that. `noldor:cut` carries no
  * metacharacter today, which is exactly why the guard belongs here: a later edit
  * to the constant would otherwise turn this into a silent matcher bug.
- *
- * Exported because callers also filter it out of the text they measure — a
- * decline line is not prose.
  */
-export const CUT_MARKER_RE = new RegExp(`^${RegExp.escape(CUT_MARKER)}(\\s|$)`);
+const CUT_MARKER_RE = new RegExp(`^${RegExp.escape(CUT_MARKER)}(\\s|$)`);
 
 /** One line of a document, tagged with whether it sits inside a code fence. */
 export interface TaggedLine {
@@ -213,4 +210,25 @@ export function docsRelativeDir(dir: string): string {
   const posix = dir.replaceAll('\\', '/');
   const at = posix.lastIndexOf('/docs/');
   return at === -1 ? posix : posix.slice(at + 1);
+}
+
+/**
+ * The visible prose of a section: its fence-stripped text minus the lines that
+ * are markup rather than reading matter — a `noldor:cut` decline and any
+ * sub-heading.
+ *
+ * Exists so a caller measuring a prose floor never has to hold the cut regex
+ * itself; the marker's grammar stays private to this module, which is the only
+ * place it is defined.
+ *
+ * @param scanned - A section's fence-stripped view, comment-stripped by callers that need it
+ */
+export function visibleProse(scanned: string): string {
+  return scanned
+    .split('\n')
+    .filter((line) => {
+      const t = line.trim();
+      return !CUT_MARKER_RE.test(t) && !/^#{1,6}\s/.test(t);
+    })
+    .join('\n');
 }

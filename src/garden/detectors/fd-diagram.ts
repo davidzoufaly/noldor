@@ -7,13 +7,13 @@ import { join } from 'node:path';
 import { loadDocRoots } from '../../core/doc-roots.js';
 import { FD_DIAGRAM_HEADING, MIN_FD_DIAGRAM_PROSE_CHARS } from '../../core/fd-diagram-contract.js';
 import {
-  CUT_MARKER_RE,
   cutReason,
   density,
   docsRelativeDir,
   listMd,
   locateSection,
   readText,
+  visibleProse,
 } from '../../core/markdown-section-scan.js';
 import { CUT_MARKER } from '../../core/structural-context-contract.js';
 import { PLACEHOLDER_MARKER } from '../../docs/architecture-schema.js';
@@ -114,7 +114,12 @@ function classify(body: string): FdDiagramRule | null {
   // fences satisfy this as one and a page may carry extra diagrams — the rule
   // `ArchitecturePage.allowedKinds` already states for the registry.
   const hasFence = fenceKinds(visibleRaw).length > 0;
-  const prose = density(proseOf(visibleScanned));
+  // `visibleProse` measures what a non-rendering reader actually sees. Its input
+  // is `scanned` — fenced lines removed by the same single pass that found the
+  // section boundaries — deliberately not `stripCodeRegions`, which also blanks
+  // inline code spans and would report a false stub on ordinary FD prose full of
+  // backticked identifiers.
+  const prose = density(visibleProse(visibleScanned));
 
   if (hasFence) return prose >= MIN_FD_DIAGRAM_PROSE_CHARS ? null : 'stub-section';
   if (prose >= MIN_FD_DIAGRAM_PROSE_CHARS) return 'no-fence';
@@ -132,23 +137,6 @@ function stripComments(text: string): string {
   const stripped = text.replaceAll(COMMENT_RE, '');
   const dangling = stripped.indexOf('<!--');
   return dangling === -1 ? stripped : stripped.slice(0, dangling);
-}
-
-/**
- * What the density floor measures: the visible textual equivalent a
- * non-rendering reader gets. `scanned` already has fenced lines removed by the
- * same single pass that found the section boundaries — deliberately not
- * `stripCodeRegions`, which also blanks inline code spans and would report a
- * false stub on ordinary FD prose full of backticked identifiers.
- */
-function proseOf(scanned: string): string {
-  return scanned
-    .split('\n')
-    .filter((line) => {
-      const t = line.trim();
-      return !CUT_MARKER_RE.test(t) && !/^#{1,6}\s/.test(t);
-    })
-    .join('\n');
 }
 
 function message(rule: FdDiagramRule, name: string): string {
