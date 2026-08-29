@@ -217,12 +217,42 @@ describe('design capture', () => {
     await writeBaseline('app', 'HAND-EDITED-BY-PENCIL');
     const { deps: d, ran } = deps({});
 
-    expect(await captureMain(['--vouch-only'], cwd, d)).toBe(0);
+    expect(await captureMain(['--surface', 'app', '--vouch-only'], cwd, d)).toBe(0);
 
     expect(ran).toEqual([]);
     expect(await readFile(join(cwd, 'docs/design/ui/baseline/app.pen'), 'utf8')).toBe(
       'HAND-EDITED-BY-PENCIL',
     );
+    expect(readReceipt(cwd, 'app')?.baselineBlob).toBe(
+      blobIdOfWorktreeFile(cwd, 'docs/design/ui/baseline/app.pen'),
+    );
+  });
+
+  it('refuses a bare --vouch-only, which would green untouched surfaces', async () => {
+    await writeConfig({
+      uiPaths: ['src/a/**', 'src/b/**'],
+      uiSurfaces: { a: ['src/a/**'], b: ['src/b/**'] },
+      uiCapture: { a: { command: 'capture-a' }, b: { command: 'capture-b' } },
+    });
+    await writeBaseline('a', 'A');
+    await writeBaseline('b', 'B');
+    const { deps: d } = deps({});
+
+    expect(await captureMain(['--vouch-only'], cwd, d)).toBe(2);
+    expect(readReceipt(cwd, 'a')).toBeNull();
+    expect(readReceipt(cwd, 'b')).toBeNull();
+  });
+
+  it('vouches for a surface that declares no capture command, so adoption has an exit', async () => {
+    // Without this, a consumer that later drops `uiCapture` for an adopted
+    // surface has every subsequent UI commit block the release with no command
+    // able to clear it. Vouching runs nothing, so it needs no command.
+    await writeConfig({ uiPaths: ['src/**'] });
+    await writeBaseline('app', 'PEN');
+    const { deps: d, ran } = deps({});
+
+    expect(await captureMain(['--surface', 'app', '--vouch-only'], cwd, d)).toBe(0);
+    expect(ran).toEqual([]);
     expect(readReceipt(cwd, 'app')?.baselineBlob).toBe(
       blobIdOfWorktreeFile(cwd, 'docs/design/ui/baseline/app.pen'),
     );

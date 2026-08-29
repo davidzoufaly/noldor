@@ -234,7 +234,8 @@ Evaluated in order; the first match wins.
 | 1 | no consumer config, or `uiPaths` empty | `skipped` (whole check) |
 | 2 | shallow clone | `skipped` (whole check) |
 | 3 | no commit touches the surface's globs | `skipped` |
-| 4 | `docs/design/ui/baseline/<surface>.pen` not in HEAD | `uninitialized` |
+| 4 | baseline not in HEAD **and** the receipt path has no history | `uninitialized` |
+| 4b | baseline not in HEAD **but** the receipt path has history | `stale` — the baseline was withdrawn after adoption |
 | 5 | receipt absent from HEAD **and** its path has no history | legacy fallback (U3) |
 | 6 | receipt absent from HEAD **but** its path has history | `stale` — the proof was withdrawn |
 | 7 | receipt unreadable or its content invalid | `skipped` |
@@ -242,7 +243,7 @@ Evaluated in order; the first match wins.
 | 9 | receipt commit unresolvable, or either ancestry probe errors | `skipped` |
 | 10 | otherwise | `classifyAncestry(uiCommit, receiptCommit)` |
 
-Rows 1–4 and 9–10 are today's branches with one input renamed; 5–8 are new. Existence is read **at
+Rows 1–4 and 9–10 are today's branches with one input renamed; 4b and 5–8 are new. Row 4b exists for the same reason as row 6: withdrawing *either* file must not soften a verdict, or an adopted surface sitting at a blocking `stale` could be un-blocked by deleting its `.pen`. Existence is read **at
 HEAD** throughout, as `existsAtHead` already does — the working tree is never consulted, so an
 uncommitted or untracked receipt does not change a verdict, and the row-8 digest is taken over the
 `.pen` blob at HEAD rather than the file on disk. Row 7 sits above row 8 because the digest comparison
@@ -262,7 +263,7 @@ needs parsed content: an unreadable receipt cannot mint a red, only an indetermi
 9. A surface whose receipt is absent from HEAD but whose receipt path has history reports `stale`, never the legacy verdict.
 10. Given one `stale` surface and one `unverified` surface, the overall verdict is `stale` and the release preflight result is blocking.
 11. An `unverified` overall produces a non-blocking release-preflight result, and `design ui-sync` reports the surface as pending rather than exiting 0 with nothing to do.
-12. A receipt with unreadable or invalid content reports `skipped`, never `stale`.
+12. A receipt with unreadable or invalid content reports `skipped`, never `stale` — the file-existence rows (4, 4b, 9) are decided before content is read and are unaffected.
 13. `design capture --surface a` leaves surface `b`'s receipt file byte-identical.
 14. A run over three surfaces where one fails writes the two successful receipts and exits non-zero.
 15. A capture killed by `timeoutMs` leaves the receipt untouched and exits non-zero, and its process group is reaped.
@@ -277,6 +278,7 @@ needs parsed content: an unreadable receipt cannot mint a red, only an indetermi
 - Once a consumer adopts, a UI change without a re-capture blocks the next release. That is the intended enforcement and not a new class of block — `stale` blocks today — but it is the first time a *failed* capture can reach it.
 - The legacy fallback means two evaluation paths coexist per surface until it has a receipt. Bounded: the fallback is never consulted once a receipt exists, and row 5 of U5 is its only entry point.
 - `.noldor/ui-capture/<surface>.json` is committed state and can be hand-edited. Forging it forges only the operator's own signal, and the `baselineBlob` check means a forged receipt still has to name the digest of the baseline actually sitting at HEAD.
+- Adoption is one-way as far as the evaluator is concerned: once a surface has receipt history, withdrawing either file reads `stale` rather than falling back. `design capture --surface <s> --vouch-only` is the exit — it needs no declared command, so a consumer that later drops its `uiCapture` block can still vouch for the baseline it has instead of blocking every release.
 - The schema addition touches the rank-#2 god node `loadConsumerConfig()`, which is why it lands once as a self-contained block rather than threaded into `uiBoot`.
 - `baselineBlob` makes one content field verdict-bearing, against the cleaner "commit is the only proof" story. Accepted: without it, committing the receipt while omitting the `.pen` yields a `fresh` verdict over a baseline HEAD never received, and no ordering proof can catch that.
 - The parent FD (`docs/features/pendev-ui-design-phase.md`) currently tells operators that `design ui-sync` repairs any freshness failure. That becomes false for `unverified` and receipt-path `stale`, so its Usage must change in the same PR — gate Step 4's scoped `--refresh --usage-only` is where that lands, and leaving it stale would make the user-facing contract contradict the implementation.

@@ -101,6 +101,16 @@ export function makeProbeContext(base: {
   };
 }
 
+/**
+ * The one remediation sentence for a surface that needs a capture. Single-
+ * sourced because `ui-sync` renders the same advice: its earlier wording said
+ * only "run design capture", which dead-ends for a legacy row that has no
+ * `uiCapture` block — `design capture` exits 2 telling the operator to declare
+ * one. The declare-first half is load-bearing.
+ */
+export const CAPTURE_FIX =
+  'Declare `consumer.uiCapture` for the surface if it has none, run `pnpm noldor design capture --surface <name>`, and commit the baseline with its receipt.';
+
 /** Comma-joined surface names carrying `status`, for a freshness detail line. */
 function namesWithStatus(
   verdict: UiFreshnessVerdict,
@@ -384,10 +394,15 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
         id: 'ui-design-freshness',
         status: 'warn',
         detail: `${verdict.overall} baseline surface(s): ${namesWithStatus(verdict, verdict.overall)}`,
-        ...(verdict.overall === 'unverified'
-          ? {
-              fix: 'Declare `consumer.uiCapture` for the surface, run `pnpm noldor design capture`, and commit the baseline with its receipt.',
-            }
+        // Derived, not assumed: an `unverified` overall can also be the
+        // synthetic `(unmapped)` row, whose problem is a failed git probe and
+        // which carries no `remediation` — telling that operator to declare a
+        // capture for a surface named `(unmapped)` is advice for a different
+        // problem entirely.
+        ...(verdict.surfaces.some(
+          (s) => s.status === verdict.overall && s.remediation === 'capture',
+        )
+          ? { fix: CAPTURE_FIX }
           : {}),
       };
     }
@@ -414,9 +429,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       status: 'blocking',
       detail: blocking.map((s) => `${s.surface}: ${s.detail}`).join('; '),
       fix: [
-        needsCapture
-          ? 'Run `pnpm noldor design capture` for the receipt-backed surface(s) and commit the baseline with its receipt.'
-          : '',
+        needsCapture ? CAPTURE_FIX : '',
         needsSync
           ? 'Run `pnpm noldor design ui-sync` in a pencil-capable session and commit the baseline — not auto-fixable, baseline editing is an agent skill.'
           : '',

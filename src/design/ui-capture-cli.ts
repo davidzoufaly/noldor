@@ -123,6 +123,12 @@ export async function captureSurface(
   };
 }
 
+/** Stand-in recipe for a vouch of a surface with no declared command; never run. */
+const VOUCH_ONLY_RECIPE: UiCaptureRecipe = {
+  command: '(no capture command declared)',
+  timeoutMs: 1,
+};
+
 export interface CaptureDeps {
   run: CaptureRunner;
   now: () => string;
@@ -139,6 +145,13 @@ export async function main(
     return 2;
   }
   const vouchOnly = argv.includes('--vouch-only');
+  if (vouchOnly && flag.value === undefined) {
+    // A bare vouch would advance EVERY surface's receipt, so hand-editing one
+    // baseline would also vouch for an untouched, stale one — and after the
+    // commit its newer receipt reads `fresh`. Vouching is a per-surface claim.
+    console.error('design capture: --vouch-only requires --surface <name>');
+    return 2;
+  }
   const ui = loadUiConfig(cwd);
   if (ui === null) {
     console.error('design capture: no consumer config');
@@ -154,23 +167,28 @@ export async function main(
   // Resolution happens BEFORE any path is built: `--surface` reaches the
   // filesystem only as a key that is already declared, so an unknown name
   // cannot address a file at all.
-  if (flag.value !== undefined && !Object.hasOwn(capture, flag.value)) {
-    console.error(
-      surfaces.includes(flag.value)
-        ? `design capture: surface '${flag.value}' declares no consumer.uiCapture command`
-        : `no surface named '${flag.value}'`,
-    );
+  if (flag.value !== undefined && !surfaces.includes(flag.value)) {
+    console.error(`no surface named '${flag.value}'`);
+    return 2;
+  }
+  // A declared command is required to RUN a capture, but not to vouch for a
+  // baseline already on disk — nothing is executed. Demanding one would make
+  // adoption a one-way door: a consumer that later drops `uiCapture` for a
+  // surface with committed receipts would have every subsequent UI commit block
+  // the release with no command able to clear it.
+  if (!vouchOnly && flag.value !== undefined && !Object.hasOwn(capture, flag.value)) {
+    console.error(`design capture: surface '${flag.value}' declares no consumer.uiCapture command`);
     return 2;
   }
 
   const targets = flag.value !== undefined ? [flag.value] : surfaces;
-  const undeclared = targets.filter((s) => !Object.hasOwn(capture, s));
+  const undeclared = vouchOnly ? [] : targets.filter((s) => !Object.hasOwn(capture, s));
   const outcomes: SurfaceCaptureOutcome[] = [];
   // Sequential on purpose: two captures of the same app race the same ports and
   // the same build output. Each success writes its own file as it happens, so a
   // failure part-way leaves the surfaces that worked vouched for.
   for (const surface of targets) {
-    const recipe = capture[surface];
+    const recipe = capture[surface] ?? (vouchOnly ? VOUCH_ONLY_RECIPE : undefined);
     if (recipe === undefined) continue;
     const outcome = await captureSurface(cwd, surface, recipe, deps.run, deps.now, vouchOnly);
     outcomes.push(outcome);

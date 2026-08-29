@@ -34,12 +34,16 @@ export function renderSurfaceReport(s: UiSurfaceFreshness): string {
   // the freshness detail points operators at — announce nothing to do.
   const action =
     s.remediation === 'capture'
-      ? `run \`pnpm noldor design capture --surface ${s.surface}\`, then commit ${file} with its receipt`
-      : s.status === 'uninitialized'
-        ? `create ${file} in a pencil-capable session (bootstrap)`
-        : s.status === 'stale'
-          ? `edit ${file} in a pencil-capable session to match the code at ${s.uiCommit?.slice(0, 8) ?? 'HEAD'}`
-          : 'no action';
+      ? `declare \`consumer.uiCapture\` for this surface if it has none, run \`pnpm noldor design capture --surface ${s.surface}\`, then commit ${file} with its receipt`
+      : s.status === 'unverified'
+        ? // No remediation on an `unverified` row means the synthetic coverage
+          // probe failed, not that a baseline lacks a receipt.
+          'investigate the git failure in the detail above — coverage could not be checked'
+        : s.status === 'uninitialized'
+          ? `create ${file} in a pencil-capable session (bootstrap)`
+          : s.status === 'stale'
+            ? `edit ${file} in a pencil-capable session to match the code at ${s.uiCommit?.slice(0, 8) ?? 'HEAD'}`
+            : 'no action';
   return `${s.surface}: ${s.status}\n  ${s.detail}\n  → ${action}`;
 }
 
@@ -101,6 +105,12 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
     console.log(renderSurfaceReport(s));
     if (s.surface === UNMAPPED_SURFACE) {
       // Config gap — no baseline file to stage or validate.
+      pending += 1;
+      continue;
+    }
+    if (s.status === 'unverified' && s.remediation !== 'capture') {
+      // A failed coverage probe is not something this command can stage, but it
+      // must not exit 0 announcing nothing pending either.
       pending += 1;
       continue;
     }
