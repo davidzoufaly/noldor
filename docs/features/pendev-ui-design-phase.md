@@ -29,7 +29,7 @@ links:
 name: pen.dev UI Design Phase
 packages:
   - package.json
-phase: in-progress
+phase: done
 since: 2026-08-17T00:00:00.000Z
 noldor-tier: full
 introduced: 1.4.0
@@ -44,11 +44,12 @@ As an operator shipping a UI feature through the gate, I want the spec phase to 
 
 ## Usage
 
-- Consumer setup: add `"uiPaths": ["src/dashboard/app/**"]` (optionally `"uiSurfaces": {"dashboard": ["src/dashboard/app/**"]}`) to `consumer` in `.noldor/config.json`; run `pnpm noldor design ui-sync` once per surface to bootstrap the baseline.
+- Consumer setup: add `"uiPaths": ["src/dashboard/app/**"]` (optionally `"uiSurfaces": {"dashboard": ["src/dashboard/app/**"]}`) to `consumer` in `.noldor/config.json`; run `pnpm noldor design ui-sync` once per surface to bootstrap the baseline. To make freshness depend on the capture actually working, also declare `"uiCapture": {"<surface>": {"command": "<your capture script>", "timeoutMs": 300000}}` and repoint that script at the wrapper (`"design:capture-ui": "noldor design capture"`).
 - Spec phase (automatic): on a UI-bearing entry, the design step seeds `docs/design/ui/<date>-<slug>.pen` from the affected baseline surfaces, iterates variants as pages, marks one winner `FINAL:` per surface; the gate commits it with the spec.
 - Design approval (automatic on UI-bearing sessions with no waiver, in the `/noldor-spec` skill flow — the prose-dispatch runners' workflow docs do not yet carry it): the design step **opens the session's `.pen` by path first** (`pnpm noldor design pen-bridge --pen <the session's .pen>` — a bare invocation opens a *tracked* file and this one is untracked until the spec commit), **then** verifies via `get_app_state` that the open document is that file and holds exactly one `FINAL:<surface>:` page per affected surface, walks each winner and alternative, and asks for one atomic approve / revise verdict over the whole set. Opening precedes every read: `get_app_state` reports whatever canvas is open, so reading first can inspect another document. `revise` must say what to change and returns to iteration; after two rounds approve-with-reservations is offered too. On approve, the approval is written into the spec's `## Design`, per surface.
 - Override: set `design: required` or `design: skip` in the FD frontmatter to force either verdict (operator-only field).
-- Freshness: `pnpm noldor checks ui-design-freshness` any time; gate Step 4 and release preflight run it automatically; `pnpm noldor design ui-sync` repairs any red.
+- Capture: `pnpm noldor design capture [--surface <name>]` runs each surface's declared command and writes `.noldor/ui-capture/<surface>.json` only when it exits 0 and produced a baseline. Surfaces run sequentially; a failure leaves that surface's receipt untouched and exits non-zero. Commit the baseline together with its receipt — the receipt is what the freshness check reads, so a capture that fails can no longer leave a surface reading `fresh`.
+- Freshness: `pnpm noldor checks ui-design-freshness` any time; gate Step 4 and release preflight run it automatically. Remediation depends on the row, and the report names the right one per surface: `unverified` and a receipt-backed `stale` are repaired by `pnpm noldor design capture`; `uninitialized`, and a surface still on the pre-receipt read, by hand via `pnpm noldor design ui-sync`.
 
 ## PRs
 
