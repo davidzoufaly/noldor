@@ -9,7 +9,7 @@ const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf
 
 describe('package engines floor', () => {
   it('declares the Node and pnpm floors the README promises', () => {
-    expect(pkg.engines?.node).toBe('>=20');
+    expect(pkg.engines?.node).toBe('>=24');
     expect(pkg.engines?.pnpm).toBe('>=9');
   });
 

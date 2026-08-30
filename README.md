@@ -6,7 +6,7 @@
 pnpm add -D @david.zoufaly/noldor
 ```
 
-[![npm](https://img.shields.io/npm/v/@david.zoufaly/noldor?color=blue)](https://www.npmjs.com/package/@david.zoufaly/noldor) · Node ≥ 20 · pnpm ≥ 9 · MIT
+[![npm](https://img.shields.io/npm/v/@david.zoufaly/noldor?color=blue)](https://www.npmjs.com/package/@david.zoufaly/noldor) · Node ≥ 24 · pnpm ≥ 9 · MIT
 
 > New here, or adopting into an existing repo? The **[adoption guide](docs/noldor/adoption-guide.md)** is the full onboarding path. This README is the map; the guide is the territory.
 
@@ -67,7 +67,7 @@ pnpm noldor doctor            # prerequisites, template skew, hooks, runtime →
 
 `init` drops the rule pages, lefthook config, skill bundle, a starter `.noldor/config.json`, and `.noldor/rollout-marker` (arms the gate — **commit it**). Once tracked, the pre-edit guard arms and the next edit to a tracked file requires a `/noldor-gate` session. Re-pull templates with `--update`; pick driver shims with `--agents claude,codex,opencode`.
 
-**Prerequisites (non-negotiable):** Node ≥ 20, pnpm ≥ 9, git ≥ 2.30, gh CLI ≥ 2, lefthook ≥ 1, plus `lint` / `fmt` / `fmt:check` / `test` scripts. `pnpm noldor doctor` probes every row, plus template sync, hook wiring, configured runners, which runtime is executing (compiled `dist` or the `tsx` stale-build fallback) and framework-version skew. Full table: the [adoption guide](docs/noldor/adoption-guide.md).
+**Prerequisites (non-negotiable):** Node ≥ 24, pnpm ≥ 9, git ≥ 2.30, gh CLI ≥ 2, lefthook ≥ 1, plus `lint` / `fmt` / `fmt:check` / `test` scripts. `pnpm noldor doctor` probes every row, plus template sync, hook wiring, configured runners, which runtime is executing (compiled `dist` or the `tsx` stale-build fallback) and framework-version skew. Full table: the [adoption guide](docs/noldor/adoption-guide.md).
 
 ---
 

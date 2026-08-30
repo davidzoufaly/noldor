@@ -12,7 +12,7 @@ jobs:
         with: { fetch-depth: 0 } # dashboard changelog tests derive versions from git history
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: pnpm } # engines.node floor — verify must pass at the minimum, not only a newer dev version
+        with: { node-version: 24, cache: pnpm } # engines.node floor — verify must pass at the minimum, not only a newer dev version
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
   contract:
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: pnpm } # engines.node floor — packed-package install must succeed at the minimum
+        with: { node-version: 24, cache: pnpm } # engines.node floor — packed-package install must succeed at the minimum
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:contract
   drain-e2e:
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm }
+        with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:e2e:drain
   nightly-real-agent:
@@ -44,6 +44,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm }
+        with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:e2e:drain
