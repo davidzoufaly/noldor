@@ -8,7 +8,7 @@
 // one: a sentence with no record is refused at the next commit, a record with
 // no sentence would be a silent claim of ratification.
 
-import { realpathSync } from 'node:fs';
+import { lstatSync, realpathSync } from 'node:fs';
 import { basename, join, relative, resolve, sep } from 'node:path';
 
 import { blobIdOfWorktreeFile } from '../core/blob-id.js';
@@ -135,6 +135,18 @@ export function resolveFeaturePen(
   penArg: string,
 ): { ok: true; abs: string; base: string } | { ok: false; error: string } {
   const candidate = resolve(repoRoot, penArg);
+  // A symlinked `.pen` is refused outright rather than resolved through: git
+  // stages the LINK's path and blob while realpath would hand this CLI the
+  // target's stem and bytes — a record written for the wrong identity that the
+  // guard can never match. Seed and `design archive` only ever produce real
+  // files, so a link here is a mistake, not a flow.
+  try {
+    if (lstatSync(candidate).isSymbolicLink()) {
+      return { ok: false, error: `--pen ${penArg}: must not be a symlink` };
+    }
+  } catch (err) {
+    return { ok: false, error: `--pen ${penArg}: ${errMessage(err)}` };
+  }
   let abs: string;
   try {
     abs = realpathSync(candidate);

@@ -7,7 +7,11 @@ import {
   UI_DESIGN_DIR,
 } from '../core/design-artifact-names.js';
 import { isSlug } from '../core/slug.js';
-import { approvalRelPath, parseApprovalBytes } from '../design/design-approval.js';
+import {
+  APPROVAL_DIR_SEGMENTS,
+  approvalRelPath,
+  parseApprovalBytes,
+} from '../design/design-approval.js';
 
 const BLOCK_LIST: ReadonlyArray<string | RegExp> = [
   'CLAUDE.md',
@@ -137,6 +141,42 @@ function isFeaturePen(path: string): boolean {
 export type RecordLookup = (recordRelPath: string) => string | null;
 
 /**
+ * The blob the resulting tree will hold for a stem's `.pen` (feature path or
+ * its `archive/`), or `null` when neither survives the commit. Injected for
+ * the record-tamper rule below; {@link stagedAwarePenLookup} is the production
+ * shape.
+ */
+export type PenBlobLookup = (stem: string) => string | null;
+
+const APPROVAL_PREFIX = `${APPROVAL_DIR_SEGMENTS.join('/')}/`;
+
+/**
+ * Production {@link PenBlobLookup}: staged entry first (a staged delete or a
+ * zero oid means that path does not survive), `HEAD` for a path the commit
+ * does not touch. Checks the feature path, then its `archive/` twin.
+ */
+export function stagedAwarePenLookup(
+  staged: readonly StagedChange[],
+  headBlob: (relPath: string) => string | null,
+): PenBlobLookup {
+  return (stem) => {
+    for (const rel of [
+      `${FEATURE_PEN_PREFIX}${stem}.pen`,
+      `${FEATURE_PEN_PREFIX}${ARCHIVE_DIR}/${stem}.pen`,
+    ]) {
+      const entry = staged.findLast((s) => s.path === rel);
+      if (entry !== undefined) {
+        if (entry.change === 'delete' || ZERO_OID_RE.test(entry.blob)) continue;
+        return entry.blob;
+      }
+      const head = headBlob(rel);
+      if (head !== null) return head;
+    }
+    return null;
+  };
+}
+
+/**
  * Production {@link RecordLookup}, delete-aware: a staged **delete** of the
  * record path resolves to `null` outright — never a fall-through to `HEAD`,
  * where the doomed copy still exists and would fail open; a staged add or
@@ -179,6 +219,8 @@ export function stagedAwareRecordLookup(
  * @param records - What the resulting tree holds per record path (see
  *   {@link RecordLookup}); the design-approval rules read records only through
  *   this seam so the decision stays pure over its arguments.
+ * @param penBlobs - What the resulting tree holds per stem's `.pen` (see
+ *   {@link PenBlobLookup}); the record-tamper rule's seam.
  * @returns Every refused path with its reason; empty means the commit may proceed.
  */
 export function evaluate(
@@ -186,6 +228,7 @@ export function evaluate(
   repoRoot: string,
   env: Record<string, string | undefined>,
   records: RecordLookup,
+  penBlobs: PenBlobLookup,
 ): readonly Violation[] {
   const inWorktree = repoRoot.includes('/.worktrees/');
   const penAllowed = env[PEN_OVERRIDE] === '1';
@@ -227,6 +270,28 @@ export function evaluate(
       if (parsed.penBlob !== entry.blob) {
         violations.push({ path: entry.path, reason: 'pen-approval-mismatch' });
         continue;
+      }
+    }
+    // Record-tamper rule: the add-only rule above never sees an AMEND that
+    // deletes or degrades a record while its `.pen` stays in the tree — the
+    // pen is unchanged vs HEAD, so only the record appears in the staged set.
+    // Any staged change to a record whose pen survives the commit must leave a
+    // usable, matching record behind, or the amended commit would introduce a
+    // pen with no valid record — the exact state the invariant forbids.
+    if (entry.path.startsWith(APPROVAL_PREFIX) && entry.path.endsWith('.json')) {
+      const stem = (entry.path.split('/').at(-1) ?? '').slice(0, -'.json'.length);
+      const penBlob = penBlobs(stem);
+      if (penBlob !== null) {
+        const resulting = records(entry.path);
+        const parsed = resulting === null ? null : parseApprovalBytes(resulting);
+        if (parsed === null) {
+          violations.push({ path: entry.path, reason: 'pen-unapproved' });
+          continue;
+        }
+        if (parsed.penBlob !== penBlob) {
+          violations.push({ path: entry.path, reason: 'pen-approval-mismatch' });
+          continue;
+        }
       }
     }
     if (penAllowed || !isPen(entry.path)) continue;
@@ -298,6 +363,16 @@ export function main(): number {
     repoRoot,
     process.env,
     stagedAwareRecordLookup(staged, readBlob),
+    stagedAwarePenLookup(staged, (rel) => {
+      try {
+        return execFileSync('git', ['rev-parse', `HEAD:${rel}`], {
+          encoding: 'utf-8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+      } catch {
+        return null;
+      }
+    }),
   );
   if (violations.length === 0) return 0;
 

@@ -199,11 +199,20 @@ describe('design verdict CLI / --pen containment', () => {
     expect(resolveFeaturePen(cwd, 'docs/design/ui/../../../etc/passwd').ok).toBe(false);
   });
 
-  it('refuses a symlink escaping the design root', () => {
+  it('refuses any symlinked --pen — git stages the link, the CLI would record the target', () => {
     const cwd = gitRepo();
     writeFileSync(join(cwd, 'outside.pen'), 'x\n');
     symlinkSync(join(cwd, 'outside.pen'), join(cwd, 'docs', 'design', 'ui', 'link.pen'));
     expect(resolveFeaturePen(cwd, 'docs/design/ui/link.pen').ok).toBe(false);
+    // In-tree link to a real feature pen: same refusal — the record would be
+    // written under the TARGET's stem while git stages the LINK's stem.
+    symlinkSync(
+      join(cwd, 'docs', 'design', 'ui', PEN),
+      join(cwd, 'docs', 'design', 'ui', '2026-08-30-alias.pen'),
+    );
+    const r = resolveFeaturePen(cwd, 'docs/design/ui/2026-08-30-alias.pen');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain('symlink');
   });
 
   it('accepts a feature .pen and an archived .pen (re-verdict after the flip commit)', () => {

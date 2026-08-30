@@ -4,12 +4,28 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  evaluate,
+  evaluate as evaluateRaw,
   parseRawDiff,
+  stagedAwarePenLookup,
   stagedAwareRecordLookup,
+  type PenBlobLookup,
   type RecordLookup,
   type StagedChange,
 } from '../check-shared-files.js';
+
+/** No pen anywhere in the resulting tree — the tamper rule stays quiet. */
+const NO_PENS: PenBlobLookup = () => null;
+
+/** evaluate with the tamper seam defaulted; tamper tests pass their own. */
+function evaluate(
+  staged: readonly StagedChange[],
+  repoRoot: string,
+  env: Record<string, string | undefined>,
+  records: RecordLookup,
+  penBlobs: PenBlobLookup = NO_PENS,
+): ReturnType<typeof evaluateRaw> {
+  return evaluateRaw(staged, repoRoot, env, records, penBlobs);
+}
 
 const WORKTREE = '/repo/.worktrees/foo';
 const MAIN = '/repo';
@@ -333,6 +349,76 @@ describe('check-shared-files / evaluate — design-approval rules', () => {
       { path: 'docs/design/ui/baseline/app.pen', change: 'add', blob: OID_A },
     ];
     expect(evaluate(staged, MAIN, {}, NO_RECORDS)).toEqual([]);
+  });
+});
+
+describe('check-shared-files / evaluate — record-tamper rule (amend bypass)', () => {
+  const PEN_STEM = '2026-08-30-my-feature';
+  const RECORD = `.noldor/design-approval/${PEN_STEM}.json`;
+  /** The pen survives in HEAD — the amend stages only the record change. */
+  const penInHead: PenBlobLookup = (stem) => (stem === PEN_STEM ? OID_A : null);
+
+  it('refuses a staged DELETE of a record whose pen survives (amend bypass closed)', () => {
+    const staged: StagedChange[] = [{ path: RECORD, change: 'delete', blob: ZERO }];
+    // records lookup is delete-aware → resulting tree holds no record.
+    const lookup = stagedAwareRecordLookup(staged, () => approvedRecord(OID_A));
+    expect(evaluate(staged, MAIN, {}, lookup, penInHead)).toEqual([
+      { path: RECORD, reason: 'pen-unapproved' },
+    ]);
+  });
+
+  it('refuses a staged corruption of a record whose pen survives', () => {
+    const staged: StagedChange[] = [{ path: RECORD, change: 'modify', blob: OID_B }];
+    const lookup: RecordLookup = () => '{ not json';
+    expect(evaluate(staged, MAIN, {}, lookup, penInHead)).toEqual([
+      { path: RECORD, reason: 'pen-unapproved' },
+    ]);
+  });
+
+  it('refuses a record rewrite that no longer names the surviving pen', () => {
+    const staged: StagedChange[] = [{ path: RECORD, change: 'modify', blob: OID_B }];
+    const lookup: RecordLookup = () => approvedRecord(OID_B); // names the wrong blob
+    expect(evaluate(staged, MAIN, {}, lookup, penInHead)).toEqual([
+      { path: RECORD, reason: 'pen-approval-mismatch' },
+    ]);
+  });
+
+  it('allows deleting an orphan record — its pen is gone from the resulting tree', () => {
+    const staged: StagedChange[] = [{ path: RECORD, change: 'delete', blob: ZERO }];
+    const lookup = stagedAwareRecordLookup(staged, () => null);
+    expect(evaluate(staged, MAIN, {}, lookup, NO_PENS)).toEqual([]);
+  });
+
+  it('allows a legitimate re-verdict — the rewritten record matches the surviving pen', () => {
+    const staged: StagedChange[] = [{ path: RECORD, change: 'modify', blob: OID_B }];
+    const lookup: RecordLookup = () => approvedRecord(OID_A);
+    expect(evaluate(staged, MAIN, {}, lookup, penInHead)).toEqual([]);
+  });
+});
+
+describe('check-shared-files / stagedAwarePenLookup', () => {
+  const PEN_STEM = '2026-08-30-my-feature';
+  const FEATURE = `docs/design/ui/${PEN_STEM}.pen`;
+  const ARCHIVED = `docs/design/ui/archive/${PEN_STEM}.pen`;
+
+  it('prefers the staged feature-path blob', () => {
+    const staged: StagedChange[] = [{ path: FEATURE, change: 'modify', blob: OID_B }];
+    expect(stagedAwarePenLookup(staged, () => null)(PEN_STEM)).toBe(OID_B);
+  });
+
+  it('treats a staged delete as gone and falls through to the archive twin in HEAD', () => {
+    const staged: StagedChange[] = [{ path: FEATURE, change: 'delete', blob: ZERO }];
+    const lookup = stagedAwarePenLookup(staged, (rel) => (rel === ARCHIVED ? OID_A : null));
+    expect(lookup(PEN_STEM)).toBe(OID_A);
+  });
+
+  it('reads HEAD when the commit does not touch the pen (the amend shape)', () => {
+    const lookup = stagedAwarePenLookup([], (rel) => (rel === FEATURE ? OID_A : null));
+    expect(lookup(PEN_STEM)).toBe(OID_A);
+  });
+
+  it('returns null when neither path survives', () => {
+    expect(stagedAwarePenLookup([], () => null)(PEN_STEM)).toBeNull();
   });
 });
 
