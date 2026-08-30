@@ -42,19 +42,6 @@ A full new FD should carry a mermaid diagram at the C4 level that fits it, semi-
 
 `pnpm noldor sync code-links` is repo-wide with no scope flag, so running it inside a feature worktree to populate one FD's links also rewrites every other FD the tag scan touches. On the liquid-glass-ui ship it reordered `coordinate-frame-and-measurement-tools.md` and added six entries to it, pulling unrelated FD churn into a feature PR that had to be reverted by hand. The gap is in `parseRunOptions()` (`src/sync/projection.ts`), which parses only `--check`, `--force` and `--quiet` — so all four projection runners (`code-links`, `test-links`, `doc-links`, `spec-links`) share it. Add `--slug <slug>` (repeatable, or comma-separated) that restricts the write set to the named FDs while still scanning the repo for their tags, since the tags themselves live outside the FD. Deletion test: a `sync code-links --slug <x>` run leaves every FD but `<x>` byte-identical. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
 
-### UI-Design Step Pencil Recipe Corrections
-
-- id: Q-0188
-- area: docs
-- type: fix
-- since: 2026-08-25
-- size: S
-- impact: med
-- confidence: high
-- parent: pendev-ui-design-phase
-
-Two instructions in the UI-design step are wrong against the tool, and each cost a session before the tool was believed over the prose. **Seeding is not implementable as written**: the step says to copy the baseline's pages "via pencil MCP, naming them `BASE:<surface>: <name>`", but `execute` has no cross-file copy (`Copy(path, parent)` is within one document) and the baseline is ~1500 nodes, so `Get`-then-`Insert` is not a real option either. What works is a filesystem `cp` of the baseline followed by page renames — say that, or ship a `design ui-seed <slug>` that does it. The naming half is stale too: `capture-ui` emits `FINAL:app: <state>` (`PAGE_PREFIX`, `scripts/design/states.ts`), so a freshly captured baseline carries `FINAL:` pages that must be renamed to `BASE:` before they can seed anything — and the committed baseline carried `BASE:` names plus three hand-authored `VAR:` pages and a `FINAL:`, i.e. a file documented as generated-never-hand-edited had already been renamed and hand-edited. Reconcile who owns page prefixes between the recorder and the design step. **Fresh nodes render blank in their own call**: new `text` and `path` nodes come back invisible in a `TakeScreenshot` issued from the same `execute` (frames with a `fill` render, and `Copy` of an existing node renders immediately) — the pen skill claims the opposite ("screenshots reflect the changes made earlier in the same execute call"), so the guidance actively misleads and an agent diagnoses its own correct schema as broken. One line telling the author to verify in a FOLLOW-UP call, or to build from copies, pays for itself. Deletion test: a first-time author seeds a `.pen` from the baseline and screenshots a fresh node without a wrong conclusion in between. (found 2026-08-25)
-
 ### Enforceable Design-Approval Signal
 
 - id: Q-0196
