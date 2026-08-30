@@ -231,5 +231,9 @@
   "Q-0189": {
     "slug": "attach-path-ui-verdict-reads-touches",
     "retiredAt": "2026-08-30"
+  },
+  "Q-0188": {
+    "slug": "ui-design-step-pencil-recipe-corrections",
+    "retiredAt": "2026-08-30"
   }
 }
