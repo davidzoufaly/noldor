@@ -5,7 +5,13 @@ import { join } from 'node:path';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { cutReasons, docsRelativeDir, listMd, locateSection } from '../markdown-section-scan.js';
+import {
+  cutReasons,
+  docsRelativeDir,
+  listMd,
+  locateSection,
+  visibleProse,
+} from '../markdown-section-scan.js';
 
 describe('cutReasons', () => {
   it('distinguishes an absent marker from a bare one', () => {
@@ -102,6 +108,22 @@ describe('comment handling', () => {
     expect(locateSection(doc, 2, 'Real', null)).toBeNull();
   });
 
+  it('heals a lone fence opener hidden in a comment, instead of fencing the rest of the file', () => {
+    // The opener is swallowed by the comment and nothing ever closes it. Fence
+    // state must not survive on a delimiter the reader cannot see, or every
+    // heading to EOF silently leaves scope — the failure class this module
+    // exists to close.
+    const body = ['## A', '', '<!--', '```mermaid', '-->', '', '## Usage', '', 'Run it.'].join(
+      '\n',
+    );
+    expect(locateSection(body, 2, 'Usage', null)?.scanned).toContain('Run it.');
+  });
+
+  it('still lets a visible unclosed fence run to EOF, exactly as CommonMark reads it', () => {
+    const body = ['## A', '', '```', '## Usage', '', 'code to EOF'].join('\n');
+    expect(locateSection(body, 2, 'Usage', null)).toBeNull();
+  });
+
   it('keeps a commented-out mermaid fence out of the raw view', () => {
     // `raw` feeds fence detection and density floors: a fence the reader cannot
     // see must not clear either.
@@ -123,6 +145,21 @@ describe('heading indentation', () => {
     const body = ['## A', '', 'alpha', '', '    ## B', '', 'still A'].join('\n');
     expect(locateSection(body, 2, 'A', null)?.raw).toContain('still A');
     expect(locateSection(body, 2, 'B', null)).toBeNull();
+  });
+
+  it('treats a four-space-indented fence delimiter as indented code, not a fence', () => {
+    // CommonMark allows at most three spaces before a fence — the same rule the
+    // heading predicate enforces. A doc SHOWING a fence as an indented sample
+    // must not mint a phantom fence that swallows every heading after it.
+    const body = ['## A', '', '    ```', '', '## Usage', '', 'Run it.'].join('\n');
+    expect(locateSection(body, 2, 'Usage', null)?.scanned).toContain('Run it.');
+  });
+});
+
+describe('visibleProse', () => {
+  it('keeps an indented-code heading-shaped line — only real headings are markup', () => {
+    expect(visibleProse('real prose\n    # indented code line')).toContain('indented code line');
+    expect(visibleProse('real prose\n## Sub')).not.toContain('Sub');
   });
 });
 

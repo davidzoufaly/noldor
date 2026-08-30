@@ -71,25 +71,50 @@ export interface TaggedLine {
  * starts and ends the moment a fence contains something heading-shaped — or the
  * moment a comment contains a fence delimiter. The comment rules are the module
  * docstring's; the fence rules are CommonMark's.
+ *
+ * One repair on top: a fence whose opener the reader cannot see (it sits inside
+ * a comment) and which never closes is re-tagged as literal text and the pass
+ * re-run. Without it, a lone `\`\`\`` hidden in a comment fences every heading
+ * to EOF — the heading-swallowing failure this module exists to close. A fence
+ * the author can SEE runs unclosed to EOF exactly as CommonMark reads it; only
+ * the invisible-opener case is healed, so the repair can never rewrite visible
+ * structure. Each round demotes one delimiter line, so it terminates.
  */
 export function tagLines(body: string): TaggedLine[] {
+  const lines = body.split('\n');
+  const demoted = new Set<number>();
+  for (;;) {
+    const { out, healAt } = tagPass(lines, demoted);
+    if (healAt === null) return out;
+    demoted.add(healAt);
+  }
+}
+
+/** One tagging pass; `healAt` names a comment-hidden opener left unclosed at EOF. */
+function tagPass(
+  lines: readonly string[],
+  demoted: ReadonlySet<number>,
+): { out: TaggedLine[]; healAt: number | null } {
   const out: TaggedLine[] = [];
   // CommonMark: a fence closes only on the SAME character, at least as long as
   // the opener. Toggling on any ``` or ~~~ meant a three-backtick line inside a
   // four-backtick fence — or a tilde line inside a backtick fence — closed it
   // early, letting fenced heading-shaped content open or truncate a section.
-  let open: { char: string; len: number } | null = null;
+  let open: { char: string; len: number; at: number; hidden: boolean } | null = null;
   let inComment = false;
 
-  for (const text of body.split('\n')) {
+  for (const [i, text] of lines.entries()) {
     // The fence machine reads the RAW line, comment state notwithstanding: an
     // author's balanced delimiters must stay balanced however commented.
     let fenced: boolean;
     // A closing fence may carry ONLY the delimiter plus trailing whitespace
     // (CommonMark); an info string like ```js can open a fence but never close
     // one. Accepting any same-character run let ```js inside an open fence close
-    // it and expose heading-shaped content to the section scanner.
-    const m = /^\s*(`{3,}|~{3,})(.*)$/.exec(text);
+    // it and expose heading-shaped content to the section scanner. At most
+    // three spaces may precede a delimiter — the same CommonMark rule
+    // {@link atxHeading} enforces — or a fence SHOWN as an indented code sample
+    // mints a phantom fence.
+    const m = demoted.has(i) ? null : /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(text);
     if (m !== null) {
       const char = m[1][0]!;
       const len = m[1].length;
@@ -97,7 +122,7 @@ export function tagLines(body: string): TaggedLine[] {
       if (open === null) {
         // An opener may carry an info string, but backticks forbid a backtick
         // in it.
-        if (char !== '`' || !m[2].includes('`')) open = { char, len };
+        if (char !== '`' || !m[2].includes('`')) open = { char, len, at: i, hidden: inComment };
       } else if (bare && char === open.char && len >= open.len) {
         open = null;
       }
@@ -128,7 +153,7 @@ export function tagLines(body: string): TaggedLine[] {
 
     out.push({ text, fenced, visible });
   }
-  return out;
+  return { out, healAt: open !== null && open.hidden ? open.at : null };
 
   /** Blank every comment span in an unfenced line, tracking an unclosed opener. */
   function blankSpans(rest: string): string {
@@ -331,9 +356,6 @@ export function docsRelativeDir(dir: string): string {
 export function visibleProse(scanned: string): string {
   return scanned
     .split('\n')
-    .filter((line) => {
-      const t = line.trim();
-      return !CUT_MARKER_RE.test(t) && !/^#{1,6}\s/.test(t);
-    })
+    .filter((line) => !CUT_MARKER_RE.test(line.trim()) && atxHeading(line) === null)
     .join('\n');
 }
