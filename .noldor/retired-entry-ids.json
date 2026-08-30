@@ -223,5 +223,9 @@
     "slug": "ui-baseline-freshness-must-run-the-capture",
     "retiredInto": "pendev-ui-design-phase",
     "retiredAt": "2026-08-29"
+  },
+  "Q-0197": {
+    "slug": "indeterminate-freshness-rows-are-masked-by-fresh-ones",
+    "retiredAt": "2026-08-30"
   }
 }
