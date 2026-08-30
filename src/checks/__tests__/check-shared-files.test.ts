@@ -170,7 +170,7 @@ describe('check-shared-files / evaluate — .pen write guard', () => {
     ]);
   });
 
-  it('allows `design archive` moving a feature .pen into archive/', () => {
+  it('allows `design archive` moving a feature .pen into archive/ — its record is in HEAD', () => {
     const staged = parseRawDiff(
       rawRecord(
         'R100',
@@ -179,7 +179,19 @@ describe('check-shared-files / evaluate — .pen write guard', () => {
         ARCHIVED.replace('2026-08-24-liquid-glass-ui', '2026-08-27-x'),
       ),
     );
-    expect(evaluate(staged, WORKTREE, {}, NO_RECORDS)).toEqual([]);
+    // The move's destination is an add under archive/, so the approval rules
+    // apply — and pass, because the record committed at spec time still names
+    // the unchanged blob. That is what keeps a DIRECT unapproved add into
+    // archive/ from being the guard's bypass.
+    expect(evaluate(staged, WORKTREE, {}, () => approvedRecord(OID_A))).toEqual([]);
+  });
+
+  it('refuses a .pen added directly into archive/ with no record (bypass closed)', () => {
+    const dest = 'docs/design/ui/archive/2026-08-30-sneaky.pen';
+    const staged: StagedChange[] = [{ path: dest, change: 'add', blob: OID_A }];
+    expect(evaluate(staged, MAIN, {}, NO_RECORDS)).toEqual([
+      { path: dest, reason: 'pen-unapproved' },
+    ]);
   });
 
   it('leaves a modified feature .pen and non-.pen archive files alone', () => {
@@ -252,8 +264,42 @@ describe('check-shared-files / evaluate — design-approval rules', () => {
 
   it('accepts a matching waived record — the union admits the waiver-after-Seed flow', () => {
     const waived: RecordLookup = () =>
-      JSON.stringify({ outcome: 'waived', at: 'x', penBlob: OID_A, reason: 'bridge down' });
+      JSON.stringify({
+        outcome: 'waived',
+        at: '2026-08-30T00:00:00.000Z',
+        penBlob: OID_A,
+        reason: 'bridge down',
+      });
     expect(evaluate([addPen], MAIN, {}, waived)).toEqual([]);
+  });
+
+  it('refuses a whitespace-only waiver reason and a non-ISO timestamp', () => {
+    const blankReason: RecordLookup = () =>
+      JSON.stringify({
+        outcome: 'waived',
+        at: '2026-08-30T00:00:00.000Z',
+        penBlob: OID_A,
+        reason: '   ',
+      });
+    expect(evaluate([addPen], MAIN, {}, blankReason)).toEqual([
+      { path: PEN, reason: 'pen-unapproved' },
+    ]);
+    const badAt: RecordLookup = () =>
+      JSON.stringify({ outcome: 'waived', at: 'yesterday', penBlob: OID_A, reason: 'r' });
+    expect(evaluate([addPen], MAIN, {}, badAt)).toEqual([{ path: PEN, reason: 'pen-unapproved' }]);
+  });
+
+  it('refuses a stem outside the slug grammar even when the dated pattern matches', () => {
+    // PEN_FILE_RE's key grammar is wider than the record store's slug grammar;
+    // demanding a record `writeApproval` can never write would be a dead end.
+    const mixedCase: StagedChange = {
+      path: 'docs/design/ui/2026-08-30-My-Feature.pen',
+      change: 'add',
+      blob: OID_A,
+    };
+    expect(evaluate([mixedCase], MAIN, {}, () => approvedRecord(OID_A))).toEqual([
+      { path: 'docs/design/ui/2026-08-30-My-Feature.pen', reason: 'pen-unapproved' },
+    ]);
   });
 
   it('does not fire on a modify of an already-committed feature .pen', () => {
@@ -282,10 +328,9 @@ describe('check-shared-files / evaluate — design-approval rules', () => {
     ]);
   });
 
-  it('ignores baseline and archive adds — those belong to the other rules', () => {
+  it('ignores baseline adds — undated, unkeyable by design, covered by their own rule', () => {
     const staged: StagedChange[] = [
       { path: 'docs/design/ui/baseline/app.pen', change: 'add', blob: OID_A },
-      { path: 'docs/design/ui/archive/2026-08-30-my-feature.pen', change: 'add', blob: OID_A },
     ];
     expect(evaluate(staged, MAIN, {}, NO_RECORDS)).toEqual([]);
   });

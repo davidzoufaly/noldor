@@ -6,6 +6,7 @@ import {
   UI_BASELINE_DIR,
   UI_DESIGN_DIR,
 } from '../core/design-artifact-names.js';
+import { isSlug } from '../core/slug.js';
 import { approvalRelPath, parseApprovalBytes } from '../design/design-approval.js';
 
 const BLOCK_LIST: ReadonlyArray<string | RegExp> = [
@@ -115,18 +116,16 @@ function isPen(path: string): boolean {
 const FEATURE_PEN_PREFIX = `${UI_DESIGN_DIR}/`;
 
 /**
- * A FEATURE `.pen`: under `docs/design/ui/`, directly (no baseline, no
- * archive). Baseline pens have their own rule; an add into `archive/` is
- * `design archive`'s sanctioned move of a file whose record — keyed by the
- * unchanged stem, bound to the unchanged blob — already exists.
+ * A FEATURE `.pen`: under `docs/design/ui/`, `archive/` included — an add into
+ * `archive/` is usually `design archive`'s sanctioned move of a file whose
+ * record (keyed by the unchanged stem, bound to the unchanged blob) is already
+ * committed, and that satisfies the approval rules for free; a `.pen` added
+ * DIRECTLY into `archive/` with no record would otherwise be the guard's
+ * bypass. Baseline pens are excluded: undated (unkeyable by design), covered
+ * by their own rule, and never verdict targets.
  */
 function isFeaturePen(path: string): boolean {
-  return (
-    isPen(path) &&
-    path.startsWith(FEATURE_PEN_PREFIX) &&
-    !path.startsWith(BASELINE_PREFIX) &&
-    !path.includes(ARCHIVE_SEGMENT)
-  );
+  return isPen(path) && path.startsWith(FEATURE_PEN_PREFIX) && !path.startsWith(BASELINE_PREFIX);
 }
 
 /**
@@ -208,9 +207,14 @@ export function evaluate(
     // drift after that is the ui-reviewer lane's `design-approval-stale`.
     if (entry.change === 'add' && isFeaturePen(entry.path)) {
       const base = entry.path.split('/').at(-1) ?? entry.path;
-      if (penSlugFromFilename(base) === null) {
-        // An unkeyable filename refuses rather than passes: a file the naming
-        // scheme cannot identify is one no record can name.
+      const key = penSlugFromFilename(base);
+      // An unkeyable filename refuses rather than passes: a file the naming
+      // scheme cannot identify is one no record can name. The SECOND test is
+      // the writable-key requirement — `PEN_FILE_RE`'s key grammar is wider
+      // than the record store's slug grammar (`2026-08-30-My-Feature.pen`
+      // parses a key `writeApproval` refuses), and demanding a record the CLI
+      // can never write would be a dead-end loop, not a remedy.
+      if (key === null || !isSlug(base.slice(0, -'.pen'.length))) {
         violations.push({ path: entry.path, reason: 'pen-unapproved' });
         continue;
       }

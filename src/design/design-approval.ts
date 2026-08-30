@@ -23,30 +23,35 @@ import { writeReceiptFile } from '../core/receipt-store.js';
 export const APPROVAL_DIR_SEGMENTS = ['.noldor', 'design-approval'] as const;
 
 const gitOid = z.string().regex(/^[0-9a-f]{40}$|^[0-9a-f]{64}$/);
+/** Whitespace-only text passes `.min(1)`; a blank reason/surface is no record at all. */
+const nonBlank = z.string().refine((s) => s.trim().length > 0, 'must not be blank');
 
 /**
  * Strict on both members, like `uiCaptureReceiptSchema`: an unknown field
  * means writer and reader disagree about what the record means. `surfaces` is
  * descriptive metadata, not a verified claim — the authoritative set is the
  * `FINAL:` pages inside an encrypted file no check can read — so the schema
- * requires non-empty and nothing more (dedup is the writer's job).
+ * requires non-empty, non-blank and duplicate-free and nothing more.
  */
 export const designApprovalRecordSchema = z.discriminatedUnion('outcome', [
   z
     .object({
       outcome: z.literal('approved'),
-      at: z.string().min(1),
+      at: z.string().datetime(),
       penBlob: gitOid,
-      surfaces: z.array(z.string().min(1)).nonempty(),
-      reservation: z.string().min(1).optional(),
+      surfaces: z
+        .array(nonBlank)
+        .nonempty()
+        .refine((s) => new Set(s).size === s.length, 'duplicate surfaces'),
+      reservation: nonBlank.optional(),
     })
     .strict(),
   z
     .object({
       outcome: z.literal('waived'),
-      at: z.string().min(1),
+      at: z.string().datetime(),
       penBlob: gitOid,
-      reason: z.string().min(1),
+      reason: nonBlank,
     })
     .strict(),
 ]);
