@@ -161,6 +161,57 @@ describe('comment handling', () => {
     expect(locateSection(body, 2, 'After', null)?.scanned).toContain('tail prose');
   });
 
+  it('heals a hidden-opener region that swallows visible prose and a visible fence', () => {
+    // The reviewer-probed shape: no heading inside the phantom, so a
+    // heading-only heal missed it — an FD carrying a real rendered diagram and
+    // real prose reported as a stub. Any non-blank visible line inside a
+    // hidden-opener region is structure the reader can see.
+    const body = [
+      '## Diagram',
+      '<!--',
+      '```',
+      '-->',
+      'prose beside the diagram that comfortably clears the floor',
+      '```mermaid',
+      'flowchart LR',
+      '  a --> b',
+      '```',
+    ].join('\n');
+    const d = locateSection(body, 2, 'Diagram', null);
+    expect(d?.scanned).toContain('prose beside the diagram');
+    expect(d?.raw).toContain('flowchart LR');
+  });
+
+  it('demotes a hidden bare opener when its comment ends, matching the reader view', () => {
+    // The reader sees no delimiter in the comment, so the first visible ``` is
+    // an OPENER: the heading between the visible pair is fenced, the one after
+    // is not. Pairing the hidden opener with the visible delimiter inverted
+    // fence state for the rest of the document.
+    const body = [
+      '<!--',
+      '```',
+      '-->',
+      '```',
+      '## Hidden by the visible fence',
+      '```',
+      '## After',
+      '',
+      'tail',
+    ].join('\n');
+    expect(locateSection(body, 2, 'Hidden by the visible fence', null)).toBeNull();
+    expect(locateSection(body, 2, 'After', null)?.scanned).toContain('tail');
+  });
+
+  it('blanks the tail of a multi-line comment close line, as a renderer does', () => {
+    // CommonMark: an HTML block ends at the line CONTAINING `-->`, consuming
+    // the whole line — text after the close marker is not rendered.
+    const body = ['## A', '', 'pre', '<!--', 'hidden --> tail', 'post'].join('\n');
+    const a = locateSection(body, 2, 'A', null);
+    expect(a?.scanned).toContain('pre');
+    expect(a?.scanned).toContain('post');
+    expect(a?.scanned).not.toContain('tail');
+  });
+
   it('does not heal a commented-out fence whose body is heading-shaped only inside the comment', () => {
     // A `# run this` line in a commented-out bash fence is hidden text, not a
     // visible heading — the hidden fence stays hidden, exactly as before.

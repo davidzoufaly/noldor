@@ -72,16 +72,18 @@ export interface TaggedLine {
  * moment a comment contains a fence delimiter. The comment rules are the module
  * docstring's; the fence rules are CommonMark's.
  *
- * One repair on top: a fence opened by a delimiter the reader cannot see (it
- * sits inside a comment) is re-tagged as literal text and the pass re-run when
- * its region turns out to swallow visible structure — it never closes, or a
- * visible heading falls inside it. Without that, a lone `\`\`\`` hidden in a
- * comment fences every heading to EOF or, paired with a later visible
- * delimiter, everything up to it — the heading-swallowing failure this module
- * exists to close. A commented-out fence whose region holds only its own body
- * stays hidden, and a fence the author can SEE runs unclosed to EOF exactly as
- * CommonMark reads it, so the repair can never rewrite visible structure. Each
- * round demotes one delimiter line, so it terminates.
+ * Repairs on top, all serving one rule — a delimiter the reader cannot see (it
+ * sits inside a comment) may never fence structure the reader CAN see. A hidden
+ * BARE opener is demoted the moment its comment ends still open: the reader
+ * sees no delimiter, so the next visible one is an opener, not its closer (a
+ * genuinely commented-out fence starts with its info-string opener). A hidden
+ * info-string opener stands for that commented-out fence — it may close on a
+ * hidden closer or consume the stray visible closer the comment left behind —
+ * but it is demoted when any non-blank visible line falls inside its region, or
+ * when it is still open at EOF. A commented-out fence whose region holds only
+ * its own blanked body stays hidden, and a fence the author can SEE runs
+ * unclosed to EOF exactly as CommonMark reads it, so no repair ever rewrites
+ * visible structure. Each round demotes one delimiter line, so it terminates.
  */
 export function tagLines(body: string): TaggedLine[] {
   const lines = body.split('\n');
@@ -94,9 +96,28 @@ export function tagLines(body: string): TaggedLine[] {
 }
 
 /**
- * One tagging pass; `healAt` names a comment-hidden opener whose fence swallows
- * visible structure — a visible heading inside its region, or open at EOF. When
- * `healAt` is non-null the returned lines may be partial; the caller re-runs.
+ * One line parsed as a fence delimiter, or `null`.
+ *
+ * THE delimiter grammar, exported so no consumer forks it (`fenceKinds` did,
+ * and the two copies disagreed on indent and tilde support): at most three
+ * spaces of indent (CommonMark — the same ceiling {@link atxHeading} enforces),
+ * three or more backticks or tildes, and a backtick run may not carry a
+ * backtick in its info string.
+ */
+export function fenceDelimiter(
+  line: string,
+): { char: string; len: number; info: string; bare: boolean } | null {
+  const m = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+  if (m === null) return null;
+  const char = m[1][0]!;
+  if (char === '`' && m[2].includes('`')) return null;
+  return { char, len: m[1].length, info: m[2].trim(), bare: m[2].trim().length === 0 };
+}
+
+/**
+ * One tagging pass; `healAt` names a comment-hidden opener whose fence would
+ * hide visible structure — see {@link tagLines}. When `healAt` is non-null the
+ * returned lines may be partial; the caller re-runs.
  */
 function tagPass(
   lines: readonly string[],
@@ -104,33 +125,21 @@ function tagPass(
 ): { out: TaggedLine[]; healAt: number | null } {
   const out: TaggedLine[] = [];
   // CommonMark: a fence closes only on the SAME character, at least as long as
-  // the opener. Toggling on any ``` or ~~~ meant a three-backtick line inside a
-  // four-backtick fence — or a tilde line inside a backtick fence — closed it
-  // early, letting fenced heading-shaped content open or truncate a section.
-  let open: { char: string; len: number; at: number; hidden: boolean } | null = null;
+  // the opener, and a closer is bare — an info string like ```js can open a
+  // fence but never close one. Anything looser let fenced heading-shaped
+  // content open or truncate a section.
+  let open: { char: string; len: number; at: number; hidden: boolean; bare: boolean } | null = null;
   let inComment = false;
 
   for (const [i, text] of lines.entries()) {
     // The fence machine reads the RAW line, comment state notwithstanding: an
     // author's balanced delimiters must stay balanced however commented.
     let fenced: boolean;
-    // A closing fence may carry ONLY the delimiter plus trailing whitespace
-    // (CommonMark); an info string like ```js can open a fence but never close
-    // one. Accepting any same-character run let ```js inside an open fence close
-    // it and expose heading-shaped content to the section scanner. At most
-    // three spaces may precede a delimiter — the same CommonMark rule
-    // {@link atxHeading} enforces — or a fence SHOWN as an indented code sample
-    // mints a phantom fence.
-    const m = demoted.has(i) ? null : /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(text);
-    if (m !== null) {
-      const char = m[1][0]!;
-      const len = m[1].length;
-      const bare = m[2].trim().length === 0;
+    const d = demoted.has(i) ? null : fenceDelimiter(text);
+    if (d !== null) {
       if (open === null) {
-        // An opener may carry an info string, but backticks forbid a backtick
-        // in it.
-        if (char !== '`' || !m[2].includes('`')) open = { char, len, at: i, hidden: inComment };
-      } else if (bare && char === open.char && len >= open.len) {
+        open = { char: d.char, len: d.len, at: i, hidden: inComment, bare: d.bare };
+      } else if (d.bare && d.char === open.char && d.len >= open.len) {
         open = null;
       }
       // Delimiter lines belong to no section body either way.
@@ -139,18 +148,26 @@ function tagPass(
       fenced = open !== null;
     }
 
-    // Comment visibility. An open comment ends at the first `-->` on ANY line;
-    // a new one begins only on an unfenced span.
+    // Comment visibility. An open comment ends at the first `-->` on ANY line,
+    // and the close line is consumed WHOLE — CommonMark ends the HTML block at
+    // the line containing `-->`, so a tail after the marker is not rendered
+    // (the tail is still scanned so a new `<!--` in it can reopen). A new
+    // comment begins only on an unfenced span.
     let visible: string;
     if (inComment) {
       const close = text.indexOf('-->');
       if (close === -1) {
         visible = blank(text);
       } else {
-        const end = close + '-->'.length;
         inComment = false;
-        const rest = text.slice(end);
-        visible = blank(text.slice(0, end)) + (fenced ? rest : blankSpans(rest));
+        const rest = text.slice(close + '-->'.length);
+        if (!fenced) blankSpans(rest);
+        visible = blank(text);
+      }
+      // A hidden BARE opener still open when its comment ends is a phantom:
+      // demote it so the next visible delimiter opens, as the reader sees it.
+      if (!inComment && open !== null && open.hidden && open.bare) {
+        return { out, healAt: open.at };
       }
     } else if (fenced) {
       visible = text;
@@ -160,12 +177,10 @@ function tagPass(
 
     out.push({ text, fenced, visible });
 
-    // A visible heading inside a hidden-opener region is proof the phantom is
-    // swallowing structure the reader can see — demote the opener now. A line
-    // still inside a comment has a blank `visible`, so a heading-shaped line
-    // that is itself hidden (a `# comment` in a commented-out bash fence) can
-    // never trigger this.
-    if (open !== null && open.hidden && fenced && atxHeading(visible) !== null) {
+    // Any non-blank visible line inside a hidden-opener region is structure
+    // the reader can see — demote the opener. A genuinely commented-out
+    // fence's body is blanked end to end, so it can never trigger this.
+    if (open !== null && open.hidden && open.at !== i && visible.trim().length > 0) {
       return { out, healAt: open.at };
     }
   }

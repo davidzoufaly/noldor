@@ -3,6 +3,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, join, sep } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
+import { fenceDelimiter } from '../core/markdown-section-scan.js';
 import { scanRoots, toPosixRelative } from '../core/repo-paths.js';
 import {
   ARCH_PAGE_PROSE_WORD_THRESHOLD,
@@ -107,38 +108,33 @@ const EXCLUDED_DIRS = new Set([
  * unterminated YAML block or fence yields no kind rather than consuming the
  * rest of the document.
  *
- * The delimiter grammar is the shared section scanner's (CommonMark): at most
- * three spaces of indent, a closer is bare and at least as long as its opener,
- * and a fence inside an enclosing fence is example text. Each rule closed a
- * real hole — an indented or ````-quoted mermaid sample counted as a diagram,
- * letting an example-only section pass its hasFence check.
- *
- * noldor:cut backtick fences only — add tilde-fence support if a consumer's
- * pages use them (the same CommonMark gap Q-0113 tracks for queue documents).
+ * The delimiter grammar is {@link fenceDelimiter} — the shared section
+ * scanner's, never a local copy (an earlier fork here disagreed on indent and
+ * tilde support, so a quoted or indented mermaid sample counted as a diagram
+ * while a real `~~~mermaid` fence did not). A closer is bare, same character,
+ * at least as long as its opener; a fence inside an enclosing fence is example
+ * text.
  *
  * @param body - Raw markdown
  * @returns Lowercased kinds, in document order, one per mermaid fence that declared one
  */
 export function fenceKinds(body: string): string[] {
   const kinds: string[] = [];
-  let open: { len: number; mermaid: boolean } | null = null;
+  let open: { char: string; len: number; mermaid: boolean } | null = null;
   let pending: string | null = null;
   let sought = false;
   let inYaml = false;
   for (const line of body.split('\n')) {
-    const m = /^ {0,3}(`{3,})(.*)$/.exec(line);
-    if (m !== null) {
-      const bare = m[2].trim().length === 0;
+    const d = fenceDelimiter(line);
+    if (d !== null) {
       if (open === null) {
-        if (!m[2].includes('`')) {
-          open = { len: m[1].length, mermaid: /^\s*mermaid\s*$/i.test(m[2]) };
-          pending = null;
-          sought = false;
-          inYaml = false;
-        }
+        open = { char: d.char, len: d.len, mermaid: /^mermaid$/i.test(d.info) };
+        pending = null;
+        sought = false;
+        inYaml = false;
         continue;
       }
-      if (bare && m[1].length >= open.len) {
+      if (d.bare && d.char === open.char && d.len >= open.len) {
         if (open.mermaid && pending !== null) kinds.push(pending);
         open = null;
       }

@@ -121,6 +121,10 @@ describe(fenceKinds, () => {
     );
     expect(fenceKinds(md)).toStrictEqual(['pie']);
   });
+
+  it('reads a tilde mermaid fence — the delimiter grammar is the shared scanner one', () => {
+    expect(fenceKinds('~~~mermaid\nflowchart TD\n  a --> b\n~~~\n')).toStrictEqual(['flowchart']);
+  });
 });
 
 describe(mentionsModule, () => {
