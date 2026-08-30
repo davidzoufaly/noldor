@@ -38,6 +38,7 @@ since: 2026-08-17T00:00:00.000Z
 noldor-tier: full
 introduced: 1.4.0
 ---
+
 ## Summary
 
 The framework has no UI-design stage: `/noldor-spec` produces prose, and a frontend feature's visual design is either absent from the artifact trail or pasted in as a screenshot nobody validates. This feature adds a pen.dev-backed design step inside the spec phase: on UI-bearing sessions (decided by a `consumer.uiPaths` predicate with an FD `design:` override, never by operator memory), several UI versions are drafted and compared as pages inside one repo-committed `.pen` file while the spec is still being written, converging on one `FINAL:` design per affected surface that the spec links and gate Step 2.5 commits alongside it — design decisions adjudicated with the rest of the spec rather than after it. A shared baseline at `docs/design/ui/baseline/<surface>.pen` mirrors the shipped UI so every design session seeds from reality; ship-time write-back plus an ancestry-based per-surface freshness check and a `design ui-sync` remediation command keep it from rotting. The design spec resolves the entry's open questions (artifact pinning via git, candidates-as-pages, predicate semantics, non-UI skip); the review lane that checks implemented UI against the chosen design was carved out to Q-0145. Related but distinct: Q-0116's design-artifact detector module governs how design artifacts are discovered once they exist, not where they come from. Consumer-blocking, which is why this outranked internal-polish entries per the vision's adoption tie-breaker.
@@ -79,6 +80,7 @@ Consumer config schema now accepts `uiPaths` and `uiSurfaces` (#342).
 - **Spec:** [`docs/design/specs/archive/2026-08-19-pendev-ui-design-phase-design.md`](../../docs/design/specs/archive/2026-08-19-pendev-ui-design-phase-design.md)
 - **Code:**
   - [`src/core/ui-predicate.ts`](../../src/core/ui-predicate.ts)
+  - [`src/core/run-capture.ts`](../../src/core/run-capture.ts)
   - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
   - [`src/core/design-artifact-names.ts`](../../src/core/design-artifact-names.ts)
   - [`src/core/doc-roots.ts`](../../src/core/doc-roots.ts)
@@ -86,6 +88,8 @@ Consumer config schema now accepts `uiPaths` and `uiSurfaces` (#342).
   - [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts)
   - [`src/release/ui-design-freshness.ts`](../../src/release/ui-design-freshness.ts)
   - [`src/checks/check-ui-design-freshness.ts`](../../src/checks/check-ui-design-freshness.ts)
+  - [`src/design/ui-capture.ts`](../../src/design/ui-capture.ts)
+  - [`src/design/ui-capture-cli.ts`](../../src/design/ui-capture-cli.ts)
   - [`src/design/ui-sync-cli.ts`](../../src/design/ui-sync-cli.ts)
   - [`src/design/archive-resolve.ts`](../../src/design/archive-resolve.ts)
   - [`src/design/archive-cli.ts`](../../src/design/archive-cli.ts)
@@ -94,6 +98,9 @@ Consumer config schema now accepts `uiPaths` and `uiSurfaces` (#342).
   - [`src/checks/__tests__/check-ui-design-freshness.test.ts`](../../src/checks/__tests__/check-ui-design-freshness.test.ts)
   - [`src/core/__tests__/design-artifact-names.test.ts`](../../src/core/__tests__/design-artifact-names.test.ts)
   - [`src/core/__tests__/ui-predicate.test.ts`](../../src/core/__tests__/ui-predicate.test.ts)
+  - [`src/design/__tests__/design-approval.test.ts`](../../src/design/__tests__/design-approval.test.ts)
+  - [`src/design/__tests__/pen-bridge.test.ts`](../../src/design/__tests__/pen-bridge.test.ts)
+  - [`src/design/__tests__/ui-capture.test.ts`](../../src/design/__tests__/ui-capture.test.ts)
   - [`src/design/__tests__/ui-sync.test.ts`](../../src/design/__tests__/ui-sync.test.ts)
   - [`src/release/__tests__/ui-design-freshness.test.ts`](../../src/release/__tests__/ui-design-freshness.test.ts)
 

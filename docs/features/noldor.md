@@ -297,6 +297,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/sync/sync-spec-links.ts`](../../src/sync/sync-spec-links.ts)
   - [`src/triage/has-block-cli.ts`](../../src/triage/has-block-cli.ts)
 - **Tests:**
+  - [`src/checks/__tests__/check-install-freshness.test.ts`](../../src/checks/__tests__/check-install-freshness.test.ts)
   - [`src/cli/__tests__/command-registry.test.ts`](../../src/cli/__tests__/command-registry.test.ts)
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)
   - [`src/core/__tests__/commit-wrapper.test.ts`](../../src/core/__tests__/commit-wrapper.test.ts)

@@ -29,6 +29,7 @@ introduced: 0.1.0
 updated: 0.3.0
 noldor-tier: full
 ---
+
 ## Summary
 
 Four architecture invariants enforced at pre-commit, with advisory mirror in `/noldor-garden`:
@@ -72,6 +73,7 @@ Adding a new invariant:
   - [`src/invariants/index.ts`](../../src/invariants/index.ts)
   - [`src/invariants/public-api-tsdoc.ts`](../../src/invariants/public-api-tsdoc.ts)
   - [`src/invariants/rule-conflicts.ts`](../../src/invariants/rule-conflicts.ts)
+  - [`src/invariants/toolchain-floor.ts`](../../src/invariants/toolchain-floor.ts)
   - [`src/invariants/types.ts`](../../src/invariants/types.ts)
   - [`src/invariants/rule-pairs.ts`](../../src/invariants/rule-pairs.ts)
 - **Tests:**
@@ -80,6 +82,7 @@ Adding a new invariant:
   - [`src/checks/__tests__/invariants-public-api-tsdoc.test.ts`](../../src/checks/__tests__/invariants-public-api-tsdoc.test.ts)
   - [`src/checks/__tests__/invariants-rule-conflicts.test.ts`](../../src/checks/__tests__/invariants-rule-conflicts.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/invariants/__tests__/toolchain-floor.test.ts`](../../src/invariants/__tests__/toolchain-floor.test.ts)
 
 <!-- /generated: resources -->
 
