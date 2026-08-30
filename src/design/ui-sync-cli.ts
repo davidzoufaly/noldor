@@ -40,7 +40,12 @@ export function renderSurfaceReport(s: UiSurfaceFreshness): string {
         ? `create ${file} in a pencil-capable session (bootstrap)`
         : s.status === 'stale'
           ? `edit ${file} in a pencil-capable session to match the code at ${s.uiCommit?.slice(0, 8) ?? 'HEAD'}`
-          : 'no action';
+          : // An indeterminate row is not clean and is not remediable here: the
+            // freshness check could not run for it, so `no action` would read as
+            // "checked, nothing wrong" over a surface nothing checked.
+            s.status === 'indeterminate'
+            ? 'nothing to remediate here — the check could not run for this surface; re-run once git can answer'
+            : 'no action';
   return `${s.surface}: ${s.status}\n  ${s.detail}\n  → ${action}`;
 }
 
@@ -98,11 +103,23 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
     return surfaceFlag ? 2 : 0;
   }
   let pending = 0;
+  // Counted separately from `pending`: an unchecked surface has nothing for
+  // this command to stage, so it must not exit 1 and send the operator to a
+  // pencil session — but the closing line may not call the run clean either.
+  let unchecked = 0;
   for (const s of rows) {
     console.log(renderSurfaceReport(s));
     if (s.surface === UNMAPPED_SURFACE) {
-      // Config gap — no baseline file to stage or validate.
+      // Config gap — no baseline file to stage or validate. Checked BEFORE the
+      // status branches so an indeterminate coverage probe keeps counting as
+      // pending: this row is the only signal that uiSurfaces may under-cover
+      // uiPaths, and silently dropping it to exit 0 is what a status carve must
+      // not do to an unrelated gate.
       pending += 1;
+      continue;
+    }
+    if (s.status === 'indeterminate') {
+      unchecked += 1;
       continue;
     }
     if (s.remediation === 'capture') {
@@ -138,7 +155,7 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
   }
   console.log(
     pending === 0
-      ? 'nothing pending — commit any staged baseline changes to green the freshness check'
+      ? `nothing pending — commit any staged baseline changes to green the freshness check${unchecked > 0 ? ` (${unchecked} surface(s) could not be checked — see the rows above)` : ''}`
       : 'edit the files above via pencil MCP, re-run ui-sync to validate, then COMMIT the staged baseline — the freshness check greens only after the commit lands',
   );
   return pending === 0 ? 0 : 1;

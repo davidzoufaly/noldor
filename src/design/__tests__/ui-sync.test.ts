@@ -1,11 +1,13 @@
 // @tests: pendev-ui-design-phase
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { renderSurfaceReport, validateBaselineFile } from '../ui-sync-cli.js';
+import { blobIdOfWorktreeFile, receiptRelPath } from '../ui-capture.js';
+import { main, renderSurfaceReport, validateBaselineFile } from '../ui-sync-cli.js';
 
 describe('renderSurfaceReport', () => {
   it('prints verdict, detail and the edit instruction per surface', () => {
@@ -20,6 +22,18 @@ describe('renderSurfaceReport', () => {
     expect(out).toContain('stale');
     expect(out).toContain('edit docs/design/ui/baseline/dashboard.pen');
   });
+  it('an indeterminate row says the check could not run, never "no action"', () => {
+    // `no action` is what this command prints for a healthy surface, so using
+    // it here would report an unchecked surface as clean.
+    const out = renderSurfaceReport({
+      surface: 'app',
+      status: 'indeterminate',
+      detail: 'git show failed',
+    });
+    expect(out).toContain('the check could not run');
+    expect(out).not.toContain('no action');
+  });
+
   it('uninitialized instructs bootstrap-create', () => {
     const out = renderSurfaceReport({
       surface: 'app',
@@ -92,5 +106,92 @@ describe('validateBaselineFile', () => {
     const v = validateBaselineFile(full, { staged: true });
     expect(v.ok).toBe(true);
     expect(v.notice).toMatch(/completes .*commit/i);
+  });
+});
+
+describe('ui-sync main — a surface the freshness check could not evaluate', () => {
+  let cwd: string;
+  let epoch = 1000;
+
+  const git = (...args: string[]): void => {
+    execFileSync('git', args, { cwd, stdio: 'pipe' });
+  };
+  const write = (rel: string, body: string): void => {
+    const abs = join(cwd, rel);
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, body, 'utf8');
+  };
+  const commit = (msg: string): void => {
+    epoch += 100;
+    git('add', '-A');
+    execFileSync('git', ['commit', '-q', '-m', msg], {
+      cwd,
+      stdio: 'pipe',
+      env: {
+        ...process.env,
+        GIT_AUTHOR_DATE: `@${epoch} +0000`,
+        GIT_COMMITTER_DATE: `@${epoch} +0000`,
+      },
+    });
+  };
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), 'ui-sync-main-'));
+    epoch = 1000;
+    git('init', '-q');
+    git('config', 'user.email', 't@e');
+    git('config', 'user.name', 't');
+    write(
+      '.noldor/config.json',
+      JSON.stringify({
+        consumer: {
+          name: 'x',
+          repoUrl: 'https://example.com/x',
+          lockstepPackages: ['x'],
+          e2ePrefix: 'e2e',
+          samplesPath: 'samples',
+          packagePrefix: '@x/',
+          appPathPrefix: 'apps/',
+          uiPaths: ['src/app/**'],
+        },
+      }),
+    );
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it('exits 0 and says the surface went unchecked, instead of claiming nothing pending', async () => {
+    // An indeterminate row has nothing for this command to stage, so it must
+    // not exit 1 and send the operator to a pencil session — and it must not be
+    // swallowed into the plain "nothing pending" line either, which is what a
+    // reader would take as "checked, all clear".
+    write('src/app/page.tsx', 'ui');
+    commit('feat: ui');
+    write('docs/design/ui/baseline/app.pen', 'pen');
+    commit('docs: baseline');
+    const blob = blobIdOfWorktreeFile(cwd, 'docs/design/ui/baseline/app.pen');
+    write(
+      receiptRelPath('app'),
+      JSON.stringify({ capturedAt: '2026-08-29T00:00:00.000Z', baselineBlob: blob, command: 'c' }),
+    );
+    commit('chore: capture');
+    write(receiptRelPath('app'), 'not json at all');
+    commit('chore: corrupt receipt');
+
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...a: unknown[]) => {
+      lines.push(a.map(String).join(' '));
+    });
+    try {
+      expect(await main([], cwd)).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+    const out = lines.join('\n');
+    expect(out).toContain('app: indeterminate');
+    expect(out).toContain('the check could not run');
+    expect(out).toMatch(/1 surface\(s\) could not be checked/);
   });
 });

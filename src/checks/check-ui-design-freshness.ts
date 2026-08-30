@@ -16,18 +16,24 @@ import {
  * exists but no capture has vouched for it, which is adoption debt rather than
  * drift, and a framework upgrade must not start failing this check for every
  * consumer that has not wired up `design capture` yet.
+ *
+ * `indeterminate` exits 0 for the stricter reason that a git failure may never
+ * mint a red — the check could not run, and "could not check" is not evidence
+ * of drift. It is still visible: it outranks `fresh`, so its row can no longer
+ * be reduced away by a healthy surface, and the printed `overall` says so.
  */
 export function exitCodeFor(overall: UiFreshnessVerdict['overall']): number {
   switch (overall) {
     case 'fresh':
     case 'skipped':
     case 'unverified':
+    case 'indeterminate':
       return 0;
     case 'stale':
     case 'uninitialized':
       return 1;
     default: {
-      // Exhaustive by construction: a sixth status becomes a typecheck error
+      // Exhaustive by construction: a new status becomes a typecheck error
       // here rather than silently inheriting a non-zero exit.
       const never: never = overall;
       return never;

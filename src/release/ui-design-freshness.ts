@@ -18,7 +18,7 @@ const execFileAsync = promisify(execFile);
 
 export interface UiSurfaceFreshness {
   surface: string;
-  status: 'fresh' | 'stale' | 'uninitialized' | 'unverified' | 'skipped';
+  status: 'fresh' | 'stale' | 'uninitialized' | 'unverified' | 'indeterminate' | 'skipped';
   uiCommit?: string;
   baselineCommit?: string;
   /**
@@ -26,14 +26,15 @@ export interface UiSurfaceFreshness {
    * infer from {@link detail}, because `stale` no longer implies one answer: a
    * surface with a receipt is repaired by re-capturing, while a surface still
    * on the legacy read has no capture wired up and is repaired by hand in a
-   * pencil session. Absent on rows nothing repairs (`fresh`, `skipped`).
+   * pencil session. Absent on rows nothing repairs (`fresh`, `skipped`) and on
+   * rows nothing CAN repair (`indeterminate` — the check never ran).
    */
   remediation?: 'ui-sync' | 'capture';
   detail: string;
 }
 
 export interface UiFreshnessVerdict {
-  overall: 'fresh' | 'stale' | 'uninitialized' | 'unverified' | 'skipped';
+  overall: 'fresh' | 'stale' | 'uninitialized' | 'unverified' | 'indeterminate' | 'skipped';
   surfaces: UiSurfaceFreshness[];
 }
 
@@ -63,7 +64,10 @@ export function classifyAncestry(
 ): 'fresh' | 'stale' | 'skipped' {
   if (uiIsAncestorOfBaseline) return 'fresh';
   if (baselineIsAncestorOfUi) return 'stale';
-  return 'skipped'; // unrelated / diverged / shallow-cut — never a false red
+  // `skipped`, not `indeterminate`: both probes ANSWERED, and the answer is
+  // that the two commits share no ancestry (unrelated / diverged / shallow-cut).
+  // The check ran and does not apply — nothing failed, so nothing is unknown.
+  return 'skipped';
 }
 
 async function git(cwd: string, args: string[]): Promise<{ ok: boolean; stdout: string }> {
@@ -71,7 +75,7 @@ async function git(cwd: string, args: string[]): Promise<{ ok: boolean; stdout: 
     // Explicit buffer: node defaults to 1MB, and the unmapped-surface probe
     // asks for `--name-only` over a whole commit. An overrun here would land in
     // the `catch` as an ordinary "git failed", which is survivable only because
-    // every caller degrades to `skipped` — but it would silently drop the
+    // every caller degrades to `indeterminate` — but it would silently drop the
     // enforcement it was asked to perform.
     const { stdout } = await execFileAsync('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 });
     return { ok: true, stdout: stdout.trim() };
@@ -84,7 +88,7 @@ async function git(cwd: string, args: string[]): Promise<{ ok: boolean; stdout: 
  * Latest commit touching `paths`. `ok: false` is an operational git failure —
  * distinct from `sha: ''` (history has no matching commit) — because conflating
  * them would mint `uninitialized`/red from a broken repo, and every git failure
- * must degrade to `skipped`.
+ * must degrade to `indeterminate`.
  */
 async function latestCommit(cwd: string, paths: string[]): Promise<{ ok: boolean; sha: string }> {
   const r = await git(cwd, ['log', '-1', '--format=%H', '--', ...paths]);
@@ -92,26 +96,47 @@ async function latestCommit(cwd: string, paths: string[]): Promise<{ ok: boolean
 }
 
 /**
- * Does `path` exist in the HEAD commit? `git cat-file -e HEAD:<path>` exits 0
- * when present; a missing path exits non-zero WITH a recognizable "does not
- * exist" / "Not a valid object name" message, while other non-zero exits are
- * operational failures — kept distinct so the caller degrades to `skipped`
- * instead of minting a blocking `uninitialized` from a broken repo (exit code
- * 128 alone is ambiguous between the two, so the stderr text decides).
+ * Is this rejection git saying "that path is not in that commit", rather than an
+ * operational failure? Both exit 128, so only the stderr text separates them,
+ * and they must stay separate: a missing baseline is a real verdict
+ * (`uninitialized`), while a broken repo may only ever be `indeterminate`.
+ *
+ * Shared by the two HEAD readers below so the discrimination cannot drift
+ * between them — one reading a missing path as absent while the other reads it
+ * as an error would produce two different verdicts for one repo state.
  */
-async function existsAtHead(
+function isMissingPathError(err: unknown): boolean {
+  const stderr = String((err as { stderr?: string | Buffer }).stderr ?? '');
+  return /does not exist|exists on disk, but not in|Not a valid object name/i.test(stderr);
+}
+
+/**
+ * The blob id git stores for `path` at HEAD, or `blob: null` when the path is
+ * not in that commit.
+ *
+ * One probe answers both questions the caller has — does the baseline exist at
+ * HEAD, and what is its blob id — because `git rev-parse HEAD:<path>` fails on
+ * a missing path with the same recognizable wording `cat-file -e` used. The
+ * earlier pair spent two subprocesses per surface on one fact, on a path four
+ * callers run.
+ *
+ * The id is git's own, compared later against the id git computed at capture
+ * time. Both sides come from git, so `core.autocrlf`, a `text=auto` attribute,
+ * a clean filter or LFS apply to both — a raw byte hash of the working tree
+ * would differ from the stored blob permanently on any repo with those on,
+ * minting a blocking `stale` no re-capture could clear.
+ */
+async function blobAtHead(
   cwd: string,
   path: string,
-): Promise<{ ok: true; exists: boolean } | { ok: false }> {
+): Promise<{ ok: true; blob: string | null } | { ok: false }> {
   try {
-    await execFileAsync('git', ['cat-file', '-e', `HEAD:${path}`], { cwd });
-    return { ok: true, exists: true };
+    const { stdout } = await execFileAsync('git', ['rev-parse', `HEAD:${path}`], { cwd });
+    const blob = stdout.trim();
+    // A zero exit with no id is not a real answer; treat it as operational.
+    return blob === '' ? { ok: false } : { ok: true, blob };
   } catch (err) {
-    const stderr = String((err as { stderr?: string }).stderr ?? '');
-    if (/does not exist|exists on disk, but not in|Not a valid object name/i.test(stderr)) {
-      return { ok: true, exists: false };
-    }
-    return { ok: false };
+    return isMissingPathError(err) ? { ok: true, blob: null } : { ok: false };
   }
 }
 
@@ -138,15 +163,21 @@ async function isAncestor(
 }
 
 /**
- * A path's bytes as they exist in the HEAD commit, or `ok: false` on any git
- * failure. HEAD rather than the working tree, matching {@link existsAtHead}:
- * committed state is the only thing a verdict may depend on, so an uncommitted
- * receipt or a locally regenerated baseline changes nothing.
+ * A path's bytes as they exist in the HEAD commit, `bytes: null` when the path
+ * is not in that commit, or `ok: false` on an operational git failure. HEAD
+ * rather than the working tree: committed state is the only thing a verdict may
+ * depend on, so an uncommitted receipt or a locally regenerated baseline
+ * changes nothing.
+ *
+ * Absence is returned rather than raised for the same reason {@link blobAtHead}
+ * returns it — the caller needs the receipt's presence AND its content, and
+ * asking `cat-file -e` first spent a second subprocess to learn what this call
+ * already reports.
  */
 async function showAtHead(
   cwd: string,
   path: string,
-): Promise<{ ok: true; bytes: Buffer } | { ok: false }> {
+): Promise<{ ok: true; bytes: Buffer | null } | { ok: false }> {
   try {
     const { stdout } = await execFileAsync('git', ['show', `HEAD:${path}`], {
       cwd,
@@ -156,8 +187,8 @@ async function showAtHead(
       maxBuffer: 64 * 1024 * 1024,
     });
     return { ok: true, bytes: stdout as unknown as Buffer };
-  } catch {
-    return { ok: false };
+  } catch (err) {
+    return isMissingPathError(err) ? { ok: true, bytes: null } : { ok: false };
   }
 }
 
@@ -188,7 +219,7 @@ async function ancestryVerdict(
   } else {
     const resolved = await latestCommit(cwd, [proof.path]);
     if (!resolved.ok || resolved.sha === '') {
-      return { ok: false, detail: 'git log failed — indeterminate' };
+      return { ok: false, detail: 'git log failed' };
     }
     baselineCommit = resolved.sha;
   }
@@ -198,7 +229,7 @@ async function ancestryVerdict(
     return {
       ok: false,
       baselineCommit,
-      detail: `git merge-base failed probing ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} — indeterminate, never a false red`,
+      detail: `git merge-base failed probing ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} — never a false red`,
     };
   }
   return {
@@ -229,7 +260,7 @@ async function legacyFallback(
   if (!a.ok) {
     return {
       surface,
-      status: 'skipped',
+      status: 'indeterminate',
       uiCommit,
       ...(a.baselineCommit === undefined ? {} : { baselineCommit: a.baselineCommit }),
       detail: a.detail,
@@ -261,21 +292,49 @@ async function legacyFallback(
     status: 'skipped',
     uiCommit,
     baselineCommit,
-    detail: `commits ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} share no ancestry — indeterminate`,
+    detail: `commits ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} share no ancestry — not applicable`,
   };
 }
 
 /**
  * Reduction order for {@link UiFreshnessVerdict.overall}, which is a max over
- * the per-surface statuses. The placement of `unverified` is safety-critical,
- * not cosmetic: at or above `stale`, a repo with one `stale` surface and one
- * `unverified` surface would reduce to an overall `unverified`, take the
- * non-blocking preflight branch, and stop blocking the release — the exact
- * regression the legacy fallback below exists to prevent.
+ * the per-surface statuses. Three tiers, and the boundaries are safety-critical
+ * rather than cosmetic:
+ *
+ * - **Red-capable** (`stale`, `uninitialized`) outranks everything else: these
+ *   are the two statuses `checks ui-design-freshness` exits non-zero on, and
+ *   `stale` is what blocks release preflight. Were `unverified` at or above
+ *   `stale`, a repo with one of each would reduce to `unverified`, take the
+ *   non-blocking preflight branch, and stop blocking the release — the exact
+ *   regression the legacy fallback below exists to prevent. (Preflight renders
+ *   `uninitialized` as a warn rather than a block; it is up here because of the
+ *   CLI's exit code, and because an unknown must never mask a known defect.)
+ * - **Unknown** (`indeterminate`) sits above every remaining status but below
+ *   both red-capable ones. Above, because a surface whose check could not run
+ *   says nothing about whether it is stale, and an unknown reported behind a
+ *   known is a false all-clear: with `indeterminate` at `skipped`'s rank one
+ *   healthy surface masked another whose verdict a failed `merge-base` or
+ *   `cat-file` had made uncomputable, and preflight announced "all UI baselines
+ *   fresh". Below, because a git failure may never mint a red — and because
+ *   raising it over `uninitialized` would let a git failure reduce a genuine
+ *   exit-1 verdict to an exit-0 one.
+ * - **Known and green-ish** (`unverified`, `fresh`) and finally `skipped` — the
+ *   check ran and does not apply (shallow clone, no commit touches the surface,
+ *   two commits sharing no ancestry). Nothing is unknown there, so it stays at
+ *   the floor where it cannot outrank a real verdict.
+ *
+ * `unverified` below `indeterminate` for the same unknown-over-known reason: it
+ * is adoption debt with a named remedy, so the operator can act on it, while an
+ * indeterminate row means the check never ran.
+ *
+ * The rank is a reduction order, not the whole report: `overall` names only the
+ * worst row, so preflight's warn detail lists every non-fresh surface rather
+ * than filtering to the winning status.
  */
 const RANK: Record<UiSurfaceFreshness['status'], number> = {
-  stale: 4,
-  uninitialized: 3,
+  stale: 5,
+  uninitialized: 4,
+  indeterminate: 3,
   unverified: 2,
   fresh: 1,
   skipped: 0,
@@ -324,7 +383,7 @@ export async function evaluateUiDesignFreshness(
       ...GRAPH_IRRELEVANT_EXCLUDES,
     ]);
     if (!ui.ok) {
-      surfaces.push({ surface, status: 'skipped', detail: 'git log failed — indeterminate' });
+      surfaces.push({ surface, status: 'indeterminate', detail: 'git log failed' });
       continue;
     }
     const uiCommit = ui.sha;
@@ -341,12 +400,7 @@ export async function evaluateUiDesignFreshness(
     const receiptRel = receiptRelPath(surface);
     const receiptHistory = await latestCommit(cwd, [receiptRel]);
     if (!receiptHistory.ok) {
-      surfaces.push({
-        surface,
-        status: 'skipped',
-        uiCommit,
-        detail: 'git log failed — indeterminate',
-      });
+      surfaces.push({ surface, status: 'indeterminate', uiCommit, detail: 'git log failed' });
       continue;
     }
     const adopted = receiptHistory.sha !== '';
@@ -355,13 +409,15 @@ export async function evaluateUiDesignFreshness(
     // working tree: `git log` still returns the commit that DELETED the
     // baseline (a delete postdating the UI commit would classify as fresh with
     // no baseline), and a working-tree check flips on uncommitted deletions or
-    // untracked recreations — U7 reads committed state only.
-    const atHead = await existsAtHead(cwd, baselineFile);
+    // untracked recreations — U7 reads committed state only. The same probe
+    // carries the blob id the digest comparison needs further down, so
+    // existence and content cost one subprocess between them, not two.
+    const atHead = await blobAtHead(cwd, baselineFile);
     if (!atHead.ok) {
-      surfaces.push({ surface, status: 'skipped', detail: 'git cat-file failed — indeterminate' });
+      surfaces.push({ surface, status: 'indeterminate', uiCommit, detail: 'git rev-parse failed' });
       continue;
     }
-    if (!atHead.exists) {
+    if (atHead.blob === null) {
       surfaces.push(
         adopted
           ? {
@@ -391,18 +447,17 @@ export async function evaluateUiDesignFreshness(
     // stored inside it is what survives squash-merge: a branch sha is
     // unreachable in a fresh clone of main, and the probe below would then
     // degrade to `skipped` permanently.
-    const receiptAtHead = await existsAtHead(cwd, receiptRel);
-    if (!receiptAtHead.ok) {
-      surfaces.push({
-        surface,
-        status: 'skipped',
-        uiCommit,
-        detail: 'git cat-file failed — indeterminate',
-      });
+    // Read the receipt's bytes once: `git show` reports absence and content in
+    // the same call, so the separate `cat-file -e` existence probe this branch
+    // used to run first was a second subprocess spent on an answer already in
+    // hand. The BINDING check further down needs those bytes anyway.
+    const receiptBlob = await showAtHead(cwd, receiptRel);
+    if (!receiptBlob.ok) {
+      surfaces.push({ surface, status: 'indeterminate', uiCommit, detail: 'git show failed' });
       continue;
     }
 
-    if (!receiptAtHead.exists) {
+    if (receiptBlob.bytes === null) {
       if (adopted) {
         // Absent at HEAD but with history: the proof was WITHDRAWN after
         // adoption. Routing this back through the legacy read would be an
@@ -428,16 +483,6 @@ export async function evaluateUiDesignFreshness(
     // can commit the freshly written receipt and leave the regenerated .pen out
     // of the commit, which would otherwise read `fresh` over a baseline HEAD
     // never received.
-    const receiptBlob = await showAtHead(cwd, receiptRel);
-    if (!receiptBlob.ok) {
-      surfaces.push({
-        surface,
-        status: 'skipped',
-        uiCommit,
-        detail: 'git show failed — indeterminate',
-      });
-      continue;
-    }
     const receipt = parseReceiptBytes(receiptBlob.bytes);
     if (receipt === null) {
       // Unreadable content cannot mint a red — only an indeterminate. This
@@ -445,28 +490,13 @@ export async function evaluateUiDesignFreshness(
       // a malformed receipt must land here rather than fall through to `stale`.
       surfaces.push({
         surface,
-        status: 'skipped',
+        status: 'indeterminate',
         uiCommit,
-        detail: `${receiptRel} is unreadable or does not match the receipt schema — indeterminate`,
+        detail: `${receiptRel} is unreadable or does not match the receipt schema`,
       });
       continue;
     }
-    // Git's stored blob id, compared against the id git computed at capture
-    // time. Both sides come from git, so `core.autocrlf`, a `text=auto`
-    // attribute, a clean filter or LFS apply to both — a raw byte hash of the
-    // working tree would differ from the stored blob permanently on any repo
-    // with those on, minting a blocking `stale` no re-capture could clear.
-    const headBlob = await git(cwd, ['rev-parse', `HEAD:${baselineFile}`]);
-    if (!headBlob.ok || headBlob.stdout === '') {
-      surfaces.push({
-        surface,
-        status: 'skipped',
-        uiCommit,
-        detail: 'git rev-parse failed — indeterminate',
-      });
-      continue;
-    }
-    const headDigest = headBlob.stdout;
+    const headDigest = atHead.blob;
     if (headDigest !== receipt.baselineBlob) {
       surfaces.push({
         surface,
@@ -482,7 +512,7 @@ export async function evaluateUiDesignFreshness(
     if (!a.ok) {
       surfaces.push({
         surface,
-        status: 'skipped',
+        status: 'indeterminate',
         uiCommit,
         ...(a.baselineCommit === undefined ? {} : { baselineCommit: a.baselineCommit }),
         detail: a.detail,
@@ -501,7 +531,7 @@ export async function evaluateUiDesignFreshness(
           ? `capture receipt at/after UI (${baselineCommit.slice(0, 8)}, captured ${receipt.capturedAt})`
           : status === 'stale'
             ? `UI ${uiCommit.slice(0, 8)} newer than capture receipt ${baselineCommit.slice(0, 8)} — ${captureRemediation(surface)}`
-            : `commits ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} share no ancestry — indeterminate`,
+            : `commits ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} share no ancestry — not applicable`,
     });
   }
 
@@ -532,15 +562,16 @@ export async function evaluateUiDesignFreshness(
       // probe announced "all UI baselines fresh" while the config-coverage gap
       // went unchecked. Every other branch degrades to an explicit indeterminate
       // row; this one must too.
-      // `unverified`, not `skipped`: skipped ranks BELOW fresh, so any fresh
-      // surface would mask this row and the probe would still announce "all UI
-      // baselines fresh" with coverage never checked — the row would exist and
-      // change nothing. `unverified` ranks above fresh, so the verdict says so,
-      // and it is non-blocking, so a git failure still cannot mint a red.
+      // `indeterminate`, which is what this row has always meant: it ranks
+      // above `fresh` so no healthy surface can mask it into "all UI baselines
+      // fresh" with coverage never checked, and below both blocking statuses so
+      // a git failure still cannot mint a red. It carried `unverified` while
+      // that was the only status with those two properties — a borrowed name
+      // for adoption debt this row does not have.
       surfaces.push({
         surface: '(unmapped)',
-        status: 'unverified',
-        detail: 'git log failed probing uiPaths coverage — indeterminate, coverage unchecked',
+        status: 'indeterminate',
+        detail: 'git log failed probing uiPaths coverage — coverage unchecked',
       });
     } else if (all.stdout !== '') {
       const lines = all.stdout.split('\n');

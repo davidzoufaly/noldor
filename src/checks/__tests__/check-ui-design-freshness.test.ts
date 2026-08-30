@@ -19,6 +19,12 @@ describe('exitCodeFor', () => {
     expect(exitCodeFor('stale')).toBe(1);
     expect(exitCodeFor('uninitialized')).toBe(1);
   });
+  it('0 when a surface could not be checked at all', () => {
+    // A git failure may never mint a red: `indeterminate` means the check did
+    // not run, which is not evidence of drift. It stays visible through the
+    // printed `overall`, which it now outranks `fresh` to reach.
+    expect(exitCodeFor('indeterminate')).toBe(0);
+  });
 });
 
 describe('renderRows', () => {

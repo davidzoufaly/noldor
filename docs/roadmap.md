@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Indeterminate Freshness Rows Are Masked By Fresh Ones
-
-- id: Q-0197
-- area: tooling
-- type: fix
-- since: 2026-08-29
-- size: S
-- impact: med
-- parent: pendev-ui-design-phase
-
-`RANK` in `src/release/ui-design-freshness.ts` puts `skipped` at 0, below `fresh`, and every git-failure branch in the evaluator degrades to `skipped` — an unreadable receipt, a failed `merge-base`, a failed `cat-file`, a failed `rev-parse`. In a multi-surface repo one healthy surface therefore masks another whose verdict could not be computed, and release preflight reports "all UI baselines fresh" while a surface went unchecked. Pre-existing: the ordering is unchanged from before the capture-receipt work, which only narrowed it for the synthetic `(unmapped)` coverage row by giving that one `unverified` (rank 2). The general fix needs `skipped` split into the two meanings that currently share it — *not applicable* (shallow clone, no commit touches the surface), which stays at 0, and *indeterminate* (a git call failed), which must outrank `fresh` while staying non-blocking, since a git failure may never mint a red. Carving that status is a design change, which is why it is an entry rather than a late edit to the shipping PR. Residue from the same review: `existsAtHead` + `showAtHead`, and `existsAtHead` + `rev-parse`, each answer one question with two subprocesses, so the evaluator spends 8 git spawns per surface where 6 would do, on a path four callers run. Deletion test: a repo with one fresh surface and one whose receipt is corrupt does not report `fresh` overall. (found 2026-08-29, from the ui-baseline-capture-verification code review)
-
 ### Mandatory C4 Diagram for New Feature MDs
 
 - id: Q-0185
