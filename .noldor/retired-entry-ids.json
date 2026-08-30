@@ -227,5 +227,9 @@
   "Q-0197": {
     "slug": "indeterminate-freshness-rows-are-masked-by-fresh-ones",
     "retiredAt": "2026-08-30"
+  },
+  "Q-0189": {
+    "slug": "attach-path-ui-verdict-reads-touches",
+    "retiredAt": "2026-08-30"
   }
 }

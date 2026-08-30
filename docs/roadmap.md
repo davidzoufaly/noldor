@@ -29,19 +29,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 A full new FD should carry a mermaid diagram at the C4 level that fits it, semi-mandatory rather than optional: prose alone is what lets an FD's shape stay implicit until a reader has to reconstruct it from `links.code`. Q-0178 prescribes form for the four `docs/architecture/` registry pages; this is the per-feature counterpart — the FD template grows a diagram section, `/noldor-new-feature` and `/noldor-promote` scaffold the fence, and a check reports an FD on a `full` path whose diagram section is still a stub. Semi-mandatory means advisory-with-teeth: report it, let a `noldor:cut` marker record a deliberate skip, do not block a ship on it. Scope the requirement by path tier (`full` earns a diagram; `fast-track` and `micro-chore` never do) so it does not tax the XS drain. Deletion test: a reader gets the shape of a newly shipped `full` feature from its FD without opening a source file. (found 2026-08-25)
 
-### Attach-Path UI Verdict Reads Touches
-
-- id: Q-0189
-- area: tooling
-- type: fix
-- since: 2026-08-25
-- size: S
-- impact: med
-- confidence: high
-- parent: pendev-ui-design-phase
-
-On attach paths the UI verdict is computed from the parent FD's entire `links.code`, so an enhancement inherits `required` from files it does not touch. `agent-camera-control` matched six paths — `App.tsx`, `ViewportArea.tsx`, three `packages/viewport/src/*` files and `useMeshData.ts` — none of which the enhancement had to touch to add two agent verbs; the source roadmap block carried no `Touches:` clause, so `sessionUiVerdict` had nothing narrower to read. The verdict happened to be right that time (the work grew a toolbar control), but it was right by accident. On `*-attach`, take the candidate paths from the source block's `Touches:` and fall back to the parent's `links.code` only when the block has none. The step should also say that a `required` verdict with no visual delta is legitimately answered by recording that, rather than by seeding a `.pen` that documents an unchanged surface. Deletion test: an attach session whose `Touches:` names only non-UI files gets `not-required` while its parent FD stays UI-bearing. (found 2026-08-25)
-
 ### Scoped Link Sync for the Projection Runners
 
 - id: Q-0182
