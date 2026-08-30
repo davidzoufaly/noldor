@@ -146,6 +146,33 @@ describe('stub rule', () => {
     expect(found[0]).toMatchObject({ rule: 'missing-section' });
   });
 
+  it('does not report a filled unit that follows a commented-out mermaid fence', async () => {
+    // The section-loss regression, seen from this detector's side: the stray
+    // ``` a mid-fence comment close left behind swallowed every later heading,
+    // so a spec with a perfectly filled unit reported a bogus missing-section.
+    const commented = ['<!--', '```mermaid', 'flowchart LR', '  a --> b', '```', '-->'].join('\n');
+    const body = [
+      '# Something — Design',
+      '',
+      '## Problem',
+      '',
+      commented,
+      '',
+      '## Design',
+      '',
+      '### Structural context',
+      '',
+      REAL,
+      '',
+      '### U1 — a unit',
+      '',
+      'Does a thing.',
+      '',
+    ].join('\n');
+    writeFileSync(join(dir, 'docs', 'design', 'specs', `${AFTER}-a-design.md`), body, 'utf8');
+    expect(await detectStructuralContextStubs(dir)).toEqual([]);
+  });
+
   it('counts fenced evidence whose fence contains a heading-shaped line', async () => {
     // The exact regression: a `#` comment inside a ```bash fence terminated the
     // raw section, so the unstripped measure — added precisely to credit fenced

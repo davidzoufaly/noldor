@@ -7,14 +7,13 @@ import { join } from 'node:path';
 import { ADR_FILENAME_RE } from '../../docs/adr-schema.js';
 import { specDateFromFilename } from '../../core/design-artifact-names.js';
 import { loadDocRoots } from '../../core/doc-roots.js';
+import { readFileIfExists } from '../../core/fd-load.js';
 import {
-  blankComments,
   cutReasons,
   density,
   docsRelativeDir,
   listMd,
   locateSection,
-  readText,
 } from '../../core/markdown-section-scan.js';
 import {
   ADR_STRUCTURAL_CONTEXT_PLACEHOLDER,
@@ -105,7 +104,7 @@ async function scanSpecs(specsDir: string): Promise<StructuralContextStub[]> {
     // stray file, and the alternative would report an artifact this detector
     // cannot even date.
     if (date === null || date < SPEC_FLOOR_DATE) continue;
-    const body = await readText(join(specsDir, name));
+    const body = await readFileIfExists(join(specsDir, name));
     if (body === null) continue;
     const verdict = classify(body, 3, null, '## Design');
     if (verdict === null) continue;
@@ -125,7 +124,7 @@ async function scanAdrs(adrDir: string): Promise<StructuralContextStub[]> {
   for (const name of await listMd(adrDir)) {
     const match = ADR_FILENAME_RE.exec(name);
     if (match === null || match[1] <= ADR_FLOOR_NUMBER) continue;
-    const body = await readText(join(adrDir, name));
+    const body = await readFileIfExists(join(adrDir, name));
     if (body === null) continue;
     const verdict = classify(body, 2, ADR_STRUCTURAL_CONTEXT_PLACEHOLDER, null);
     if (verdict === null) continue;
@@ -151,15 +150,10 @@ function classify(
   placeholder: string | null,
   requireAncestor: string | null,
 ): StructuralContextRule | null {
-  // Comments are blanked before the scan, not after it: hidden text must not be
-  // able to open a fence, introduce a heading, declare a cut, or count as prose.
-  // Line structure is preserved, so boundaries are identical to the raw body.
-  const located = locateSection(
-    blankComments(body),
-    depth,
-    STRUCTURAL_CONTEXT_HEADING,
-    requireAncestor,
-  );
+  // The scan is comment-aware in one pass: hidden text can neither open a
+  // fence, introduce a heading, declare a cut, nor count as prose. Line
+  // structure is preserved, so boundaries are identical to the raw body.
+  const located = locateSection(body, depth, STRUCTURAL_CONTEXT_HEADING, requireAncestor);
   if (located === null) return 'missing-section';
   const { scanned: section, raw } = located;
 

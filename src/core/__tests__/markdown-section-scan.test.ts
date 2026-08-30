@@ -1,12 +1,11 @@
 // @tests: consumer-architecture-doc-surface
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import {
-  blankComments,
-  cutReasons,
-  docsRelativeDir,
-  locateSection,
-} from '../markdown-section-scan.js';
+import { afterAll, describe, expect, it } from 'vitest';
+
+import { cutReasons, docsRelativeDir, listMd, locateSection } from '../markdown-section-scan.js';
 
 describe('cutReasons', () => {
   it('distinguishes an absent marker from a bare one', () => {
@@ -29,43 +28,122 @@ describe('cutReasons', () => {
   });
 });
 
-describe('blankComments', () => {
-  it('blanks comment contents while preserving line count and offsets', () => {
-    const out = blankComments('a\n<!-- hidden -->\nb');
-    expect(out.split('\n')).toHaveLength(3);
-    expect(out).not.toContain('hidden');
-    expect(out.split('\n')[2]).toBe('b');
-    expect(out.split('\n')[1]).toHaveLength('<!-- hidden -->'.length);
+describe('comment handling', () => {
+  const MERMAID = ['```mermaid', 'flowchart LR', '  a --> b', '```'].join('\n');
+
+  it('still finds a section that follows a commented-out mermaid fence', () => {
+    // THE regression this design exists to close: the comment closes at the
+    // flowchart arrow (an edge IS `-->`), so blanking-then-tagging left the
+    // fence's closing delimiter stray, every later heading read as fenced, and
+    // the artifact silently left scope.
+    const body = ['## A', '', '<!--', MERMAID, '-->', '', '## Usage', '', 'Run it.'].join('\n');
+    expect(locateSection(body, 2, 'Usage', null)?.raw).toContain('Run it.');
   });
 
-  it('blanks the remainder when a comment is never closed', () => {
-    expect(blankComments('a\n<!-- forever\nb').trim()).toBe('a');
+  it('survives two commented-out mermaid fences in one document', () => {
+    // Two strays pair up into a phantom fence, so a fix that only healed an
+    // unclosed tail would lose every section between them.
+    const body = [
+      '## A',
+      '',
+      '<!--',
+      MERMAID,
+      '-->',
+      '',
+      '## Usage',
+      '',
+      'Run it.',
+      '',
+      '<!--',
+      MERMAID,
+      '-->',
+      '',
+      '## After',
+      '',
+      'tail prose',
+    ].join('\n');
+    expect(locateSection(body, 2, 'Usage', null)?.scanned).toContain('Run it.');
+    expect(locateSection(body, 2, 'After', null)?.scanned).toContain('tail prose');
   });
 
-  it('leaves a comment marker inside a code fence alone', () => {
-    // Example text, not a comment. Treating it as one let an unterminated `<!--`
-    // in a fenced sample blank the rest of the document.
+  it('blanks comment content out of both views while preserving line offsets', () => {
+    const body = ['## A', '', 'keep', '<!-- hidden -->', 'also keep'].join('\n');
+    const a = locateSection(body, 2, 'A', null);
+    expect(a?.scanned).toContain('keep');
+    expect(a?.scanned).not.toContain('hidden');
+    expect(a?.raw).not.toContain('hidden');
+    // Offsets index the ORIGINAL body — callers slice it to read what a comment said.
+    expect(body.split('\n').slice(a!.startLine, a!.endLine).join('\n')).toContain('hidden');
+  });
+
+  it('does not let a commented-out heading open a section', () => {
+    const body = ['prose', '', '<!--', '## Diagram', '-->'].join('\n');
+    expect(locateSection(body, 2, 'Diagram', null)).toBeNull();
+  });
+
+  it('does not let a commented-out heading terminate a section', () => {
+    const body = ['## A', '', 'alpha', '', '<!--', '## B', '-->', '', 'omega'].join('\n');
+    expect(locateSection(body, 2, 'A', null)?.scanned).toContain('omega');
+  });
+
+  it('treats a comment marker inside a code fence as example text', () => {
+    // An unterminated `<!--` in a fenced sample must not blank the rest of the
+    // document — specs and FDs routinely quote this framework's own scaffolds.
     const doc = ['```markdown', '<!-- TODO: never closed', '```', '', '## Real', '', 'body'].join(
       '\n',
     );
-    const out = blankComments(doc);
-    expect(out).toContain('<!-- TODO: never closed');
-    expect(out).toContain('## Real');
-    expect(out).toContain('body');
+    expect(locateSection(doc, 2, 'Real', null)?.scanned).toContain('body');
   });
 
-  it('still blanks to the end when a comment opens outside a fence and never closes', () => {
+  it('blanks to the end when a comment opens outside a fence and never closes', () => {
+    // The safe direction: hidden content measures as missing rather than
+    // clearing a section — and a renderer hides it the same way.
     const doc = ['before', '<!-- open forever', '```', 'x', '```', '## Real'].join('\n');
-    const out = blankComments(doc);
-    expect(out).toContain('before');
-    expect(out).not.toContain('## Real');
+    expect(locateSection(doc, 2, 'Real', null)).toBeNull();
   });
 
-  it('closes at the first --> exactly as HTML does, so a mermaid arrow ends it', () => {
-    // Load-bearing for feature-MD diagrams: `<!--` around a flowchart does not
-    // hide it, because the first edge closes the comment.
-    expect(blankComments('<!--\nflowchart LR\n  a --> b\n-->\nafter')).toContain('b');
-    expect(blankComments('<!--\nflowchart LR\n  a --> b\n-->\nafter')).not.toContain('flowchart');
+  it('keeps a commented-out mermaid fence out of the raw view', () => {
+    // `raw` feeds fence detection and density floors: a fence the reader cannot
+    // see must not clear either.
+    const body = ['## A', '', '<!--', MERMAID, '-->'].join('\n');
+    expect(locateSection(body, 2, 'A', null)?.raw).not.toContain('flowchart');
+  });
+});
+
+describe('heading indentation', () => {
+  it('lets a one-space-indented heading terminate a section', () => {
+    // CommonMark allows up to three spaces before an ATX heading. The opener
+    // and terminator predicates used to disagree about that.
+    const body = ['## A', '', 'alpha', '', ' ## B', '', 'beta'].join('\n');
+    expect(locateSection(body, 2, 'A', null)?.scanned).not.toContain('beta');
+    expect(locateSection(body, 2, 'B', null)?.scanned).toContain('beta');
+  });
+
+  it('treats a four-space-indented heading as indented code, not a heading', () => {
+    const body = ['## A', '', 'alpha', '', '    ## B', '', 'still A'].join('\n');
+    expect(locateSection(body, 2, 'A', null)?.raw).toContain('still A');
+    expect(locateSection(body, 2, 'B', null)).toBeNull();
+  });
+});
+
+describe('listMd', () => {
+  const temps: string[] = [];
+  afterAll(async () => {
+    await Promise.all(temps.map((d) => rm(d, { recursive: true, force: true })));
+  });
+
+  it('returns an empty list for a directory that does not exist', async () => {
+    expect(await listMd(join(tmpdir(), 'listmd-definitely-absent'))).toEqual([]);
+  });
+
+  it('propagates a non-ENOENT failure instead of reporting a clean empty pass', async () => {
+    // ENOTDIR stands in for the whole class (EACCES, EIO): swallowing it made
+    // both detectors report zero stubs over a tree they never read.
+    const dir = await mkdtemp(join(tmpdir(), 'listmd-'));
+    temps.push(dir);
+    const file = join(dir, 'a-file.md');
+    await writeFile(file, 'x', 'utf8');
+    await expect(listMd(join(file, 'below'))).rejects.toThrow();
   });
 });
 

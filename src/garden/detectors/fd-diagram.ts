@@ -6,14 +6,13 @@ import { join } from 'node:path';
 
 import { loadDocRoots } from '../../core/doc-roots.js';
 import { FD_DIAGRAM_HEADING, MIN_FD_DIAGRAM_PROSE_CHARS } from '../../core/fd-diagram-contract.js';
+import { readFileIfExists } from '../../core/fd-load.js';
 import {
-  blankComments,
   cutReasons,
   density,
   docsRelativeDir,
   listMd,
   locateSection,
-  readText,
   visibleProse,
 } from '../../core/markdown-section-scan.js';
 import { CUT_MARKER } from '../../core/structural-context-contract.js';
@@ -55,10 +54,10 @@ export async function detectFdDiagramStubs(repo: string): Promise<FdDiagramStub[
   const dir = loadDocRoots(repo).features;
   const out: FdDiagramStub[] = [];
   for (const name of await listMd(dir)) {
-    // A file that cannot be read is skipped, not reported: a row naming a file
-    // the detector could not open is one no author can clear. The accepted cost
-    // is a false negative on an advisory channel — see the spec's Risks.
-    const body = await readText(join(dir, name));
+    // A file that vanished between the listing and the read is skipped, not
+    // reported: a row naming a file the detector could not open is one no
+    // author can clear. Any other IO failure propagates — see `readFileIfExists`.
+    const body = await readFileIfExists(join(dir, name));
     if (body === null) continue;
     const rule = classify(body);
     if (rule === null) continue;
@@ -88,13 +87,12 @@ export async function detectFdDiagramStubs(repo: string): Promise<FdDiagramStub[
  * nothing else is there.
  */
 function classify(body: string): FdDiagramRule | null {
-  // Comments are blanked BEFORE the section is located, not after: a `## Diagram`
-  // inside a multiline comment would otherwise enrol an FD that predates the
-  // contract, and an unmatched fence inside one would mis-tag the visible lines
-  // after it. Blanking preserves line structure, so the window below still
-  // indexes the original body.
+  // The scan is comment-aware in one pass: a `## Diagram` inside a multiline
+  // comment cannot enrol an FD that predates the contract, and a fence hidden
+  // in one cannot mis-tag the visible lines after it. The window below still
+  // indexes the original body — line structure is never altered.
   const lines = body.split('\n');
-  const located = locateSection(blankComments(body), 2, FD_DIAGRAM_HEADING, null);
+  const located = locateSection(body, 2, FD_DIAGRAM_HEADING, null);
   if (located === null) return null;
 
   // The one thing that must be read from the ORIGINAL text: the placeholder is

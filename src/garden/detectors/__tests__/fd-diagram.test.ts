@@ -120,12 +120,36 @@ describe('detectFdDiagramStubs', () => {
     expect(rows.map((r) => r.rule)).toEqual(['no-fence']);
   });
 
-  it('lets a mermaid --> arrow close a comment, exactly as HTML does', async () => {
-    // `<!--` + a flowchart arrow is not a hiding place: the first `-->` ends the
-    // comment, so the rest of the fence is visible text and counts normally.
-    // The realistic shape — a closed placeholder followed by an arrow-bearing
-    // fence — is covered by the leftover-placeholder case above.
+  it('does not let an arrow-bearing fence hidden inside a comment clear the section', async () => {
+    // A flowchart edge IS `-->`, so the comment closes mid-fence exactly as
+    // HTML reads it — but whatever leaks past that close is junk, never a
+    // fence: the reader was shown no diagram, so the verdict is no-fence.
     const repo = await repoWith({ arrowy: fd(`<!--\n${FENCE}\n-->\n\n${PROSE}`) });
+    const rows = await detectFdDiagramStubs(repo);
+    expect(rows.map((r) => r.rule)).toEqual(['no-fence']);
+  });
+
+  it('keeps scanning the headings that follow a commented-out arrow-bearing fence', async () => {
+    // The section-loss regression: the stray ``` the mid-fence comment close
+    // left behind used to read as a fence opener, so every heading to EOF
+    // vanished and the FD silently left scope instead of reporting its stub.
+    const doc = [
+      '---',
+      'name: X',
+      '---',
+      '',
+      '## Summary',
+      '',
+      `<!--\n${FENCE}\n-->`,
+      '',
+      '## Diagram',
+      '',
+      '## Usage',
+      '',
+      'Run it.',
+      '',
+    ].join('\n');
+    const repo = await repoWith({ blocked: doc });
     const rows = await detectFdDiagramStubs(repo);
     expect(rows.map((r) => r.rule)).toEqual(['stub-section']);
   });
