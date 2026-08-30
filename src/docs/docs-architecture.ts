@@ -106,6 +106,11 @@ const EXCLUDED_DIRS = new Set([
  * would misclassify. An unterminated YAML block or fence yields no kind rather
  * than consuming the rest of the document.
  *
+ * A delimiter may carry at most three spaces of indent (CommonMark — the same
+ * rule the shared section scanner enforces): a fence SHOWN as an indented code
+ * sample is not a fence, and counting it let a stub diagram section pass its
+ * hasFence check.
+ *
  * noldor:cut backtick fences only — add tilde-fence support if a consumer's
  * pages use them (the same CommonMark gap Q-0113 tracks for queue documents).
  *
@@ -117,13 +122,13 @@ export function fenceKinds(body: string): string[] {
   const kinds: string[] = [];
   let i = 0;
   while (i < lines.length) {
-    if (!/^\s*```+\s*mermaid\s*$/i.test(lines[i])) {
+    if (!/^ {0,3}```+\s*mermaid\s*$/i.test(lines[i])) {
       i += 1;
       continue;
     }
     i += 1;
     let inYaml = false;
-    while (i < lines.length && !/^\s*```+\s*$/.test(lines[i])) {
+    while (i < lines.length && !/^ {0,3}```+\s*$/.test(lines[i])) {
       const line = lines[i].trim();
       i += 1;
       if (inYaml) {
@@ -140,7 +145,7 @@ export function fenceKinds(body: string): string[] {
       break;
     }
     // Skip to the closing fence (or EOF — an unterminated fence just ends here).
-    while (i < lines.length && !/^\s*```+\s*$/.test(lines[i])) i += 1;
+    while (i < lines.length && !/^ {0,3}```+\s*$/.test(lines[i])) i += 1;
     i += 1;
   }
   return kinds;

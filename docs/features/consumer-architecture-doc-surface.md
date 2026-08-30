@@ -121,8 +121,10 @@ traversing archived design artifacts.
   `collectGaps` so it reaches `docs/sdd-report.md`, `garden detect` and the
   dashboard alike.
 - `detectFdDiagramStubs(repo)` → `FdDiagramStub[]` — `{ file, rule, message }`, `rule`
-  being `placeholder-only | no-fence | stub-section`. Rows are sorted by filename, and
-  an FD that cannot be read is skipped rather than reported.
+  being `placeholder-only | no-fence | stub-section`. Rows are sorted by filename. An FD
+  that vanished between the listing and the read is skipped; any other IO failure
+  propagates rather than minting a clean pass over a tree the detector never read
+  (`error-result-types`).
 - `FD_DIAGRAM_HEADING`, `FD_DIAGRAM_PLACEHOLDER` and `MIN_FD_DIAGRAM_PROSE_CHARS`
   (`src/core/fd-diagram-contract.ts`) are the leaf contract every scaffold writes from.
   The placeholder *marker* it is detected by stays `PLACEHOLDER_MARKER` in

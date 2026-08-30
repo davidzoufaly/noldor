@@ -68,6 +68,16 @@ describe(fenceKinds, () => {
     expect(fenceKinds(fence('sequenceDiagram'))).toStrictEqual(['sequencediagram']);
   });
 
+  it('accepts up to three spaces of indent and rejects four — CommonMark, same as the scanner', () => {
+    // A mermaid fence SHOWN as an indented code sample is not a fence; counting
+    // it let a stub diagram section pass its hasFence check. ≤3 spaces stays a
+    // real fence exactly as the shared section scanner tags it.
+    const indented = (pad: string): string =>
+      `${pad}\`\`\`mermaid\n${pad}flowchart TD\n${pad}  a --> b\n${pad}\`\`\`\n`;
+    expect(fenceKinds(indented('   '))).toStrictEqual(['flowchart']);
+    expect(fenceKinds(indented('    '))).toStrictEqual([]);
+  });
+
   it('skips a leading YAML frontmatter block inside the fence', () => {
     const md = '```mermaid\n---\ntitle: X\n---\nflowchart TD\n  a --> b\n```\n';
     expect(fenceKinds(md)).toStrictEqual(['flowchart']);

@@ -162,6 +162,18 @@ describe('detectFdDiagramStubs', () => {
     expect(rows.map((r) => r.rule)).toEqual(['stub-section']);
   });
 
+  it('does not let a four-space-indented fence sample stand in for a real diagram', async () => {
+    // Indented code per CommonMark: the section SHOWS a fence without carrying
+    // one, so the verdict is no-fence — the fenceKinds grammar must agree with
+    // the section scanner about what a delimiter is.
+    const sample = FENCE.split('\n')
+      .map((l) => `    ${l}`)
+      .join('\n');
+    const repo = await repoWith({ shown: fd(`${sample}\n\n${PROSE}`) });
+    const rows = await detectFdDiagramStubs(repo);
+    expect(rows.map((r) => r.rule)).toEqual(['no-fence']);
+  });
+
   it('counts backticked identifiers in prose rather than blanking them', async () => {
     // The whole visible sentence is 45 non-whitespace chars; blanking inline
     // code spans (what `stripCodeRegions` does) drops it under the floor and
