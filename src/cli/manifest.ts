@@ -87,6 +87,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'design/pen-bridge-cli.ts',
         desc: 'Open a .pen in the default editor so pencil MCP answers (bridge wake)',
       },
+      verdict: {
+        src: 'design/design-approval-cli.ts',
+        desc: "Write a design's approval/waiver record (--approve|--waive), blob-bound to the .pen",
+      },
       context: {
         src: 'design/context-cli.ts',
         desc: 'Print the design-context block (Scope/Decided/Open/Support) for a dialogue',

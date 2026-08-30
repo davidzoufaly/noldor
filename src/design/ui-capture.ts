@@ -11,16 +11,20 @@
 // the freshly written receipt while leaving the regenerated `.pen` out of the
 // commit, and the surface would read `fresh` over a baseline HEAD never got.
 
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 
 import { dirname } from 'node:path';
 
 import { atomicWriteFileSync } from '../core/atomic-write.js';
+import { blobIdOfWorktreeFile, parseReceiptWith } from '../core/blob-id.js';
 import { errMessage } from '../core/err-message.js';
 import { parseSlug } from '../core/slug.js';
 import { slugPath, pathErrorMessage } from '../core/slug-paths.js';
+
+// Re-exported from `core/blob-id.ts` (its home since Q-0196 lifted it for the
+// design-approval record) so this module's existing consumers keep their import.
+export { blobIdOfWorktreeFile };
 
 /** Directory holding the per-surface receipts, relative to the repo root. */
 export const RECEIPT_DIR_SEGMENTS = ['.noldor', 'ui-capture'] as const;
@@ -72,22 +76,6 @@ export function receiptRelPath(surface: string): string {
 }
 
 /**
- * Git's object id for the file at `relPath`, as git would store it — filters and
- * eol conversion applied, because `--path` makes `hash-object` honour the same
- * attributes the index does. `null` when git cannot answer.
- */
-export function blobIdOfWorktreeFile(repoRoot: string, relPath: string): string | null {
-  try {
-    return execFileSync('git', ['hash-object', '--path', relPath, '--', relPath], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-    }).trim();
-  } catch {
-    return null;
-  }
-}
-
-/**
  * A surface's receipt as it sits on disk, or `null` when there is no usable one
  * (absent, unreadable, unparseable, schema mismatch). `null` is deliberately
  * indistinguishable across those causes at THIS layer: the evaluator turns an
@@ -116,12 +104,7 @@ export function readReceipt(repoRoot: string, surface: string): UiCaptureReceipt
  * a schema mismatch.
  */
 export function parseReceiptBytes(bytes: Buffer | string): UiCaptureReceipt | null {
-  try {
-    const parsed = uiCaptureReceiptSchema.safeParse(JSON.parse(bytes.toString()));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
+  return parseReceiptWith((value) => uiCaptureReceiptSchema.safeParse(value), bytes);
 }
 
 /**

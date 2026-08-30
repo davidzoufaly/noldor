@@ -36,6 +36,12 @@ interface RepoOpts {
   pens?: string[];
   noConsumerConfig?: boolean;
   waived?: boolean;
+  /**
+   * Design-approval record committed for each pen (Q-0196). Defaults to a
+   * matching `approved` record — the state every pre-existing scenario assumes —
+   * so only the record-focused tests spell out the divergent states.
+   */
+  record?: 'approved' | 'waived' | 'stale' | 'none';
 }
 
 function git(cwd: string, args: string[]): string {
@@ -90,6 +96,25 @@ function repo(opts: RepoOpts = {}): { cwd: string; input: LaneInput } {
   for (const pen of opts.pens ?? []) {
     mkdirSync(join(cwd, 'docs', 'design', 'ui', pen, '..'), { recursive: true });
     writeFileSync(join(cwd, 'docs', 'design', 'ui', pen), 'PEN-BYTES\n');
+    const mode = opts.record ?? 'approved';
+    if (mode === 'none') continue;
+    const penBlob =
+      mode === 'stale'
+        ? 'f'.repeat(40)
+        : git(cwd, ['hash-object', join('docs', 'design', 'ui', pen)]);
+    const record =
+      mode === 'waived'
+        ? { outcome: 'waived', at: '2026-08-30T00:00:00.000Z', penBlob, reason: 'bridge down' }
+        : {
+            outcome: 'approved',
+            at: '2026-08-30T00:00:00.000Z',
+            penBlob,
+            surfaces: ['app'],
+          };
+    mkdirSync(join(cwd, '.noldor', 'design-approval'), { recursive: true });
+    // Keyed by the BASENAME stem — an archived pen keeps its record path.
+    const stem = (pen.split('/').at(-1) ?? pen).replace(/\.pen$/, '.json');
+    writeFileSync(join(cwd, '.noldor', 'design-approval', stem), JSON.stringify(record));
   }
   git(cwd, ['add', '-A']);
   git(cwd, ['commit', '-qm', 'feature']);
@@ -261,6 +286,63 @@ describe('runUiReview — rounds it cannot perform', () => {
     const { cwd, input } = repo({ pens: [`2026-08-20-${SLUG}.pen`] });
     await runUiReview(input);
     expect(sink(cwd)).toMatchObject({ verdict: 'cannot-review', reason: 'pen-unreadable' });
+  });
+});
+
+describe('runUiReview — design-approval record (Q-0196)', () => {
+  it('reports design-unapproved when the tree holds no record for the design', async () => {
+    const { seen } = capture(PASS);
+    const { cwd, input } = repo({ pens: [`2026-08-20-${SLUG}.pen`], record: 'none' });
+    const r = await runUiReview(input);
+    expect(r.ok).toBe(true); // advisory default: honest green, never a silent pass
+    expect(sink(cwd)).toMatchObject({ verdict: 'cannot-review', reason: 'design-unapproved' });
+    expect(seen).toHaveLength(0);
+  });
+
+  it('reds an unapproved design under blocking', async () => {
+    const { cwd, input } = repo({
+      pens: [`2026-08-20-${SLUG}.pen`],
+      record: 'none',
+      uiReviewMode: 'blocking',
+    });
+    const r = await runUiReview(input);
+    expect(r.ok).toBe(false);
+    expect((sink(cwd).blockers as unknown[]).length).toBe(1);
+  });
+
+  it('reports design-approval-stale when the record names a different blob', async () => {
+    const { cwd, input } = repo({ pens: [`2026-08-20-${SLUG}.pen`], record: 'stale' });
+    await runUiReview(input);
+    expect(sink(cwd)).toMatchObject({ verdict: 'cannot-review', reason: 'design-approval-stale' });
+  });
+
+  it('resolves a matching waived record to not-applicable — the fresh-checkout run', async () => {
+    // No session.uiWaiver: the marker is gone, only the committed record speaks.
+    const { cwd, input } = repo({ pens: [`2026-08-20-${SLUG}.pen`], record: 'waived' });
+    const r = await runUiReview(input);
+    expect(r.ok).toBe(true);
+    expect(sink(cwd)).toMatchObject({ verdict: 'not-applicable', reason: 'waived' });
+  });
+
+  it('keeps the session-marker waiver short-circuit ahead of the record read', async () => {
+    // Marker waiver + NO record: the short-circuit answers before the record
+    // branch would have said design-unapproved.
+    const { cwd, input } = repo({
+      pens: [`2026-08-20-${SLUG}.pen`],
+      record: 'none',
+      waived: true,
+    });
+    await runUiReview(input);
+    expect(sink(cwd)).toMatchObject({ verdict: 'not-applicable', reason: 'waived' });
+  });
+
+  it('proceeds to review over a matching approved record', async () => {
+    const { seen } = capture(PASS);
+    const { cwd, input } = repo({ pens: [`2026-08-20-${SLUG}.pen`] });
+    const r = await runUiReview(input);
+    expect(r.ok).toBe(true);
+    expect(sink(cwd)).toMatchObject({ verdict: 'pass' });
+    expect(seen).toHaveLength(1);
   });
 });
 

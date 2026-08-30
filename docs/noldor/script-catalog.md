@@ -115,6 +115,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** waking the bridge before `design ui-sync`, the spec skill's UI-design step, the gate's baseline write-back, or a `ui-reviewer` / `render-compare` lane child that reports `pen-unreadable`.
 - **Source:** [`src/design/pen-bridge-cli.ts`](../../src/design/pen-bridge-cli.ts)
 
+### `design:verdict`
+
+- **Trigger:** `pnpm noldor design verdict --pen <path> --approve --surface <s> [--surface <s>...] [--reservation <text>]`, or `--waive --reason "<why>"`. Run by `/noldor-spec` step 1.5 — the `--approve` form after the operator's approve verdict lands its sentence in the spec's `## Design`, the `--waive` form in the waiver-after-Seed branch.
+- **Inputs:** `--pen` must realpath-resolve inside `docs/design/ui/` (its `archive/` included, `baseline/` excluded) and match the `<date>-<key>.pen` naming scheme. Exactly one of `--approve` / `--waive`; `--surface` (repeatable, deduplicated) belongs to approve, `--reason` to waive.
+- **Outputs:** `.noldor/design-approval/<pen-stem>.json` — a discriminated union on `outcome` (`approved` with surfaces + optional reservation, or `waived` with a reason), both members carrying `penBlob`, git's object id of the `.pen` as it sits on disk. Atomic write; an existing record for the stem is overwritten (re-taking the verdict on a revised design is the stale remedy). Exit 0 = record written (stage it with the `.pen` and the spec); 1 = write failed; 2 = usage/containment/hash error, nothing written.
+- **When to use:** never by hand in the normal flow — the spec skill's verdict step owns both call sites. Re-run it after a `pen-approval-mismatch` refusal from `checks shared-files` or a `design-approval-stale` terminal from the `ui-reviewer` lane, on the design as it now stands.
+- **Source:** [`src/design/design-approval-cli.ts`](../../src/design/design-approval-cli.ts)
+
 ### `design:geometry-diff`
 
 - **Trigger:** `pnpm noldor design geometry-diff <design.json> <impl.json> --surface <name>`. Run by hand while writing or debugging a `geometryCommand` capture script, or over a failing `geometry-compare` round's evidence files.

@@ -21,6 +21,11 @@ import { loadUiConfig } from '../../core/consumer-config.js';
 import { ARCHIVE_DIR, penSlugFromFilename } from '../../core/design-artifact-names.js';
 import { loadDocRoots } from '../../core/doc-roots.js';
 import { readSession } from '../../core/session.js';
+import {
+  approvalRelPath,
+  parseApprovalBytes,
+  type DesignApprovalRecord,
+} from '../../design/design-approval.js';
 import { sessionUiVerdict, type UiFrontmatter } from '../../core/ui-predicate.js';
 import { dialogueKeyFromSession } from '../../design/archive-resolve.js';
 import type { Finding, LaneReasonCode } from '../findings-schema.js';
@@ -354,6 +359,31 @@ export async function resolveUiReviewTarget(input: LaneInput): Promise<Resolutio
     );
   }
 
+  // Design-approval record (Q-0196), read from the SAME review-head tree as
+  // the `.pen` so no comparison spans two revisions. The waiver short-circuit
+  // above keeps its precedence; a matching `waived` record only decides the
+  // run where the marker is gone but the tree is not (a fresh checkout).
+  const approval = approvalAtHead(run, input.artifactSha, owned[0]);
+  if (approval.kind !== 'ok') {
+    return terminal(
+      'cannot-review',
+      'design-unapproved',
+      `${owned[0]} has no usable design-approval record at ${approvalRelPath(owned[0].split('/').at(-1) ?? owned[0])} — ` +
+        'take the verdict (`design verdict --pen <path> --approve|--waive`) and commit the record',
+    );
+  }
+  if (approval.record.penBlob !== approval.penBlob) {
+    return terminal(
+      'cannot-review',
+      'design-approval-stale',
+      `the design changed after its verdict: record names ${approval.record.penBlob.slice(0, 12)}, ` +
+        `tree holds ${approval.penBlob.slice(0, 12)} — re-take the verdict on the design as it stands`,
+    );
+  }
+  if (approval.record.outcome === 'waived') {
+    return terminal('not-applicable', 'waived', `committed waiver: ${approval.record.reason}`);
+  }
+
   return {
     kind: 'review',
     design: {
@@ -365,4 +395,26 @@ export async function resolveUiReviewTarget(input: LaneInput): Promise<Resolutio
       unmappedPaths: verdict.unmappedPaths,
     },
   };
+}
+
+/**
+ * The record and the `.pen` blob as one review-head tree holds them. `absent`
+ * covers a missing/unreadable/malformed record AND a `.pen` the tree cannot
+ * resolve — every one is "no usable record for this tree", which downstream
+ * refuses identically.
+ */
+function approvalAtHead(
+  run: ReturnType<typeof defaultRunGit>,
+  head: string,
+  penRelPath: string,
+): { kind: 'ok'; record: DesignApprovalRecord; penBlob: string } | { kind: 'absent' } {
+  const penBasename = penRelPath.split('/').at(-1);
+  if (penBasename === undefined) return { kind: 'absent' };
+  const oid = run(['rev-parse', `${head}:${penRelPath}`]);
+  if (oid.status !== 0) return { kind: 'absent' };
+  const bytes = run(['cat-file', 'blob', `${head}:${approvalRelPath(penBasename)}`]);
+  if (bytes.status !== 0) return { kind: 'absent' };
+  const record = parseApprovalBytes(bytes.stdout);
+  if (record === null) return { kind: 'absent' };
+  return { kind: 'ok', record, penBlob: oid.stdout.trim() };
 }
