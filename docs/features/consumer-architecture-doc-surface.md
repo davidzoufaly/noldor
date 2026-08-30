@@ -27,6 +27,7 @@ since: 2026-08-11T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0
 ---
+
 ## Summary
 
 A `docs/architecture/` folder holding four hand-drawn mermaid diagrams that answer "how is this system shaped" above the per-feature level: `context` (the system, its actors, the externals it talks to), `containers` (deployable and runnable units — FE app, BE service, DB, worker, CLI, infra), `modules` (internal dependency direction and which module owns which durable state) and `flows` (the load-bearing runtime flows). The framework ships the registry, a presence validator, an advisory staleness check, scaffold-only templates, a garden detector, an SDD-report gap and a release probe; consumers write the content. One surface serves both a consumer repo and Noldor itself, which fills the same four pages.
@@ -167,11 +168,19 @@ This release adds the architecture doc surface (#333).
 ## Resources
 
 - **Code:**
+  - [`src/core/fd-diagram-contract.ts`](../../src/core/fd-diagram-contract.ts)
+  - [`src/core/markdown-section-scan.ts`](../../src/core/markdown-section-scan.ts)
+  - [`src/docs/architecture-form.ts`](../../src/docs/architecture-form.ts)
   - [`src/docs/architecture-schema.ts`](../../src/docs/architecture-schema.ts)
   - [`src/docs/docs-architecture.ts`](../../src/docs/docs-architecture.ts)
   - [`src/garden/detectors/architecture.ts`](../../src/garden/detectors/architecture.ts)
+  - [`src/garden/detectors/fd-diagram.ts`](../../src/garden/detectors/fd-diagram.ts)
 - **Tests:**
+  - [`src/core/__tests__/markdown-section-scan.test.ts`](../../src/core/__tests__/markdown-section-scan.test.ts)
+  - [`src/docs/__tests__/architecture-form.test.ts`](../../src/docs/__tests__/architecture-form.test.ts)
   - [`src/docs/__tests__/docs-architecture.test.ts`](../../src/docs/__tests__/docs-architecture.test.ts)
   - [`src/garden/detectors/__tests__/architecture.test.ts`](../../src/garden/detectors/__tests__/architecture.test.ts)
+  - [`src/garden/detectors/__tests__/fd-diagram.test.ts`](../../src/garden/detectors/__tests__/fd-diagram.test.ts)
+  - [`src/utils/__tests__/word-count.test.ts`](../../src/utils/__tests__/word-count.test.ts)
 
 <!-- /generated: resources -->

@@ -32,6 +32,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
+
 ## Summary
 
 Every roadmap and backlog entry is identified today by its kebab-slug derived from the heading. Slugs are rename-fragile — renaming an entry breaks every `deps:`, `parent:`, commit trailer, and dashboard link that targets it; moving an entry between roadmap ↔ backlog preserves the slug but loses heading-evolution traceability. Introduce a stable short ID minted at first triage and never rewritten: e.g. `R-0042` for roadmap and `B-0042` for backlog, or a single `Q-0042` namespace that survives cross-file moves. The ID becomes the canonical reference for `blocked-by:` / `parent:` / commit trailers / dashboard links / garden detectors. Slug stays a human-readable alias that can be rewritten without breakage. Counter persists in `.noldor/id-counter.json`; `/noldor-triage` and `/noldor-new-feature` mint IDs at creation. Migration: one-sweep backfill across current entries (~25 roadmap + ~7 backlog as of 2026-07-02).
@@ -88,11 +89,13 @@ Introduces stable entry IDs (Q-NNNN) for roadmap + backlog (#157).
   - [`docs/roadmap.md`](../../docs/roadmap.md)
   - [`src/triage/backfill-ids-cli.ts`](../../src/triage/backfill-ids-cli.ts)
   - [`src/triage/entry-id.ts`](../../src/triage/entry-id.ts)
+  - [`src/triage/live-max-entry-id.ts`](../../src/triage/live-max-entry-id.ts)
   - [`src/triage/mint-id-cli.ts`](../../src/triage/mint-id-cli.ts)
   - [`src/triage/retired-ids.ts`](../../src/triage/retired-ids.ts)
 - **Tests:**
   - [`src/triage/__tests__/entry-id.test.ts`](../../src/triage/__tests__/entry-id.test.ts)
   - [`src/triage/__tests__/has-block.test.ts`](../../src/triage/__tests__/has-block.test.ts)
+  - [`src/triage/__tests__/live-max-entry-id.test.ts`](../../src/triage/__tests__/live-max-entry-id.test.ts)
   - [`src/triage/__tests__/remove-block-cli.test.ts`](../../src/triage/__tests__/remove-block-cli.test.ts)
   - [`src/triage/__tests__/retired-ids.test.ts`](../../src/triage/__tests__/retired-ids.test.ts)
 

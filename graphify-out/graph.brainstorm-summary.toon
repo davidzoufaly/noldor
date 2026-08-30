@@ -1,53 +1,53 @@
 # Domain Knowledge Graph — Summary
-# 3014 nodes, 8015 edges, 170 communities
+# 3108 nodes, 8327 edges, 164 communities
 
 directed: false
 
 ## community index (top 20 by size)
-  c0 (92): detectors
-  c1 (70): lanes
-  c2 (68): check-invariants.ts · isBlocking() · isWarning()
-  c3 (65): detectors
-  c5 (64): data.ts · highlight() · getVisionPath()
-  c4 (64): dev-surfaces.ts · bootDevSurfaces() · worktree-conflicts.ts
-  c6 (50): rules
-  c7 (48): walkTokens() · views.ts · deriveRepoSlug()
-  c8 (46): detectors / adapters
-  c9 (45): release-fd-commits.ts · parseCommitLine() · gitLogShas()
-  c10 (44): detectors
-  c11 (44): setDocRootsOverride() · getRoadmapPath() · getBacklogPath()
-  c12 (40): status.ts · scanPorts() · formatStatus()
-  c13 (39): log-cli.ts · parseLogArgs() · applyLog()
-  c14 (39): pr-flow.ts · composeTitle() · renderCrTable()
-  c15 (38): copy-runtime-assets.mjs · copyRuntimeAssets() · build-manifest.mjs
-  c16 (36): sha.ts · isSha() · autofix.ts
-  c17 (35): garden-receipt.ts · readGardenReceipt() · writeGardenReceipt()
-  c18 (34): graph-context.ts · graphContext() · isTracked()
-  c19 (34): lanes
+  c0 (74): agent-runner / usage
+  c1 (70): api / detectors
+  c2 (66): settle-within.ts · settleWithin() · receipt-trailer.ts
+  c3 (66): detectors
+  c4 (62): views.ts · deriveRepoSlug() · toggleMultiParam()
+  c5 (57): pageFilename() · data.ts · highlight()
+  c6 (55): sha.ts · isSha() · autofix.ts
+  c7 (55): dev-surfaces.ts · bootDevSurfaces() · worktree-conflicts.ts
+  c8 (52): detectors
+  c9 (52): release-fd-commits.ts · parseCommitLine() · gitLogShas()
+  c10 (47): collect
+  c11 (47): detectors / adapters
+  c12 (43): loadConfigSync() · drain-io.ts · syncMainCleanState()
+  c13 (42): pr-flow.ts · composeTitle() · renderCrTable()
+  c14 (41): lanes
+  c16 (40): log-cli.ts · parseLogArgs() · applyLog()
+  c15 (40): status.ts · scanPorts() · formatStatus()
+  c17 (38): invariants-boundaries.test.ts · makeRepo() · invariants-public-api-tsdoc.test.ts
+  c18 (37): copy-runtime-assets.mjs · copyRuntimeAssets() · build-manifest.mjs
+  c19 (37): release-markers.ts · fillNoldorMarker() · fillAllNoldorMarkers()
 
 ## cross-community edges (top 25)
-  contract-harness.ts [c37] --imports_from-- build-manifest.mjs [c15]
-  contract-harness.ts [c37] --imports-- expectedOutputs() [c15]
-  checkPackagedRuntime() [c37] --calls-- expectedOutputs() [c15]
-  dist-import-graph.test.ts [c37] --imports_from-- runtime-select.mjs [c15]
-  dist-import-graph.test.ts [c37] --imports-- currentState() [c15]
-  fanout.ts [c29] --imports_from-- registry.ts [c87]
-  fanout.ts [c29] --imports-- spawnAgent() [c36]
-  compute.ts [c31] --imports_from-- facts.ts [c88]
-  compute.ts [c31] --imports-- extractFacts() [c88]
-  main() [c43] --imports_from-- compute.ts [c31]
-  sdd-report-diff.test.ts [c63] --imports_from-- compute.ts [c31]
-  loadMetricsReport() [c11] --imports_from-- compute.ts [c31]
-  compute() [c31] --calls-- extractFacts() [c88]
-  main() [c43] --calls-- compute() [c31]
-  loadMetricsReport() [c11] --calls-- compute() [c31]
-  types.ts [c31] --imports_from-- agent-events.ts [c104]
-  types.ts [c31] --imports_from-- escalations.ts [c42]
-  types.ts [c31] --imports_from-- drain-state.ts [c98]
-  types.ts [c31] --imports_from-- findings-schema.ts [c16]
-  types.ts [c31] --imports_from-- feature-schema.ts [c28]
-  facts.ts [c88] --imports_from-- types.ts [c31]
-  sdd-report-format.ts [c63] --imports_from-- types.ts [c31]
-  sdd-report.ts [c10] --imports_from-- types.ts [c31]
-  sdd-report-metrics.test.ts [c63] --imports_from-- types.ts [c31]
-  sdd-report-diff.test.ts [c63] --imports_from-- types.ts [c31]
+  contract-harness.ts [c43] --imports_from-- build-manifest.mjs [c18]
+  contract-harness.ts [c43] --imports-- expectedOutputs() [c18]
+  checkPackagedRuntime() [c43] --calls-- expectedOutputs() [c18]
+  dist-import-graph.test.ts [c43] --imports_from-- runtime-select.mjs [c18]
+  dist-import-graph.test.ts [c43] --imports-- currentState() [c18]
+  fanout.ts [c33] --imports_from-- registry.ts [c0]
+  fanout.ts [c33] --imports-- spawnAgent() [c0]
+  compute.ts [c10] --imports_from-- facts.ts [c93]
+  compute.ts [c10] --imports-- extractFacts() [c93]
+  main() [c40] --imports_from-- compute.ts [c10]
+  compute() [c10] --calls-- extractFacts() [c93]
+  main() [c40] --calls-- compute() [c10]
+  types.ts [c10] --imports_from-- agent-events.ts [c54]
+  types.ts [c10] --imports_from-- escalations.ts [c66]
+  types.ts [c10] --imports_from-- drain-state.ts [c54]
+  types.ts [c10] --imports_from-- findings-schema.ts [c14]
+  types.ts [c10] --imports_from-- feature-schema.ts [c34]
+  facts.ts [c93] --imports_from-- types.ts [c10]
+  sdd-report.ts [c8] --imports_from-- types.ts [c10]
+  data.ts [c5] --imports_from-- types.ts [c10]
+  views.ts [c4] --imports_from-- types.ts [c10]
+  metrics-view.test.ts [c4] --imports_from-- types.ts [c10]
+  facts.ts [c93] --imports_from-- feature-schema.ts [c34]
+  facts.ts [c93] --imports_from-- findings-schema.ts [c14]
+  facts.ts [c93] --imports_from-- slugify.ts [c75]
