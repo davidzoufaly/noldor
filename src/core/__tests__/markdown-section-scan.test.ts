@@ -202,6 +202,35 @@ describe('comment handling', () => {
     expect(locateSection(body, 2, 'After', null)?.scanned).toContain('tail');
   });
 
+  it('hides a commented-out two-edge diagram whole — an edge arrow is not a close marker', () => {
+    // The reviewer-probed regression: the first edge's `-->` closed the comment,
+    // the second edge leaked as visible text, and the widened heal then demoted
+    // the opener — minting a visible unclosed fence that swallowed every later
+    // heading. Inside a hidden fence only a bare `-->` line closes the comment.
+    const body = [
+      '## Diagram',
+      '<!--',
+      '```mermaid',
+      'flowchart LR',
+      '  a --> b',
+      '  c --> d',
+      '```',
+      '-->',
+      '## Next',
+      'real prose under Next',
+    ].join('\n');
+    expect(locateSection(body, 2, 'Next', null)?.scanned).toContain('real prose under Next');
+    expect(locateSection(body, 2, 'Diagram', null)?.scanned).not.toContain('c --> d');
+  });
+
+  it('lets a visible delimiter after a demoted hidden opener act as the opener a reader sees', () => {
+    // `<!-- ```mermaid -->` hides an opener that never closes inside its
+    // comment, so it is demoted; the visible ``` that follows then OPENS a
+    // fence and the heading inside it is code, exactly as a renderer shows it.
+    const body = ['<!--', '```mermaid', '-->', '```', '## Hidden', 'code'].join('\n');
+    expect(locateSection(body, 2, 'Hidden', null)).toBeNull();
+  });
+
   it('blanks the tail of a multi-line comment close line, as a renderer does', () => {
     // CommonMark: an HTML block ends at the line CONTAINING `-->`, consuming
     // the whole line — text after the close marker is not rendered.

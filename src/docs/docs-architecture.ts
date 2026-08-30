@@ -3,8 +3,8 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, join, sep } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
-import { fenceDelimiter } from '../core/markdown-section-scan.js';
 import { scanRoots, toPosixRelative } from '../core/repo-paths.js';
+import { fenceDelimiter } from '../utils/markdown-sections.js';
 import {
   ARCH_PAGE_PROSE_WORD_THRESHOLD,
   ARCH_PARAGRAPH_WORD_THRESHOLD,

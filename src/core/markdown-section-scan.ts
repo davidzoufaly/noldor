@@ -39,6 +39,7 @@
  * here reads a heading name or a threshold: callers own their own contract.
  */
 
+import { fenceDelimiter } from '../utils/markdown-sections.js';
 import { ARCHIVE_DIR } from './design-artifact-names.js';
 import { listDirIfExists } from './fd-load.js';
 import { CUT_MARKER } from './structural-context-contract.js';
@@ -72,18 +73,16 @@ export interface TaggedLine {
  * moment a comment contains a fence delimiter. The comment rules are the module
  * docstring's; the fence rules are CommonMark's.
  *
- * Repairs on top, all serving one rule — a delimiter the reader cannot see (it
- * sits inside a comment) may never fence structure the reader CAN see. A hidden
- * BARE opener is demoted the moment its comment ends still open: the reader
- * sees no delimiter, so the next visible one is an opener, not its closer (a
- * genuinely commented-out fence starts with its info-string opener). A hidden
- * info-string opener stands for that commented-out fence — it may close on a
- * hidden closer or consume the stray visible closer the comment left behind —
- * but it is demoted when any non-blank visible line falls inside its region, or
- * when it is still open at EOF. A commented-out fence whose region holds only
- * its own blanked body stays hidden, and a fence the author can SEE runs
- * unclosed to EOF exactly as CommonMark reads it, so no repair ever rewrites
- * visible structure. Each round demotes one delimiter line, so it terminates.
+ * One repair on top, serving one rule — a fence the reader cannot see must be
+ * born AND die inside its comment. While a comment hides an open fence, only a
+ * bare `-->` line can end the comment (a mermaid edge is diagram syntax, and
+ * closing on one leaked half the diagram as visible text), so a commented-out
+ * block stays hidden whole. When a comment ends while a fence opened inside it
+ * is still open, that opener is a phantom — the reader sees no delimiter — so
+ * it is demoted to literal text and the pass re-run: the next visible
+ * delimiter then OPENS a fence, exactly as a renderer reads it. No repair ever
+ * rewrites visible structure, and each round demotes one delimiter line, so it
+ * terminates.
  */
 export function tagLines(body: string): TaggedLine[] {
   const lines = body.split('\n');
@@ -96,28 +95,9 @@ export function tagLines(body: string): TaggedLine[] {
 }
 
 /**
- * One line parsed as a fence delimiter, or `null`.
- *
- * THE delimiter grammar, exported so no consumer forks it (`fenceKinds` did,
- * and the two copies disagreed on indent and tilde support): at most three
- * spaces of indent (CommonMark — the same ceiling {@link atxHeading} enforces),
- * three or more backticks or tildes, and a backtick run may not carry a
- * backtick in its info string.
- */
-export function fenceDelimiter(
-  line: string,
-): { char: string; len: number; info: string; bare: boolean } | null {
-  const m = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
-  if (m === null) return null;
-  const char = m[1][0]!;
-  if (char === '`' && m[2].includes('`')) return null;
-  return { char, len: m[1].length, info: m[2].trim(), bare: m[2].trim().length === 0 };
-}
-
-/**
- * One tagging pass; `healAt` names a comment-hidden opener whose fence would
- * hide visible structure — see {@link tagLines}. When `healAt` is non-null the
- * returned lines may be partial; the caller re-runs.
+ * One tagging pass; `healAt` names a comment-hidden opener whose fence was
+ * still open when its comment ended — see {@link tagLines}. When `healAt` is
+ * non-null the returned lines may be partial; the caller re-runs.
  */
 function tagPass(
   lines: readonly string[],
@@ -127,8 +107,9 @@ function tagPass(
   // CommonMark: a fence closes only on the SAME character, at least as long as
   // the opener, and a closer is bare — an info string like ```js can open a
   // fence but never close one. Anything looser let fenced heading-shaped
-  // content open or truncate a section.
-  let open: { char: string; len: number; at: number; hidden: boolean; bare: boolean } | null = null;
+  // content open or truncate a section. The recognizer is the shared
+  // `fenceDelimiter`, never a local copy.
+  let open: { char: string; len: number; at: number; hidden: boolean } | null = null;
   let inComment = false;
 
   for (const [i, text] of lines.entries()) {
@@ -138,7 +119,7 @@ function tagPass(
     const d = demoted.has(i) ? null : fenceDelimiter(text);
     if (d !== null) {
       if (open === null) {
-        open = { char: d.char, len: d.len, at: i, hidden: inComment, bare: d.bare };
+        open = { char: d.char, len: d.len, at: i, hidden: inComment };
       } else if (d.bare && d.char === open.char && d.len >= open.len) {
         open = null;
       }
@@ -148,27 +129,26 @@ function tagPass(
       fenced = open !== null;
     }
 
-    // Comment visibility. An open comment ends at the first `-->` on ANY line,
-    // and the close line is consumed WHOLE — CommonMark ends the HTML block at
-    // the line containing `-->`, so a tail after the marker is not rendered
-    // (the tail is still scanned so a new `<!--` in it can reopen). A new
-    // comment begins only on an unfenced span.
+    // Comment visibility. On an unfenced line a comment ends at the first
+    // `-->`, as HTML reads it; on a fenced line — necessarily one the comment
+    // itself hides, since a comment cannot open inside a fence — only a bare
+    // `-->` line ends it, because a mermaid edge IS `-->` and closing on one
+    // leaked half the diagram as visible text. A close line is consumed WHOLE
+    // (CommonMark ends the HTML block at the line containing `-->`; the tail
+    // is still scanned so a new `<!--` in it can reopen). A new comment begins
+    // only on an unfenced span.
     let visible: string;
     if (inComment) {
-      const close = text.indexOf('-->');
-      if (close === -1) {
-        visible = blank(text);
-      } else {
+      const closes = fenced ? text.trim() === '-->' : text.includes('-->');
+      if (closes) {
         inComment = false;
-        const rest = text.slice(close + '-->'.length);
-        if (!fenced) blankSpans(rest);
-        visible = blank(text);
+        if (!fenced) blankSpans(text.slice(text.indexOf('-->') + '-->'.length));
+        // THE repair: a fence born inside this comment must have died inside
+        // it. Still open means its opener is a phantom the reader never sees —
+        // demote it, and the next visible delimiter opens as a renderer reads.
+        if (open !== null && open.hidden) return { out, healAt: open.at };
       }
-      // A hidden BARE opener still open when its comment ends is a phantom:
-      // demote it so the next visible delimiter opens, as the reader sees it.
-      if (!inComment && open !== null && open.hidden && open.bare) {
-        return { out, healAt: open.at };
-      }
+      visible = blank(text);
     } else if (fenced) {
       visible = text;
     } else {
@@ -176,15 +156,8 @@ function tagPass(
     }
 
     out.push({ text, fenced, visible });
-
-    // Any non-blank visible line inside a hidden-opener region is structure
-    // the reader can see — demote the opener. A genuinely commented-out
-    // fence's body is blanked end to end, so it can never trigger this.
-    if (open !== null && open.hidden && open.at !== i && visible.trim().length > 0) {
-      return { out, healAt: open.at };
-    }
   }
-  return { out, healAt: open !== null && open.hidden ? open.at : null };
+  return { out, healAt: null };
 
   /** Blank every comment span in an unfenced line, tracking an unclosed opener. */
   function blankSpans(rest: string): string {

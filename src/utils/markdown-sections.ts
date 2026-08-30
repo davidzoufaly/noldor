@@ -32,6 +32,36 @@ export interface FenceState {
   length: number;
 }
 
+/** One line parsed as a fence delimiter — see {@link fenceDelimiter}. */
+export interface FenceDelimiter {
+  char: '`' | '~';
+  len: number;
+  /** The info string, trimmed — empty on a bare (closing-capable) delimiter. */
+  info: string;
+  bare: boolean;
+}
+
+/**
+ * One line parsed as a fence delimiter, or `null` when it is not one.
+ *
+ * THE delimiter grammar, exported so no consumer forks it: at most three
+ * spaces of indent (CommonMark), three or more backticks or tildes, and a
+ * backtick run may not carry a backtick in its info string (``` a`b ``` is
+ * inline code, not a fence). `stepFence` below and the section scanner in
+ * `src/core/markdown-section-scan.ts` both drive their fence state from this
+ * one recognizer; `fenceKinds` reads mermaid kinds through it too.
+ */
+export function fenceDelimiter(line: string): FenceDelimiter | null {
+  const m = line.match(FENCE_RE);
+  if (!m) return null;
+  const run = (m[2] ?? m[3])!;
+  const char = run[0] as '`' | '~';
+  const info = m[4]!;
+  if (char === '`' && info.includes('`')) return null;
+  const trimmed = info.trim();
+  return { char, len: run.length, info: trimmed, bare: trimmed === '' };
+}
+
 /**
  * Classify one line against the current fence state.
  *
@@ -44,24 +74,13 @@ export interface FenceState {
  *   is *content* — i.e. can still be read as a heading.
  */
 export function stepFence(line: string, open: FenceState | null): { open: FenceState | null } {
-  const m = line.match(FENCE_RE);
-  if (!m) return { open };
-  const run = m[2] ?? m[3]!;
-  const marker = run[0] as '`' | '~';
-  const info = m[4]!;
-
-  if (open === null) {
-    // A backtick opening's info string may not contain a backtick: ``` a`b ``` is
-    // inline code, not a fence. Tilde info strings carry no such restriction.
-    if (marker === '`' && info.includes('`')) return { open: null };
-    return { open: { marker, length: run.length } };
-  }
+  const d = fenceDelimiter(line);
+  if (d === null) return { open };
+  if (open === null) return { open: { marker: d.char, length: d.len } };
 
   // Closing requires the same marker, a run at least as long as the opening, and
   // nothing but whitespace after it. Anything else is fence *content*.
-  if (marker === open.marker && run.length >= open.length && info.trim() === '') {
-    return { open: null };
-  }
+  if (d.char === open.marker && d.len >= open.length && d.bare) return { open: null };
   return { open };
 }
 
