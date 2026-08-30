@@ -27,6 +27,7 @@ Cross-file indirection is also the dominant cost term for agent-driven developme
 - **Not intra-file abstraction.** The cost model is file-crossing; a long file with many small local functions is out of scope by construction.
 - **Not a relaxation of the clone ratchet.** The two gates measure different things and both stay live. Fixing the tokenizer's facade false-positive is separate work.
 - **Not configurable thresholds.** `docs/vision.md`: opinionated, not configurable. The threshold is an exported constant, as with the `split-suggestion.ts` thresholds.
+- **Not a barrel detector.** Detecting a re-export-only module is an *export-side* fact; `cruise()` reports dependencies, not exports, and TypeScript 7 exposes no in-process parser (`src/invariants/public-api-tsdoc.ts` records this). Any implementation would fall back to a source regex, which `.claude/engineering-rules.md` discourages and which could not honestly claim to be false-positive-free. Barrels remain covered by the prose rule only.
 
 ## Design
 
@@ -41,75 +42,114 @@ Cross-file indirection is also the dominant cost term for agent-driven developme
 
 ### Unit 1 — the rule
 
-One rule file, `enforce: true`, `applies-to: ["src/**/*.ts"]`, `stage: [code]`, with the identical twin at `templates/.noldor/rules/abstraction-cost.md` that `check-template-sync` holds to parity. It carries only the delta over `.claude/engineering-rules.md`, which already owns YAGNI (L76), "DRY threshold = 3" (L78) and "Prop drilling beats Context until 3+ levels" (L121):
+One rule file at `.noldor/rules/abstraction-cost.md`, `enforce: true`, `applies-to: ["src/**/*.ts"]`, `stage: [code]`, with the identical twin at `templates/.noldor/rules/abstraction-cost.md` that `check-template-sync` holds to parity. It carries only the delta over `.claude/engineering-rules.md`, which already owns YAGNI (L76), "DRY threshold = 3" (L78) and "Prop drilling beats Context until 3+ levels" (L121):
 
-1. Abstraction is priced by file boundaries — inside one file it is nearly free, across files it costs a fetch and a round trip.
-2. Three reasons to abstract: hide complexity, name a thing, reuse a thing — reuse counting from the third call site. None apply → inline it.
-3. Named anti-patterns: the single-use constant, the single-consumer translation layer, the factory wrapping a value the type system already constrains, the barrel re-export.
+1. **Abstraction is priced by file boundaries.** Inside one file it is nearly free; across files it costs a fetch and a round trip on every crossing.
+2. **Three reasons to abstract:** hide complexity behind an interface a caller genuinely should not see; give a thing a name *that the call site cannot already read off the expression*; reuse from the third call site, not the second. If none applies, inline it.
+3. **Named anti-patterns:** the single-use constant whose name says no more than its value; the single-consumer translation layer that only renames; the factory wrapping a value the type system already constrains.
+
+Clause 2's naming test is stated narrowly on purpose: "name a thing" would otherwise justify every single-use constant, which is the first anti-pattern in clause 3. The rule does **not** name barrel re-exports as an anti-pattern — `src/index.ts` style public-API surfaces legitimately re-export, and a blanket clause would turn a repo convention into a reviewer blocker.
 
 It reaches the author through `pnpm noldor rules brief` at gate Step 3.5, and the reviewer through the `enforce` bucket that `src/cr/lanes/subagent.ts` resolves for changed files — so a violation is a finding even when the author never ran the brief.
 
 ### Unit 2 — closure measurement
 
-For each in-repo module, the size of its transitive in-repo import closure: the count of distinct repo files reachable by following import edges, excluding the module itself. This is the article's cost model stated mechanically — how many files a reader or agent must fetch to understand this one.
+For each in-repo module, the size of its transitive in-repo import closure: the count of distinct in-repo files reachable by following import edges, excluding the module itself. This is the article's cost model stated mechanically — how many files a reader or agent must fetch to understand this one.
 
-Input is a `cruise()` call shaped like the one in `boundaries.ts:126-133` — `validate: false`, `doNotFollow: { path: 'node_modules' }`, `tsPreCompilationDeps: true`, tests excluded. Scan roots come from `scanRoots()` in `repo-paths.ts`, the same provider `clones-cli.ts` already uses, so a consumer with a non-`src` layout is measured correctly.
+**Which files are modules.** The measured set is every file under `scanRoots()` (`src/core/repo-paths.ts`, the same provider `clones-cli.ts` uses) with extension `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, excluding: anything `TEST_FILE_RE` matches or living under a `__tests__` directory (see below); `.d.ts` declaration files, which carry no runtime edges; and anything `dependency-cruiser` resolves outside the scan roots, including `node_modules` and other workspace packages. A workspace sibling is a published boundary, not an in-repo hop, so an edge into one terminates rather than expanding.
 
-Type-only imports are counted. A type that lives in another file is still a file the reader opens, and `tsPreCompilationDeps: true` is what surfaces them.
+**Test exclusion derives from the repo's own policy, not from a restated literal.** `src/core/repo-paths.ts:74` owns it: `TEST_FILE_RE = /\.(test|spec)\.(ts|tsx|js|jsx)$/`, and `walkCodeFiles({ includeTests })` also skips `__tests__` directories. The narrower `exclude: { path: '__tests__|\\.test\\.ts$' }` literal in `boundaries.ts` misses `.spec.ts` entirely, so a consumer laid out with `*.spec.ts` would have its tests counted as modules — silently inflating every closure and the baseline recorded from it. The cruise `exclude` pattern is therefore derived from `TEST_FILE_RE`, so the two cannot drift.
 
-A module is **flagged** when its closure exceeds `INDIRECTION_CLOSURE_THRESHOLD`. Measured distribution on this repo today (401 modules, 36 861 code lines, 1018 internal edges): p50 = 4, p75 = 11, p90 = 30, p99 = 89, max = 103 (`src/release/index.ts`).
+**Which edges count.** Static `import` and `export … from`, `import type` included (a type in another file is still a file the reader opens; `tsPreCompilationDeps: true` is what surfaces them), plus `require()` where dependency-cruiser resolves it. Dynamic `import()` counts when the specifier is a string literal dependency-cruiser can resolve, and is ignored when it cannot. A `tsconfig` path alias counts as the file it resolves to. A directory specifier counts as the index file it resolves to. An import dependency-cruiser marks unresolvable is **not** silently dropped: it is reported by `report` and, if any exist, `check` exits 3 — an unresolved internal-looking import means the measured graph is incomplete, which is "could not look", not "clean".
 
-Two signal designs were measured and rejected before this one. **Thin-wrapper counting** (few dependents, small body) yields 36 hits at `deps ≤ 2, body ≤ 20`, but the sample is dominated by registry and plugin members — `src/migrations/0.4.0.ts`, `src/garden/detectors/adr.ts`, `src/core/agent-runner/runners/stub.ts` — which have one dependent *by design*. With no waiver list, every new migration or detector would red the gate. **Pass-through-chain counting** (each link having exactly one dependent) finds 3 chains in the entire repo, and all 3 are that same registry pattern. Closure size is immune to both: a registry member's own closure is small, and it is the aggregator's depth that grows when indirection is genuinely added.
+**Flagging and the measured distribution.** A module is *flagged* when its closure exceeds `INDIRECTION_CLOSURE_THRESHOLD` (30). Flagging drives what `report` prints; the ratchet number is defined in Unit 3. Measured on this repo today, with the exclusion above: 401 modules, closure p50 = 4, p75 = 11, p90 = 30, p99 = 89, max = 103 (`src/release/index.ts`); 38 modules flagged.
+
+**Two cheaper signals were measured and rejected.** *Thin-wrapper counting* (few dependents, small body) yields 36 hits at `deps ≤ 2, body ≤ 20`, but the sample is dominated by registry and plugin members — `src/migrations/0.4.0.ts`, `src/garden/detectors/adr.ts`, `src/core/agent-runner/runners/stub.ts` — which have one dependent *by design*. With no waiver list, every new migration or detector would red the gate. *Pass-through-chain counting* (each link having exactly one dependent) finds 3 chains in the entire repo, and all 3 are that same registry pattern. Closure measurement is immune to both, because a registry member's own closure is small.
 
 ### Unit 3 — baseline and ratchet
 
-The ratchet number is the **count of flagged modules** (38 on this repo at threshold 30). It is absolute rather than a ratio, for the reason `src/clones/baseline.ts` states in its own header, and it is stable under clean growth in a way a raw closure sum is not: summing every module's closure (3995 today) rises whenever any shared module gains a consumer, so ordinary feature work would red it.
+The ratchet number is the **excess sum**: `Σ max(0, closure(m) − 30)` over every module. It is **882** on this repo today.
 
-`.noldor/indirection-baseline.json` is tracked, mirroring `cloneBaselineSchema`: the ratchet count, the descriptive numbers a human reads but nothing compares (percentiles, modules scanned, total edges), an `options` block recording the threshold and scan roots and test-inclusion the baseline was taken under, and `recordedAt`. A baseline whose `options` differ from the current run is not comparable and is rejected rather than trusted — raising the threshold would otherwise shrink the count with nobody removing an edge. Written through `atomicWriteFileSync` and read through `readJsonState`, as clones does.
+A count of flagged modules — the obvious first choice, and this spec's own first draft — cannot see the worst kind of deepening. A module whose closure grows from 31 to 100 leaves the count unchanged, and the count can stay flat while one module crosses the threshold and another drops below it. The excess sum moves by 69 on that same growth, still registers a crossing as +1, and inherits the registry immunity that the rejected signals lacked: a registry member's closure is far below the threshold, so it contributes exactly 0 no matter how many members exist. Summing *un*-thresholded closures was also rejected — it rises whenever any shared module gains a consumer, so ordinary clean feature work would red it.
+
+The number is absolute rather than a ratio, for the reason `src/clones/baseline.ts` gives in its own header: a ratio moves for reasons unrelated to the thing being ratcheted.
+
+`.noldor/indirection-baseline.json` is tracked. Schema, validated with Zod and `.strict()` like every other state file in the repo:
+
+| Field | Type | Role |
+| --- | --- | --- |
+| `excessSum` | non-negative int | **the ratchet number** — the only field compared |
+| `flaggedModules` | non-negative int | descriptive; printed, never compared |
+| `modulesScanned` | non-negative int | descriptive |
+| `percentiles` | `{ p50, p75, p90, p99, max }`, non-negative ints | descriptive |
+| `options` | `{ threshold: positive int, scanRoots: string[], includeTests: boolean }` | comparability guard |
+| `algorithmVersion` | positive int | comparability guard |
+| `recordedAt` | ISO-8601 UTC string | provenance |
+
+Written through `atomicWriteFileSync` and read through `readJsonState`, as clones does. Paths are stored repo-relative and POSIX-separated so a baseline recorded on one platform compares on another.
+
+**Comparability.** A baseline whose `options` or `algorithmVersion` differ from the current run is not comparable and is refused (exit 3) rather than trusted — raising the threshold would otherwise shrink the number with nobody removing an edge. `algorithmVersion` exists because `options` alone cannot catch a change in how the closure is *computed*: a fix to alias or dynamic-import handling changes every number without changing a knob, and a baseline silently compared across that boundary is worse than no baseline. Implementations bump it whenever the traversal changes.
+
+**Absent baseline is green**, matching `clones-cli.ts:229` (*"Absent baseline is green — a consumer that never ran"*). A consumer installing Noldor has no baseline file, and a blocking gate that reds until someone runs an unfamiliar command is an adoption blocker. `report` and `check` both say plainly that no baseline is recorded and name the command that records one.
+
+**Threshold retunes ship a migration.** Because the threshold is a shipped constant and a differing `options` block is refused, a Noldor release that retunes it would otherwise turn every consumer's `indirection check` into a hard exit-3 until they rebaseline — a framework upgrade breaking pushes in repos that changed nothing. Any release changing `INDIRECTION_CLOSURE_THRESHOLD` or `algorithmVersion` therefore ships a `src/migrations/<version>.ts` step that re-records the baseline under the new knobs, in the same slot `src/migrations/registry.ts` already dispatches.
+
+**Drift is reported in both directions.** `check` prints the delta against the baseline whether it rose or fell, and a fall is surfaced as recoverable slack rather than passing silently, so `baseline` is understood as a ratchet-down move and not only an unblock move.
 
 ### Unit 4 — CLI
 
-`pnpm noldor indirection <report|check|baseline>`, mirroring `clones-cli.ts` — a separate module from the engine, matching the `c59`/`c66` split above. `report` prints the flagged modules and the distribution; `check` compares against the baseline; `baseline` records one. Exit contract as elsewhere in the repo: 0 clean, 1 infra error, non-zero on ratchet growth.
+`pnpm noldor indirection <report|check|baseline>`, mirroring `clones-cli.ts` — a separate module from the engine, matching the `c59`/`c66` split above.
 
-`report` additionally lists **barrel-only modules** — modules whose every statement is a re-export. They are counted and printed, but they do **not** contribute to the ratchet number and cannot red `check`. This repo has zero of them, so the signal would be calibrated against nothing here; consumers are far likelier to carry them, and a zero-false-positive row that only informs is worth shipping where the same row wired into a blocking count would not be.
+**Exit contract, matching the sibling exactly** (`clones-cli.ts:141` returns 3, `:185` returns 1): **0** = clean, **1** = ratchet red (excess sum above baseline), **3** = could-not-look (no usable parser, unresolvable imports, incomparable baseline, unreadable baseline, usage error). Keeping 3 distinct from 1 is the whole point — the comment at `clones-cli.ts:133` states it as *"Exit 3 (not 1) keeps 'could not look' distinct from 'found duplication'"* — and a pre-push consumer acts on that distinction: a red means fix or rebaseline, a 3 means the gate did not run.
+
+`report` prints, in this order: the excess sum and the recorded baseline; the percentile block (p50, p75, p90, p99, max, computed by nearest-rank on the ascending closure vector); then one row per flagged module — path, closure size, excess — sorted by closure descending, path ascending as tiebreak, so output is stable across runs and diffable.
 
 ### Unit 5 — parser availability
 
-`dependency-cruiser` parses TypeScript through `typescript` (which it accepts only at `>=2 <6`) or `@swc/core`. This repo is on TypeScript 7, so swc is the only working parser, and without it `cruise` returns zero modules — a clean green over an unparsed tree. `boundaries.ts:107-124` already documents this and guards it with `findUnparseableTsExtensions`; the new detector reuses that guard and fails loudly rather than reporting a count of zero.
+`dependency-cruiser` parses TypeScript through `typescript` (which it accepts only at `>=2 <6`) or `@swc/core`. This repo is on TypeScript 7, so swc is the only working parser, and without it `cruise` returns zero modules — a clean green over an unparsed tree. `boundaries.ts:107-124` already documents this and guards it with `findUnparseableTsExtensions(allExtensions)`; the new detector reuses that guard and exits 3 rather than reporting a number.
+
+Zero modules is separately disambiguated from a broken run: a scan-root set that resolves to no files at all is reported as an empty repository (exit 0, excess sum 0), while zero modules from a *non-empty* scan root is a parser or resolution failure (exit 3). The two are distinguished by whether any candidate source files exist on disk, not by the cruise result.
 
 `@swc/core` is currently a **devDependency** while `dependency-cruiser` is a production dependency. A consumer installing Noldor therefore gets the cruiser and no parser. For a blocking, consumer-shipped gate that is fatal, so `@swc/core` moves to `dependencies`. This also closes the same latent hole for the existing `boundaries` invariant, which consumers already run under `checks invariants`.
 
-### Unit 6 — wiring and consumer shipping
+### Unit 6 — wiring, registration and consumer shipping
 
 A `noldor-indirection` pre-push job beside `noldor-clones` in `lefthook/noldor.yml`, and the same in the templated copy so consumers receive it. Because `checks push-gates` replays lefthook itself rather than an enumeration, the gate is preflighted at gate Step 4 with no edit to the gate skill's prose.
 
+The command must also be **registered**, or it cannot be committed: `src/cli/manifest.ts` gets an `indirection` leaf beside `clones` (`manifest.ts:459`), and `docs/noldor/script-catalog.md` gets the matching entry. `validate script-catalog` is a pre-commit job globbed on exactly those two files (`lefthook/noldor.yml:86-88`) and blocks on any manifest leaf `src` path no catalog link reaches.
+
 ### Testing
 
-Per `docs/noldor/testing-principles.md`, assertions are on the detector's own counters against **dedicated fixture trees**, never live `src/` — that file records the Q-0122 lesson, where tests pinned to real code went green for the wrong reason once the code was refactored. Four fixtures: a deep chain (flags), a wide registry (must **not** flag), a barrel re-export, and a tree with no available parser (must fail loudly rather than report zero).
+Per `docs/noldor/testing-principles.md`, assertions are on the detector's own counters against **dedicated fixture trees**, never live `src/` — that file records the Q-0122 lesson, where tests pinned to real code went green for the wrong reason once the code was refactored.
+
+Fixtures: a deep chain with a hand-computable closure; a wide registry, asserting that the *members* stay unflagged; a tree exercising alias, directory-index and dynamic-import edges; and an empty scan root. The **no-parser** case is deliberately not a fixture tree — parser availability is a process condition, and after `@swc/core` moves to `dependencies` the test environment always has it. `findUnparseableTsExtensions` takes the availability report as a parameter, so the guard is tested by passing a synthetic report, and the zero-modules-vs-empty-repo split is tested by pairing that report with a non-empty tree.
 
 ## Acceptance criteria
 
-1. `pnpm noldor indirection report` prints, for a fixture tree, one row per flagged module with its closure size, and the closure distribution.
-2. A module's closure count equals the number of distinct in-repo files transitively reachable through its imports, excluding itself, on a fixture with a known answer.
-3. Type-only imports are counted in the closure.
-4. Files excluded by the test-exclusion pattern contribute no modules and no edges.
-5. `pnpm noldor indirection baseline` writes `.noldor/indirection-baseline.json` containing the flagged count and an `options` block recording threshold, scan roots and test-inclusion.
-6. `pnpm noldor indirection check` exits 0 when the flagged count is at or below the baseline, and non-zero when it exceeds it.
-7. `check` refuses a baseline whose `options` differ from the current run, rather than comparing across knobs.
-8. With no usable TypeScript parser installed, every subcommand exits non-zero with a message naming the missing parser — never a count of zero and never exit 0.
-9. A fixture registry tree, where many small modules each have exactly one dependent, produces zero flagged modules.
-10. `.noldor/rules/abstraction-cost.md` resolves into the `enforce` bucket for a `src/**/*.ts` file at `code` stage, and `pnpm noldor rules validate` passes.
-11. `.noldor/rules/abstraction-cost.md` and its `templates/` twin are byte-identical, and `pnpm noldor checks template-sync` passes.
-12. `@swc/core` appears in `dependencies`, not `devDependencies`, and `pnpm noldor checks push-gates` runs the `noldor-indirection` job.
-13. On a fixture containing a barrel-only module, `report` lists it and the flagged count is unchanged by its presence.
+1. A module's closure equals the number of distinct in-repo files transitively reachable through its imports, excluding itself, on a fixture with a hand-computed answer.
+2. `import type` edges are counted; edges into `node_modules`, other workspace packages, and `.d.ts` files are not.
+3. Alias, directory-index and string-literal dynamic-import edges are counted; a dynamic import with a non-literal specifier is ignored.
+4. Files matching `TEST_FILE_RE` (including `*.spec.ts`) and files under `__tests__` contribute no modules and no edges.
+5. The ratchet number equals `Σ max(0, closure − threshold)`; on a fixture where one module's closure rises above the threshold with no module crossing it, the number increases.
+6. In a wide-registry fixture, every registry *member* is unflagged and contributes 0 to the ratchet number.
+7. `baseline` writes `.noldor/indirection-baseline.json` carrying `excessSum`, `options` and `algorithmVersion`; re-reading it round-trips through the Zod schema.
+8. `check` exits **0** when the excess sum is at or below the baseline, and **1** when it exceeds it.
+9. `check` exits **3**, not 1, for each of: no usable parser, an unresolvable internal import, an `options` mismatch, an `algorithmVersion` mismatch, an unreadable baseline.
+10. `check` exits 0 and reports "no baseline recorded" when the baseline file is absent.
+11. Zero modules from a non-empty scan root exits 3; an empty scan root exits 0 with an excess sum of 0.
+12. `report` output is byte-identical across two runs on an unchanged tree, and names p50/p75/p90/p99/max.
+13. `check` prints the signed delta against the baseline when the number falls as well as when it rises.
+14. `.noldor/rules/abstraction-cost.md` resolves into the `enforce` bucket for a `src/**/*.ts` file at `code` stage; `rules validate` passes; the file and its `templates/` twin are byte-identical and `checks template-sync` passes.
+15. `@swc/core` is in `dependencies`; `validate script-catalog` passes with the new `indirection` manifest leaf; `checks push-gates` runs the `noldor-indirection` job.
 
 ## Risks / trade-offs
 
-- **A blocking, consumer-shipped gate with no waiver list lands an uncalibrated signal in other people's repos.** This was chosen deliberately over a waiver escape; the mitigation is that rebaselining is a one-command escape and that the signal is structurally immune to the registry pattern, which was the measured false-positive family. It remains the largest risk in this spec.
-- **The threshold is one number for every repo.** A repo whose modules are legitimately deeper than this one's starts with a high baseline, which is harmless — the ratchet only measures growth — but its first `baseline` run silently blesses whatever it has.
-- **Closure size does not distinguish necessary depth from needless depth.** A module with a closure of 35 may be honestly complex. The gate claims only that the repo got harder to read, not that any particular module is wrong.
-- **Adding a genuinely shared utility can push several modules over the threshold at once.** That is the intended reading — a new file-crossing dependency for many modules is a real cost — but it will occasionally red a change that is on balance good, and the answer there is to rebaseline with the change.
-- **The two ratchets can in principle disagree on one commit.** In practice they rarely do: an honest Rule-of-3 extraction has three dependents and a small closure, so it lowers the clone count without raising the flagged count.
+- **A blocking, consumer-shipped gate with no waiver list lands an uncalibrated signal in other people's repos.** Chosen deliberately over a waiver escape; mitigated by rebaselining being one command, by an absent baseline being green, and by the signal being structurally immune to the registry pattern that was the measured false-positive family. Still the largest risk here.
+- **A new deep module is the most likely red, and the ordinary answer is to rebaseline.** Any newly added orchestrator or CLI whose own closure exceeds the threshold raises the number — this feature's own `indirection-cli.ts` will, since it reaches `scanRoots`, `loadConfig`, `cli-entry`, the engine and the baseline store. If rebaselining is the reflex, the ratchet degrades toward a rubber stamp. Bounded by reporting drift in both directions (Unit 3) so a rise is always visible in review as a recorded number rather than an invisible reset.
+- **Adding a genuinely shared utility raises the number by one per flagged module that reaches it.** Intended — a new file-crossing dependency for many deep modules is a real cost — but it will occasionally red a change that is on balance good.
+- **The threshold is one constant for every repo.** A repo legitimately deeper than this one starts with a high baseline, which is harmless since only growth is measured, but its first `baseline` run silently blesses whatever it has.
+- **Excess sum is less legible than a count.** "882 → 894" says less at a glance than "38 → 39 modules", which is why `report` prints the per-module rows and `check` prints the signed delta.
+- **The two ratchets can in principle disagree on one commit.** In practice rarely: an honest Rule-of-3 extraction has three dependents and a small closure, so it lowers the clone number without raising this one.
 
 ## User Story
 
@@ -118,23 +158,25 @@ As an engineer or agent changing code in a Noldor repo, I want the framework to 
 ## Usage
 
 ```
-pnpm noldor indirection report      # flagged modules + closure distribution
+pnpm noldor indirection report      # excess sum, percentiles, flagged modules
 pnpm noldor indirection check       # compare against the recorded baseline
-pnpm noldor indirection baseline    # record the current count as the baseline
+pnpm noldor indirection baseline    # record the current number as the baseline
 ```
 
-`check` runs automatically as the `noldor-indirection` pre-push job, and is replayed author-side by `pnpm noldor checks push-gates` before the code-stage review earns its receipt. When a change legitimately raises the count, re-record with `pnpm noldor indirection baseline` and commit the baseline alongside the change — the same move the clone ratchet uses.
+`check` runs as the `noldor-indirection` pre-push job and is replayed author-side by `pnpm noldor checks push-gates` before the code-stage review earns its receipt. Exit 1 means the number rose: reduce the indirection, or re-record with `pnpm noldor indirection baseline` and commit the baseline alongside the change. Exit 3 means the gate could not run and names why.
 
 The rule reaches authors through `pnpm noldor rules brief --file <path> --stage code`, which lists it under `ENFORCE`.
 
 ## Open questions (resolved)
 
-1. *What closure threshold flags a module?* → **30**, the measured p90 of this repo. (D1) It puts 38 of 401 modules (9.5%) in scope — enough that the ratchet has real signal to move, few enough that the flagged set is legible when someone reads the report. The measured curve is also flat across 30–35 (38 flagged, then 36), so the choice sits on a plateau rather than on a cliff: the verdict does not depend on tuning the number precisely. Below that it climbs steeply (57 at 20, 72 at 15) and stops discriminating; above it, 50 tracks only the 13 orchestrators already known to be deep.
+1. *What closure threshold flags a module?* → **30**, the measured p90 of this repo. (D1) It flags 38 of 401 modules (9.5%), and the flagged count is flat across 30–35 (38 then 36), so the verdict sits on a plateau rather than a cliff — which matters for a constant shipped to repos it was never measured against. Below that it climbs steeply (57 at 20, 72 at 15) and stops discriminating; at 50 it tracks only the 13 orchestrators already known to be deep.
 
-2. *Does the feature also ship a diff-scoped gate, the way clones runs one beside its corpus ratchet?* → **No, not in this feature.** (D2) The clone diff-scope gate exists because a clone group is a local, attributable fact about the lines a change touched. Closure size is a whole-graph property — a module's closure grows because of an edge added elsewhere — so a diff-scoped verdict would frequently name a file the change never opened. Corpus ratchet only; revisit if the ratchet proves too coarse in practice.
+2. *Count of flagged modules, or excess sum?* → **Excess sum.** (D2) A count cannot see a closure growing 31 → 100, and can stay flat when one module crosses while another drops below. The excess sum moves 69 on that growth, registers a crossing as +1, and still contributes 0 for every registry member.
 
-3. *Should the barrel-only signal ship, given this repo has zero barrels?* → **Yes, as a report-only row, not part of the ratchet number.** (D3) It costs almost nothing, it is genuinely zero-false-positive, and consumers are far more likely than this repo to carry barrels. Keeping it out of the ratchet count means it cannot red a gate it was never calibrated against.
+3. *Does the feature also ship a diff-scoped gate, the way clones runs one beside its corpus ratchet?* → **No.** (D3) A clone group is a local, attributable fact about the lines a change touched. Closure is a whole-graph property — a module's closure grows because of an edge added elsewhere — so a diff-scoped verdict would routinely name a file the change never opened. Corpus ratchet only; revisit if it proves too coarse.
 
-4. *Are `__tests__` and `*.test.ts` measured?* → **No, excluded**, matching the exclusion `boundaries.ts` already applies. (D4) Test files import broadly by nature and would dominate the count without saying anything about the shipped graph's readability.
+4. *Does a barrel-only signal ship?* → **No.** (D4) It is an export-side fact, `cruise()` reports dependencies rather than exports, and TypeScript 7 exposes no in-process parser, so the only implementation is a source regex — which cannot honestly claim to be false-positive-free and would be calibrated against the zero barrels this repo contains. Barrels stay covered by the prose rule.
 
-5. *Does the baseline live in `.noldor/` or in config?* → **`.noldor/indirection-baseline.json`**, tracked, beside `clones-baseline.json`. (D5) It is a recorded measurement rather than a preference, which is the same reason the clone baseline is not a config key.
+5. *What happens on a consumer with no baseline?* → **Green**, with a message naming the command that records one. (D5) This matches `clones-cli.ts:229`, and a blocking gate that reds on first install is an adoption blocker — which `docs/vision.md` ranks above internal polish.
+
+6. *What invalidates a baseline?* → **A differing `options` block or `algorithmVersion`**, both exit 3. (D6) `options` alone cannot catch a change in how the closure is computed; a fix to alias handling moves every number without moving a knob, and silently comparing across that boundary is worse than having no baseline.
