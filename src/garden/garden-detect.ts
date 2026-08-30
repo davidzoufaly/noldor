@@ -33,6 +33,7 @@ import {
   detectStructuralContextStubs,
   type StructuralContextStub,
 } from './detectors/structural-context.js';
+import { detectFdDiagramStubs, type FdDiagramStub } from './detectors/fd-diagram.js';
 import { codeAdapter } from '../sync/adapters/code.js';
 import { docsAdapter } from '../sync/adapters/docs.js';
 import { testsAdapter } from '../sync/adapters/tests.js';
@@ -599,6 +600,16 @@ export interface GardenFindings {
    * never stop a ship.
    */
   readonly structuralContextStubs: readonly StructuralContextStub[];
+  /**
+   * Feature MDs whose `## Diagram` section is still a stub.
+   *
+   * Its own key rather than an `sddGaps` entry, and deliberately absent from
+   * `FINDING_CATEGORIES` in `garden-detect-runner.ts`, for the same reason as
+   * {@link architectureAdvisories} and {@link structuralContextStubs}: that list
+   * gates the auto-restamp and an unstamped receipt is a blocking release row.
+   * An undrawn diagram must never stop a ship.
+   */
+  readonly fdDiagramStubs: readonly FdDiagramStub[];
 }
 
 /**
@@ -818,6 +829,10 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   // sddGaps. Reads only the artifacts, never graphify-out, so a repo with no
   // graph behaves identically.
   const structuralContextStubs = await detectStructuralContextStubs(repo);
+  // Third of the same family. Presence-gated rather than floor-dated: an FD with
+  // no `## Diagram` heading is out of scope, so the whole existing corpus is
+  // silent and only scaffolded sections are ever reported.
+  const fdDiagramStubs = await detectFdDiagramStubs(repo);
   const overrideAudit = auditOverrides({ cwd: repo, ...(await loadOverrideAuditOptions(repo)) });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
   const bootstrapOverrideAudit = detectBootstrapOverrideAudit({ cwd: repo });
@@ -846,6 +861,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     skillDrift,
     architectureAdvisories,
     structuralContextStubs,
+    fdDiagramStubs,
   };
 }
 

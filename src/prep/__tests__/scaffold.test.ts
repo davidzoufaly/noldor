@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 import { getSectionBody, liftSpecSections, replaceSectionBody, scaffoldFd } from '../scaffold.js';
 
+import { FD_DIAGRAM_PLACEHOLDER } from '../../core/fd-diagram-contract.js';
+
 import type { PrepEntry } from '../types.js';
 
 const entry: PrepEntry = {
@@ -36,6 +38,26 @@ describe('scaffoldFd', () => {
     expect(data.links.spec).toBe('docs/design/specs/2026-06-10-foo-bar-design.md');
     expect(data.links.plan).toBe('docs/design/plans/2026-06-10-foo-bar.md');
     expect(data.links.code).toContain('src/foo.ts');
+  });
+
+  it('emits the Diagram section between Summary and User Story, at both tiers', () => {
+    const order = (doc: string): string[] =>
+      doc
+        .split('\n')
+        .filter((l) => l.startsWith('## '))
+        .map((l) => l.slice(3));
+    expect(order(fm.content).slice(0, 3)).toEqual(['Summary', 'Diagram', 'User Story']);
+
+    const specsOnly = scaffoldFd(
+      { ...entry, tier: 'specs-only' },
+      { specRel: 'docs/design/specs/2026-06-10-foo-bar-design.md', cwd: process.cwd() },
+    );
+    expect(order(matter(specsOnly).content).slice(0, 3)).toEqual([
+      'Summary',
+      'Diagram',
+      'User Story',
+    ]);
+    expect(specsOnly).toContain(FD_DIAGRAM_PLACEHOLDER);
   });
 
   it('summary strips Touches; body has prs marker + TODO stubs', () => {

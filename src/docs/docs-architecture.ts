@@ -4,6 +4,7 @@ import { basename, join, sep } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
 import { scanRoots, toPosixRelative } from '../core/repo-paths.js';
+import { fenceDelimiter } from '../utils/markdown-sections.js';
 import {
   ARCH_PAGE_PROSE_WORD_THRESHOLD,
   ARCH_PARAGRAPH_WORD_THRESHOLD,
@@ -103,45 +104,56 @@ const EXCLUDED_DIRS = new Set([
  * A fence's kind is the first token of its first content line, after skipping
  * blank lines, `%%` comment and `%%{init: …}%%` directive lines, and a leading
  * `---` YAML block — all legal mermaid preambles that a naive first-line read
- * would misclassify. An unterminated YAML block or fence yields no kind rather
- * than consuming the rest of the document.
+ * would misclassify. A kind is committed only when its fence CLOSES: an
+ * unterminated YAML block or fence yields no kind rather than consuming the
+ * rest of the document.
  *
- * noldor:cut backtick fences only — add tilde-fence support if a consumer's
- * pages use them (the same CommonMark gap Q-0113 tracks for queue documents).
+ * The delimiter grammar is {@link fenceDelimiter} — the shared section
+ * scanner's, never a local copy (an earlier fork here disagreed on indent and
+ * tilde support, so a quoted or indented mermaid sample counted as a diagram
+ * while a real `~~~mermaid` fence did not). A closer is bare, same character,
+ * at least as long as its opener; a fence inside an enclosing fence is example
+ * text.
  *
  * @param body - Raw markdown
  * @returns Lowercased kinds, in document order, one per mermaid fence that declared one
  */
 export function fenceKinds(body: string): string[] {
-  const lines = body.split('\n');
   const kinds: string[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    if (!/^\s*```+\s*mermaid\s*$/i.test(lines[i])) {
-      i += 1;
+  let open: { char: string; len: number; mermaid: boolean } | null = null;
+  let pending: string | null = null;
+  let sought = false;
+  let inYaml = false;
+  for (const line of body.split('\n')) {
+    const d = fenceDelimiter(line);
+    if (d !== null) {
+      if (open === null) {
+        open = { char: d.char, len: d.len, mermaid: /^mermaid$/i.test(d.info) };
+        pending = null;
+        sought = false;
+        inYaml = false;
+        continue;
+      }
+      if (d.bare && d.char === open.char && d.len >= open.len) {
+        if (open.mermaid && pending !== null) kinds.push(pending);
+        open = null;
+      }
       continue;
     }
-    i += 1;
-    let inYaml = false;
-    while (i < lines.length && !/^\s*```+\s*$/.test(lines[i])) {
-      const line = lines[i].trim();
-      i += 1;
-      if (inYaml) {
-        if (line === '---') inYaml = false;
-        continue;
-      }
-      if (line.length === 0 || line.startsWith('%%')) continue;
-      if (line === '---') {
-        inYaml = true;
-        continue;
-      }
-      const token = /^[A-Za-z0-9_]+/.exec(line);
-      if (token) kinds.push(token[0].toLowerCase());
-      break;
+    if (open === null || !open.mermaid || sought) continue;
+    const t = line.trim();
+    if (inYaml) {
+      if (t === '---') inYaml = false;
+      continue;
     }
-    // Skip to the closing fence (or EOF — an unterminated fence just ends here).
-    while (i < lines.length && !/^\s*```+\s*$/.test(lines[i])) i += 1;
-    i += 1;
+    if (t.length === 0 || t.startsWith('%%')) continue;
+    if (t === '---') {
+      inYaml = true;
+      continue;
+    }
+    const token = /^[A-Za-z0-9_]+/.exec(t);
+    if (token) pending = token[0].toLowerCase();
+    sought = true;
   }
   return kinds;
 }

@@ -68,6 +68,16 @@ describe(fenceKinds, () => {
     expect(fenceKinds(fence('sequenceDiagram'))).toStrictEqual(['sequencediagram']);
   });
 
+  it('accepts up to three spaces of indent and rejects four — CommonMark, same as the scanner', () => {
+    // A mermaid fence SHOWN as an indented code sample is not a fence; counting
+    // it let a stub diagram section pass its hasFence check. ≤3 spaces stays a
+    // real fence exactly as the shared section scanner tags it.
+    const indented = (pad: string): string =>
+      `${pad}\`\`\`mermaid\n${pad}flowchart TD\n${pad}  a --> b\n${pad}\`\`\`\n`;
+    expect(fenceKinds(indented('   '))).toStrictEqual(['flowchart']);
+    expect(fenceKinds(indented('    '))).toStrictEqual([]);
+  });
+
   it('skips a leading YAML frontmatter block inside the fence', () => {
     const md = '```mermaid\n---\ntitle: X\n---\nflowchart TD\n  a --> b\n```\n';
     expect(fenceKinds(md)).toStrictEqual(['flowchart']);
@@ -91,6 +101,29 @@ describe(fenceKinds, () => {
   it('does not consume the document when a YAML block is unterminated', () => {
     const md = '```mermaid\n---\ntitle: X\n```\n\n```mermaid\nflowchart TD\n```\n';
     expect(fenceKinds(md)).toStrictEqual(['flowchart']);
+  });
+
+  it('yields no kind for an unterminated fence, as the contract states', () => {
+    expect(fenceKinds('```mermaid\nflowchart LR\n  a --> b\n')).toStrictEqual([]);
+  });
+
+  it('ignores a mermaid fence quoted inside an enclosing fence', () => {
+    // A four-backtick block SHOWING a mermaid fence is example text: the shared
+    // section scanner tags it all as one fence, so counting the inner opener let
+    // an example-only section pass for a real diagram.
+    const md = ['````', '```mermaid', 'flowchart TD', '  a --> b', '```', '````'].join('\n');
+    expect(fenceKinds(md)).toStrictEqual([]);
+  });
+
+  it('does not let a shorter inner delimiter close an enclosing fence', () => {
+    const md = ['````md', '```', 'flowchart TD', '```', '````', '```mermaid', 'pie', '```'].join(
+      '\n',
+    );
+    expect(fenceKinds(md)).toStrictEqual(['pie']);
+  });
+
+  it('reads a tilde mermaid fence — the delimiter grammar is the shared scanner one', () => {
+    expect(fenceKinds('~~~mermaid\nflowchart TD\n  a --> b\n~~~\n')).toStrictEqual(['flowchart']);
   });
 });
 

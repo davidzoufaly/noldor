@@ -56,9 +56,11 @@ const CUT_RE = new RegExp(`<!--\\s*${RegExp.escape(SECTION_CUT_TOKEN)}\\s+([\\s\
  * prevent.
  *
  * noldor:cut backtick fences only — `stripCodeRegions` recognizes a literal
- * triple backtick and nothing else, matching the ceiling `fenceKinds` already
- * declares on this surface. Route marker matching through a fully fence-aware
- * scan if a consumer's pages adopt tilde fences.
+ * triple backtick and nothing else, so a marker quoted inside a tilde-fenced
+ * example would still read as a live decline (`fenceKinds` no longer shares
+ * that ceiling; it parses delimiters via the shared `fenceDelimiter`). Route
+ * marker matching through the fence-aware scan if a consumer's pages adopt
+ * tilde fences.
  *
  * @param body - Raw markdown
  */

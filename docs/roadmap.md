@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Mandatory C4 Diagram for New Feature MDs
-
-- id: Q-0185
-- area: docs
-- type: feat
-- since: 2026-08-25
-- size: M
-- impact: med
-- confidence: med
-- parent: consumer-architecture-doc-surface
-
-A full new FD should carry a mermaid diagram at the C4 level that fits it, semi-mandatory rather than optional: prose alone is what lets an FD's shape stay implicit until a reader has to reconstruct it from `links.code`. Q-0178 prescribes form for the four `docs/architecture/` registry pages; this is the per-feature counterpart — the FD template grows a diagram section, `/noldor-new-feature` and `/noldor-promote` scaffold the fence, and a check reports an FD on a `full` path whose diagram section is still a stub. Semi-mandatory means advisory-with-teeth: report it, let a `noldor:cut` marker record a deliberate skip, do not block a ship on it. Scope the requirement by path tier (`full` earns a diagram; `fast-track` and `micro-chore` never do) so it does not tax the XS drain. Deletion test: a reader gets the shape of a newly shipped `full` feature from its FD without opening a source file. (found 2026-08-25)
-
 ### Scoped Link Sync for the Projection Runners
 
 - id: Q-0182
@@ -138,6 +125,20 @@ Q-0130's re-round cap (2, controller prose) has no tooling enforcement and no os
 - parent: consumer-architecture-doc-surface
 
 The architecture module advisory fires on `src/graphify-out` — a gitignored generated AST cache (`.gitignore:54`), not a module. `docs/architecture/modules.md` is asked to name a directory that must never be documented, so the advisory can only be silenced by writing a lie into the registry. The module scan needs the same ignore-generated-trees treatment PR #360 gave the runtime-asset scan. Advisory-only, so it never blocks a release — which is also why it has sat there unfixed. (found 2026-08-23 closing SDD gaps before the 1.5.0 release)
+
+### Garden Skill Checklist Enumerates a Fixed Section List
+
+- id: Q-0198
+- area: tooling
+- type: fix
+- since: 2026-08-29
+- size: S
+- impact: med
+- confidence: high
+- split-from: Q-0185
+- recovered: 2026-08-29
+
+`/noldor-garden` step 1 orders "check every key the payload carries, not a fixed count — `structuralContextStubs` is a finding like any other, and a gate that enumerates a subset silently swallows whichever key it predates". Step 4 of the same skill then enumerates a fixed checklist: Stale plans, Stale specs, Manual sweep, Unused backlog, Rule contradictions, SDD gaps, Structural context stubs, Architecture invariant violations. The two steps contradict each other, and the cost is already live: `architectureAdvisories` (Q-0093) has no row — the checklist's "Architecture invariant violations" renders `invariantViolations`, a different key — so every module-advisory row `detectArchitectureAdvisories` produces is parsed by step 1 and then dropped by step 4. `structuralContextStubs` has a row only because it was added by hand when Q-0194 shipped, which is the pattern step 1 exists to end. The `fdDiagramStubs` key Q-0185 introduces will land in the same hole. Wanted: step 4 renders whatever non-empty keys the payload carries rather than a hand-maintained list, in the skill and its `templates/` twin. Note `garden detect` stdout is pure JSON by contract (step 1 parses it, and `--ci` deliberately routes its message to stderr), so the fix is in the skill's rendering, not a new text mode on the CLI. Deletion test: a new advisory `GardenFindings` key reaches the operator checklist with no edit to `/noldor-garden`. (carved out of Q-0185's spec dialogue, 2026-08-29 — D8, corrected at CR round 1)
 
 ### Main-Module Guard Fails on Percent-Encoded Paths
 
