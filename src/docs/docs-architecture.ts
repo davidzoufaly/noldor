@@ -103,13 +103,15 @@ const EXCLUDED_DIRS = new Set([
  * A fence's kind is the first token of its first content line, after skipping
  * blank lines, `%%` comment and `%%{init: …}%%` directive lines, and a leading
  * `---` YAML block — all legal mermaid preambles that a naive first-line read
- * would misclassify. An unterminated YAML block or fence yields no kind rather
- * than consuming the rest of the document.
+ * would misclassify. A kind is committed only when its fence CLOSES: an
+ * unterminated YAML block or fence yields no kind rather than consuming the
+ * rest of the document.
  *
- * A delimiter may carry at most three spaces of indent (CommonMark — the same
- * rule the shared section scanner enforces): a fence SHOWN as an indented code
- * sample is not a fence, and counting it let a stub diagram section pass its
- * hasFence check.
+ * The delimiter grammar is the shared section scanner's (CommonMark): at most
+ * three spaces of indent, a closer is bare and at least as long as its opener,
+ * and a fence inside an enclosing fence is example text. Each rule closed a
+ * real hole — an indented or ````-quoted mermaid sample counted as a diagram,
+ * letting an example-only section pass its hasFence check.
  *
  * noldor:cut backtick fences only — add tilde-fence support if a consumer's
  * pages use them (the same CommonMark gap Q-0113 tracks for queue documents).
@@ -118,35 +120,44 @@ const EXCLUDED_DIRS = new Set([
  * @returns Lowercased kinds, in document order, one per mermaid fence that declared one
  */
 export function fenceKinds(body: string): string[] {
-  const lines = body.split('\n');
   const kinds: string[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    if (!/^ {0,3}```+\s*mermaid\s*$/i.test(lines[i])) {
-      i += 1;
+  let open: { len: number; mermaid: boolean } | null = null;
+  let pending: string | null = null;
+  let sought = false;
+  let inYaml = false;
+  for (const line of body.split('\n')) {
+    const m = /^ {0,3}(`{3,})(.*)$/.exec(line);
+    if (m !== null) {
+      const bare = m[2].trim().length === 0;
+      if (open === null) {
+        if (!m[2].includes('`')) {
+          open = { len: m[1].length, mermaid: /^\s*mermaid\s*$/i.test(m[2]) };
+          pending = null;
+          sought = false;
+          inYaml = false;
+        }
+        continue;
+      }
+      if (bare && m[1].length >= open.len) {
+        if (open.mermaid && pending !== null) kinds.push(pending);
+        open = null;
+      }
       continue;
     }
-    i += 1;
-    let inYaml = false;
-    while (i < lines.length && !/^ {0,3}```+\s*$/.test(lines[i])) {
-      const line = lines[i].trim();
-      i += 1;
-      if (inYaml) {
-        if (line === '---') inYaml = false;
-        continue;
-      }
-      if (line.length === 0 || line.startsWith('%%')) continue;
-      if (line === '---') {
-        inYaml = true;
-        continue;
-      }
-      const token = /^[A-Za-z0-9_]+/.exec(line);
-      if (token) kinds.push(token[0].toLowerCase());
-      break;
+    if (open === null || !open.mermaid || sought) continue;
+    const t = line.trim();
+    if (inYaml) {
+      if (t === '---') inYaml = false;
+      continue;
     }
-    // Skip to the closing fence (or EOF — an unterminated fence just ends here).
-    while (i < lines.length && !/^ {0,3}```+\s*$/.test(lines[i])) i += 1;
-    i += 1;
+    if (t.length === 0 || t.startsWith('%%')) continue;
+    if (t === '---') {
+      inYaml = true;
+      continue;
+    }
+    const token = /^[A-Za-z0-9_]+/.exec(t);
+    if (token) pending = token[0].toLowerCase();
+    sought = true;
   }
   return kinds;
 }

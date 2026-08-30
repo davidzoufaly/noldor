@@ -102,6 +102,25 @@ describe(fenceKinds, () => {
     const md = '```mermaid\n---\ntitle: X\n```\n\n```mermaid\nflowchart TD\n```\n';
     expect(fenceKinds(md)).toStrictEqual(['flowchart']);
   });
+
+  it('yields no kind for an unterminated fence, as the contract states', () => {
+    expect(fenceKinds('```mermaid\nflowchart LR\n  a --> b\n')).toStrictEqual([]);
+  });
+
+  it('ignores a mermaid fence quoted inside an enclosing fence', () => {
+    // A four-backtick block SHOWING a mermaid fence is example text: the shared
+    // section scanner tags it all as one fence, so counting the inner opener let
+    // an example-only section pass for a real diagram.
+    const md = ['````', '```mermaid', 'flowchart TD', '  a --> b', '```', '````'].join('\n');
+    expect(fenceKinds(md)).toStrictEqual([]);
+  });
+
+  it('does not let a shorter inner delimiter close an enclosing fence', () => {
+    const md = ['````md', '```', 'flowchart TD', '```', '````', '```mermaid', 'pie', '```'].join(
+      '\n',
+    );
+    expect(fenceKinds(md)).toStrictEqual(['pie']);
+  });
 });
 
 describe(mentionsModule, () => {

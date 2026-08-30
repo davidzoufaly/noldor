@@ -124,6 +124,52 @@ describe('comment handling', () => {
     expect(locateSection(body, 2, 'Usage', null)).toBeNull();
   });
 
+  it('heals a hidden lone opener that a later visible delimiter would pair with', () => {
+    // The phantom fence does not reach EOF here — a visible bare ``` closes it —
+    // but it swallows the heading and the reader's real fence in between. The
+    // reader sees no delimiter in the comment, so nothing may fence `## Diagram`.
+    const body = [
+      '<!--',
+      '```',
+      '-->',
+      '## Diagram',
+      'prose beside the diagram',
+      '',
+      '```js',
+      'const x = 1;',
+      '```',
+    ].join('\n');
+    const d = locateSection(body, 2, 'Diagram', null);
+    expect(d?.scanned).toContain('prose beside the diagram');
+    expect(d?.scanned).not.toContain('const x = 1;');
+  });
+
+  it('heals two comments each hiding a lone delimiter', () => {
+    const body = [
+      '<!--',
+      '```',
+      '-->',
+      '## Usage',
+      'Run it.',
+      '<!--',
+      '```',
+      '-->',
+      '## After',
+      'tail prose',
+    ].join('\n');
+    expect(locateSection(body, 2, 'Usage', null)?.scanned).toContain('Run it.');
+    expect(locateSection(body, 2, 'After', null)?.scanned).toContain('tail prose');
+  });
+
+  it('does not heal a commented-out fence whose body is heading-shaped only inside the comment', () => {
+    // A `# run this` line in a commented-out bash fence is hidden text, not a
+    // visible heading — the hidden fence stays hidden, exactly as before.
+    const body = ['## A', '', '<!--', '```bash', '# run this', '```', '-->', 'after'].join('\n');
+    const a = locateSection(body, 2, 'A', null);
+    expect(a?.scanned).toContain('after');
+    expect(a?.raw).not.toContain('run this');
+  });
+
   it('keeps a commented-out mermaid fence out of the raw view', () => {
     // `raw` feeds fence detection and density floors: a fence the reader cannot
     // see must not clear either.

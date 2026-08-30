@@ -162,6 +162,16 @@ describe('detectFdDiagramStubs', () => {
     expect(rows.map((r) => r.rule)).toEqual(['stub-section']);
   });
 
+  it('does not let a mermaid fence quoted inside an enclosing fence stand in for a real diagram', async () => {
+    // A four-backtick block SHOWING the scaffold is example text: the section
+    // scanner tags it all as one fence, so the kind reader must not count the
+    // quoted inner opener.
+    const quoted = ['````markdown', FENCE, '````'].join('\n');
+    const repo = await repoWith({ example: fd(`${quoted}\n\n${PROSE}`) });
+    const rows = await detectFdDiagramStubs(repo);
+    expect(rows.map((r) => r.rule)).toEqual(['no-fence']);
+  });
+
   it('does not let a four-space-indented fence sample stand in for a real diagram', async () => {
     // Indented code per CommonMark: the section SHOWS a fence without carrying
     // one, so the verdict is no-fence — the fenceKinds grammar must agree with

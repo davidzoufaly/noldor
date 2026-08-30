@@ -72,13 +72,16 @@ export interface TaggedLine {
  * moment a comment contains a fence delimiter. The comment rules are the module
  * docstring's; the fence rules are CommonMark's.
  *
- * One repair on top: a fence whose opener the reader cannot see (it sits inside
- * a comment) and which never closes is re-tagged as literal text and the pass
- * re-run. Without it, a lone `\`\`\`` hidden in a comment fences every heading
- * to EOF — the heading-swallowing failure this module exists to close. A fence
- * the author can SEE runs unclosed to EOF exactly as CommonMark reads it; only
- * the invisible-opener case is healed, so the repair can never rewrite visible
- * structure. Each round demotes one delimiter line, so it terminates.
+ * One repair on top: a fence opened by a delimiter the reader cannot see (it
+ * sits inside a comment) is re-tagged as literal text and the pass re-run when
+ * its region turns out to swallow visible structure — it never closes, or a
+ * visible heading falls inside it. Without that, a lone `\`\`\`` hidden in a
+ * comment fences every heading to EOF or, paired with a later visible
+ * delimiter, everything up to it — the heading-swallowing failure this module
+ * exists to close. A commented-out fence whose region holds only its own body
+ * stays hidden, and a fence the author can SEE runs unclosed to EOF exactly as
+ * CommonMark reads it, so the repair can never rewrite visible structure. Each
+ * round demotes one delimiter line, so it terminates.
  */
 export function tagLines(body: string): TaggedLine[] {
   const lines = body.split('\n');
@@ -90,7 +93,11 @@ export function tagLines(body: string): TaggedLine[] {
   }
 }
 
-/** One tagging pass; `healAt` names a comment-hidden opener left unclosed at EOF. */
+/**
+ * One tagging pass; `healAt` names a comment-hidden opener whose fence swallows
+ * visible structure — a visible heading inside its region, or open at EOF. When
+ * `healAt` is non-null the returned lines may be partial; the caller re-runs.
+ */
 function tagPass(
   lines: readonly string[],
   demoted: ReadonlySet<number>,
@@ -152,6 +159,15 @@ function tagPass(
     }
 
     out.push({ text, fenced, visible });
+
+    // A visible heading inside a hidden-opener region is proof the phantom is
+    // swallowing structure the reader can see — demote the opener now. A line
+    // still inside a comment has a blank `visible`, so a heading-shaped line
+    // that is itself hidden (a `# comment` in a commented-out bash fence) can
+    // never trigger this.
+    if (open !== null && open.hidden && fenced && atxHeading(visible) !== null) {
+      return { out, healAt: open.at };
+    }
   }
   return { out, healAt: open !== null && open.hidden ? open.at : null };
 
