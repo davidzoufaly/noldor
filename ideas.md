@@ -15,6 +15,8 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 ## Not groomed
 
+- Clone ratchet counts thin typed façades as duplication. On the 2026-08-30 release sweep the whole-corpus ratchet reds at +112 tokens over the baseline PR #406 recorded, and the largest new group is `src/design/design-approval.ts:63-92` vs `src/design/ui-capture.ts:76-108` (82 tokens). Neither site holds copied logic: both are one-line delegations to the already-shared receipt store (`parseReceiptWith`, `writeReceiptFile`, `readReceiptFile`), each binding a *different* schema, dir-segment tuple and return type. The tokenizer skips comments but normalizes identifiers to `ID` for Type-2 matching, so two same-shaped one-line delegations match structurally. The rest of the delta is import blocks (`src/design/ledger.ts` vs `src/cr/orchestrate.ts`, `src/metrics/compute.ts`, `src/garden/garden-detect.ts`). Extracting is strictly worse — one generic untyped wrapper, indirection added, zero logic shared. Options: skip a group whose every span is a single `return <call>(…)` statement, or exclude leading import runs from the token stream. Deletion test: a file pair whose only overlap is imports plus a delegating one-liner produces no group. Rebaselined to 28844 to unblock the sweep. (found 2026-08-30, release sweep)
+
 ## Lessons
 
 Raw capture point for operator/agent lessons + gotchas. `/noldor-absorb` classifies each unfiled bullet (`drop | gotcha | actionable | feedback`), files it into framework docs, and stamps `[absorbed YYYY-MM-DD → <dest>]`. Stamped bullets may be pruned — git history is the audit trail.
