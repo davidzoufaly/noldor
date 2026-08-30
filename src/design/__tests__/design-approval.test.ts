@@ -8,13 +8,20 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
-  approvalPath,
   approvalRelPath,
   parseApprovalBytes,
-  readApproval,
   writeApproval,
   type DesignApprovalRecord,
 } from '../design-approval.js';
+
+/** Disk read for assertions — production readers take bytes out of git. */
+function readBack(repoRoot: string, pen: string): DesignApprovalRecord | null {
+  try {
+    return parseApprovalBytes(readFileSync(join(repoRoot, approvalRelPath(pen))));
+  } catch {
+    return null;
+  }
+}
 import {
   main as verdictMain,
   parseVerdictArgs,
@@ -45,7 +52,7 @@ describe('design-approval / record round-trip', () => {
     const cwd = tempRepo();
     const written = writeApproval(cwd, PEN, APPROVED);
     expect(written.ok).toBe(true);
-    expect(readApproval(cwd, PEN)).toEqual(APPROVED);
+    expect(readBack(cwd, PEN)).toEqual(APPROVED);
   });
 
   it('writes and reads back a waived record, penBlob included', () => {
@@ -57,7 +64,7 @@ describe('design-approval / record round-trip', () => {
       reason: 'bridge down at the verdict',
     };
     expect(writeApproval(cwd, PEN, waived).ok).toBe(true);
-    expect(readApproval(cwd, PEN)).toEqual(waived);
+    expect(readBack(cwd, PEN)).toEqual(waived);
   });
 
   it('overwrites an existing record for the same stem (the stale remedy)', () => {
@@ -65,7 +72,7 @@ describe('design-approval / record round-trip', () => {
     writeApproval(cwd, PEN, APPROVED);
     const revised = { ...APPROVED, penBlob: 'c'.repeat(40) };
     expect(writeApproval(cwd, PEN, revised).ok).toBe(true);
-    expect(readApproval(cwd, PEN)).toEqual(revised);
+    expect(readBack(cwd, PEN)).toEqual(revised);
   });
 
   it('keeps two same-key different-date designs on two distinct records', () => {
@@ -73,12 +80,12 @@ describe('design-approval / record round-trip', () => {
     writeApproval(cwd, '2026-08-29-my-feature.pen', APPROVED);
     const second = { ...APPROVED, penBlob: 'd'.repeat(40) };
     writeApproval(cwd, '2026-08-30-my-feature.pen', second);
-    expect(readApproval(cwd, '2026-08-29-my-feature.pen')).toEqual(APPROVED);
-    expect(readApproval(cwd, '2026-08-30-my-feature.pen')).toEqual(second);
+    expect(readBack(cwd, '2026-08-29-my-feature.pen')).toEqual(APPROVED);
+    expect(readBack(cwd, '2026-08-30-my-feature.pen')).toEqual(second);
   });
 
   it('reads null for an absent record', () => {
-    expect(readApproval(tempRepo(), PEN)).toBeNull();
+    expect(readBack(tempRepo(), PEN)).toBeNull();
   });
 });
 
@@ -117,7 +124,7 @@ describe('design-approval / parse policy', () => {
 
 describe('design-approval / path containment', () => {
   it('contains by construction: directories are stripped before the stem is slugged', () => {
-    const built = approvalPath(tempRepo(), '../../etc/passwd.pen');
+    const built = writeApproval(tempRepo(), '../../etc/passwd.pen', APPROVED);
     // basename() removes the traversal; what remains is a plain stem, so the
     // record lands INSIDE .noldor/design-approval/ regardless of the input dirs.
     expect(built.ok).toBe(true);
@@ -126,7 +133,7 @@ describe('design-approval / path containment', () => {
 
   it('refuses a stem that survives basename but fails the slug grammar', () => {
     // basename('...pen', '.pen') === '..' — the one dot-shape basename keeps.
-    expect(approvalPath(tempRepo(), '...pen').ok).toBe(false);
+    expect(writeApproval(tempRepo(), '...pen', APPROVED).ok).toBe(false);
   });
 
   it('derives the record rel path from the pen basename', () => {
@@ -233,7 +240,7 @@ describe('design verdict CLI / end to end', () => {
       { cwd, now: () => '2026-08-30T00:00:00.000Z' },
     );
     expect(code).toBe(0);
-    expect(readApproval(cwd, PEN)).toMatchObject({ outcome: 'waived', reason: 'bridge down' });
+    expect(readBack(cwd, PEN)).toMatchObject({ outcome: 'waived', reason: 'bridge down' });
   });
 
   it('records the reservation on approve-with-reservations', async () => {
@@ -250,7 +257,7 @@ describe('design verdict CLI / end to end', () => {
       ],
       { cwd },
     );
-    expect(readApproval(cwd, PEN)).toMatchObject({ reservation: 'spacing' });
+    expect(readBack(cwd, PEN)).toMatchObject({ reservation: 'spacing' });
   });
 
   it('exits 2 writing nothing on an unkeyable filename', async () => {
@@ -261,7 +268,7 @@ describe('design verdict CLI / end to end', () => {
       { cwd },
     );
     expect(code).toBe(2);
-    expect(readApproval(cwd, 'undated.pen')).toBeNull();
+    expect(readBack(cwd, 'undated.pen')).toBeNull();
   });
 
   it('exits 2 on a missing file', async () => {

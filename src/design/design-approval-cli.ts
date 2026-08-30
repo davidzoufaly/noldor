@@ -19,7 +19,11 @@ import {
   UI_DESIGN_DIR,
 } from '../core/design-artifact-names.js';
 import { errMessage } from '../core/err-message.js';
-import { writeApproval, type DesignApprovalRecord } from './design-approval.js';
+import {
+  designApprovalRecordSchema,
+  writeApproval,
+  type DesignApprovalRecord,
+} from './design-approval.js';
 
 const USAGE =
   'usage: design verdict --pen <path> --approve --surface <s> [--surface <s>...] [--reservation <text>]\n' +
@@ -49,7 +53,12 @@ export function parseVerdictArgs(argv: readonly string[]): VerdictArgs {
     const arg = argv[i];
     const value = (flag: string): string | { error: string } => {
       const v = argv[++i];
-      return v === undefined ? { error: `${flag} requires a value` } : v;
+      // Empty and flag-shaped values are refused, not consumed: `--surface ""`
+      // would write a record the guard immediately rejects, and `--surface
+      // --waive` would swallow the mode flag as its value.
+      if (v === undefined || v === '') return { error: `${flag} requires a value` };
+      if (v.startsWith('--')) return { error: `${flag} requires a value, got flag '${v}'` };
+      return v;
     };
     switch (arg) {
       case '--pen': {
@@ -208,16 +217,25 @@ export async function main(argv: readonly string[], deps?: Partial<VerdictDeps>)
     return 2;
   }
 
-  const record: DesignApprovalRecord =
+  // Validated through the SAME schema every reader applies — not asserted:
+  // exiting 0 on a record the guard would reject as unusable is the silent
+  // failure this CLI exists to prevent.
+  const candidate: unknown =
     args.mode.outcome === 'approved'
       ? {
           outcome: 'approved',
           at: now(),
           penBlob: blob,
-          surfaces: args.mode.surfaces as [string, ...string[]],
+          surfaces: args.mode.surfaces,
           ...(args.mode.reservation === undefined ? {} : { reservation: args.mode.reservation }),
         }
       : { outcome: 'waived', at: now(), penBlob: blob, reason: args.mode.reason };
+  const parsed = designApprovalRecordSchema.safeParse(candidate);
+  if (!parsed.success) {
+    console.error(`design verdict: record would be unusable: ${parsed.error.message}`);
+    return 2;
+  }
+  const record: DesignApprovalRecord = parsed.data;
 
   const written = writeApproval(cwd, pen.base, record);
   if (!written.ok) {
