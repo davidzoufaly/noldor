@@ -81,7 +81,9 @@ The directory is tracked. `.gitignore` lists `.noldor/design/` and `.noldor/sess
 
 ### D3 — Where the module lives
 
-`src/design/design-approval.ts`, beside `archive-resolve.ts` in the c58 neighbourhood that already owns the dialogue key (`src/core/design-artifact-names.ts`) and that both consumers already import from. It exports the union schema, the read, the atomic write and the path helper, in the same shape and order as `ui-capture.ts`, and it keys on the dialogue key rather than a surface because the verdict is atomic over the whole `FINAL:` set (Q-0186 OQ4).
+`src/design/design-approval.ts`, beside `archive-resolve.ts` in the c58 neighbourhood that already owns the dialogue key (`src/core/design-artifact-names.ts`) and that both consumers already import from. It exports the union schema, the read, the atomic write and the path helper, in the same shape and order as `ui-capture.ts`, and it keys on the record identity of D2 rather than a surface because the verdict is atomic over the whole `FINAL:` set (Q-0186 OQ4).
+
+**The path helper routes the key through the repo's containment choke point.** `receiptPath` (`src/design/ui-capture.ts:57`) runs its surface through `parseSlug` + `slugPath` for exactly this reason, and the record helper does the same: the key reaches the CLI as a caller-supplied `--key` string, so `--key ../../..` would otherwise write outside `.noldor/design-approval/`. This is the Q-0097 branded-`Slug` discipline and it is not optional on a path built from an argument.
 
 The alternative — extending `ui-capture.ts` — is rejected: that module's whole docstring is about the capture ordering proof, and a second record kind with different semantics inside it would make one file answer two questions. The alternative of a new top-level `src/approval/` is rejected for the opposite reason: one module does not earn a directory.
 
@@ -97,7 +99,9 @@ Three placement details the implementation must not get wrong.
 
 The new rule sits **before** the `penAllowed` short-circuit (`if (penAllowed || !isPen(entry.path)) continue;`): `NOLDOR_ALLOW_PEN_WRITE` exists to authorise gate Step 4's baseline write-back, and a baseline override must not waive an approval requirement it has nothing to do with.
 
-`decideViolations` stays **pure over the staged list**. Both existing `.pen` rules test hardcoded prefix constants (`UI_BASELINE_DIR`, `ARCHIVE_DIR`) rather than calling `loadDocRoots`, and the new rule follows that: a `docs/design/ui/` prefix constant from the same module, never a config or filesystem read. The record's presence is likewise decided from the staged paths, not from disk — a record that exists but is unstaged does not satisfy the guard, which is exactly right, since the guard's whole question is what this commit will contain.
+`decideViolations` stays **pure over the staged list**. Both existing `.pen` rules test hardcoded prefix constants (`UI_BASELINE_DIR`, `ARCHIVE_DIR`) rather than calling `loadDocRoots`, and the new rule follows that: a `docs/design/ui/` prefix constant from the same module, never a config or filesystem read.
+
+**An unparseable filename refuses rather than passes.** `penSlugFromFilename` returns `null` for any basename that does not match its dated pattern — `docs/design/ui/foo.pen` yields no key at all. Treating that as "no rule applies" would make an undated filename the guard's bypass, so a staged feature `.pen` whose key cannot be derived is refused under the same `pen-unapproved` reason, with remedy text naming the required `<date>-<key>.pen` shape (`penFileName` builds it). The rule is: a feature `.pen` is admitted only by a record that names it, and a file the naming scheme cannot identify is one no record can name.
 
 And the guard never reads `.noldor/session.json` — which is why D2's record is a union rather than a session lookup.
 
@@ -167,13 +171,14 @@ What self-host cannot exercise is the seam from a verdict to a written record, b
 3. Approve-with-reservations records the reservation text; a plain approve omits the field.
 4. `.noldor/design-approval/` is tracked — a record written there is staged by an ordinary `git add` and is matched by no `.gitignore` rule.
 5. Adding a feature `.pen` to the index with no record for its dialogue key staged alongside is refused by `checks shared-files` with reason `pen-unapproved`; staging either member of the union alongside it is accepted, and a staged `modify` of an already-committed feature `.pen` is not refused.
-6. The guard does not fire on a staged baseline or archived `.pen` — those keep their existing `pen-baseline` / `pen-archive` reasons and precedence — and `NOLDOR_ALLOW_PEN_WRITE=1` does not waive `pen-unapproved`.
-7. A `uiVerdict: required` session with no waiver, owning a `.pen` with no record, resolves `cannot-review` with reason `design-unapproved`.
-8. The same session with a record whose `penBlob` does not match the owned `.pen` resolves `cannot-review` with reason `design-approval-stale`, for both `approved` and `waived` records.
-9. Both new terminals red under `uiReviewMode: blocking` and stay green under `advisory`, with no change to the existing mode matrix.
-10. A session carrying `uiWaiver` resolves `not-applicable` / `waived` before either new lane branch is reached — the waiver short-circuit keeps its current precedence.
-11. A `uiVerdict: skip` session, and a repo with no `consumer.uiPaths`, reach no new branch and write no record.
-12. Archiving the `.pen` (`design archive`, a `git mv`) leaves a previously written record valid — the blob is unchanged, so the surface resolves to review rather than to `design-approval-stale`.
+6. The guard does not fire on a staged baseline or archived `.pen` — those keep their existing `pen-baseline` / `pen-archive` reasons and precedence — and `NOLDOR_ALLOW_PEN_WRITE=1` does not waive `pen-unapproved`. A staged feature `.pen` whose basename yields no key from `penSlugFromFilename` is refused under `pen-unapproved`, not admitted.
+7. The record path helper refuses a `--key` that escapes `.noldor/design-approval/`, via the same `parseSlug` + `slugPath` containment `receiptPath` uses.
+8. A `uiVerdict: required` session with no waiver, owning a `.pen` with no record, resolves `cannot-review` with reason `design-unapproved`.
+9. The same session with a record whose `penBlob` does not match the owned `.pen` resolves `cannot-review` with reason `design-approval-stale`, for both `approved` and `waived` records.
+10. Both new terminals red under `uiReviewMode: blocking` and stay green under `advisory`, with no change to the existing mode matrix.
+11. A session carrying `uiWaiver` resolves `not-applicable` / `waived` before either new lane branch is reached — the waiver short-circuit keeps its current precedence.
+12. A `uiVerdict: skip` session, and a repo with no `consumer.uiPaths`, reach no new branch and write no record.
+13. Archiving the `.pen` (`design archive`, a `git mv`) leaves a previously written record valid — the blob is unchanged, so the surface resolves to review rather than to `design-approval-stale`.
 
 ## Risks / trade-offs
 
