@@ -45,7 +45,7 @@ export type PrereqProbe = (bin: string, versionArgs?: readonly string[]) => stri
 export const BINARY_PREREQUISITES: readonly BinaryPrerequisite[] = [
   {
     id: 'node',
-    floor: '20.0.0',
+    floor: '24.0.0',
     whereAssumed:
       'bin/noldor.mjs executes every CLI surface from dist, or from src via tsx in a checkout',
   },

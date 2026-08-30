@@ -1,8 +1,10 @@
 // @tests: noldor
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+// @ts-expect-error — plain .mjs helper, deliberately untyped: it must run on below-floor Node
+import { minMajor } from '../../../bin/engines-check.mjs';
 import {
   BINARY_PREREQUISITES,
   DEFAULT_VERSION_ARGS,
@@ -28,6 +30,21 @@ describe('BINARY_PREREQUISITES', () => {
     }
   });
 
+  // The doctor row and `engines.node` are two independent copies of one floor,
+  // and `bin/engines-check.mjs` enforces the latter at startup. Let them
+  // desync and doctor reports a Node the CLI refuses to run on — the exact
+  // failure this pin exists to make unmergeable. Deriving at runtime was the
+  // alternative; a test costs no module-load IO and fails just as loudly.
+  it('declares the same Node floor as package.json engines.node', () => {
+    const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
+      engines?: { node?: string };
+    };
+    const declared = minMajor(pkg.engines?.node);
+    expect(declared).not.toBeNull();
+    const node = BINARY_PREREQUISITES.find((p) => p.id === 'node');
+    expect(minMajor(node?.floor)).toBe(declared);
+  });
+
   it('asks lefthook for its version via the `version` subcommand, not `--version`', () => {
     // lefthook 1.x (the declared floor) errors `unknown flag: --version`.
     const lefthook = BINARY_PREREQUISITES.find((p) => p.id === 'lefthook');
@@ -38,7 +55,7 @@ describe('BINARY_PREREQUISITES', () => {
 describe('checkBinaryPrerequisites', () => {
   it('ok / missing / below-floor per probe result', () => {
     const versions: Record<string, string | null> = {
-      node: '22.1.0',
+      node: '24.1.0',
       pnpm: '9.7.1',
       git: '2.20.0', // below the 2.30 floor
       gh: null, // not on PATH
