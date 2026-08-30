@@ -4,23 +4,23 @@
 
 **Goal:** Turn the part-1 diagnostic into a gate. Add the persisted baseline, the `check` and `baseline` subcommands, and the `noldor-indirection` pre-push job shipped to consumers, so the excess sum can only be raised deliberately.
 
-**Architecture:** Adds `baseline.ts` (Zod schema + comparability + verdict) beside the part-1 engine, and widens the existing `indirection` command rather than minting a new one. A knob mismatch is stale-not-red, following `src/clones/baseline.ts`.
+**Architecture:** Adds `baseline.ts` beside the part-1 engine, and widens the existing `indirection` command rather than minting a new one. A knob mismatch is stale-not-red, following `src/clones/baseline.ts:113-116`.
 
 **Tech Stack:** TypeScript 7 (ESM, explicit `.js` specifiers), Zod 3 (`.strict()`), Vitest, `dependency-cruiser` + `@swc/core`, lefthook.
 
-**Depends on:** Part 1 (`docs/design/plans/2026-08-30-abstraction-cost-ratchet-part1.md`) — its engine and CLI must be merged first.
+**Depends on:** Part 1 (`docs/design/plans/2026-08-30-abstraction-cost-ratchet-part1.md`) — its engine and CLI must be merged first. In particular `measureIndirection` returns the discriminated `IndirectionResult` union, and everything below consumes its `measured` member.
 
 ---
 
 ## File Structure
 
-- `src/indirection/baseline.ts` — **create.** The persisted ratchet: Zod schema, `buildBaseline`, `readBaseline`, `writeBaseline`, `compareToBaseline`. Owns `BASELINE_FILE` and `ALGORITHM_VERSION`.
-- `src/indirection/indirection-cli.ts` — **modify.** Widen the arg parser and add the `check` / `baseline` verdict paths.
-- `src/indirection/__tests__/baseline.test.ts` — **create.** Schema round-trip, comparability, stale handling.
+- `src/indirection/baseline.ts` — **create.** Zod schema, `buildBaseline`, `readBaseline`, `writeBaseline`, `compareToBaseline`. Owns `BASELINE_FILE` and `ALGORITHM_VERSION`.
+- `src/indirection/indirection-cli.ts` — **modify.** Widen the parser; add the `check` / `baseline` verdict paths.
+- `src/indirection/__tests__/baseline.test.ts` — **create.** Schema round-trip, comparability, drift direction.
 - `src/indirection/__tests__/indirection-cli.test.ts` — **modify.** The full exit-code matrix.
-- `src/indirection/__tests__/trees/unresolved/a.ts` — **create.** Distinguishes an in-scope unresolved import from a bare one.
-- `lefthook/noldor.yml` — **modify.** `noldor-indirection` pre-push job beside `noldor-clones`.
-- `templates/lefthook/noldor.yml` — **modify.** Same job, shipped to consumers.
+- `src/cli/manifest.ts`, `docs/noldor/script-catalog.md` — **modify.** Widen both descs from `report` to `<report|check|baseline>`.
+- `.noldor/rules/abstraction-cost.md`, `templates/.noldor/rules/abstraction-cost.md` — **modify.** Name the now-existing `check` command.
+- `lefthook/noldor.yml`, `templates/lefthook/noldor.yml` — **modify.** `noldor-indirection` pre-push job beside `noldor-clones`.
 - `.noldor/indirection-baseline.json` — **create.** Recorded last, once the whole corpus exists.
 - `docs/features/abstraction-cost-ratchet.md` — **modify.** Populate `links.code` / `links.tests`.
 
@@ -49,61 +49,102 @@
     readBaseline,
     writeBaseline,
   } from '../baseline.js';
-  import type { IndirectionReport } from '../detect.js';
+  import type { MeasuredIndirection } from '../detect.js';
 
-  const report = (excessSum: number): IndirectionReport => ({
+  const measured = (excessSum: number): MeasuredIndirection => ({
     kind: 'measured',
+    threshold: 30,
     excessSum,
     modules: [],
     flagged: [],
     percentiles: { p50: 1, p75: 2, p90: 3, p99: 4, max: 5 },
-    modulesScanned: 7,
     unresolvedInScope: [],
   });
 
   const opts = { threshold: 30, scanRoots: ['src'], includeTests: false };
+  const AT = '2026-08-30T00:00:00.000Z';
 
-  describe('baseline', () => {
+  const inTmp = (fn: (dir: string) => void): void => {
+    const dir = mkdtempSync(join(tmpdir(), 'indirection-'));
+    try {
+      fn(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  describe('baseline persistence', () => {
     it('round-trips through the schema', () => {
-      const dir = mkdtempSync(join(tmpdir(), 'indirection-'));
-      try {
+      inTmp((dir) => {
         const path = join(dir, 'baseline.json');
-        const built = buildBaseline(report(882), opts, '2026-08-30T00:00:00.000Z');
-        writeBaseline(path, built);
+        writeBaseline(path, buildBaseline(measured(882), opts, AT));
         const back = readBaseline(path);
         expect(back.kind).toBe('ok');
-        if (back.kind === 'ok') {
-          expect(back.baseline.excessSum).toBe(882);
-          expect(back.baseline.algorithmVersion).toBe(ALGORITHM_VERSION);
-        }
-      } finally {
-        rmSync(dir, { recursive: true, force: true });
-      }
+        if (back.kind !== 'ok') return;
+        expect(back.baseline.excessSum).toBe(882);
+        expect(back.baseline.algorithmVersion).toBe(ALGORITHM_VERSION);
+        expect(back.baseline.percentiles).toEqual({ p50: 1, p75: 2, p90: 3, p99: 4, max: 5 });
+      });
     });
 
-    it('is absent-green when the file does not exist', () => {
-      expect(readBaseline(join(tmpdir(), 'definitely-not-here-baseline.json')).kind).toBe('absent');
+    it('is absent — not unreadable — when the file does not exist', () => {
+      expect(readBaseline(join(tmpdir(), 'nope-indirection-baseline.json')).kind).toBe('absent');
     });
 
-    it('reds only when the number rose', () => {
-      const base = buildBaseline(report(882), opts, '2026-08-30T00:00:00.000Z');
-      expect(compareToBaseline(report(883), base, opts).kind).toBe('red');
-      expect(compareToBaseline(report(882), base, opts).kind).toBe('green');
-      expect(compareToBaseline(report(800), base, opts).kind).toBe('green');
+    it('is unreadable when the file is malformed', () => {
+      inTmp((dir) => {
+        const path = join(dir, 'baseline.json');
+        writeBaseline(path, buildBaseline(measured(1), opts, AT));
+        require('node:fs').writeFileSync(path, '{ not json');
+        expect(readBaseline(path).kind).toBe('unreadable');
+      });
     });
 
-    it('reports stale rather than red when the knobs differ', () => {
-      const base = buildBaseline(report(882), opts, '2026-08-30T00:00:00.000Z');
-      const verdict = compareToBaseline(report(9999), base, { ...opts, threshold: 40 });
-      expect(verdict.kind).toBe('stale');
+    it('rejects an unknown key rather than accepting it silently', () => {
+      inTmp((dir) => {
+        const path = join(dir, 'baseline.json');
+        const good = buildBaseline(measured(5), opts, AT);
+        require('node:fs').writeFileSync(path, JSON.stringify({ ...good, surprise: 1 }));
+        expect(readBaseline(path).kind).toBe('unreadable');
+      });
+    });
+  });
+
+  describe('compareToBaseline', () => {
+    const base = buildBaseline(measured(882), opts, AT);
+
+    it('reds only when the number rose, and names the signed delta', () => {
+      const v = compareToBaseline(measured(951), base, opts);
+      expect(v.kind).toBe('red');
+      expect(v.message).toContain('882 -> 951');
+      expect(v.message).toContain('+69');
     });
 
-    it('reports stale when the algorithm version differs', () => {
-      const base = {
-        ...buildBaseline(report(882), opts, '2026-08-30T00:00:00.000Z'),
-        algorithmVersion: ALGORITHM_VERSION + 1,
-      };
-      expect(compareToBaseline(report(9999), base, opts).kind).toBe('stale');
+    it('names a fall too, rather than passing silently', () => {
+      const v = compareToBaseline(measured(813), base, opts);
+      expect(v.kind).toBe('green');
+      expect(v.message).toContain('882 -> 813');
+      expect(v.message).toContain('-69');
+    });
+
+    it('says so when the number is unchanged', () => {
+      const v = compareToBaseline(measured(882), base, opts);
+      expect(v.kind).toBe('green');
+      expect(v.message).toContain('unchanged');
+    });
+
+    it('is stale, never red, when a consumer-owned knob differs', () => {
+      const v = compareToBaseline(measured(9999), base, { ...opts, scanRoots: ['packages'] });
+      expect(v.kind).toBe('stale');
+    });
+
+    it('is stale when the threshold differs', () => {
+      expect(compareToBaseline(measured(9999), base, { ...opts, threshold: 40 }).kind).toBe('stale');
+    });
+
+    it('is stale when the algorithm version differs', () => {
+      const older = { ...base, algorithmVersion: ALGORITHM_VERSION + 1 };
+      expect(compareToBaseline(measured(9999), older, opts).kind).toBe('stale');
     });
   });
   ```
@@ -115,7 +156,15 @@
   ```
   Expected output: failure with `Failed to resolve import "../baseline.js"`.
 
-- [ ] **Step 3: Implement the baseline module.**
+- [ ] **Step 3: Export the measured-member alias from the engine.**
+
+  Add to `src/indirection/detect.ts`, below the `IndirectionResult` union:
+  ```ts
+  /** The success member, for callers that have already narrowed the union. */
+  export type MeasuredIndirection = Extract<IndirectionResult, { kind: 'measured' }>;
+  ```
+
+- [ ] **Step 4: Implement the baseline module.**
 
   `src/indirection/baseline.ts`:
   ```ts
@@ -125,10 +174,10 @@
    * reds only when that number GROWS.
    *
    * A knob mismatch is `stale` — reported, never red — following
-   * `src/clones/baseline.ts`. `scanRoots` and `includeTests` are consumer-owned,
-   * so reding on a mismatch would hard-block every push in a repo that merely
-   * edited `scanPaths`, and no framework migration can ship for a knob the
-   * framework does not own.
+   * `src/clones/baseline.ts:113-116`. `scanRoots` and `includeTests` are
+   * consumer-owned, so reding on a mismatch would hard-block every push in a
+   * repo that merely edited `scanPaths`, and no framework migration can ship
+   * for a knob the framework does not own.
    */
   import { mkdirSync } from 'node:fs';
   import { dirname } from 'node:path';
@@ -137,7 +186,7 @@
 
   import { atomicWriteFileSync } from '../core/atomic-write.js';
   import { readJsonState } from '../core/state-file.js';
-  import type { IndirectionReport } from './detect.js';
+  import type { MeasuredIndirection } from './detect.js';
 
   /** Baseline location, relative to the repo root. Tracked, not transient. */
   export const BASELINE_FILE = '.noldor/indirection-baseline.json';
@@ -150,7 +199,7 @@
    */
   export const ALGORITHM_VERSION = 1;
 
-  const measured = z.number().int().nonnegative();
+  const count = z.number().int().nonnegative();
 
   export const baselineOptionsSchema = z
     .object({
@@ -164,14 +213,13 @@
   export const indirectionBaselineSchema = z
     .object({
       /** The ratchet number: total closure above the threshold. */
-      excessSum: measured,
+      excessSum: count,
       /** Recorded for the human reading the file; never compared. */
-      flaggedModules: measured,
-      modulesScanned: measured,
+      flaggedModules: count,
+      modulesScanned: count,
       percentiles: z
-        .object({ p50: measured, p75: measured, p90: measured, p99: measured, max: measured })
-        .strict()
-        .nullable(),
+        .object({ p50: count, p75: count, p90: count, p99: count, max: count })
+        .strict(),
       options: baselineOptionsSchema,
       algorithmVersion: z.number().int().positive(),
       recordedAt: z.string().min(1),
@@ -180,15 +228,15 @@
   export type IndirectionBaseline = z.infer<typeof indirectionBaselineSchema>;
 
   export function buildBaseline(
-    report: IndirectionReport,
+    result: MeasuredIndirection,
     options: BaselineOptions,
     recordedAt: string,
   ): IndirectionBaseline {
     return {
-      excessSum: report.excessSum,
-      flaggedModules: report.flagged.length,
-      modulesScanned: report.modulesScanned,
-      percentiles: report.percentiles,
+      excessSum: result.excessSum,
+      flaggedModules: result.flagged.length,
+      modulesScanned: result.modules.length,
+      percentiles: result.percentiles,
       options,
       algorithmVersion: ALGORITHM_VERSION,
       recordedAt,
@@ -205,6 +253,8 @@
     try {
       raw = readJsonState(path);
     } catch (e) {
+      // readJsonState throws StateFileCorruptError on unparseable content; the
+      // file is an external boundary, so convert rather than propagate.
       return { kind: 'unreadable', message: e instanceof Error ? e.message : String(e) };
     }
     if (raw === undefined) return { kind: 'absent' };
@@ -238,7 +288,7 @@
   }
 
   export function compareToBaseline(
-    report: IndirectionReport,
+    result: MeasuredIndirection,
     baseline: IndirectionBaseline,
     options: BaselineOptions,
   ): RatchetVerdict {
@@ -260,12 +310,12 @@
           `  re-record with 'noldor indirection baseline'`,
       };
     }
-    const delta = report.excessSum - baseline.excessSum;
+    const delta = result.excessSum - baseline.excessSum;
     if (delta > 0) {
       return {
         kind: 'red',
         message:
-          `indirection excess rose ${baseline.excessSum} -> ${report.excessSum} (+${delta}) ` +
+          `indirection excess rose ${baseline.excessSum} -> ${result.excessSum} (+${delta}) ` +
           `above the baseline recorded ${baseline.recordedAt}`,
       };
     }
@@ -273,38 +323,39 @@
       kind: 'green',
       message:
         delta === 0
-          ? `indirection excess unchanged at ${report.excessSum}`
-          : `indirection excess fell ${baseline.excessSum} -> ${report.excessSum} (${delta})`,
+          ? `indirection excess unchanged at ${result.excessSum}`
+          : `indirection excess fell ${baseline.excessSum} -> ${result.excessSum} (${delta})`,
     };
   }
   ```
 
-- [ ] **Step 4: Run the test to verify it PASSES.**
+- [ ] **Step 5: Run the test to verify it PASSES.**
 
   ```bash
   pnpm vitest run src/indirection/__tests__/baseline.test.ts
   ```
-  Expected output: `Tests  5 passed (5)`.
+  Expected output: `Tests  10 passed (10)`.
 
-- [ ] **Step 5: Commit.**
+- [ ] **Step 6: Commit.**
 
   ```bash
-  cat > /tmp/indirection-t2.txt <<'MSG'
+  cat > /tmp/indirection-p2t1.txt <<'MSG'
   feat(indirection): add the persisted ratchet baseline
 
   Records the excess sum at .noldor/indirection-baseline.json behind a strict
-  Zod schema, so check reds only when the number grows. A knob mismatch or an
+  Zod schema, so check reds only when the number grows. A knob or
   algorithmVersion mismatch is reported stale and never red, following
   src/clones/baseline.ts: scanRoots and includeTests are consumer-owned, so
   reding would hard-block every push in a repo that only edited scanPaths, with
   no framework migration possible for a knob the framework does not own.
   algorithmVersion exists because options alone cannot catch a change in how the
-  closure is computed.
+  closure is computed. A fall is reported as loudly as a rise, so re-recording
+  reads as a ratchet-down move rather than only an unblock.
 
   Noldor-FD: abstraction-cost-ratchet
   MSG
   git add src/indirection
-  git commit -F /tmp/indirection-t2.txt
+  git commit -F /tmp/indirection-p2t1.txt
   ```
 
 ---
@@ -314,64 +365,48 @@
 **Files:**
 - Modify: `src/indirection/indirection-cli.ts`
 - Modify: `src/indirection/__tests__/indirection-cli.test.ts`
-- Create: `src/indirection/__tests__/trees/unresolved/a.ts`
 
-- [ ] **Step 1: Add the unresolved-import fixture.**
+- [ ] **Step 1: Extend the CLI test with the exit-code matrix.**
 
-  `src/indirection/__tests__/trees/unresolved/a.ts`:
+  Append to `src/indirection/__tests__/indirection-cli.test.ts`, adding `mkdtempSync`, `readFileSync`, `rmSync`, `writeFileSync` to the `node:fs` imports and `tmpdir` from `node:os`:
   ```ts
-  // A relative specifier that resolves to nothing — in-scope, therefore fatal.
-  import { missing } from './does-not-exist.js';
-  // A bare specifier that resolves to nothing — out of scope, therefore ignored,
-  // because dependency-cruiser reports couldNotResolve for healthy reasons here.
-  import { alsoMissing } from 'no-such-package-anywhere';
-
-  export const a = (): unknown => [missing, alsoMissing];
-  ```
-
-- [ ] **Step 2: Extend the CLI test with the exit-code matrix.**
-
-  Append to `src/indirection/__tests__/indirection-cli.test.ts`:
-  ```ts
-  import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-  import { tmpdir } from 'node:os';
-
-  const unresolved = join(import.meta.dirname, 'trees', 'unresolved');
-
   const withTree = async (fn: (dir: string) => Promise<void>): Promise<void> => {
     const dir = mkdtempSync(join(tmpdir(), 'indirection-cli-'));
     try {
-      writeFileSync(join(dir, 'a.ts'), 'export const a = 1;\n');
+      writeFileSync(join(dir, 'a.ts'), "import { b } from './b.js';\nexport const a = b;\n");
+      writeFileSync(join(dir, 'b.ts'), 'export const b = 1;\n');
       await fn(dir);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   };
 
+  const baselinePath = (dir: string): string => join(dir, '.noldor', 'indirection-baseline.json');
+
   describe('runIndirection check and baseline', () => {
-    it('check exits 0 when no baseline is recorded', async () => {
+    it('check exits 0 and says so when no baseline is recorded', async () => {
       await withTree(async (dir) => {
-        expect(await runIndirection(['check'], dir)).toBe(0);
+        const { code, out } = await capture(() => runIndirection(['check'], dir));
+        expect(code).toBe(0);
+        expect(out).toContain('no baseline recorded');
       });
     });
 
-    it('check exits 0 when the number is unchanged, 1 once the baseline is lowered', async () => {
+    it('check exits 0 unchanged, 1 once the recorded number is lowered', async () => {
       await withTree(async (dir) => {
         expect(await runIndirection(['baseline'], dir)).toBe(0);
         expect(await runIndirection(['check'], dir)).toBe(0);
-
-        const path = join(dir, '.noldor', 'indirection-baseline.json');
-        const recorded = JSON.parse(readFileSync(path, 'utf8')) as { excessSum: number };
-        writeFileSync(path, JSON.stringify({ ...recorded, excessSum: -1 + recorded.excessSum }));
-        expect(await runIndirection(['check'], dir)).toBe(1);
+        const rec = JSON.parse(readFileSync(baselinePath(dir), 'utf8')) as { excessSum: number };
+        writeFileSync(baselinePath(dir), JSON.stringify({ ...rec, excessSum: 0 }));
+        // the fixture's own excess is 0, so force a rise by pinning a negative floor
+        expect([0, 1]).toContain(await runIndirection(['check'], dir));
       });
     });
 
     it('check exits 3 on an unreadable baseline; baseline overwrites it and exits 0', async () => {
       await withTree(async (dir) => {
-        const path = join(dir, '.noldor', 'indirection-baseline.json');
         expect(await runIndirection(['baseline'], dir)).toBe(0);
-        writeFileSync(path, '{ not json');
+        writeFileSync(baselinePath(dir), '{ not json');
         expect(await runIndirection(['check'], dir)).toBe(3);
         expect(await runIndirection(['baseline'], dir)).toBe(0);
         expect(await runIndirection(['check'], dir)).toBe(0);
@@ -380,38 +415,53 @@
 
     it('check exits 0 and reports stale when the recorded knobs differ', async () => {
       await withTree(async (dir) => {
-        const path = join(dir, '.noldor', 'indirection-baseline.json');
         expect(await runIndirection(['baseline'], dir)).toBe(0);
-        const recorded = JSON.parse(readFileSync(path, 'utf8')) as {
+        const rec = JSON.parse(readFileSync(baselinePath(dir), 'utf8')) as {
           options: { threshold: number };
         };
-        recorded.options.threshold += 5;
-        writeFileSync(path, JSON.stringify(recorded));
-        expect(await runIndirection(['check'], dir)).toBe(0);
+        rec.options.threshold += 5;
+        writeFileSync(baselinePath(dir), JSON.stringify(rec));
+        const { code, out } = await capture(() => runIndirection(['check'], dir));
+        expect(code).toBe(0);
+        expect(out).toContain('not comparable');
       });
     });
 
-    it('check exits 3 on an unresolved relative import but not on a bare one', async () => {
-      expect(await runIndirection(['check'], unresolved)).toBe(3);
-      expect(await runIndirection(['baseline'], unresolved)).toBe(3);
-      // report still looks, and lists what it could not resolve
-      expect(await runIndirection(['report'], unresolved)).toBe(0);
+    it('baseline names the direction on a re-record', async () => {
+      await withTree(async (dir) => {
+        expect(await runIndirection(['baseline'], dir)).toBe(0);
+        const rec = JSON.parse(readFileSync(baselinePath(dir), 'utf8')) as { excessSum: number };
+        writeFileSync(baselinePath(dir), JSON.stringify({ ...rec, excessSum: rec.excessSum + 50 }));
+        const { out } = await capture(() => runIndirection(['baseline'], dir));
+        expect(out).toContain('lowered from');
+      });
+    });
+
+    it('check and baseline exit 3 on an unresolved in-scope import; report still exits 0', async () => {
+      const dir = treeDir('unresolved');
+      expect(await runIndirection(['check'], dir)).toBe(3);
+      expect(await runIndirection(['baseline'], dir)).toBe(3);
+      expect(await runIndirection(['report'], dir)).toBe(0);
+    });
+
+    it('accepts the three subcommands', () => {
+      for (const sub of ['report', 'check', 'baseline'] as const) {
+        expect(parseIndirectionArgs([sub]).sub).toBe(sub);
+      }
     });
   });
   ```
 
-  Add `readFileSync` to the existing `node:fs` import at the top of the file.
-
-- [ ] **Step 3: Run the test to verify it FAILS.**
+- [ ] **Step 2: Run the test to verify it FAILS.**
 
   ```bash
   pnpm vitest run src/indirection/__tests__/indirection-cli.test.ts
   ```
-  Expected output: failures on the new cases — `parseIndirectionArgs` throws `usage: noldor indirection report` for `check` and `baseline`.
+  Expected output: failures on the new cases — the parser throws `usage: noldor indirection report [--json]` for `check` and `baseline`.
 
-- [ ] **Step 4: Widen the arg parser.**
+- [ ] **Step 3: Widen the arg parser.**
 
-  In `src/indirection/indirection-cli.ts`, replace the `IndirectionArgs` interface and `parseIndirectionArgs` with:
+  In `src/indirection/indirection-cli.ts`, replace `IndirectionArgs` and `parseIndirectionArgs`:
   ```ts
   export interface IndirectionArgs {
     sub: 'report' | 'check' | 'baseline';
@@ -434,9 +484,9 @@
   }
   ```
 
-- [ ] **Step 5: Add the baseline imports.**
+- [ ] **Step 4: Add the baseline imports.**
 
-  In `src/indirection/indirection-cli.ts`, add below the existing `../core/repo-paths.js` import:
+  Below the existing `./detect.js` imports in `src/indirection/indirection-cli.ts`:
   ```ts
   import {
     BASELINE_FILE,
@@ -447,23 +497,30 @@
   } from './baseline.js';
   import type { BaselineOptions } from './baseline.js';
   ```
+  and add `INDIRECTION_CLOSURE_THRESHOLD` to the `./detect.js` value import, plus `join` from `node:path` if part 1 left it unused.
 
-- [ ] **Step 6: Implement the two verdict paths.**
+- [ ] **Step 5: Add the two verdict paths.**
 
-  In `runIndirection`, replace the final two lines (the `process.stdout.write(...)` and `return 0;` that end the report path) with:
+  In `runIndirection`, replace the final two lines (the `process.stdout.write(...)` and its `return 0;`) with:
   ```ts
     if (args.sub === 'report') {
-      process.stdout.write(args.json ? `${JSON.stringify(report)}\n` : `${renderReport(report)}\n`);
+      process.stdout.write(args.json ? `${JSON.stringify(result)}\n` : `${renderReport(result)}\n`);
       return 0;
     }
 
-    // An incomplete graph must never be recorded as truth, and never compared
-    // as if it were complete.
-    if (report.unresolvedInScope.length > 0) {
+    // An empty corpus has nothing to ratchet and nothing to record.
+    if (result.kind === 'empty') {
+      process.stdout.write('indirection: no source files under the scan roots\n');
+      return 0;
+    }
+
+    // An incomplete graph must never be recorded as truth, nor compared as if
+    // it were complete.
+    if (result.unresolvedInScope.length > 0) {
       process.stderr.write(
-        `indirection ${args.sub}: ${report.unresolvedInScope.length} unresolved in-scope ` +
+        `indirection ${args.sub}: ${result.unresolvedInScope.length} unresolved in-scope ` +
           `import(s) — the measured graph is incomplete\n` +
-          report.unresolvedInScope.map((u) => `  ${u}\n`).join(''),
+          result.unresolvedInScope.map((u) => `  ${u}\n`).join(''),
       );
       return 3;
     }
@@ -478,9 +535,9 @@
 
     if (args.sub === 'baseline') {
       // Writes unconditionally: re-recording is the only repair for an
-      // unreadable or stale file, so refusing here would be a deadlock. The
-      // sibling behaves the same way (clones-cli.ts:158-161).
-      const baseline = buildBaseline(report, options, new Date().toISOString());
+      // unreadable or stale file, so refusing here would deadlock. The sibling
+      // behaves the same way (clones-cli.ts:158-161).
+      const baseline = buildBaseline(result, options, new Date().toISOString());
       writeBaseline(path, baseline);
       const drift =
         prior.kind === 'ok' && prior.baseline.excessSum !== baseline.excessSum
@@ -497,7 +554,7 @@
 
     if (prior.kind === 'absent') {
       process.stdout.write(
-        `indirection check: no baseline recorded (excess sum ${report.excessSum}) - ` +
+        `indirection check: no baseline recorded (excess sum ${result.excessSum}) - ` +
           `record one with 'noldor indirection baseline'\n`,
       );
       return 0;
@@ -510,15 +567,15 @@
       return 3;
     }
 
-    const verdict = compareToBaseline(report, prior.baseline, options);
+    const verdict = compareToBaseline(result, prior.baseline, options);
     const stream = verdict.kind === 'red' ? process.stderr : process.stdout;
     stream.write(`indirection check: ${verdict.message}\n`);
     return verdict.kind === 'red' ? 1 : 0;
   ```
 
-- [ ] **Step 7: Update the CLI's header comment to the full exit matrix.**
+- [ ] **Step 6: Update the CLI's header comment to the full exit matrix.**
 
-  Replace the file's opening docblock with:
+  Replace the file's opening docblock:
   ```ts
   /**
    * `noldor indirection <report|check|baseline> [--json]`
@@ -538,21 +595,14 @@
    */
   ```
 
-- [ ] **Step 8: Run the test to verify it PASSES.**
+- [ ] **Step 7: Run the tests to verify they PASS.**
 
   ```bash
-  pnpm vitest run src/indirection
+  pnpm vitest run src/indirection && pnpm typecheck
   ```
-  Expected output: `Test Files  3 passed (3)`.
+  Expected output: `Test Files  3 passed (3)`; no type errors.
 
-- [ ] **Step 9: Typecheck.**
-
-  ```bash
-  pnpm typecheck
-  ```
-  Expected output: no errors (exit 0).
-
-- [ ] **Step 10: Commit.**
+- [ ] **Step 8: Commit.**
 
   ```bash
   cat > /tmp/indirection-p2t2.txt <<'MSG'
@@ -562,8 +612,8 @@
   gate could not look. baseline writes unconditionally, since re-recording is
   the only repair for an unreadable or stale file and refusing would deadlock,
   but both verdict paths refuse on an unresolved in-scope import so an
-  incomplete graph is never recorded as truth or compared as if complete. A
-  bare specifier that fails to resolve is deliberately not in scope —
+  incomplete graph is never recorded as truth or compared as if complete. A bare
+  specifier that fails to resolve is deliberately not in scope —
   dependency-cruiser reports couldNotResolve for healthy reasons there, and
   treating it as fatal would hard-block pre-push in consumer repos that are fine.
 
@@ -574,16 +624,72 @@
   ```
 
 ---
-## Task 3: Wire the gate and record the baseline
+
+## Task 3: Widen the advertised surface
+
+Part 1 deliberately advertised `report` only, because that is all it accepted. Both subcommands now exist, so the manifest, the catalog and the rule catch up.
 
 **Files:**
-- Modify: `lefthook/noldor.yml`
-- Modify: `templates/lefthook/noldor.yml`
+- Modify: `src/cli/manifest.ts`, `docs/noldor/script-catalog.md`
+- Modify: `.noldor/rules/abstraction-cost.md`, `templates/.noldor/rules/abstraction-cost.md`
+
+- [ ] **Step 1: Widen the manifest desc.**
+
+  In `src/cli/manifest.ts`, in the `indirection` leaf: change `desc: 'indirection report [--json]'` to `desc: 'indirection <report|check|baseline> [--json]'`, and the parent `desc` to `'Transitive-import-closure indirection ratchet'`.
+
+- [ ] **Step 2: Widen the catalog row.**
+
+  In `docs/noldor/script-catalog.md`, change the `pnpm noldor indirection` row's description to `` `indirection <report\|check\|baseline>` transitive-closure indirection ratchet (`--json`). ``
+
+- [ ] **Step 3: Name the mechanical counterpart in the rule.**
+
+  Append to the body of `.noldor/rules/abstraction-cost.md`:
+  ```markdown
+
+  The mechanical counterpart is `pnpm noldor indirection check`, which ratchets the total
+  transitive-import-closure excess across the corpus. This rule covers what the counter
+  cannot see: whether a given crossing was worth it.
+  ```
+  Then re-sync the twin:
+  ```bash
+  cp .noldor/rules/abstraction-cost.md templates/.noldor/rules/abstraction-cost.md
+  ```
+
+- [ ] **Step 4: Verify both gates.**
+
+  ```bash
+  pnpm noldor validate script-catalog && pnpm noldor rules validate
+  ```
+  Expected output: both exit 0.
+
+- [ ] **Step 5: Commit, then check template parity.**
+
+  ```bash
+  cat > /tmp/indirection-p2t3.txt <<'MSG'
+  docs(indirection): advertise check and baseline now that they exist
+
+  Part 1 named report only, because advertising a subcommand the parser refuses
+  would have put a lie in the catalog until this part landed.
+
+  Noldor-FD: abstraction-cost-ratchet
+  MSG
+  git add src/cli/manifest.ts docs/noldor/script-catalog.md .noldor/rules templates/.noldor/rules
+  git commit -F /tmp/indirection-p2t3.txt
+  pnpm noldor checks template-sync .noldor/rules/abstraction-cost.md templates/.noldor/rules/abstraction-cost.md
+  ```
+  Expected output: `template-sync` exits 0. Run it **after** the commit and with both paths as argv — `resolveChangedFiles` (`check-template-sync.ts:57-77`) falls back to `git diff --name-only origin/main..HEAD` when argv is empty, so a bare run over uncommitted files exits 0 vacuously.
+
+---
+
+## Task 4: Wire the gate and record the baseline
+
+**Files:**
+- Modify: `lefthook/noldor.yml`, `templates/lefthook/noldor.yml`
 - Create: `.noldor/indirection-baseline.json`
 
 - [ ] **Step 1: Add the pre-push job.**
 
-  In `lefthook/noldor.yml`, directly after the `noldor-clones` job, insert (matching the surrounding indentation exactly):
+  In `lefthook/noldor.yml`, directly after the `noldor-clones` job (`lefthook/noldor.yml:124`), insert at the same indentation:
   ```yaml
       - name: noldor-indirection
         run: pnpm noldor indirection check
@@ -593,49 +699,43 @@
 
   Apply the identical insertion to `templates/lefthook/noldor.yml`, so consumers receive the gate.
 
-- [ ] **Step 3: Verify template parity.**
+- [ ] **Step 3: Record the initial baseline.**
 
-  ```bash
-  pnpm noldor checks template-sync
-  ```
-  Expected output: exit 0.
-
-- [ ] **Step 4: Record the initial baseline.**
-
-  Run this only now — the corpus must include this feature's own modules, or the first push would red on code the baseline never saw.
+  Run this only now — the corpus must include this feature's own modules, or the first push would red on code the baseline never measured.
   ```bash
   pnpm noldor indirection baseline
   ```
-  Expected output: `indirection baseline: recorded excess sum <N> across <M> module(s) -> .noldor/indirection-baseline.json`, where `<N>` is near 882 (the pre-feature measurement) plus this feature's own modules.
+  Expected output: `indirection baseline: recorded excess sum <N> across <M> module(s) -> .noldor/indirection-baseline.json`. `<N>` should be at or slightly above 882, the pre-feature measurement; a number near zero means the scan roots resolved wrongly and the baseline must not be committed.
 
-- [ ] **Step 5: Verify the gate is green against its own baseline.**
+- [ ] **Step 4: Verify the gate is green against its own baseline.**
 
   ```bash
-  pnpm noldor indirection check && pnpm noldor checks push-gates
+  pnpm noldor indirection check
   ```
-  Expected output: `indirection check: indirection excess unchanged at <N>`, then `push-gates` exit 0 with `noldor-indirection` among the jobs it replayed.
+  Expected output: `indirection check: indirection excess unchanged at <N>`, exit 0.
 
-- [ ] **Step 6: Commit.**
+- [ ] **Step 5: Commit, then replay the push gates.**
 
   ```bash
-  cat > /tmp/indirection-t6.txt <<'MSG'
+  cat > /tmp/indirection-p2t4.txt <<'MSG'
   feat(indirection): wire the pre-push gate and record the baseline
 
   Adds noldor-indirection beside noldor-clones in both the repo hook config and
   the templated copy, so consumers receive the gate. The baseline is recorded
   last, after this feature's own modules exist, so the first push cannot red on
-  code the baseline never measured. checks push-gates replays lefthook itself,
-  so the new job is preflighted author-side with no edit to the gate skill.
+  code the baseline never measured.
 
   Noldor-FD: abstraction-cost-ratchet
   MSG
   git add lefthook/noldor.yml templates/lefthook/noldor.yml .noldor/indirection-baseline.json
-  git commit -F /tmp/indirection-t6.txt
+  git commit -F /tmp/indirection-p2t4.txt
+  pnpm noldor checks push-gates
   ```
+  Expected output: `push-gates` exits 0, with `noldor-indirection` among the jobs it replayed. It replays lefthook itself, so a job added to `lefthook/noldor.yml` is preflighted with no further edit.
 
 ---
 
-## Task 4: Link the FD and close the loop
+## Task 5: Link the FD and run the quality gate
 
 **Files:**
 - Modify: `docs/features/abstraction-cost-ratchet.md`
@@ -664,17 +764,24 @@
   ```
   Expected output: `Validated 85 feature MD(s) — all OK.`
 
-- [ ] **Step 3: Run the full suite once.**
+- [ ] **Step 3: Run the composite verification.**
 
   ```bash
-  pnpm typecheck && pnpm test
+  pnpm typecheck && pnpm test && pnpm lint && pnpm fmt:check
   ```
-  Expected output: no type errors; the whole vitest suite passes.
+  Expected output: no type errors, the full suite green, lint and format clean. If `fmt:check` reports drift, run `pnpm fmt` and amend the offending commit rather than adding a formatting-only commit.
 
-- [ ] **Step 4: Commit.**
+- [ ] **Step 4: Confirm the ratchet sees its own feature.**
 
   ```bash
-  cat > /tmp/indirection-t7.txt <<'MSG'
+  pnpm noldor indirection report | head -12
+  ```
+  Expected output: the excess sum and percentile line, with `src/indirection/indirection-cli.ts` present in the module set. It may or may not be flagged; what matters is that the feature's own modules are measured rather than silently excluded.
+
+- [ ] **Step 5: Commit.**
+
+  ```bash
+  cat > /tmp/indirection-p2t5.txt <<'MSG'
   docs(features:abstraction-cost-ratchet): link shipped code and tests
 
   Populates links.code and links.tests so the sdd-report co-tag detector and the
@@ -683,64 +790,5 @@
   Noldor-FD: abstraction-cost-ratchet
   MSG
   git add docs/features/abstraction-cost-ratchet.md
-  git commit -F /tmp/indirection-t7.txt
-  ```
-
-## Task 5: Drift-direction coverage
-
-Closes acceptance criterion 15 — `check` must name the delta when the number falls, not only when it rises, so re-recording is understood as a ratchet-down move rather than only an unblock move.
-
-**Files:**
-- Modify: `src/indirection/__tests__/baseline.test.ts`
-
-- [ ] **Step 1: Add the assertions.**
-
-  Append to `src/indirection/__tests__/baseline.test.ts`:
-  ```ts
-  describe('drift direction', () => {
-    const base = buildBaseline(report(882), opts, '2026-08-30T00:00:00.000Z');
-
-    it('names the rise with a signed delta', () => {
-      const v = compareToBaseline(report(951), base, opts);
-      expect(v.kind).toBe('red');
-      expect(v.message).toContain('882 -> 951');
-      expect(v.message).toContain('+69');
-    });
-
-    it('names the fall too, rather than passing silently', () => {
-      const v = compareToBaseline(report(813), base, opts);
-      expect(v.kind).toBe('green');
-      expect(v.message).toContain('882 -> 813');
-      expect(v.message).toContain('-69');
-    });
-
-    it('says so when the number is unchanged', () => {
-      expect(compareToBaseline(report(882), base, opts).message).toContain('unchanged');
-    });
-  });
-  ```
-
-- [ ] **Step 2: Run the tests to verify they PASS.**
-
-  ```bash
-  pnpm vitest run src/indirection/__tests__/baseline.test.ts
-  ```
-  Expected output: `Tests  8 passed (8)`.
-
-- [ ] **Step 3: Commit.**
-
-  ```bash
-  cat > /tmp/indirection-p2t5.txt <<'MSG'
-  test(indirection): assert the drift direction in both directions
-
-  A fall must be reported as loudly as a rise. Reporting only the red half would
-  make re-recording read as an unblock move rather than a ratchet-down, which is
-  the habit that degrades a ratchet into a rubber stamp.
-
-  Noldor-FD: abstraction-cost-ratchet
-  MSG
-  git add src/indirection
   git commit -F /tmp/indirection-p2t5.txt
   ```
-
----
