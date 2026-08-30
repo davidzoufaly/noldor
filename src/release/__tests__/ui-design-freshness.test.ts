@@ -334,7 +334,91 @@ describe('evaluateUiDesignFreshness', () => {
     await writeFile(abs, 'not json at all', 'utf8');
     await commitAt(repo, 'chore: corrupt receipt');
     const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
-    expect(v.surfaces[0].status).toBe('skipped');
+    expect(v.surfaces[0].status).toBe('indeterminate');
+  });
+
+  it('an indeterminate surface is not masked by a healthy one', async () => {
+    // The entry's deletion test. `indeterminate` used to be `skipped`, which
+    // ranks BELOW `fresh`, so surface `a` reduced the whole verdict to `fresh`
+    // and preflight announced "all UI baselines fresh" while `b` went unchecked.
+    await commit(['src/a/x.tsx'], 'feat: a');
+    await commit(['src/b/y.tsx'], 'feat: b');
+    await commit(['docs/design/ui/baseline/a.pen'], 'docs: a baseline');
+    await commit(['docs/design/ui/baseline/b.pen'], 'docs: b baseline');
+    await commitReceipt('a', 'chore: capture a');
+    await commitReceipt('b', 'chore: capture b');
+    await writeFile(join(cwd, receiptRelPath('b')), 'not json at all', 'utf8');
+    await commitAt(repo, 'chore: corrupt b receipt');
+
+    const v = await evaluateUiDesignFreshness(cwd, {
+      uiPaths: ['src/a/**', 'src/b/**'],
+      uiSurfaces: { a: ['src/a/**'], b: ['src/b/**'] },
+    });
+    expect(v.surfaces.map((x) => [x.surface, x.status])).toEqual([
+      ['a', 'fresh'],
+      ['b', 'indeterminate'],
+    ]);
+    expect(v.overall).toBe('indeterminate');
+  });
+
+  it('a not-applicable surface stays below fresh and does not warn', async () => {
+    // The other half of the carve: `skipped` now means only "the check ran and
+    // does not apply". Raising it with `indeterminate` would make every repo
+    // with an unbuilt surface report an unchecked verdict.
+    await commit(['src/a/x.tsx'], 'feat: a');
+    await commit(['docs/design/ui/baseline/a.pen'], 'docs: a baseline');
+    await commitReceipt('a', 'chore: capture a');
+    const v = await evaluateUiDesignFreshness(cwd, {
+      uiPaths: ['src/a/**', 'src/b/**'],
+      uiSurfaces: { a: ['src/a/**'], b: ['src/b/**'] },
+    });
+    expect(v.surfaces.map((x) => [x.surface, x.status])).toEqual([
+      ['a', 'fresh'],
+      ['b', 'skipped'],
+    ]);
+    expect(v.overall).toBe('fresh');
+  });
+
+  it('an indeterminate surface still outranks unverified adoption debt', async () => {
+    await commit(['src/a/x.tsx'], 'feat: a');
+    await commit(['src/b/y.tsx'], 'feat: b');
+    await commit(['docs/design/ui/baseline/a.pen'], 'docs: a baseline');
+    // `b` never gets a receipt at all — legacy-fresh, so `unverified`.
+    await commit(['docs/design/ui/baseline/b.pen'], 'docs: b baseline');
+    await commitReceipt('a', 'chore: capture a');
+    await writeFile(join(cwd, receiptRelPath('a')), 'not json at all', 'utf8');
+    await commitAt(repo, 'chore: corrupt a receipt');
+
+    const v = await evaluateUiDesignFreshness(cwd, {
+      uiPaths: ['src/a/**', 'src/b/**'],
+      uiSurfaces: { a: ['src/a/**'], b: ['src/b/**'] },
+    });
+    expect(v.surfaces.map((x) => [x.surface, x.status])).toEqual([
+      ['a', 'indeterminate'],
+      ['b', 'unverified'],
+    ]);
+    expect(v.overall).toBe('indeterminate');
+  });
+
+  it('a stale surface still outranks an indeterminate one', async () => {
+    // The ceiling on the new rank: an unknown may never mask a red.
+    await commit(['docs/design/ui/baseline/a.pen'], 'docs: a baseline');
+    await commit(['src/a/x.tsx'], 'feat: a drift');
+    await commit(['src/b/y.tsx'], 'feat: b');
+    await commit(['docs/design/ui/baseline/b.pen'], 'docs: b baseline');
+    await commitReceipt('b', 'chore: capture b');
+    await writeFile(join(cwd, receiptRelPath('b')), 'not json at all', 'utf8');
+    await commitAt(repo, 'chore: corrupt b receipt');
+
+    const v = await evaluateUiDesignFreshness(cwd, {
+      uiPaths: ['src/a/**', 'src/b/**'],
+      uiSurfaces: { a: ['src/a/**'], b: ['src/b/**'] },
+    });
+    expect(v.surfaces.map((x) => [x.surface, x.status])).toEqual([
+      ['a', 'stale'],
+      ['b', 'indeterminate'],
+    ]);
+    expect(v.overall).toBe('stale');
   });
 
   it('a stale surface still drives the overall verdict when another is unverified', async () => {
@@ -420,6 +504,32 @@ describe('release preflight — ui-design-freshness row', () => {
     expect(row.status).toBe('blocking');
     expect(row.fix).toContain('design capture');
     expect(row.fix).not.toContain('design ui-sync');
+  });
+
+  it('warns rather than passing when a surface could not be checked', async () => {
+    // An indeterminate overall must not render `ok`: the probe would print
+    // "all UI baselines fresh" over a surface nothing checked. It must not
+    // render `blocking` either — a git failure may never mint a red.
+    await commit(['src/app/page.tsx'], 'feat: ui');
+    await commit(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    const blob = blobIdOfWorktreeFile(cwd, 'docs/design/ui/baseline/app.pen');
+    const abs = join(cwd, receiptRelPath('app'));
+    await mkdir(dirname(abs), { recursive: true });
+    await writeFile(
+      abs,
+      `${JSON.stringify({ capturedAt: '2026-08-29T00:00:00.000Z', baselineBlob: blob, command: 'c' })}\n`,
+      'utf8',
+    );
+    await commitAt(repo, 'chore: capture');
+    await writeFile(abs, 'not json at all', 'utf8');
+    await commitAt(repo, 'chore: corrupt receipt');
+    await writeUiConfig(cwd, ['src/app/**']);
+
+    const row = await runProbe('ui-design-freshness', ctx());
+    expect(row.status).toBe('warn');
+    expect(row.detail).toContain('app');
+    // No remediation on an indeterminate row — nothing to advise re-capturing.
+    expect(row.fix).toBeUndefined();
   });
 
   it('still blocks a release on a genuinely stale surface', async () => {
