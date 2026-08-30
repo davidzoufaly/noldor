@@ -240,5 +240,10 @@
     "slug": "mandatory-c4-diagram-for-new-feature-mds",
     "retiredInto": "consumer-architecture-doc-surface",
     "retiredAt": "2026-08-29"
+  },
+  "Q-0196": {
+    "slug": "enforceable-design-approval-signal",
+    "retiredInto": "pendev-ui-design-phase",
+    "retiredAt": "2026-08-30"
   }
 }

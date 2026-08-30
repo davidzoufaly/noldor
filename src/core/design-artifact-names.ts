@@ -29,6 +29,15 @@ export const ARCHIVE_DIR = 'archive';
 export const UI_BASELINE_DIR = 'docs/design/ui/baseline';
 
 /**
+ * Directory holding feature UI-design `.pen` files (dated, per dialogue key) —
+ * the parent of {@link UI_BASELINE_DIR} and of its own `archive/`. The
+ * design-approval guard and `design verdict` both scope "feature `.pen`" to
+ * this prefix, so it lives beside the other naming constants rather than being
+ * re-spelled at each site.
+ */
+export const UI_DESIGN_DIR = 'docs/design/ui';
+
+/**
  * Derive the feature slug from a plan filename.
  *
  * @param filename - The basename, e.g. `2026-04-19-tooltips.md` or

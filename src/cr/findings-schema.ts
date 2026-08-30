@@ -67,6 +67,10 @@ export const laneReasonCodeSchema = z.enum([
   // the design — so an operator branching on `reason` must be able to tell them apart.
   'no-final-pages',
   'ambiguous-design',
+  // Design-approval record states (Q-0196). Distinct because their remedies
+  // differ: take a verdict at all, versus re-take it on the design as it stands.
+  'design-unapproved',
+  'design-approval-stale',
   // Consumer config exists but does not parse. Distinct from `no-consumer-config`
   // (feature unadopted): a broken config is a repo problem, not an opt-out.
   'config-unreadable',

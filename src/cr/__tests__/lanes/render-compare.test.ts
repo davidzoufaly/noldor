@@ -124,6 +124,18 @@ function repo(opts: RepoOpts = {}): { cwd: string; input: LaneInput } {
     writeFileSync(join(cwd, rel), body);
   }
   writeFileSync(join(cwd, 'docs', 'design', 'ui', PEN), 'PEN-BYTES\n');
+  // Matching design-approval record (Q-0196): resolveUiReviewTarget refuses an
+  // unratified design before this lane ever compares anything.
+  mkdirSync(join(cwd, '.noldor', 'design-approval'), { recursive: true });
+  writeFileSync(
+    join(cwd, '.noldor', 'design-approval', PEN.replace(/\.pen$/, '.json')),
+    JSON.stringify({
+      outcome: 'approved',
+      at: '2026-08-30T00:00:00.000Z',
+      penBlob: git(cwd, ['hash-object', join('docs', 'design', 'ui', PEN)]),
+      surfaces: ['app'],
+    }),
+  );
   git(cwd, ['add', '-A']);
   git(cwd, ['commit', '-qm', 'feature']);
 

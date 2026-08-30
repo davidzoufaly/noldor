@@ -11,16 +11,14 @@
 // the freshly written receipt while leaving the regenerated `.pen` out of the
 // commit, and the surface would read `fresh` over a baseline HEAD never got.
 
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 
-import { dirname } from 'node:path';
+import { blobIdOfWorktreeFile, parseReceiptWith } from '../core/blob-id.js';
+import { readReceiptFile, receiptFilePath, writeReceiptFile } from '../core/receipt-store.js';
 
-import { atomicWriteFileSync } from '../core/atomic-write.js';
-import { errMessage } from '../core/err-message.js';
-import { parseSlug } from '../core/slug.js';
-import { slugPath, pathErrorMessage } from '../core/slug-paths.js';
+// Re-exported from `core/blob-id.ts` (its home since Q-0196 lifted it for the
+// design-approval record) so this module's existing consumers keep their import.
+export { blobIdOfWorktreeFile };
 
 /** Directory holding the per-surface receipts, relative to the repo root. */
 export const RECEIPT_DIR_SEGMENTS = ['.noldor', 'ui-capture'] as const;
@@ -58,33 +56,12 @@ export function receiptPath(
   repoRoot: string,
   surface: string,
 ): { ok: true; path: string } | { ok: false; message: string } {
-  const parsed = parseSlug(surface);
-  if (!parsed.ok) return { ok: false, message: parsed.error.message };
-  const built = slugPath(repoRoot, [...RECEIPT_DIR_SEGMENTS], parsed.slug, { suffix: '.json' });
-  return built.ok
-    ? { ok: true, path: built.path }
-    : { ok: false, message: pathErrorMessage(built.error) };
+  return receiptFilePath(repoRoot, RECEIPT_DIR_SEGMENTS, surface);
 }
 
 /** Path of a surface's receipt relative to the repo root, for `git log` pathspecs. */
 export function receiptRelPath(surface: string): string {
   return `${RECEIPT_DIR_SEGMENTS.join('/')}/${surface}.json`;
-}
-
-/**
- * Git's object id for the file at `relPath`, as git would store it — filters and
- * eol conversion applied, because `--path` makes `hash-object` honour the same
- * attributes the index does. `null` when git cannot answer.
- */
-export function blobIdOfWorktreeFile(repoRoot: string, relPath: string): string | null {
-  try {
-    return execFileSync('git', ['hash-object', '--path', relPath, '--', relPath], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-    }).trim();
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -96,13 +73,7 @@ export function blobIdOfWorktreeFile(repoRoot: string, relPath: string): string 
  * HEAD probe, not by this function.
  */
 export function readReceipt(repoRoot: string, surface: string): UiCaptureReceipt | null {
-  const path = receiptPath(repoRoot, surface);
-  if (!path.ok) return null;
-  try {
-    return parseReceiptBytes(readFileSync(path.path));
-  } catch {
-    return null;
-  }
+  return readReceiptFile(repoRoot, RECEIPT_DIR_SEGMENTS, surface, parseReceiptBytes);
 }
 
 /**
@@ -116,12 +87,7 @@ export function readReceipt(repoRoot: string, surface: string): UiCaptureReceipt
  * a schema mismatch.
  */
 export function parseReceiptBytes(bytes: Buffer | string): UiCaptureReceipt | null {
-  try {
-    const parsed = uiCaptureReceiptSchema.safeParse(JSON.parse(bytes.toString()));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
+  return parseReceiptWith((value) => uiCaptureReceiptSchema.safeParse(value), bytes);
 }
 
 /**
@@ -136,19 +102,8 @@ export function writeReceipt(
   surface: string,
   receipt: UiCaptureReceipt,
 ): { ok: true; path: string } | { ok: false; message: string } {
-  const path = receiptPath(repoRoot, surface);
-  if (!path.ok) return path;
-  try {
-    // The atomic write puts its temp file beside the target, so the directory
-    // has to exist first — on a repo capturing its first surface it does not.
-    mkdirSync(dirname(path.path), { recursive: true });
-    atomicWriteFileSync(path.path, `${JSON.stringify(receipt, null, 2)}\n`);
-  } catch (err) {
-    // The filesystem is the boundary this function owns, and it advertises a
-    // result type: letting EACCES or ENOSPC escape would abort a whole
-    // multi-surface capture on one unwritable receipt instead of recording that
-    // surface as failed and continuing with the rest.
-    return { ok: false, message: `could not write ${path.path}: ${errMessage(err)}` };
-  }
-  return { ok: true, path: path.path };
+  // Result rather than throw: letting EACCES or ENOSPC escape would abort a
+  // whole multi-surface capture on one unwritable receipt instead of recording
+  // that surface as failed and continuing with the rest.
+  return writeReceiptFile(repoRoot, RECEIPT_DIR_SEGMENTS, surface, receipt);
 }
