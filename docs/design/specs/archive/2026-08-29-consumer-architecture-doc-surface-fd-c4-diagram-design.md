@@ -420,7 +420,7 @@ which without reconstructing it from `links.code`.
    hand-maintained checklist that happens to include `structuralContextStubs` and to omit
    `architectureAdvisories`. `fdDiagramStubs` will land in the same hole. That is a
    contradiction between two steps of one skill, not a surface this feature should build,
-   so it ships as sibling entry Q-0197.
+   so it ships as sibling entry Q-0198.
 
 4. *What prose floor beside the fence?*
    -> **24 non-whitespace characters, as its own `MIN_FD_DIAGRAM_PROSE_CHARS`.** (D9)

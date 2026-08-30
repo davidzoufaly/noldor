@@ -128,7 +128,7 @@ The architecture module advisory fires on `src/graphify-out` — a gitignored ge
 
 ### Garden Skill Checklist Enumerates a Fixed Section List
 
-- id: Q-0197
+- id: Q-0198
 - area: tooling
 - type: fix
 - since: 2026-08-29
