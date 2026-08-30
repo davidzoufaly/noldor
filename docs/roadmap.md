@@ -29,21 +29,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 `pnpm noldor sync code-links` is repo-wide with no scope flag, so running it inside a feature worktree to populate one FD's links also rewrites every other FD the tag scan touches. On the liquid-glass-ui ship it reordered `coordinate-frame-and-measurement-tools.md` and added six entries to it, pulling unrelated FD churn into a feature PR that had to be reverted by hand. The gap is in `parseRunOptions()` (`src/sync/projection.ts`), which parses only `--check`, `--force` and `--quiet` — so all four projection runners (`code-links`, `test-links`, `doc-links`, `spec-links`) share it. Add `--slug <slug>` (repeatable, or comma-separated) that restricts the write set to the named FDs while still scanning the repo for their tags, since the tags themselves live outside the FD. Deletion test: a `sync code-links --slug <x>` run leaves every FD but `<x>` byte-identical. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
 
-### Enforceable Design-Approval Signal
-
-- id: Q-0196
-- area: tooling
-- type: feat
-- since: 2026-08-28
-- size: M
-- impact: med
-- confidence: low
-- split-from: Q-0186
-- recovered: 2026-08-28
-- parent: pendev-ui-design-phase
-
-Q-0186 shipped the operator verdict as `/noldor-spec` step 1.5 prose — the design is opened by path, its `FINAL:` pages are walked, an atomic approve/revise is taken, and an approval sentence lands in the spec's `## Design`. What it deliberately did not ship is the entry's own deletion test: "a UI-bearing session **cannot** reach the code stage without a recorded design verdict". The verdict is chat-only, so nothing on disk distinguishes an approved design from an unapproved one and no gate can read it; the shipped spec states that reduction outright rather than implying a gate. The open question is whether an enforceable signal is worth its cost, and what it should be — the rejected candidates were a `<stem>.approval.json` sidecar beside the `.pen` (a new artifact kind for `resolveArchivePlan` and garden to learn), a `Noldor-Design-Approved` commit trailer (lives in history rather than beside the archived artifact, and re-earns on every amend), and an FD frontmatter field (the FD never travels into `archive/`). Any of them would let a `checks design-approval` job join the pre-push chain. Weigh that against the framework's advisory-with-teeth posture and against the fact that the realistic cost of a skipped verdict is one wasted implementation pass. Deletion test: a UI-bearing session with no recorded verdict is refused by a gate rather than merely un-asked. (carved from Q-0186 at ship, 2026-08-28)
-
 ### Milestone-Queue Linking
 
 - id: Q-0083
