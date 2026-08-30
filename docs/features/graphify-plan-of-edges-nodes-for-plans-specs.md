@@ -25,8 +25,8 @@ packages:
 phase: done
 noldor-tier: specs-only
 introduced: 0.4.0
+updated: 1.6.0
 ---
-
 ## Summary
 
 Extend graphify to emit nodes for `docs/design/plans/*.md` and `docs/design/specs/*.md`, plus `plan-of` / `spec-of` relations linking them to owning FD nodes. Today's graph tracks `imports` / `imports_from` between source files only; plans/specs aren't represented. Once available, enables `src/garden/garden-detect.ts:detectStalePlans` graph-adjacency fallback (originally fallback B from release-sweep-process-hardening; deferred from that FD when audit confirmed the graph schema didn't support it).
@@ -94,6 +94,16 @@ returns one `StructuralContextStub` per unfilled artifact.
 <!-- @prs-since-last-release: graphify-plan-of-edges-nodes-for-plans-specs -->
 
 ## Changelog
+
+### 1.6.0
+
+#### Summary
+
+This release lifts the mtime walker to repo-paths beside `scanRoots` (#398).
+
+#### PRs
+
+- #398: lift the mtime walker to repo-paths beside scanRoots ([link](https://github.com/davidzoufaly/noldor/pull/398))
 
 ### Initial Release (v0.4.0)
 

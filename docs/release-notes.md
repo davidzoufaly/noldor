@@ -1,5 +1,51 @@
 # Release Notes
 
+## v1.6.0 — 2026-08-30
+
+### Tooling
+
+#### Architecture Invariants *(updated)*
+
+This release asserts the toolchain floor and adds five scoped platform rules (#388).
+
+[Feature page](/features/architecture-invariants)
+
+#### Consumer Architecture Doc Surface *(updated)*
+
+Every scaffolded FD now carries a C4 diagram (#405), and the architecture registry carries section sets (#400).
+
+[Feature page](/features/consumer-architecture-doc-surface)
+
+#### Graphify `plan-of` edges + nodes for plans/specs *(updated)*
+
+This release lifts the mtime walker to repo-paths beside `scanRoots` (#398).
+
+[Feature page](/features/graphify-plan-of-edges-nodes-for-plans-specs)
+
+#### pen.dev UI Design Phase *(updated)*
+
+This release rests UI baseline freshness on a capture receipt (#401), takes an operator verdict on the `.pen` before implementation (#399), and enforces the design-approval signal at commit and review time (#406).
+
+[Feature page](/features/pendev-ui-design-phase)
+
+#### UI-Design Review Lane *(updated)*
+
+This release adds the normalized geometry document contract (#383).
+
+[Feature page](/features/ui-design-review-lane)
+
+#### Unvalidated Slug Path Traversal Across CLI Entry Points
+
+This release hardens slug handling: `fix: guard slug-derived paths in the worktree family (#397)` adds guards for slug-derived paths across the worktree family.
+
+[Feature page](/features/unvalidated-slug-path-traversal-across-cli-entry-points)
+
+#### Validate Script-Catalog Gate *(updated)*
+
+The catalog diff now joins on the leaf command as well as the source (#379).
+
+[Feature page](/features/validate-script-catalog-gate)
+
 ## v1.5.0 — 2026-08-23
 
 ### Tooling

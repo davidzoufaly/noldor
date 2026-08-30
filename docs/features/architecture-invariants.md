@@ -26,10 +26,9 @@ links:
     - src/garden/__tests__/garden-detect.test.ts
     - src/invariants/__tests__/toolchain-floor.test.ts
 introduced: 0.1.0
-updated: 0.3.0
+updated: 1.6.0
 noldor-tier: full
 ---
-
 ## Summary
 
 Four architecture invariants enforced at pre-commit, with advisory mirror in `/noldor-garden`:
@@ -87,6 +86,16 @@ Adding a new invariant:
 <!-- /generated: resources -->
 
 ## Changelog
+
+### 1.6.0
+
+#### Summary
+
+This release asserts the toolchain floor and adds five scoped platform rules (#388).
+
+#### PRs
+
+- #388: assert the toolchain floor and add five scoped platform rules ([link](https://github.com/davidzoufaly/noldor/pull/388))
 
 - keyboard-binding invariant retired (Charuy-only UI concern; registry is rule-conflicts + public-api-tsdoc + boundaries) — see self-boundaries-declaration-and-cycle-break.
 

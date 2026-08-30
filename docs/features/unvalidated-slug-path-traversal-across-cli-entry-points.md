@@ -31,8 +31,8 @@ packages:
 phase: done
 since: 2026-08-12T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.6.0
 ---
-
 ## Summary
 
 Three command families build filesystem paths from an unchecked positional argument, giving a local path-traversal read/write primitive in commands that automated gate flows invoke routinely. `src/core/slug.ts` already states that every external path-building entry point must use the canonical validator; these call sites do not. Validate at the start of each exported library function — not only in argv parsing — before any `exists`, read, process launch, kill, or git call, and return the same invalid-slug diagnostic worktree creation already uses. Then audit every other CLI that forms a path from argv, so the fix is not a three-call-site patch around a shared policy failure. Subprocess tests: slash, dot-dot, leading/trailing/doubled hyphens, uppercase, Unicode — assert no read or write spy fires and an outside sentinel file stays byte-identical.
@@ -80,6 +80,16 @@ Path-building functions take `Slug`, not `string`, so passing raw argv text to o
 <!-- @prs-since-last-release: unvalidated-slug-path-traversal-across-cli-entry-points -->
 
 ## Changelog
+
+### Initial Release (v1.6.0)
+
+#### Summary
+
+This release hardens slug handling: `fix: guard slug-derived paths in the worktree family (#397)` adds guards for slug-derived paths across the worktree family.
+
+#### PRs
+
+- #397: guard slug-derived paths in the worktree family ([link](https://github.com/davidzoufaly/noldor/pull/397))
 
 - 2026-08-28 — shipped under `Noldor-Path-Override` after 8 code-stage CR rounds. Rounds 1–7's security findings are all fixed and probe-verified (a deletion test on every guard); round 8 contradicted round 7 on the same lines — `skipIf(root)` was demanded by round 7 citing the dashboard-data house pattern, then flagged by round 8; the chmod fixture was reviewed clean in round 7, then flagged in round 8. Residual round-8 items deliberately deferred, all pre-existing-behaviour or platform-policy questions rather than regressions of this change: `--` terminator support in the phase CLIs' first-non-flag parsers (pre-existing parser shape), `--slug` consuming a following flag as its value in `aggregate-cli` (pre-existing shape), win32 policy for `O_NOFOLLOW`-guarded reads (needs a repo-wide platform decision), the dangling-intermediate-symlink residue already documented in the spec's stated-limits section, and `resolveMilestone` re-encoding the milestones `relRoot` that `milestonePath` single-sources (cosmetic duplication, both call the same guard).
 

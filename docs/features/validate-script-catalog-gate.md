@@ -16,8 +16,8 @@ phase: done
 since: 2026-07-13T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.0.0
+updated: 1.6.0
 ---
-
 ## Summary
 
 Deep-audit finding (batch `.noldor/research/2026-07-13-184850`): gated docs stay true, ungated docs rot — `validate skill-catalog` keeps the skill catalog perfectly 1:1, while `docs/noldor/script-catalog.md` (self-declared canonical) is missing ~20 live subcommands and its promised `validate:script-catalog` gate was never implemented (the page falsely claims a backlog entry exists). Ship the `validate:script-catalog` pre-commit gate mirroring the skill-catalog one, do the one-time catch-up of the missing subcommands, fix the template twin, and resolve the detector-count contradiction (script-catalog says 19, garden-and-drift says 20, code has more).
@@ -47,6 +47,16 @@ As a Noldor maintainer (human or agent), I want a pre-commit gate that fails whe
 <!-- @prs-since-last-release: validate-script-catalog-gate -->
 
 ## Changelog
+
+### 1.6.0
+
+#### Summary
+
+The catalog diff now joins on the leaf command as well as the source (#379).
+
+#### PRs
+
+- #379: join the catalog diff on the leaf command as well as the source ([link](https://github.com/davidzoufaly/noldor/pull/379))
 
 <!-- generated: resources -->
 

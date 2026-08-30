@@ -48,9 +48,8 @@ phase: done
 since: 2026-08-19T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0
-updated: 1.5.0
+updated: 1.6.0
 ---
-
 ## Summary
 
 Second slice of Q-0144 (pen.dev UI Design Phase, shipped in PR #342): a code-stage CR lane, `ui-reviewer`, that checks the implemented UI against the feature's committed `.pen` design. It mirrors the `reviewer` lane's dispatch shape — the lane resolves the `.pen` path and the affected surfaces, and the dispatched child opens the design itself through pencil MCP (Node cannot read an encrypted `.pen`), compares it against the diff, and returns a verdict the lane writes into a standard lane sink beside the codex and verifier lanes. Fires on the same `consumer.uiPaths` predicate the design stage uses, recomputed from the real diff; non-UI and waived sessions get an explicit `not-applicable` sink, and a session whose design cannot be read gets `cannot-review` rather than a green. Advisory by default, blocking behind one config knob. Mechanical render-compare (screenshot diff against a running app) ships as the sibling `render-compare` lane — the Q-0146 enhancement described under Usage.
@@ -134,6 +133,16 @@ Exit 0 within budget, 1 on drift, 2 when a document could not be read or parsed,
 <!-- @prs-since-last-release: ui-design-review-lane -->
 
 ## Changelog
+
+### 1.6.0
+
+#### Summary
+
+This release adds the normalized geometry document contract (#383).
+
+#### PRs
+
+- #383: add the normalized geometry document contract ([link](https://github.com/davidzoufaly/noldor/pull/383))
 
 ### 1.5.0
 

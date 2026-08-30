@@ -1,5 +1,54 @@
 # Changelog
 
+## v1.6.0 — 2026-08-30
+
+### Features
+
+- feat(design): enforce the design-approval signal at commit and review time (#406) ([365ab39](https://github.com/davidzoufaly/noldor/commit/365ab391f66a9d15505813b4422e7055340a2cdc)) ([#406](https://github.com/davidzoufaly/noldor/pull/406))
+- feat(docs:consumer-architecture-doc-surface): carry a C4 diagram in every scaffolded FD (#405) ([c601952](https://github.com/davidzoufaly/noldor/commit/c6019528800a85d15ac9bcf8ab51c6df96c2da47)) ([#405](https://github.com/davidzoufaly/noldor/pull/405))
+- feat(features:pendev-ui-design-phase): rest UI baseline freshness on a capture receipt (#401) ([4d506ad](https://github.com/davidzoufaly/noldor/commit/4d506ad1553ba058829404a0e1bd93a111127b78)) ([#401](https://github.com/davidzoufaly/noldor/pull/401))
+- feat(docs:consumer-architecture-doc-surface): carry section sets in the architecture registry (#400) ([c6c09f8](https://github.com/davidzoufaly/noldor/commit/c6c09f8d9a3ebf19a37a56481b6bb8a0514c98d2)) ([#400](https://github.com/davidzoufaly/noldor/pull/400))
+- feat(features:pendev-ui-design-phase): take an operator verdict on the .pen before implementation (#399) ([a54c9f1](https://github.com/davidzoufaly/noldor/commit/a54c9f1560cfd695cb1fc778e88187b6557b197c)) ([#399](https://github.com/davidzoufaly/noldor/pull/399))
+- feat(invariants): assert the toolchain floor and add five scoped platform rules (#388) ([e655cb5](https://github.com/davidzoufaly/noldor/commit/e655cb5481b9b871daa087a9fa590fa1f2a205c9)) ([#388](https://github.com/davidzoufaly/noldor/pull/388))
+- feat(cr): add the normalized geometry document contract (#383) ([5a1b323](https://github.com/davidzoufaly/noldor/commit/5a1b323e19405457534e7056232390cfb6c7594f)) ([#383](https://github.com/davidzoufaly/noldor/pull/383))
+- feat(doctor): probe lockfile-vs-installed-modules freshness (#378) ([cff59e0](https://github.com/davidzoufaly/noldor/commit/cff59e00a6e2f68fefda4988d67b70cac1b54974)) ([#378](https://github.com/davidzoufaly/noldor/pull/378))
+
+### Fixes
+
+- fix(skills): correct the UI-design step's pencil seed and screenshot recipes (#404) ([539ac04](https://github.com/davidzoufaly/noldor/commit/539ac04f2b20dc855c3c4e98a86c10d99693cb1e)) ([#404](https://github.com/davidzoufaly/noldor/pull/404))
+- fix(docs): scope the attach-path UI verdict to the session's own Touches (#403) ([a0768ce](https://github.com/davidzoufaly/noldor/commit/a0768ce1f4fe43cc6eb8d3f8143d9bbfc926a034)) ([#403](https://github.com/davidzoufaly/noldor/pull/403))
+- fix(release): carve indeterminate out of skipped in UI freshness (#402) ([2cfdb16](https://github.com/davidzoufaly/noldor/commit/2cfdb160afa8feef7abdc0f78405bbff8f1f1e07)) ([#402](https://github.com/davidzoufaly/noldor/pull/402))
+- fix(worktrees): guard slug-derived paths in the worktree family (#397) ([366cb50](https://github.com/davidzoufaly/noldor/commit/366cb50aeba7c075c18db3ff6d9c02c1513be48f)) ([#397](https://github.com/davidzoufaly/noldor/pull/397))
+- fix(tooling): repoint every FD links pointer the archive seam moves (#396) ([b4c8396](https://github.com/davidzoufaly/noldor/commit/b4c8396f2734170d31d921187e92687dabf4267f)) ([#396](https://github.com/davidzoufaly/noldor/pull/396))
+- fix(tooling): guard .pen writes against the wrong open canvas (#395) ([11875c0](https://github.com/davidzoufaly/noldor/commit/11875c070ab810a154134ca3298b113f53a80d10)) ([#395](https://github.com/davidzoufaly/noldor/pull/395))
+- fix(tooling): replay the real pre-push hook in the gate's push preflight (#386) ([663c0bb](https://github.com/davidzoufaly/noldor/commit/663c0bb420d0cac0a2ca213608b47c53927ade62)) ([#386](https://github.com/davidzoufaly/noldor/pull/386))
+- fix(release): union both no-review lanes in the CR gate's file fallback (#385) ([4959984](https://github.com/davidzoufaly/noldor/commit/4959984ac6a6dbc38e9db8c391144d279b5136e1)) ([#385](https://github.com/davidzoufaly/noldor/pull/385))
+- fix(split-check): cut plan-part splits along capability, not the task list (#384) ([17c0ff3](https://github.com/davidzoufaly/noldor/commit/17c0ff3f87eecf996b548da9ef1b102bf21f771a)) ([#384](https://github.com/davidzoufaly/noldor/pull/384))
+- fix(design): wake the pencil bridge instead of waiving the UI-design step (#382) ([4262832](https://github.com/davidzoufaly/noldor/commit/426283264b94cab6eda11bdc87bb84c8ed38b388)) ([#382](https://github.com/davidzoufaly/noldor/pull/382))
+- fix(cr): repair a malformed verify verdict before fail-closing on it (#381) ([948ea8c](https://github.com/davidzoufaly/noldor/commit/948ea8c82b15af9b4d146f18c7f954da0c874df1)) ([#381](https://github.com/davidzoufaly/noldor/pull/381))
+- fix(garden): exempt phase: later from the stale-backlog SDD gap (#380) ([d9986c1](https://github.com/davidzoufaly/noldor/commit/d9986c1aa2260152518c7c9fd98d9592e069522b)) ([#380](https://github.com/davidzoufaly/noldor/pull/380))
+- fix(cli:validate-script-catalog-gate): join the catalog diff on the leaf command as well as the source (#379) ([41322cb](https://github.com/davidzoufaly/noldor/commit/41322cb33184f0122660920cdb2f1d0f4d36bad1)) ([#379](https://github.com/davidzoufaly/noldor/pull/379))
+- fix(core): admit triage bookkeeping counters to the micro-chore lane (#377) ([44ecd76](https://github.com/davidzoufaly/noldor/commit/44ecd76a0b6886d486c7f265ff6a288e4d759b83)) ([#377](https://github.com/davidzoufaly/noldor/pull/377))
+- fix(cli): diagnose framework skew when a hook names a removed subcommand (#376) ([bee30b2](https://github.com/davidzoufaly/noldor/commit/bee30b2f941ec44dd3d9c7ed99d1e02ee83ce7ef)) ([#376](https://github.com/davidzoufaly/noldor/pull/376))
+- fix(triage): floor the mint counter at the live corpus max (#375) ([1f10a8b](https://github.com/davidzoufaly/noldor/commit/1f10a8b3798a85bfa7697193b678e88ea6800908)) ([#375](https://github.com/davidzoufaly/noldor/pull/375))
+- fix(autonomous): reject --only on a parked slug instead of shipping nothing (#374) ([78e6c8f](https://github.com/davidzoufaly/noldor/commit/78e6c8f0dd1eef8338ff1dc1f550b162f6f0897e)) ([#374](https://github.com/davidzoufaly/noldor/pull/374))
+- fix(autonomous): spare live worktrees from the drain's shipped-worktree prune (#373) ([7e362e3](https://github.com/davidzoufaly/noldor/commit/7e362e3c9feab5feb6ed932d3f086a385963a572)) ([#373](https://github.com/davidzoufaly/noldor/pull/373))
+- fix(autonomous): derive drain finish-vs-rebuild from the branch, not an absent flag (#372) ([2fab4ec](https://github.com/davidzoufaly/noldor/commit/2fab4ec24f01d1605b1ad975b933874e46dc26c3)) ([#372](https://github.com/davidzoufaly/noldor/pull/372))
+
+### Other changes
+
+- chore(release): pre-release graphify sweep and sdd-report regen (#408) ([d7c5cbc](https://github.com/davidzoufaly/noldor/commit/d7c5cbc5d8ae6baff6fcbe83bcf95a17b1d246e5)) ([#408](https://github.com/davidzoufaly/noldor/pull/408))
+- chore(clones): rebaseline the ratchet at 28844 and capture the facade false-positive (#407) ([61d74d3](https://github.com/davidzoufaly/noldor/commit/61d74d39fd5e305161f018c9c020365e32402419)) ([#407](https://github.com/davidzoufaly/noldor/pull/407))
+- refactor(noldor): lift the mtime walker to repo-paths beside scanRoots (#398) ([f311816](https://github.com/davidzoufaly/noldor/commit/f311816a5eec692189a466a00860e2005117fe34)) ([#398](https://github.com/davidzoufaly/noldor/pull/398))
+- docs(triage): correct Q-0195's rationale and drop it down the queue (#394) ([759e219](https://github.com/davidzoufaly/noldor/commit/759e2195474828c0988e4d8ed4917fef99c3ddec)) ([#394](https://github.com/davidzoufaly/noldor/pull/394))
+- docs(triage): carve the CR lane-injection debt and retire its predecessor (#393) ([2ec109a](https://github.com/davidzoufaly/noldor/commit/2ec109aad28d4287e4de163298a5b95e2c4c6f2f)) ([#393](https://github.com/davidzoufaly/noldor/pull/393))
+- test(dashboard): repay the four tests that survive a gutted implementation (#392) ([a627777](https://github.com/davidzoufaly/noldor/commit/a627777b6508ebdbe35447e14994486b9d721fd4)) ([#392](https://github.com/davidzoufaly/noldor/pull/392))
+- docs(rules): make the Deletion Test and mocking boundaries binding (#391) ([f670165](https://github.com/davidzoufaly/noldor/commit/f6701652ec522935d33909347774b7c097ca5c11)) ([#391](https://github.com/davidzoufaly/noldor/pull/391))
+- refactor(tooling): extract a shared tsconfig base and split the typecheck config (#390) ([4923dbf](https://github.com/davidzoufaly/noldor/commit/4923dbf694ac86822dc239d6a3a79d4cfb1b8dd1)) ([#390](https://github.com/davidzoufaly/noldor/pull/390))
+- docs(triage): reprioritize the queue and prune absorbed lessons (#389) ([251afb6](https://github.com/davidzoufaly/noldor/commit/251afb6d54e6fdbdf79713f40c8a0a4636996466)) ([#389](https://github.com/davidzoufaly/noldor/pull/389))
+- docs(noldor): triage 17 ideas and absorb 6 lessons (#387) ([ed618dd](https://github.com/davidzoufaly/noldor/commit/ed618dd3950b21c502c660f392b81fa3fcb183bb)) ([#387](https://github.com/davidzoufaly/noldor/pull/387))
+- chore(bookkeeping): absorb lessons + triage two ideas onto the roadmap (#371) ([cf81b10](https://github.com/davidzoufaly/noldor/commit/cf81b101bc9482a6031f3b3613a0defec44d13ae)) ([#371](https://github.com/davidzoufaly/noldor/pull/371))
+
 ## v1.5.0 — 2026-08-23
 
 ### Features
