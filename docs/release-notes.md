@@ -2,6 +2,10 @@
 
 ## v1.6.0 — 2026-08-30
 
+### Breaking
+
+**Noldor now requires Node 24.** The framework's own rules mandate `RegExp.escape`, a Node 24+ built-in, and it runs at module load — so on Node 20 or 22 the CLI threw `TypeError: RegExp.escape is not a function` even though `engines.node` advertised `>=20`. The declared floor now matches reality (#409). Upgrade Node before taking this release; below the floor the CLI refuses to start with a named message instead of failing partway through a command.
+
 ### Tooling
 
 #### Architecture Invariants *(updated)*

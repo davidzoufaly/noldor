@@ -2,6 +2,10 @@
 
 ## v1.6.0 — 2026-08-30
 
+### BREAKING CHANGES
+
+- **The supported runtime floor moves from Node 20 to Node 24** (#409). `RegExp.escape` — a Node 24+ built-in the `platform-over-dependency` rule mandates — is evaluated at module top level, so the package threw `TypeError: RegExp.escape is not a function` on Node 20 and 22 while `engines.node` still advertised `>=20`. `engines.node` now declares `>=24` and every CI job runs it. Consumers on Node 20 or 22 must upgrade Node; `bin/engines-check.mjs` refuses to start with a named message rather than failing mid-command.
+
 ### Features
 
 - feat(design): enforce the design-approval signal at commit and review time (#406) ([365ab39](https://github.com/davidzoufaly/noldor/commit/365ab391f66a9d15505813b4422e7055340a2cdc)) ([#406](https://github.com/davidzoufaly/noldor/pull/406))
@@ -15,6 +19,7 @@
 
 ### Fixes
 
+- fix(release)!: raise the runtime floor to Node 24 to match the APIs the rules mandate (#409) ([9a5cd14](https://github.com/davidzoufaly/noldor/commit/9a5cd14)) ([#409](https://github.com/davidzoufaly/noldor/pull/409))
 - fix(skills): correct the UI-design step's pencil seed and screenshot recipes (#404) ([539ac04](https://github.com/davidzoufaly/noldor/commit/539ac04f2b20dc855c3c4e98a86c10d99693cb1e)) ([#404](https://github.com/davidzoufaly/noldor/pull/404))
 - fix(docs): scope the attach-path UI verdict to the session's own Touches (#403) ([a0768ce](https://github.com/davidzoufaly/noldor/commit/a0768ce1f4fe43cc6eb8d3f8143d9bbfc926a034)) ([#403](https://github.com/davidzoufaly/noldor/pull/403))
 - fix(release): carve indeterminate out of skipped in UI freshness (#402) ([2cfdb16](https://github.com/davidzoufaly/noldor/commit/2cfdb160afa8feef7abdc0f78405bbff8f1f1e07)) ([#402](https://github.com/davidzoufaly/noldor/pull/402))
