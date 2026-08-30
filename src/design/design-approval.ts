@@ -13,15 +13,11 @@
 // sharing one key, and a key-addressed record would let the later verdict
 // silently overwrite the earlier archived design's only record.
 
-import { mkdirSync, readFileSync } from 'node:fs';
-import { basename, dirname } from 'node:path';
+import { basename } from 'node:path';
 import { z } from 'zod';
 
-import { atomicWriteFileSync } from '../core/atomic-write.js';
 import { parseReceiptWith } from '../core/blob-id.js';
-import { errMessage } from '../core/err-message.js';
-import { parseSlug } from '../core/slug.js';
-import { slugPath, pathErrorMessage } from '../core/slug-paths.js';
+import { readReceiptFile, receiptFilePath, writeReceiptFile } from '../core/receipt-store.js';
 
 /** Directory holding the per-design records, relative to the repo root. */
 export const APPROVAL_DIR_SEGMENTS = ['.noldor', 'design-approval'] as const;
@@ -69,21 +65,15 @@ export function approvalRelPath(penBasename: string): string {
 
 /**
  * Guarded absolute path of a design's record. The stem is derived from a
- * caller-supplied `--pen` argument, so it is resolved to a {@link Slug} and
- * routed through {@link slugPath} — the repo's containment choke point —
- * before it ever reaches the filesystem (Q-0097 discipline: never build a
- * path from an unvalidated argument).
+ * caller-supplied `--pen` argument, so it goes through the receipt store's
+ * slug containment (Q-0097 discipline: never build a path from an unvalidated
+ * argument).
  */
 export function approvalPath(
   repoRoot: string,
   penBasename: string,
 ): { ok: true; path: string } | { ok: false; message: string } {
-  const parsed = parseSlug(basename(penBasename, '.pen'));
-  if (!parsed.ok) return { ok: false, message: parsed.error.message };
-  const built = slugPath(repoRoot, [...APPROVAL_DIR_SEGMENTS], parsed.slug, { suffix: '.json' });
-  return built.ok
-    ? { ok: true, path: built.path }
-    : { ok: false, message: pathErrorMessage(built.error) };
+  return receiptFilePath(repoRoot, APPROVAL_DIR_SEGMENTS, basename(penBasename, '.pen'));
 }
 
 /**
@@ -102,18 +92,16 @@ export function parseApprovalBytes(bytes: Buffer | string): DesignApprovalRecord
  * every caller degrades a `null` the same way).
  */
 export function readApproval(repoRoot: string, penBasename: string): DesignApprovalRecord | null {
-  const path = approvalPath(repoRoot, penBasename);
-  if (!path.ok) return null;
-  try {
-    return parseApprovalBytes(readFileSync(path.path));
-  } catch {
-    return null;
-  }
+  return readReceiptFile(
+    repoRoot,
+    APPROVAL_DIR_SEGMENTS,
+    basename(penBasename, '.pen'),
+    parseApprovalBytes,
+  );
 }
 
 /**
- * Write a design's record. Atomic (temp + rename) because the pre-commit guard
- * reads the directory a concurrent verdict may be writing. An existing record
+ * Write a design's record (atomic; see the receipt store). An existing record
  * for the same stem is OVERWRITTEN: re-taking the verdict on a revised design
  * is the normal remedy for a stale record, and refuse-if-exists would make
  * that state unrecoverable.
@@ -123,17 +111,5 @@ export function writeApproval(
   penBasename: string,
   record: DesignApprovalRecord,
 ): { ok: true; path: string } | { ok: false; message: string } {
-  const path = approvalPath(repoRoot, penBasename);
-  if (!path.ok) return path;
-  try {
-    // The atomic write puts its temp file beside the target, so the directory
-    // has to exist first — on a repo recording its first verdict it does not.
-    mkdirSync(dirname(path.path), { recursive: true });
-    atomicWriteFileSync(path.path, `${JSON.stringify(record, null, 2)}\n`);
-  } catch (err) {
-    // The filesystem is the boundary this function owns and it advertises a
-    // result type; EACCES/ENOSPC surface as a failed verdict, not a crash.
-    return { ok: false, message: `could not write ${path.path}: ${errMessage(err)}` };
-  }
-  return { ok: true, path: path.path };
+  return writeReceiptFile(repoRoot, APPROVAL_DIR_SEGMENTS, basename(penBasename, '.pen'), record);
 }
