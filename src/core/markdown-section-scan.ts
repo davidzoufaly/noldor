@@ -77,12 +77,13 @@ export interface TaggedLine {
  * born AND die inside its comment. While a comment hides an open fence, only a
  * bare `-->` line can end the comment (a mermaid edge is diagram syntax, and
  * closing on one leaked half the diagram as visible text), so a commented-out
- * block stays hidden whole. When a comment ends while a fence opened inside it
- * is still open, that opener is a phantom — the reader sees no delimiter — so
- * it is demoted to literal text and the pass re-run: the next visible
- * delimiter then OPENS a fence, exactly as a renderer reads it. No repair ever
- * rewrites visible structure, and each round demotes one delimiter line, so it
- * terminates.
+ * block stays hidden whole. Two triggers demote such a phantom opener to
+ * literal text and re-run the pass: the comment ends while the fence is still
+ * open, or the fence is still open at EOF (a close marker riding the closing
+ * fence line, ` \`\`\` --> `, or an unterminated comment whose only `-->` is an
+ * edge). The next visible delimiter then OPENS a fence, exactly as a renderer
+ * reads it. No repair ever rewrites visible structure, and each round demotes
+ * one delimiter line, so it terminates.
  */
 export function tagLines(body: string): TaggedLine[] {
   const lines = body.split('\n');
@@ -96,8 +97,8 @@ export function tagLines(body: string): TaggedLine[] {
 
 /**
  * One tagging pass; `healAt` names a comment-hidden opener whose fence was
- * still open when its comment ended — see {@link tagLines}. When `healAt` is
- * non-null the returned lines may be partial; the caller re-runs.
+ * still open when its comment ended — or at EOF — see {@link tagLines}. When
+ * `healAt` is non-null the returned lines may be partial; the caller re-runs.
  */
 function tagPass(
   lines: readonly string[],
@@ -157,7 +158,12 @@ function tagPass(
 
     out.push({ text, fenced, visible });
   }
-  return { out, healAt: null };
+  // The second heal trigger: a hidden fence still open at EOF. Reachable when
+  // the comment never presents a close the fenced rule accepts — a closing
+  // fence carrying the marker on its own line (` ``` --> `), or an unterminated
+  // comment whose only `-->` is a diagram edge. Demoting the phantom opener
+  // lets the next pass read the close marker on an unfenced line.
+  return { out, healAt: open !== null && open.hidden ? open.at : null };
 
   /** Blank every comment span in an unfenced line, tracking an unclosed opener. */
   function blankSpans(rest: string): string {

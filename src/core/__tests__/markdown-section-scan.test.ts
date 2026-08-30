@@ -231,6 +231,21 @@ describe('comment handling', () => {
     expect(locateSection(body, 2, 'Hidden', null)).toBeNull();
   });
 
+  it('recovers when the close marker rides the closing fence line', () => {
+    // ` ``` --> ` is a routine way to end a commented-out diagram: the fenced
+    // rule accepts no close on that line, so without the EOF heal the comment
+    // ran to EOF and every later section reported as a stub.
+    const body = ['<!--', '```mermaid', 'graph', '``` -->', '## Next', 'prose under Next'].join(
+      '\n',
+    );
+    expect(locateSection(body, 2, 'Next', null)?.scanned).toContain('prose under Next');
+  });
+
+  it('recovers when an unterminated comment holds only an edge arrow', () => {
+    const body = ['<!--', '```mermaid', '  a --> b', '## Next', 'prose under Next'].join('\n');
+    expect(locateSection(body, 2, 'Next', null)?.scanned).toContain('prose under Next');
+  });
+
   it('blanks the tail of a multi-line comment close line, as a renderer does', () => {
     // CommonMark: an HTML block ends at the line CONTAINING `-->`, consuming
     // the whole line — text after the close marker is not rendered.
