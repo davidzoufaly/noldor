@@ -27,7 +27,7 @@ import { loadUiConfig } from '../core/consumer-config.js';
 import { inspectTreeState, type TreeState } from './clean-tree.js';
 import { evaluateGraphFreshness } from './graph-freshness.js';
 import { captureRemediation, evaluateUiDesignFreshness } from './ui-design-freshness.js';
-import type { UiFreshnessVerdict, UiSurfaceFreshness } from './ui-design-freshness.js';
+import type { UiFreshnessVerdict } from './ui-design-freshness.js';
 import { readPkgIdentity } from './release-publish.js';
 import { checkCrGate } from './release-cr-gate.js';
 import { readReleaseState } from './release-state.js';
@@ -108,14 +108,20 @@ function captureSurfaceName(verdict: UiFreshnessVerdict): string | undefined {
 
 const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** Comma-joined surface names carrying `status`, for a freshness detail line. */
-function namesWithStatus(
-  verdict: UiFreshnessVerdict,
-  status: UiSurfaceFreshness['status'],
-): string {
+/**
+ * Every surface the warn row is actually about, each named with its own status.
+ *
+ * Filtering to the OVERALL status instead would re-create, one tier down, the
+ * masking this file's freshness engine exists to prevent: `uninitialized`,
+ * `unverified` and `indeterminate` all render one warn row, so a repo holding
+ * two of them named only the higher-ranked one and the other surface went
+ * unmentioned. `fresh` and `skipped` are excluded because they are the rows
+ * with nothing to report.
+ */
+function warnWorthyNames(verdict: UiFreshnessVerdict): string {
   return verdict.surfaces
-    .filter((s) => s.status === status)
-    .map((s) => s.surface)
+    .filter((s) => s.status !== 'fresh' && s.status !== 'skipped')
+    .map((s) => `${s.surface} (${s.status})`)
     .join(', ');
 }
 
@@ -397,7 +403,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       return {
         id: 'ui-design-freshness',
         status: 'warn',
-        detail: `${verdict.overall} baseline surface(s): ${namesWithStatus(verdict, verdict.overall)}`,
+        detail: `baseline surface(s) needing attention: ${warnWorthyNames(verdict)}`,
         // Derived, not assumed: an `indeterminate` overall can be the
         // synthetic `(unmapped)` row, whose problem is a failed git probe and
         // which carries no `remediation` — telling that operator to declare a
@@ -405,7 +411,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
         // problem entirely. `uninitialized` rows likewise repair via ui-sync,
         // not capture.
         ...(verdict.surfaces.some(
-          (s) => s.status === verdict.overall && s.remediation === 'capture',
+          (s) => s.status !== 'fresh' && s.status !== 'skipped' && s.remediation === 'capture',
         )
           ? { fix: capitalize(captureRemediation(captureSurfaceName(verdict))) }
           : {}),

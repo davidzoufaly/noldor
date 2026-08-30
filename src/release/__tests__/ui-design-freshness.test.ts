@@ -53,7 +53,11 @@ async function commitFiles(repo: Repo, paths: string[], msg: string): Promise<vo
 }
 
 /** Minimal `.noldor/config.json` whose consumer block declares `uiPaths`. */
-async function writeUiConfig(cwd: string, uiPaths: string[]): Promise<void> {
+async function writeUiConfig(
+  cwd: string,
+  uiPaths: string[],
+  uiSurfaces?: Record<string, string[]>,
+): Promise<void> {
   await mkdir(join(cwd, '.noldor'), { recursive: true });
   await writeFile(
     join(cwd, '.noldor/config.json'),
@@ -67,6 +71,7 @@ async function writeUiConfig(cwd: string, uiPaths: string[]): Promise<void> {
         packagePrefix: '@x/',
         appPathPrefix: 'apps/',
         uiPaths,
+        ...(uiSurfaces === undefined ? {} : { uiSurfaces }),
       },
     }),
     'utf8',
@@ -530,6 +535,42 @@ describe('release preflight — ui-design-freshness row', () => {
     expect(row.detail).toContain('app');
     // No remediation on an indeterminate row — nothing to advise re-capturing.
     expect(row.fix).toBeUndefined();
+  });
+
+  it('names every attention-worthy surface, not just the top-ranked one', async () => {
+    // One warn row covers `uninitialized`, `unverified` and `indeterminate`, so
+    // filtering the detail to the OVERALL status re-created the masking this
+    // engine exists to prevent one tier down: the unchecked surface never got
+    // named, and the operator had no reason to look at it.
+    const receipt = async (surface: string): Promise<void> => {
+      const blob = blobIdOfWorktreeFile(cwd, `docs/design/ui/baseline/${surface}.pen`);
+      const abs = join(cwd, receiptRelPath(surface));
+      await mkdir(dirname(abs), { recursive: true });
+      await writeFile(
+        abs,
+        `${JSON.stringify({ capturedAt: '2026-08-29T00:00:00.000Z', baselineBlob: blob, command: 'c' })}\n`,
+        'utf8',
+      );
+      await commitAt(repo, `chore: capture ${surface}`);
+    };
+
+    // `alpha` never gets a baseline at all -> uninitialized (the higher rank).
+    await commit(['src/alpha/x.tsx'], 'feat: alpha');
+    // `beta` gets one, plus a receipt that is then corrupted -> indeterminate.
+    await commit(['src/beta/y.tsx'], 'feat: beta');
+    await commit(['docs/design/ui/baseline/beta.pen'], 'docs: beta baseline');
+    await receipt('beta');
+    await writeFile(join(cwd, receiptRelPath('beta')), 'not json at all', 'utf8');
+    await commitAt(repo, 'chore: corrupt beta receipt');
+    await writeUiConfig(cwd, ['src/alpha/**', 'src/beta/**'], {
+      alpha: ['src/alpha/**'],
+      beta: ['src/beta/**'],
+    });
+
+    const row = await runProbe('ui-design-freshness', ctx());
+    expect(row.status).toBe('warn');
+    expect(row.detail).toContain('alpha (uninitialized)');
+    expect(row.detail).toContain('beta (indeterminate)');
   });
 
   it('still blocks a release on a genuinely stale surface', async () => {

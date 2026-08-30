@@ -109,13 +109,17 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
   let unchecked = 0;
   for (const s of rows) {
     console.log(renderSurfaceReport(s));
-    if (s.status === 'indeterminate') {
-      unchecked += 1;
+    if (s.surface === UNMAPPED_SURFACE) {
+      // Config gap — no baseline file to stage or validate. Checked BEFORE the
+      // status branches so an indeterminate coverage probe keeps counting as
+      // pending: this row is the only signal that uiSurfaces may under-cover
+      // uiPaths, and silently dropping it to exit 0 is what a status carve must
+      // not do to an unrelated gate.
+      pending += 1;
       continue;
     }
-    if (s.surface === UNMAPPED_SURFACE) {
-      // Config gap — no baseline file to stage or validate.
-      pending += 1;
+    if (s.status === 'indeterminate') {
+      unchecked += 1;
       continue;
     }
     if (s.remediation === 'capture') {

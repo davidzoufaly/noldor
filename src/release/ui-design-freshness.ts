@@ -301,18 +301,24 @@ async function legacyFallback(
  * the per-surface statuses. Three tiers, and the boundaries are safety-critical
  * rather than cosmetic:
  *
- * - **Blocking** (`stale`, `uninitialized`) outranks everything else. Were
- *   `unverified` at or above `stale`, a repo with one of each would reduce to
- *   `unverified`, take the non-blocking preflight branch, and stop blocking the
- *   release — the exact regression the legacy fallback below exists to prevent.
- * - **Unknown** (`indeterminate`) sits above every non-blocking status but
- *   below both blocking ones. Above, because a surface whose check could not
- *   run says nothing about whether it is stale, and an unknown reported behind
- *   a known is a false all-clear: with `indeterminate` at `skipped`'s rank one
+ * - **Red-capable** (`stale`, `uninitialized`) outranks everything else: these
+ *   are the two statuses `checks ui-design-freshness` exits non-zero on, and
+ *   `stale` is what blocks release preflight. Were `unverified` at or above
+ *   `stale`, a repo with one of each would reduce to `unverified`, take the
+ *   non-blocking preflight branch, and stop blocking the release — the exact
+ *   regression the legacy fallback below exists to prevent. (Preflight renders
+ *   `uninitialized` as a warn rather than a block; it is up here because of the
+ *   CLI's exit code, and because an unknown must never mask a known defect.)
+ * - **Unknown** (`indeterminate`) sits above every remaining status but below
+ *   both red-capable ones. Above, because a surface whose check could not run
+ *   says nothing about whether it is stale, and an unknown reported behind a
+ *   known is a false all-clear: with `indeterminate` at `skipped`'s rank one
  *   healthy surface masked another whose verdict a failed `merge-base` or
  *   `cat-file` had made uncomputable, and preflight announced "all UI baselines
- *   fresh". Below, because a git failure may never mint a red.
- * - **Known non-blocking** (`unverified`, `fresh`) and finally `skipped` — the
+ *   fresh". Below, because a git failure may never mint a red — and because
+ *   raising it over `uninitialized` would let a git failure reduce a genuine
+ *   exit-1 verdict to an exit-0 one.
+ * - **Known and green-ish** (`unverified`, `fresh`) and finally `skipped` — the
  *   check ran and does not apply (shallow clone, no commit touches the surface,
  *   two commits sharing no ancestry). Nothing is unknown there, so it stays at
  *   the floor where it cannot outrank a real verdict.
@@ -320,6 +326,10 @@ async function legacyFallback(
  * `unverified` below `indeterminate` for the same unknown-over-known reason: it
  * is adoption debt with a named remedy, so the operator can act on it, while an
  * indeterminate row means the check never ran.
+ *
+ * The rank is a reduction order, not the whole report: `overall` names only the
+ * worst row, so preflight's warn detail lists every non-fresh surface rather
+ * than filtering to the winning status.
  */
 const RANK: Record<UiSurfaceFreshness['status'], number> = {
   stale: 5,
