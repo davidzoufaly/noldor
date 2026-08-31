@@ -466,11 +466,11 @@ export const MANIFEST: Record<string, Group> = {
     },
   },
   indirection: {
-    desc: 'Transitive-import-closure indirection measurement',
+    desc: 'Transitive-import-closure indirection ratchet',
     subs: {
       '': {
         src: 'indirection/indirection-cli.ts',
-        desc: 'indirection report [--json]',
+        desc: 'indirection <report|check|baseline> [--json]',
       },
     },
   },
