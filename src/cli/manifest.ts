@@ -465,6 +465,15 @@ export const MANIFEST: Record<string, Group> = {
       },
     },
   },
+  indirection: {
+    desc: 'Transitive-import-closure indirection measurement',
+    subs: {
+      '': {
+        src: 'indirection/indirection-cli.ts',
+        desc: 'indirection report [--json]',
+      },
+    },
+  },
   wait: {
     desc: 'Poll a state file until a predicate matches',
     subs: {
