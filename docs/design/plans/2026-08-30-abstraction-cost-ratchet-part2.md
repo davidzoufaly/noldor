@@ -19,7 +19,7 @@
 - `src/indirection/__tests__/baseline.test.ts` — **create.** Schema round-trip, comparability, drift direction.
 - `src/indirection/__tests__/indirection-cli.test.ts` — **modify.** The full exit-code matrix.
 - `src/cli/manifest.ts`, `docs/noldor/script-catalog.md` — **modify.** Widen both descs from `report` to `<report|check|baseline>`.
-- `.noldor/rules/abstraction-cost.md`, `templates/.noldor/rules/abstraction-cost.md` — **modify.** Name the now-existing `check` command.
+- `.noldor/rules/abstraction-cost.md`, `templates/.noldor/rules/abstraction-cost.md` — **create.** The `enforce` rule and its byte-identical twin; `check-template-sync` holds parity.
 - `lefthook/noldor.yml`, `templates/lefthook/noldor.yml` — **modify.** `noldor-indirection` pre-push job beside `noldor-clones`.
 - `.noldor/indirection-baseline.json` — **create.** Recorded last, once the whole corpus exists.
 - `docs/features/abstraction-cost-ratchet.md` — **modify.** Populate `links.code` / `links.tests`.
@@ -368,13 +368,66 @@
 
 - [ ] **Step 1: Extend the CLI test with the exit-code matrix.**
 
-  Append to `src/indirection/__tests__/indirection-cli.test.ts`, adding `mkdtempSync`, `readFileSync`, `rmSync`, `writeFileSync` to the `node:fs` imports and `tmpdir` from `node:os`:
+  Append to `src/indirection/__tests__/indirection-cli.test.ts`, adding `mkdirSync`, `mkdtempSync`, `readFileSync`, `rmSync`, `writeFileSync` to the `node:fs` imports and `tmpdir` from `node:os`:
   ```ts
   const withTree = async (fn: (dir: string) => Promise<void>): Promise<void> => {
     const dir = mkdtempSync(join(tmpdir(), 'indirection-cli-'));
     try {
       writeFileSync(join(dir, 'a.ts'), "import { b } from './b.js';\nexport const a = b;\n");
       writeFileSync(join(dir, 'b.ts'), 'export const b = 1;\n');
+      // scanRoots -> loadConsumerConfig THROWS without this file; a bare
+      // mkdtemp dir makes every runIndirection call reject rather than return.
+      mkdirSync(join(dir, '.noldor'), { recursive: true });
+      writeFileSync(
+        join(dir, '.noldor', 'config.json'),
+        JSON.stringify({
+          consumer: {
+            name: 'fixture',
+            repoUrl: 'https://example.invalid/fixture',
+            lockstepPackages: ['package.json'],
+            scanPaths: ['.'],
+            e2ePrefix: 'fixture',
+            samplesPath: 'samples',
+            packagePrefix: '@fixture/',
+            appPathPrefix: 'apps/',
+          },
+        }),
+      );
+      await fn(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  /** A tree deep enough to carry excess at threshold 30: 32 chained modules. */
+  const withDeepTree = async (fn: (dir: string) => Promise<void>): Promise<void> => {
+    const dir = mkdtempSync(join(tmpdir(), 'indirection-deep-'));
+    try {
+      for (let i = 0; i < 32; i++) {
+        const next = i === 31 ? null : `./m${i + 1}.js`;
+        writeFileSync(
+          join(dir, `m${i}.ts`),
+          next === null
+            ? `export const m${i} = ${i};\n`
+            : `import { m${i + 1} } from '${next}';\nexport const m${i} = m${i + 1};\n`,
+        );
+      }
+      mkdirSync(join(dir, '.noldor'), { recursive: true });
+      writeFileSync(
+        join(dir, '.noldor', 'config.json'),
+        JSON.stringify({
+          consumer: {
+            name: 'fixture',
+            repoUrl: 'https://example.invalid/fixture',
+            lockstepPackages: ['package.json'],
+            scanPaths: ['.'],
+            e2ePrefix: 'fixture',
+            samplesPath: 'samples',
+            packagePrefix: '@fixture/',
+            appPathPrefix: 'apps/',
+          },
+        }),
+      );
       await fn(dir);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -392,14 +445,26 @@
       });
     });
 
-    it('check exits 0 unchanged, 1 once the recorded number is lowered', async () => {
+    it('check exits 0 when unchanged', async () => {
       await withTree(async (dir) => {
         expect(await runIndirection(['baseline'], dir)).toBe(0);
         expect(await runIndirection(['check'], dir)).toBe(0);
+      });
+    });
+
+    it('check exits 1 when the measured excess exceeds the recorded one', async () => {
+      // Needs a corpus that actually carries excess at threshold 30, so the
+      // fixture is a 32-deep chain rather than the 2-file tree above.
+      await withDeepTree(async (dir) => {
+        expect(await runIndirection(['baseline'], dir)).toBe(0);
+        expect(await runIndirection(['check'], dir)).toBe(0);
         const rec = JSON.parse(readFileSync(baselinePath(dir), 'utf8')) as { excessSum: number };
-        writeFileSync(baselinePath(dir), JSON.stringify({ ...rec, excessSum: 0 }));
-        // the fixture's own excess is 0, so force a rise by pinning a negative floor
-        expect([0, 1]).toContain(await runIndirection(['check'], dir));
+        expect(rec.excessSum).toBeGreaterThan(0);
+        // Lower the recorded number, same knobs — the next check must red.
+        writeFileSync(baselinePath(dir), JSON.stringify({ ...rec, excessSum: rec.excessSum - 1 }));
+        const { code, out } = await capture(() => runIndirection(['check'], dir));
+        expect(code).toBe(1);
+        expect(out).toBe(''); // a red goes to stderr, not stdout
       });
     });
 
@@ -641,26 +706,12 @@ Part 1 deliberately advertised `report` only, because that is all it accepted. B
 
   In `docs/noldor/script-catalog.md`, change the `pnpm noldor indirection` row's description to `` `indirection <report\|check\|baseline>` transitive-closure indirection ratchet (`--json`). ``
 
-- [ ] **Step 3: Name the mechanical counterpart in the rule.**
-
-  Append to the body of `.noldor/rules/abstraction-cost.md`:
-  ```markdown
-
-  The mechanical counterpart is `pnpm noldor indirection check`, which ratchets the total
-  transitive-import-closure excess across the corpus. This rule covers what the counter
-  cannot see: whether a given crossing was worth it.
-  ```
-  Then re-sync the twin:
-  ```bash
-  cp .noldor/rules/abstraction-cost.md templates/.noldor/rules/abstraction-cost.md
-  ```
-
-- [ ] **Step 4: Verify both gates.**
+- [ ] **Step 3: Verify the catalog gate.**
 
   ```bash
-  pnpm noldor validate script-catalog && pnpm noldor rules validate
+  pnpm noldor validate script-catalog
   ```
-  Expected output: both exit 0.
+  Expected output: exit 0. The rule itself lands in Task 3b below.
 
 - [ ] **Step 5: Commit, then check template parity.**
 
@@ -680,6 +731,114 @@ Part 1 deliberately advertised `report` only, because that is all it accepted. B
   Expected output: `template-sync` exits 0. Run it **after** the commit and with both paths as argv — `resolveChangedFiles` (`check-template-sync.ts:57-77`) falls back to `git diff --name-only origin/main..HEAD` when argv is empty, so a bare run over uncommitted files exits 0 vacuously.
 
 ---
+
+## Task 3b: The `abstraction-cost` rule
+
+**Files:**
+- Create: `.noldor/rules/abstraction-cost.md`
+- Create: `templates/.noldor/rules/abstraction-cost.md`
+
+- [ ] **Step 1: Write the rule.**
+
+  `.noldor/rules/abstraction-cost.md`:
+  ```markdown
+  ---
+  id: abstraction-cost
+  applies-to: ["src/**/*.{ts,tsx,js,jsx}"]
+  stage: [code]
+  enforce: true
+  links: [docs/noldor/rules.md]
+  ---
+  Abstraction is priced by file boundaries. Inside one file it is nearly free; across
+  files it costs the reader a fetch and an agent a round trip on every crossing. A long
+  file of small local helpers is cheap; four files that must be opened in sequence to
+  follow one call are not.
+
+  Three reasons to abstract, and if none applies, inline it:
+
+  1. **Hide complexity** behind an interface a caller genuinely should not see.
+  2. **Name a thing** — but only where the call site cannot already read the name off the
+     expression. `const MAX = 3` used once names nothing the literal did not.
+  3. **Reuse** from the third call site, not the second. Two similar lines are fine.
+
+  Anti-patterns this rule names:
+
+  - The single-use constant whose name says no more than its value.
+  - The single-consumer translation layer that only renames what it forwards.
+  - The factory wrapping a value the type system already constrains.
+
+  Barrel re-exports are deliberately not on that list: a `src/index.ts` style public
+  surface legitimately re-exports, and a blanket clause would turn a repo convention into
+  a reviewer blocker.
+
+  The glob covers the extensions the mechanical counterpart measures. It cannot cover the
+  same roots — rule globs are repo-relative and resolved at rule-resolution time, while
+  scan roots come from consumer config at run time — so a consumer whose code lives
+  outside `src/` widens this glob in its own copy.
+  ```
+
+  `links` points at `docs/noldor/rules.md`, matching every other rule in the store; a rule that links nothing reads as an oversight.
+
+  Append one more paragraph, now that `check` exists:
+  ```markdown
+
+  The mechanical counterpart is `pnpm noldor indirection check`, which ratchets the total
+  transitive-import-closure excess across the corpus. This rule covers what the counter
+  cannot see: whether a given crossing was worth it.
+  ```
+
+  The glob stays `src/**`, which under-reaches a consumer whose code lives elsewhere. That is accepted rather than solved: rule globs are repo-relative and resolved at rule-resolution time, while scan roots come from consumer config at run time, so the framework cannot write a glob for a layout it does not know at template time. Under-reaching costs a consumer advice, not enforcement — the ratchet still measures every scan root.
+
+- [ ] **Step 2: Create the byte-identical template twin.**
+
+  ```bash
+  cp .noldor/rules/abstraction-cost.md templates/.noldor/rules/abstraction-cost.md
+  ```
+
+- [ ] **Step 3: Verify the rule store.**
+
+  ```bash
+  pnpm noldor rules validate
+  ```
+  Expected output: exit 0, no per-rule errors.
+
+- [ ] **Step 4: Verify the rule resolves into the enforce bucket for both extensions.**
+
+  ```bash
+  pnpm noldor rules resolve --file src/indirection/detect.ts --stage code
+  pnpm noldor rules resolve --file src/dashboard/App.tsx --stage code
+  ```
+  Expected output: both print JSON whose `enforce` array contains an entry with `"id": "abstraction-cost"`.
+
+- [ ] **Step 5: Commit.**
+
+  ```bash
+  cat > /tmp/indirection-t5.txt <<'MSG'
+  feat(rules): add the abstraction-cost enforce rule
+
+  States the delta over the baseline principles, which already own YAGNI and the
+  DRY-threshold-of-three: that abstraction is priced by file boundaries, and the
+  three reasons that justify paying. The naming clause is deliberately narrow,
+  since "name a thing" read broadly would justify every single-use constant,
+  which is the first anti-pattern the same rule names. Barrel re-exports are not
+  listed: src/index.ts style public surfaces legitimately re-export, and a
+  blanket clause would turn a repo convention into a reviewer blocker.
+
+  Noldor-FD: abstraction-cost-ratchet
+  MSG
+  git add .noldor/rules/abstraction-cost.md templates/.noldor/rules/abstraction-cost.md
+  git commit -F /tmp/indirection-t5.txt
+  ```
+
+- [ ] **Step 6: Verify template parity — after the commit, not before.**
+
+  ```bash
+  pnpm noldor checks template-sync .noldor/rules/abstraction-cost.md templates/.noldor/rules/abstraction-cost.md
+  ```
+  Expected output: exit 0. Run this **after** Step 5 and with both paths as argv: `resolveChangedFiles` (`src/checks/check-template-sync.ts:57-77`) falls back to `git diff --name-only origin/main..HEAD` when argv is empty, so an untracked pair is invisible to it and a bare pre-commit run would exit 0 vacuously.
+
+---
+
 
 ## Task 4: Wire the gate and record the baseline
 
@@ -767,9 +926,9 @@ Part 1 deliberately advertised `report` only, because that is all it accepted. B
 - [ ] **Step 3: Run the composite verification.**
 
   ```bash
-  pnpm typecheck && pnpm test && pnpm lint && pnpm fmt:check
+  pnpm verify
   ```
-  Expected output: no type errors, the full suite green, lint and format clean. If `fmt:check` reports drift, run `pnpm fmt` and amend the offending commit rather than adding a formatting-only commit.
+  Expected output: exit 0 — the repo's single composite gate (`lint && fmt:check && typecheck && test && triage validate --strict-refs`). If `fmt:check` reports drift, run `pnpm fmt` and amend the offending commit rather than adding a formatting-only commit.
 
 - [ ] **Step 4: Confirm the ratchet sees its own feature.**
 

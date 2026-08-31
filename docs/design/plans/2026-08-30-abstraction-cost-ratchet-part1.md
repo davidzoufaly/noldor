@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Execute this plan task-by-task inline — read each task, use your normal file-edit and shell tools, follow the TDD step order exactly, commit at each task's Commit step, tick `- [ ] → - [x]` as you go. Do not delegate execution to a sub-skill or separate executor.
 
-**Goal:** Ship `pnpm noldor indirection report` end to end — a working diagnostic that measures each module's transitive in-repo import closure and prints the excess above the threshold — plus the `abstraction-cost` rule that states when abstraction is warranted. Merged alone, this part gives anyone a command that tells them where their cross-file indirection actually sits.
+**Goal:** Ship `pnpm noldor indirection report` end to end — a working diagnostic that measures each module's transitive in-repo import closure and prints the excess above the threshold. Merged alone, this part gives anyone a command that tells them where their cross-file indirection actually sits. Part 2 adds the ratchet and the `abstraction-cost` rule, which names `indirection check` and so cannot land before it exists.
 
 **Architecture:** Engine (`detect.ts`) and CLI (`indirection-cli.ts`), mirroring the `src/clones/` engine/CLI split. The engine wraps `dependency-cruiser`, already a production dependency; scan roots and file policy come from `src/core/repo-paths.ts`; the parser-availability guard is imported from `src/invariants/boundaries.ts`, which already exports it. Part 2 adds the persisted baseline and the gate on top of this same command.
 
@@ -20,8 +20,6 @@
 - `package.json` / `pnpm-lock.yaml` — **modify.** `@swc/core` moves `devDependencies` → `dependencies`; the lockfile pins the split and CI installs `--frozen-lockfile`.
 - `src/cli/manifest.ts` — **modify.** Add the `indirection` leaf beside `clones`.
 - `docs/noldor/script-catalog.md` — **modify.** Twin catalog entry; `validate script-catalog` blocks pre-commit without it.
-- `.noldor/rules/abstraction-cost.md` — **create.** The `enforce` rule.
-- `templates/.noldor/rules/abstraction-cost.md` — **create.** Byte-identical twin; `check-template-sync` holds parity.
 
 ---
 
@@ -83,6 +81,15 @@ Every code block below was executed as a spike against real fixture trees and th
   `.../tests-only/thing.spec.ts` — `export const thing = 1;` A tree of nothing but test files is a legitimately excluded corpus, not a broken parse; this fixture is what proves the engine says so.
 
   `.../empty/.gitkeep` — empty, so git tracks a directory holding no code files.
+
+  **Every tree also gets a `.noldor/config.json`.** `runIndirection` resolves roots through `scanRoots`, and `loadConsumerConfig` **throws** on a directory with no config — verified: `scanRoots('<a bare mkdtemp dir>')` raises `loadConsumerConfig: missing .noldor/config.json`. Without this file the CLI tests reject instead of returning. Write the same minimal config into each tree directory (`chain`, `shallow-registry`, `tests-only`, `empty`, and the trees added in Task 4):
+  ```json
+  { "consumer": { "name": "fixture", "repoUrl": "https://example.invalid/fixture",
+    "lockstepPackages": ["package.json"], "scanPaths": ["."], "e2ePrefix": "fixture",
+    "samplesPath": "samples", "packagePrefix": "@fixture/", "appPathPrefix": "apps/" } }
+  ```
+  All eight keys are required — `ConsumerConfigSchema` (`consumer-config.ts:209-218`) makes `name`, `repoUrl` (a real URL), `lockstepPackages`, `e2ePrefix`, `samplesPath`, `packagePrefix` and `appPathPrefix` mandatory, so a `scanPaths`-only stub fails Zod validation. Verified: with this file, `scanRoots(<tree>)` returns `["."]`.
+  A Noldor repo always has this file, so testing without one would test a state that cannot occur.
 
   Under `__tests__/trees/`, deliberately **not** a `fixtures` segment: `WALK_EXCLUDED_DIRS` (`repo-paths.ts:75-83`) skips `fixtures`/`dist`/`coverage`/`.turbo`, so such a tree is invisible to `walkCodeFiles` and every empty-vs-unmeasurable assertion would pass vacuously green.
 
@@ -192,7 +199,8 @@ Every code block below was executed as a spike against real fixture trees and th
    * count cannot see a closure growing 31 -> 100, and can stay flat while one
    * module crosses the threshold and another drops below it.
    */
-  import { resolve, sep } from 'node:path';
+  import { realpathSync } from 'node:fs';
+  import { relative, resolve, sep } from 'node:path';
 
   import { allExtensions, cruise } from 'dependency-cruiser';
 
@@ -238,7 +246,7 @@ Every code block below was executed as a spike against real fixture trees and th
         readonly unresolvedInScope: readonly string[];
       }
     | { readonly kind: 'no-parser'; readonly extensions: readonly string[]; readonly message: string }
-    | { readonly kind: 'unmeasurable'; readonly message: string };
+    | { readonly kind: 'unmeasurable'; readonly message: string; readonly cause?: unknown };
 
   export interface MeasureOptions {
     /** Roots RELATIVE to `cwd`; an absolute root makes cruise join it onto baseDir. */
@@ -246,6 +254,13 @@ Every code block below was executed as a spike against real fixture trees and th
     readonly cwd: string;
     /** Overrides {@link INDIRECTION_CLOSURE_THRESHOLD}; used by tests to pin boundaries. */
     readonly threshold?: number;
+    /**
+     * Parser-availability report, defaulting to dependency-cruiser's own.
+     * Injectable because parser availability is a process condition: once
+     * `@swc/core` is a production dependency the test environment always has
+     * it, so the guard is otherwise unreachable from a test.
+     */
+    readonly extensions?: ReadonlyArray<{ readonly extension: string; readonly available: boolean }>;
   }
 
   interface CruiseDep {
@@ -295,15 +310,31 @@ Every code block below was executed as a spike against real fixture trees and th
   export async function measureIndirection(opts: MeasureOptions): Promise<IndirectionResult> {
     const threshold = opts.threshold ?? INDIRECTION_CLOSURE_THRESHOLD;
 
+    // Resolve symlinks before anything else. cruise emits paths relative to
+    // `baseDir`, and when `baseDir` is a symlink (every macOS `tmpdir()` is) it
+    // resolves imports through the real path and emits an escaped
+    // `../../../private/var/...` twin alongside the in-tree module. The twin
+    // fails the containment check below, so the in-tree module's dependency
+    // misses `byId` and its closure collapses to 0 — a silent under-measure,
+    // not a throw. `src/invariants/boundaries.ts:87` calls `realpath` for the
+    // same reason.
+    const base = realpathSync(opts.cwd);
+
     // Does any MEASURABLE source file exist? Counting tests here would call a
     // test-only tree non-empty and then report it unmeasurable, since the cruise
     // below excludes them — a legitimately excluded corpus is empty, not broken.
-    const candidates = opts.roots
-      .flatMap((r) => walkCodeFiles(resolve(opts.cwd, r), { includeTests: false }))
+    const candidateAbs = opts.roots
+      .flatMap((r) => walkCodeFiles(resolve(base, r), { includeTests: false }))
       .filter((f) => !f.endsWith('.d.ts'));
-    if (candidates.length === 0) return { kind: 'empty', threshold };
+    if (candidateAbs.length === 0) return { kind: 'empty', threshold };
 
-    const unparseable = findUnparseableTsExtensions(allExtensions);
+    // The measured set is the INTERSECTION of what cruise reported and what the
+    // walker admits. Without it, a file under a `WALK_EXCLUDED_DIRS` directory
+    // that some measured module imports would enter the metric even though the
+    // walker never offered it as a candidate — two different corpus rules.
+    const candidates = new Set(candidateAbs.map((f) => relative(base, realpathSync(f)).split(sep).join('/')));
+
+    const unparseable = findUnparseableTsExtensions(opts.extensions ?? allExtensions);
     if (unparseable.length > 0) {
       return {
         kind: 'no-parser',
@@ -317,7 +348,7 @@ Every code block below was executed as a spike against real fixture trees and th
     let raw: readonly CruiseModule[];
     try {
       const result = await cruise([...opts.roots], {
-        baseDir: opts.cwd,
+        baseDir: base,
         validate: false,
         doNotFollow: { path: 'node_modules' },
         exclude: { path: `node_modules|__tests__|${TEST_FILE_RE.source}` },
@@ -334,16 +365,20 @@ Every code block below was executed as a spike against real fixture trees and th
       return {
         kind: 'unmeasurable',
         message: `dependency-cruiser failed: ${e instanceof Error ? e.message : String(e)}`,
+        cause: e,
       };
     }
 
-    const measured = raw.filter((m) => isMeasurable(m.source));
-    if (measured.length === 0) {
+    const measured = raw.filter((m) => isMeasurable(m.source) && candidates.has(m.source));
+    if (measured.length < candidateAbs.length) {
+      // Partial output is not a measurement. A candidate the walker offered but
+      // cruise did not report back means the graph is missing edges we cannot
+      // see, which would understate every closure that should have crossed it.
       return {
         kind: 'unmeasurable',
         message:
-          `${candidates.length} source file(s) on disk but dependency-cruiser produced no ` +
-          `modules — the graph could not be measured`,
+          `${candidateAbs.length} source file(s) on disk but dependency-cruiser reported ` +
+          `${measured.length} — the graph is incomplete and cannot be measured`,
       };
     }
 
@@ -646,7 +681,13 @@ Every code block below was executed as a spike against real fixture trees and th
         for (const m of result.flagged) {
           lines.push(`  ${m.source}  closure=${m.closure} excess=${m.excess}`);
         }
-        for (const u of result.unresolvedInScope) lines.push(`  unresolved: ${u}`);
+        if (result.unresolvedInScope.length > 0) {
+          lines.push(
+            `  WARNING: ${result.unresolvedInScope.length} unresolved in-scope import(s) — ` +
+              `the excess sum above is understated`,
+          );
+          for (const u of result.unresolvedInScope) lines.push(`  unresolved: ${u}`);
+        }
         return lines.join('\n');
       }
     }
@@ -664,7 +705,9 @@ Every code block below was executed as a spike against real fixture trees and th
     const result = await measureIndirection({ roots: scanRoots(cwd), cwd });
 
     if (result.kind === 'no-parser' || result.kind === 'unmeasurable') {
-      process.stderr.write(`indirection ${args.sub}: ${result.message}\n`);
+      // Rendered, not hand-formatted, so renderReport's failure branches are
+      // reachable from a caller rather than dead code.
+      process.stderr.write(`${renderReport(result)}\n`);
       return 3;
     }
 
@@ -768,104 +811,7 @@ Both descriptions name **`report` only**. Part 1 rejects `check` and `baseline`,
 
 ---
 
-## Task 4: The `abstraction-cost` rule
-
-**Files:**
-- Create: `.noldor/rules/abstraction-cost.md`
-- Create: `templates/.noldor/rules/abstraction-cost.md`
-
-- [ ] **Step 1: Write the rule.**
-
-  `.noldor/rules/abstraction-cost.md`:
-  ```markdown
-  ---
-  id: abstraction-cost
-  applies-to: ["src/**/*.{ts,tsx,js,jsx}"]
-  stage: [code]
-  enforce: true
-  links: [docs/noldor/rules.md]
-  ---
-  Abstraction is priced by file boundaries. Inside one file it is nearly free; across
-  files it costs the reader a fetch and an agent a round trip on every crossing. A long
-  file of small local helpers is cheap; four files that must be opened in sequence to
-  follow one call are not.
-
-  Three reasons to abstract, and if none applies, inline it:
-
-  1. **Hide complexity** behind an interface a caller genuinely should not see.
-  2. **Name a thing** — but only where the call site cannot already read the name off the
-     expression. `const MAX = 3` used once names nothing the literal did not.
-  3. **Reuse** from the third call site, not the second. Two similar lines are fine.
-
-  Anti-patterns this rule names:
-
-  - The single-use constant whose name says no more than its value.
-  - The single-consumer translation layer that only renames what it forwards.
-  - The factory wrapping a value the type system already constrains.
-
-  Barrel re-exports are deliberately not on that list: a `src/index.ts` style public
-  surface legitimately re-exports, and a blanket clause would turn a repo convention into
-  a reviewer blocker.
-
-  The glob covers the extensions the mechanical counterpart measures. It cannot cover the
-  same roots — rule globs are repo-relative and resolved at rule-resolution time, while
-  scan roots come from consumer config at run time — so a consumer whose code lives
-  outside `src/` widens this glob in its own copy.
-  ```
-
-  `links` points at `docs/noldor/rules.md`, matching every other rule in the store; a rule that links nothing reads as an oversight. The `check` command and the baseline file are deliberately **not** mentioned — neither exists until part 2, and part 2's Task 3 adds that sentence.
-
-- [ ] **Step 2: Create the byte-identical template twin.**
-
-  ```bash
-  cp .noldor/rules/abstraction-cost.md templates/.noldor/rules/abstraction-cost.md
-  ```
-
-- [ ] **Step 3: Verify the rule store.**
-
-  ```bash
-  pnpm noldor rules validate
-  ```
-  Expected output: exit 0, no per-rule errors.
-
-- [ ] **Step 4: Verify the rule resolves into the enforce bucket for both extensions.**
-
-  ```bash
-  pnpm noldor rules resolve --file src/indirection/detect.ts --stage code
-  pnpm noldor rules resolve --file src/dashboard/App.tsx --stage code
-  ```
-  Expected output: both print JSON whose `enforce` array contains an entry with `"id": "abstraction-cost"`.
-
-- [ ] **Step 5: Commit.**
-
-  ```bash
-  cat > /tmp/indirection-t5.txt <<'MSG'
-  feat(rules): add the abstraction-cost enforce rule
-
-  States the delta over the baseline principles, which already own YAGNI and the
-  DRY-threshold-of-three: that abstraction is priced by file boundaries, and the
-  three reasons that justify paying. The naming clause is deliberately narrow,
-  since "name a thing" read broadly would justify every single-use constant,
-  which is the first anti-pattern the same rule names. Barrel re-exports are not
-  listed: src/index.ts style public surfaces legitimately re-export, and a
-  blanket clause would turn a repo convention into a reviewer blocker.
-
-  Noldor-FD: abstraction-cost-ratchet
-  MSG
-  git add .noldor/rules/abstraction-cost.md templates/.noldor/rules/abstraction-cost.md
-  git commit -F /tmp/indirection-t5.txt
-  ```
-
-- [ ] **Step 6: Verify template parity — after the commit, not before.**
-
-  ```bash
-  pnpm noldor checks template-sync .noldor/rules/abstraction-cost.md templates/.noldor/rules/abstraction-cost.md
-  ```
-  Expected output: exit 0. Run this **after** Step 5 and with both paths as argv: `resolveChangedFiles` (`src/checks/check-template-sync.ts:57-77`) falls back to `git diff --name-only origin/main..HEAD` when argv is empty, so an untracked pair is invisible to it and a bare pre-commit run would exit 0 vacuously.
-
----
-
-## Task 5: Edge-case coverage
+## Task 4: Edge-case coverage
 
 Closes the acceptance criteria the happy path does not reach: edge semantics, and the deep-aggregator case registry immunity does **not** cover. Tests come before the fixture they measure is wired into any assertion, keeping the TDD order intact.
 
@@ -893,13 +839,24 @@ Closes the acceptance criteria the happy path does not reach: edge semantics, an
 
 - [ ] **Step 2: Generate the deep-registry fixture.**
 
-  33 files, so generate rather than hand-write:
+  34 files, so generate rather than hand-write:
   ```bash
   mkdir -p src/indirection/__tests__/trees/deep-registry
   node -e 'const{writeFileSync:w}=require("node:fs");const d="src/indirection/__tests__/trees/deep-registry/";const n=[...Array(32)].map((_,i)=>i+1);for(const i of n)w(d+`dep${i}.ts`,`export const d${i} = ${i};\n`);w(d+"aggregator.ts",n.map(i=>`import { d${i} } from "./dep${i}.js";`).join("\n")+`\n\nexport const all = [${n.map(i=>"d"+i).join(", ")}];\n`);w(d+"member.ts",`import { all } from "./aggregator.js";\nexport const member = all.length;\n`)'
   ls src/indirection/__tests__/trees/deep-registry | wc -l
   ```
   Expected output: `34`.
+
+- [ ] **Step 2b: Write the cycle and tie fixtures.**
+
+  `.../trees/cycle/x.ts` — `import { y } from './y.js';\nexport const x = (): unknown => y;`
+  `.../trees/cycle/y.ts` — `import { x } from './x.js';\nexport const y = (): unknown => x;`
+  `.../trees/cycle/self.ts` — `export const self = 1;`
+
+  `.../trees/tie/{p,q}.ts` — each `import { r } from './r.js';\nexport const … = r;` (two modules with identical closures, so the path tiebreak is the only thing ordering them)
+  `.../trees/tie/r.ts` — `export const r = 1;`
+
+  Both trees get the same `.noldor/config.json` as the others.
 
 - [ ] **Step 3: Append the coverage tests.**
 
@@ -920,17 +877,60 @@ Closes the acceptance criteria the happy path does not reach: edge semantics, an
     });
   });
 
+  describe('cycles', () => {
+    it('counts every member of a cycle once, and never the module itself', async () => {
+      const r = await measureIndirection(tree('cycle'));
+      if (r.kind !== 'measured') throw new Error(r.kind);
+      // x -> y -> x: each reaches exactly the other, and `seen.delete(id)` is
+      // what keeps a module out of its own closure when the cycle returns to it.
+      expect(r.modules.find((m) => m.source === 'x.ts')?.closure).toBe(1);
+      expect(r.modules.find((m) => m.source === 'y.ts')?.closure).toBe(1);
+      expect(r.modules.find((m) => m.source === 'self.ts')?.closure).toBe(0);
+    });
+  });
+
+  describe('deterministic ordering', () => {
+    it('breaks a closure tie by path ascending', async () => {
+      // The chain fixture cannot prove this — every closure there differs, so
+      // reversing or deleting the tiebreak would not change its order.
+      const r = await measureIndirection(tree('tie'));
+      if (r.kind !== 'measured') throw new Error(r.kind);
+      const tied = r.modules.filter((m) => m.closure === 1).map((m) => m.source);
+      expect(tied).toEqual(['p.ts', 'q.ts']);
+    });
+  });
+
+  describe('failure contract', () => {
+    it('returns no-parser — not a throw — when no TypeScript parser is available', async () => {
+      const r = await measureIndirection({
+        ...tree('chain'),
+        extensions: [
+          { extension: '.ts', available: false },
+          { extension: '.tsx', available: false },
+        ],
+      });
+      expect(r.kind).toBe('no-parser');
+      if (r.kind !== 'no-parser') return;
+      expect(r.extensions).toContain('.ts');
+      expect(r.message).toContain('@swc/core');
+    });
+  });
+
   describe('deep aggregator', () => {
-    it('flags an aggregator above the threshold while its members stay at zero', async () => {
+    it('flags an aggregator above the threshold while its 32 leaf members stay at zero', async () => {
       const r = await measureIndirection(tree('deep-registry'));
       if (r.kind !== 'measured') throw new Error(r.kind);
       const agg = r.modules.find((m) => m.source === 'aggregator.ts');
       expect(agg?.closure).toBe(32);
       expect(agg?.excess).toBe(32 - INDIRECTION_CLOSURE_THRESHOLD);
-      // Registry immunity is conditional: members cost nothing, the aggregator
-      // does once its own closure passes the threshold.
+      // Registry immunity is conditional: the 32 leaf members cost nothing, the
+      // aggregator does once its own closure passes the threshold.
       expect(r.modules.find((m) => m.source === 'dep1.ts')?.excess).toBe(0);
-      expect(r.modules.find((m) => m.source === 'member.ts')?.closure).toBe(33);
+      // member.ts is NOT a cost-free member — it imports the aggregator, so it
+      // inherits the whole closure (32 deps + the aggregator) and is itself deep.
+      const mem = r.modules.find((m) => m.source === 'member.ts');
+      expect(mem?.closure).toBe(33);
+      expect(mem?.excess).toBe(33 - INDIRECTION_CLOSURE_THRESHOLD);
     });
   });
   ```
@@ -962,38 +962,31 @@ Closes the acceptance criteria the happy path does not reach: edge semantics, an
 
 ---
 
-## Task 6: Part-1 quality gate
+## Task 5: Part-1 quality gate
 
 The preceding tasks each run one targeted test file. This runs everything the repo gates on, before part 2 builds on top.
 
 **Files:** none — verification only.
 
-- [ ] **Step 1: Run the composite verification.**
+- [ ] **Step 1: Run the repo's composite verification.**
 
   ```bash
-  pnpm typecheck && pnpm test
+  pnpm verify
   ```
-  Expected output: no type errors; the full vitest suite passes with no new failures.
+  Expected output: exit 0. This is the single command the repo gates on — `lint && fmt:check && typecheck && test && triage validate --strict-refs` — so running its parts separately would silently omit the last one. (There is no `build:samples` script in this repo.) If `fmt:check` reports drift, run `pnpm fmt` and amend the offending task's commit rather than adding a formatting-only commit.
 
-- [ ] **Step 2: Run lint and formatting.**
-
-  ```bash
-  pnpm lint && pnpm fmt:check
-  ```
-  Expected output: both exit 0. If `fmt:check` reports drift, run `pnpm fmt` and amend the offending task's commit rather than adding a formatting-only commit.
-
-- [ ] **Step 3: Replay the push gates author-side.**
+- [ ] **Step 2: Replay the push gates author-side.**
 
   ```bash
   pnpm noldor checks push-gates
   ```
   Expected output: exit 0. Replays lefthook itself, so the clone ratchet and template-sync are checked exactly as the push will. A fix landed here costs one commit; the same fix after the code-stage review also costs a receipt re-earn.
 
-- [ ] **Step 4: Confirm the new rule reaches a reviewer.**
+- [ ] **Step 3: Confirm the engine measures the live repo.**
 
   ```bash
-  pnpm noldor rules brief --file src/indirection/detect.ts --stage code
+  pnpm noldor indirection report | head -3
   ```
-  Expected output: an `ENFORCE` section listing `abstraction-cost` alongside `error-result-types`.
+  Expected output: an excess sum **between 850 and 1000** across **at least 400** modules, and a percentile line whose `p90` is at or near 30. The pre-feature measurement was 882 across 404 modules; this feature adds three modules of its own, so a small rise is expected and a number outside that band means the scan roots or the exclusion resolved wrongly.
 
 ---
