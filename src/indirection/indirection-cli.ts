@@ -1,22 +1,36 @@
 /**
- * `noldor indirection report [--json]`
+ * `noldor indirection <report|check|baseline> [--json]`
  *
- * Exit contract: 0 when the corpus was measured (or is legitimately empty), 3
- * when it could not be measured — no usable parser, or source files on disk
- * that produced no graph. `report` never fails on a verdict, only on being
- * unable to look, which keeps it usable as a diagnostic in exactly the states
- * where the gate added in part 2 is red.
+ * Exit contract, per subcommand — 3 stays distinct from 1 for the reason
+ * `clones-cli.ts` gives: a pre-push consumer acts on the difference between
+ * "found something" and "could not look".
  *
- * `check` and `baseline` land in part 2; the parser rejects them here rather
- * than accepting and ignoring them.
+ *              report   check   baseline
+ *   clean        0        0        0
+ *   red          0        1        0   (records, prints direction)
+ *   no baseline  0        0        0
+ *   stale        0        0        0   (overwrites)
+ *   unreadable   0        3        0   (overwrites)
+ *   no parser    3        3        3
+ *   unresolved   0        3        3
  */
+import { join } from 'node:path';
+
 import { runIfDirect } from '../core/cli-entry.js';
 import { scanRoots } from '../core/repo-paths.js';
-import { measureIndirection } from './detect.js';
+import {
+  BASELINE_FILE,
+  buildBaseline,
+  compareToBaseline,
+  readBaseline,
+  writeBaseline,
+} from './baseline.js';
+import type { BaselineOptions } from './baseline.js';
+import { INDIRECTION_CLOSURE_THRESHOLD, measureIndirection } from './detect.js';
 import type { IndirectionResult } from './detect.js';
 
 export interface IndirectionArgs {
-  sub: 'report';
+  sub: 'report' | 'check' | 'baseline';
   json: boolean;
 }
 
@@ -24,8 +38,8 @@ class UsageError extends Error {}
 
 export function parseIndirectionArgs(argv: string[]): IndirectionArgs {
   const [sub, ...rest] = argv;
-  if (sub !== 'report') {
-    throw new UsageError('usage: noldor indirection report [--json]');
+  if (sub !== 'report' && sub !== 'check' && sub !== 'baseline') {
+    throw new UsageError('usage: noldor indirection <report|check|baseline> [--json]');
   }
   const args: IndirectionArgs = { sub, json: false };
   for (const flag of rest) {
@@ -85,8 +99,74 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
     return 3;
   }
 
-  process.stdout.write(args.json ? `${JSON.stringify(result)}\n` : `${renderReport(result)}\n`);
-  return 0;
+  if (args.sub === 'report') {
+    process.stdout.write(args.json ? `${JSON.stringify(result)}\n` : `${renderReport(result)}\n`);
+    return 0;
+  }
+
+  // An empty corpus has nothing to ratchet and nothing to record.
+  if (result.kind === 'empty') {
+    process.stdout.write('indirection: no source files under the scan roots\n');
+    return 0;
+  }
+
+  // An incomplete graph must never be recorded as truth, nor compared as if it
+  // were complete.
+  if (result.unresolvedInScope.length > 0) {
+    process.stderr.write(
+      `indirection ${args.sub}: ${result.unresolvedInScope.length} unresolved in-scope ` +
+        `import(s) — the measured graph is incomplete\n` +
+        result.unresolvedInScope.map((u) => `  ${u}\n`).join(''),
+    );
+    return 3;
+  }
+
+  const options: BaselineOptions = {
+    threshold: INDIRECTION_CLOSURE_THRESHOLD,
+    scanRoots: scanRoots(cwd),
+    includeTests: false,
+  };
+  const path = join(cwd, BASELINE_FILE);
+  const prior = readBaseline(path);
+
+  if (args.sub === 'baseline') {
+    // Writes unconditionally: re-recording is the only repair for an unreadable
+    // or stale file, so refusing here would deadlock. The sibling behaves the
+    // same way — clones-cli reads the prior only for the drift line.
+    const baseline = buildBaseline(result, options, new Date().toISOString());
+    writeBaseline(path, baseline);
+    const drift =
+      prior.kind === 'ok' && prior.baseline.excessSum !== baseline.excessSum
+        ? ` (${baseline.excessSum > prior.baseline.excessSum ? 'RAISED' : 'lowered'} from ${prior.baseline.excessSum})`
+        : '';
+    process.stdout.write(
+      args.json
+        ? `${JSON.stringify(baseline)}\n`
+        : `indirection baseline: recorded excess sum ${baseline.excessSum}${drift} ` +
+            `across ${baseline.modulesScanned} module(s) -> ${BASELINE_FILE}\n`,
+    );
+    return 0;
+  }
+
+  if (prior.kind === 'absent') {
+    process.stdout.write(
+      `indirection check: no baseline recorded (excess sum ${result.excessSum}) - ` +
+        `record one with 'noldor indirection baseline'\n`,
+    );
+    return 0;
+  }
+  if (prior.kind === 'unreadable') {
+    process.stderr.write(
+      `indirection check: baseline at ${BASELINE_FILE} is unreadable - ${prior.message}\n` +
+        `  re-record with 'noldor indirection baseline'\n`,
+    );
+    return 3;
+  }
+
+  const verdict = compareToBaseline(result, prior.baseline, options);
+  const stream = verdict.kind === 'red' ? process.stderr : process.stdout;
+  stream.write(`indirection check: ${verdict.message}\n`);
+  return verdict.kind === 'red' ? 1 : 0;
 }
 
 runIfDirect('indirection-cli', 'indirection', runIndirection);

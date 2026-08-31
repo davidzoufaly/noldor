@@ -1,4 +1,6 @@
 // @tests: abstraction-cost-ratchet
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -106,5 +108,135 @@ describe('runIndirection report', () => {
     const a = await capture(() => runIndirection(['report'], treeDir('chain')));
     const b = await capture(() => runIndirection(['report'], treeDir('chain')));
     expect(a.out).toBe(b.out);
+  });
+});
+
+const CONSUMER = {
+  consumer: {
+    name: 'fixture',
+    repoUrl: 'https://example.invalid/fixture',
+    lockstepPackages: ['package.json'],
+    scanPaths: ['.'],
+    e2ePrefix: 'fixture',
+    samplesPath: 'samples',
+    packagePrefix: '@fixture/',
+    appPathPrefix: 'apps/',
+  },
+};
+
+/** scanRoots -> loadConsumerConfig THROWS without this file. */
+const seedConfig = (dir: string): void => {
+  mkdirSync(join(dir, '.noldor'), { recursive: true });
+  writeFileSync(join(dir, '.noldor', 'config.json'), JSON.stringify(CONSUMER));
+};
+
+const withTree = async (fn: (dir: string) => Promise<void>): Promise<void> => {
+  const dir = mkdtempSync(join(tmpdir(), 'indirection-cli-'));
+  try {
+    writeFileSync(join(dir, 'a.ts'), "import { b } from './b.js';\nexport const a = b;\n");
+    writeFileSync(join(dir, 'b.ts'), 'export const b = 1;\n');
+    seedConfig(dir);
+    await fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+/** A tree deep enough to carry excess at threshold 30: 32 chained modules. */
+const withDeepTree = async (fn: (dir: string) => Promise<void>): Promise<void> => {
+  const dir = mkdtempSync(join(tmpdir(), 'indirection-deep-'));
+  try {
+    for (let i = 0; i < 32; i++) {
+      const body =
+        i === 31
+          ? `export const m${i} = ${i};\n`
+          : `import { m${i + 1} } from './m${i + 1}.js';\nexport const m${i} = m${i + 1};\n`;
+      writeFileSync(join(dir, `m${i}.ts`), body);
+    }
+    seedConfig(dir);
+    await fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+const baselinePath = (dir: string): string => join(dir, '.noldor', 'indirection-baseline.json');
+
+describe('runIndirection check and baseline', () => {
+  it('accepts the three subcommands', () => {
+    for (const sub of ['report', 'check', 'baseline'] as const) {
+      expect(parseIndirectionArgs([sub]).sub).toBe(sub);
+    }
+  });
+
+  it('check exits 0 and says so when no baseline is recorded', async () => {
+    await withTree(async (dir) => {
+      const { code, out } = await capture(() => runIndirection(['check'], dir));
+      expect(code).toBe(0);
+      expect(out).toContain('no baseline recorded');
+    });
+  });
+
+  it('check exits 0 when unchanged', async () => {
+    await withTree(async (dir) => {
+      expect(await runIndirection(['baseline'], dir)).toBe(0);
+      expect(await runIndirection(['check'], dir)).toBe(0);
+    });
+  });
+
+  it('check exits 1 when the measured excess exceeds the recorded one', async () => {
+    // Needs a corpus that actually carries excess at threshold 30, so the
+    // fixture is a 32-deep chain rather than the 2-file tree above.
+    await withDeepTree(async (dir) => {
+      expect(await runIndirection(['baseline'], dir)).toBe(0);
+      expect(await runIndirection(['check'], dir)).toBe(0);
+      const rec = JSON.parse(readFileSync(baselinePath(dir), 'utf8')) as { excessSum: number };
+      expect(rec.excessSum).toBeGreaterThan(0);
+      writeFileSync(baselinePath(dir), JSON.stringify({ ...rec, excessSum: rec.excessSum - 1 }));
+      const { code, out } = await capture(() => runIndirection(['check'], dir));
+      expect(code).toBe(1);
+      expect(out).toBe(''); // a red goes to stderr, not stdout
+    });
+  });
+
+  it('check exits 3 on an unreadable baseline; baseline overwrites it and exits 0', async () => {
+    await withTree(async (dir) => {
+      expect(await runIndirection(['baseline'], dir)).toBe(0);
+      writeFileSync(baselinePath(dir), '{ not json');
+      expect(await runIndirection(['check'], dir)).toBe(3);
+      expect(await runIndirection(['baseline'], dir)).toBe(0);
+      expect(await runIndirection(['check'], dir)).toBe(0);
+    });
+  });
+
+  it('check exits 0 and reports stale when the recorded knobs differ', async () => {
+    await withTree(async (dir) => {
+      expect(await runIndirection(['baseline'], dir)).toBe(0);
+      const rec = JSON.parse(readFileSync(baselinePath(dir), 'utf8')) as {
+        options: { threshold: number };
+      };
+      rec.options.threshold += 5;
+      writeFileSync(baselinePath(dir), JSON.stringify(rec));
+      const { code, out } = await capture(() => runIndirection(['check'], dir));
+      expect(code).toBe(0);
+      expect(out).toContain('not comparable');
+    });
+  });
+
+  it('baseline names the direction on a re-record', async () => {
+    await withTree(async (dir) => {
+      expect(await runIndirection(['baseline'], dir)).toBe(0);
+      const rec = JSON.parse(readFileSync(baselinePath(dir), 'utf8')) as { excessSum: number };
+      writeFileSync(baselinePath(dir), JSON.stringify({ ...rec, excessSum: rec.excessSum + 50 }));
+      const { out } = await capture(() => runIndirection(['baseline'], dir));
+      expect(out).toContain('lowered from');
+    });
+  });
+
+  it('check and baseline exit 3 on an unresolved in-scope import; report still exits 0', async () => {
+    const dir = treeDir('unresolved');
+    expect(await runIndirection(['check'], dir)).toBe(3);
+    expect(await runIndirection(['baseline'], dir)).toBe(3);
+    expect(await runIndirection(['report'], dir)).toBe(0);
   });
 });
