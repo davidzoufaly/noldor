@@ -8,8 +8,8 @@
  * cannot see a closure growing 31 -> 100, and can stay flat while one module
  * crosses the threshold and another drops below it.
  */
-import { realpathSync } from 'node:fs';
-import { relative, resolve, sep } from 'node:path';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { join, relative, resolve, sep } from 'node:path';
 
 import { allExtensions, cruise } from 'dependency-cruiser';
 
@@ -98,10 +98,38 @@ function percentile(sorted: readonly number[], p: number): number {
  * optional peer that is not installed, a package whose `types` entry does not
  * resolve — and treating those as failures would hard-block pre-push in
  * consumer repos that are perfectly fine.
+ *
+ * `aliasesInPlay` widens that: when the repo declares tsconfig `paths`, an
+ * unresolved non-relative specifier may be an alias rather than a package, and
+ * this toolchain cannot tell them apart — dependency-cruiser reads `paths`
+ * through the `typescript` package it accepts only at `>=2 <6`, while this repo
+ * is on 7 (the same constraint behind the parser guard). Passing `tsConfig` does
+ * not help; verified against `dependency-cruiser@16.10.4`, an aliased import
+ * comes back `couldNotResolve` with or without it. So the alias is reported and
+ * the run refuses, rather than dropping the edge and recording a number that is
+ * quietly too small.
  */
-function isInScopeSpecifier(spec: string | undefined): boolean {
+function isInScopeSpecifier(spec: string | undefined, aliasesInPlay: boolean): boolean {
   if (spec === undefined) return false;
-  return spec.startsWith('./') || spec.startsWith('../') || spec.startsWith('#');
+  if (spec.startsWith('./') || spec.startsWith('../') || spec.startsWith('#')) return true;
+  return aliasesInPlay;
+}
+
+/** Does the repo declare tsconfig `paths`? Then aliases cannot be resolved here. */
+function declaresPathAliases(base: string): boolean {
+  for (const name of ['tsconfig.json', 'tsconfig.base.json']) {
+    const p = join(base, name);
+    if (!existsSync(p)) continue;
+    try {
+      // Comments and trailing commas are common in a tsconfig, so this asks the
+      // cheap question — is there a `paths` key at all — rather than parsing.
+      if (/"paths"\s*:/.test(readFileSync(p, 'utf8'))) return true;
+    } catch {
+      // Unreadable tsconfig: assume no aliases. The parser guard and the
+      // completeness check already cover a genuinely broken tree.
+    }
+  }
+  return false;
 }
 
 /** cruise reports paths relative to baseDir; anything escaping it is not ours. */
@@ -131,10 +159,20 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   // a throw. `src/invariants/boundaries.ts` calls `realpath` for the same reason.
   const base = realpathSync(opts.cwd);
 
+  // Absent roots are skipped, not fatal. `DEFAULT_SCAN_ROOTS` is the union of
+  // layouts (`packages`, `apps`, `scripts`, `src`), and `repo-paths.ts` states
+  // that roots which do not exist are "ENOENT-skipped by every walker" — but
+  // `cruise` throws on one, so a consumer that never set `scanPaths` would have
+  // every push hard-blocked by a missing `apps/`. Deduped as well: a repeated or
+  // overlapping root would otherwise enumerate the same file twice.
+  // `src/invariants/boundaries.ts` filters the same way before cruising.
+  const roots = [...new Set(opts.roots)].filter((r) => existsSync(join(base, r)));
+  if (roots.length === 0) return { kind: 'empty', threshold };
+
   // Does any MEASURABLE source file exist? Counting tests here would call a
   // test-only tree non-empty and then report it unmeasurable, since the cruise
   // below excludes them — a legitimately excluded corpus is empty, not broken.
-  const candidateAbs = opts.roots
+  const candidateAbs = roots
     .flatMap((r) => walkCodeFiles(resolve(base, r), { includeTests: false }))
     .filter((f) => !f.endsWith('.d.ts'));
   if (candidateAbs.length === 0) return { kind: 'empty', threshold };
@@ -158,9 +196,14 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
     };
   }
 
+  // Aliases cannot be resolved in this toolchain (see `isInScopeSpecifier`), so
+  // the question is only whether any are in play — if so, an unresolved
+  // non-relative specifier is reported instead of dropped.
+  const aliasesInPlay = declaresPathAliases(base);
+
   let raw: readonly CruiseModule[];
   try {
-    const result = await cruise([...opts.roots], {
+    const result = await cruise(roots, {
       baseDir: base,
       validate: false,
       doNotFollow: { path: 'node_modules' },
@@ -183,14 +226,17 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   }
 
   const measured = raw.filter((m) => isMeasurable(m.source) && candidates.has(m.source));
-  if (measured.length < candidateAbs.length) {
+  // Against `candidates.size`, not `candidateAbs.length`: the latter is the raw
+  // enumeration, so overlapping roots double-count a file and would trip this
+  // branch on a healthy repo.
+  if (measured.length < candidates.size) {
     // Partial output is not a measurement. A candidate the walker offered but
     // cruise did not report back means the graph is missing edges we cannot
     // see, which would understate every closure that should have crossed it.
     return {
       kind: 'unmeasurable',
       message:
-        `${candidateAbs.length} source file(s) on disk but dependency-cruiser reported ` +
+        `${candidates.size} source file(s) on disk but dependency-cruiser reported ` +
         `${measured.length} — the graph is incomplete and cannot be measured`,
     };
   }
@@ -200,7 +246,7 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   const unresolvedInScope: string[] = [];
   for (const m of measured) {
     for (const d of m.dependencies) {
-      if (d.couldNotResolve === true && isInScopeSpecifier(d.module)) {
+      if (d.couldNotResolve === true && isInScopeSpecifier(d.module, aliasesInPlay)) {
         unresolvedInScope.push(`${m.source} -> ${d.module ?? d.resolved}`);
       }
     }

@@ -240,3 +240,52 @@ describe('runIndirection check and baseline', () => {
     expect(await runIndirection(['report'], dir)).toBe(0);
   });
 });
+
+describe('empty corpus and --json', () => {
+  const withEmptyTree = async (fn: (dir: string) => Promise<void>): Promise<void> => {
+    const dir = mkdtempSync(join(tmpdir(), 'indirection-empty-'));
+    try {
+      seedConfig(dir);
+      await fn(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it('baseline records a zero baseline for an empty corpus instead of writing nothing', async () => {
+    // Writing nothing would leave check seeing an absent baseline, so the first
+    // commit adding source files — however deep — would pass unratcheted.
+    await withEmptyTree(async (dir) => {
+      expect(await runIndirection(['baseline'], dir)).toBe(0);
+      const rec = JSON.parse(readFileSync(baselinePath(dir), 'utf8')) as {
+        excessSum: number;
+        percentiles: unknown;
+        modulesScanned: number;
+      };
+      expect(rec.excessSum).toBe(0);
+      expect(rec.percentiles).toBeNull();
+      expect(rec.modulesScanned).toBe(0);
+    });
+  });
+
+  it('check --json emits a machine-readable verdict on every outcome', async () => {
+    await withTree(async (dir) => {
+      const absent = await capture(() => runIndirection(['check', '--json'], dir));
+      expect(absent.code).toBe(0);
+      expect(JSON.parse(absent.out)).toMatchObject({ verdict: 'green', reason: 'no-baseline' });
+
+      expect(await runIndirection(['baseline'], dir)).toBe(0);
+      const green = await capture(() => runIndirection(['check', '--json'], dir));
+      expect(green.code).toBe(0);
+      expect(JSON.parse(green.out)).toMatchObject({ verdict: 'green' });
+    });
+  });
+
+  it('baseline --json emits the recorded record', async () => {
+    await withTree(async (dir) => {
+      const { code, out } = await capture(() => runIndirection(['baseline', '--json'], dir));
+      expect(code).toBe(0);
+      expect(JSON.parse(out)).toMatchObject({ algorithmVersion: 1 });
+    });
+  });
+});

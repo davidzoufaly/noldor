@@ -47,13 +47,37 @@ export const indirectionBaselineSchema = z
     /** Recorded for the human reading the file; never compared. */
     flaggedModules: count,
     modulesScanned: count,
-    percentiles: z.object({ p50: count, p75: count, p90: count, p99: count, max: count }).strict(),
+    /** null when the corpus was empty — nearest-rank is undefined on no data. */
+    percentiles: z
+      .object({ p50: count, p75: count, p90: count, p99: count, max: count })
+      .strict()
+      .nullable(),
     options: baselineOptionsSchema,
     algorithmVersion: z.number().int().positive(),
     recordedAt: z.string().min(1),
   })
   .strict();
 export type IndirectionBaseline = z.infer<typeof indirectionBaselineSchema>;
+
+/**
+ * An empty corpus is recordable: leaving it unrecorded would let the first
+ * commit that adds source files pass unratcheted, since `check` treats an absent
+ * baseline as green.
+ */
+export function buildEmptyBaseline(
+  options: BaselineOptions,
+  recordedAt: string,
+): IndirectionBaseline {
+  return {
+    excessSum: 0,
+    flaggedModules: 0,
+    modulesScanned: 0,
+    percentiles: null,
+    options,
+    algorithmVersion: ALGORITHM_VERSION,
+    recordedAt,
+  };
+}
 
 export function buildBaseline(
   result: MeasuredIndirection,

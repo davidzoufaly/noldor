@@ -150,3 +150,52 @@ describe('deep aggregator', () => {
     expect(mem?.excess).toBe(33 - INDIRECTION_CLOSURE_THRESHOLD);
   });
 });
+
+describe('scan-root robustness', () => {
+  it('skips a root that does not exist rather than failing the whole measurement', async () => {
+    // DEFAULT_SCAN_ROOTS is ['packages','apps','scripts','src'] and repo-paths
+    // documents that "roots that don't exist are ENOENT-skipped by every
+    // walker" — a consumer that never sets scanPaths must not have every push
+    // hard-blocked because `apps/` is absent.
+    const r = await measureIndirection({
+      roots: ['.', 'does-not-exist-anywhere'],
+      cwd: join(import.meta.dirname, 'trees', 'chain'),
+    });
+    expect(r.kind).toBe('measured');
+    if (r.kind !== 'measured') return;
+    expect(r.modules.find((m) => m.source === 'a.ts')?.closure).toBe(3);
+  });
+
+  it('tolerates duplicate and overlapping roots without reporting an incomplete graph', async () => {
+    // The candidate set dedupes while the raw enumeration does not, so a
+    // repeated root must not trip the completeness comparison.
+    const r = await measureIndirection({
+      roots: ['.', '.'],
+      cwd: join(import.meta.dirname, 'trees', 'chain'),
+    });
+    expect(r.kind).toBe('measured');
+    if (r.kind !== 'measured') return;
+    expect(r.modules).toHaveLength(4);
+  });
+
+  it('reports an unresolvable tsconfig alias instead of silently dropping the edge', async () => {
+    // dependency-cruiser reads tsconfig `paths` through the `typescript`
+    // package it accepts only at >=2 <6; this repo is on 7, so aliases cannot
+    // be resolved and passing tsConfig does not help. Dropping the edge would
+    // understate the ratchet, so the run reports it and check refuses.
+    const r = await measureIndirection(tree('alias'));
+    expect(r.kind).toBe('measured');
+    if (r.kind !== 'measured') return;
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@lib/thing');
+  });
+
+  it('still ignores an unresolved bare package when no aliases are declared', async () => {
+    const r = await measureIndirection(tree('unresolved'));
+    expect(r.kind).toBe('measured');
+    if (r.kind !== 'measured') return;
+    // the relative one only — the bare specifier stays out of scope
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('./does-not-exist.js');
+  });
+});

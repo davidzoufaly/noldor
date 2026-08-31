@@ -5,14 +5,18 @@
  * `clones-cli.ts` gives: a pre-push consumer acts on the difference between
  * "found something" and "could not look".
  *
- *              report   check   baseline
- *   clean        0        0        0
- *   red          0        1        0   (records, prints direction)
- *   no baseline  0        0        0
- *   stale        0        0        0   (overwrites)
- *   unreadable   0        3        0   (overwrites)
- *   no parser    3        3        3
- *   unresolved   0        3        3
+ *               report   check   baseline
+ *   clean         0        0        0
+ *   red           0        1        0   (records, prints direction)
+ *   no baseline   0        0        0
+ *   stale         0        0        0   (overwrites)
+ *   unreadable    0        3        0   (overwrites)
+ *   empty corpus  0        0        0   (records a zero baseline)
+ *   no parser     3        3        3
+ *   unresolved    0        3        3
+ *
+ * `--json` is honoured on every outcome of all three subcommands, so automation
+ * never has to parse the prose form.
  */
 import { join } from 'node:path';
 
@@ -21,6 +25,7 @@ import { scanRoots } from '../core/repo-paths.js';
 import {
   BASELINE_FILE,
   buildBaseline,
+  buildEmptyBaseline,
   compareToBaseline,
   readBaseline,
   writeBaseline,
@@ -104,9 +109,33 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
     return 0;
   }
 
-  // An empty corpus has nothing to ratchet and nothing to record.
+  const options: BaselineOptions = {
+    threshold: INDIRECTION_CLOSURE_THRESHOLD,
+    scanRoots: scanRoots(cwd),
+    includeTests: false,
+  };
+  const path = join(cwd, BASELINE_FILE);
+
+  // An empty corpus is still recorded. Writing nothing would leave `check`
+  // seeing an absent baseline, so the first commit that adds source files —
+  // however deep — would pass unratcheted.
   if (result.kind === 'empty') {
-    process.stdout.write('indirection: no source files under the scan roots\n');
+    if (args.sub === 'baseline') {
+      const baseline = buildEmptyBaseline(options, new Date().toISOString());
+      writeBaseline(path, baseline);
+      process.stdout.write(
+        args.json
+          ? `${JSON.stringify(baseline)}\n`
+          : `indirection baseline: recorded excess sum 0 across 0 module(s) ` +
+              `(empty corpus) -> ${BASELINE_FILE}\n`,
+      );
+      return 0;
+    }
+    process.stdout.write(
+      args.json
+        ? `${JSON.stringify({ verdict: 'green', reason: 'empty-corpus', excessSum: 0 })}\n`
+        : 'indirection check: no source files under the scan roots - green\n',
+    );
     return 0;
   }
 
@@ -114,19 +143,15 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
   // were complete.
   if (result.unresolvedInScope.length > 0) {
     process.stderr.write(
-      `indirection ${args.sub}: ${result.unresolvedInScope.length} unresolved in-scope ` +
-        `import(s) — the measured graph is incomplete\n` +
-        result.unresolvedInScope.map((u) => `  ${u}\n`).join(''),
+      args.json
+        ? `${JSON.stringify({ verdict: 'could-not-look', reason: 'unresolved-imports', unresolvedInScope: result.unresolvedInScope })}\n`
+        : `indirection ${args.sub}: ${result.unresolvedInScope.length} unresolved in-scope ` +
+            `import(s) — the measured graph is incomplete\n` +
+            result.unresolvedInScope.map((u) => `  ${u}\n`).join(''),
     );
     return 3;
   }
 
-  const options: BaselineOptions = {
-    threshold: INDIRECTION_CLOSURE_THRESHOLD,
-    scanRoots: scanRoots(cwd),
-    includeTests: false,
-  };
-  const path = join(cwd, BASELINE_FILE);
   const prior = readBaseline(path);
 
   if (args.sub === 'baseline') {
@@ -149,23 +174,33 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
   }
 
   if (prior.kind === 'absent') {
+    const message =
+      `no baseline recorded (excess sum ${result.excessSum}) - ` +
+      `record one with 'noldor indirection baseline'`;
     process.stdout.write(
-      `indirection check: no baseline recorded (excess sum ${result.excessSum}) - ` +
-        `record one with 'noldor indirection baseline'\n`,
+      args.json
+        ? `${JSON.stringify({ verdict: 'green', reason: 'no-baseline', excessSum: result.excessSum, message })}\n`
+        : `indirection check: ${message}\n`,
     );
     return 0;
   }
   if (prior.kind === 'unreadable') {
+    const message = `baseline at ${BASELINE_FILE} is unreadable - ${prior.message}`;
     process.stderr.write(
-      `indirection check: baseline at ${BASELINE_FILE} is unreadable - ${prior.message}\n` +
-        `  re-record with 'noldor indirection baseline'\n`,
+      args.json
+        ? `${JSON.stringify({ verdict: 'could-not-look', reason: 'unreadable-baseline', message })}\n`
+        : `indirection check: ${message}\n  re-record with 'noldor indirection baseline'\n`,
     );
     return 3;
   }
 
   const verdict = compareToBaseline(result, prior.baseline, options);
   const stream = verdict.kind === 'red' ? process.stderr : process.stdout;
-  stream.write(`indirection check: ${verdict.message}\n`);
+  stream.write(
+    args.json
+      ? `${JSON.stringify({ verdict: verdict.kind, excessSum: result.excessSum, baseline: prior.baseline.excessSum, message: verdict.message })}\n`
+      : `indirection check: ${verdict.message}\n`,
+  );
   return verdict.kind === 'red' ? 1 : 0;
 }
 
