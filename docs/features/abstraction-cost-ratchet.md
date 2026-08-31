@@ -4,9 +4,14 @@ category: Tooling
 deps: []
 entry-id: Q-0199
 links:
-  code: []
+  code:
+    - src/indirection/detect.ts
+    - src/indirection/baseline.ts
+    - src/indirection/indirection-cli.ts
+    - src/cli/manifest.ts
   tests:
     - src/indirection/__tests__/detect.test.ts
+    - src/indirection/__tests__/baseline.test.ts
     - src/indirection/__tests__/indirection-cli.test.ts
     - src/indirection/__tests__/trees/tests-only/thing.spec.ts
   spec: docs/design/specs/2026-08-30-abstraction-cost-ratchet-design.md
