@@ -5,7 +5,10 @@ deps: []
 entry-id: Q-0199
 links:
   code: []
-  tests: []
+  tests:
+    - src/indirection/__tests__/detect.test.ts
+    - src/indirection/__tests__/indirection-cli.test.ts
+    - src/indirection/__tests__/trees/tests-only/thing.spec.ts
   spec: docs/design/specs/2026-08-30-abstraction-cost-ratchet-design.md
 name: Abstraction-Cost Ratchet
 packages:
@@ -13,7 +16,6 @@ packages:
 phase: in-progress
 noldor-tier: full
 ---
-
 ## Summary
 
 A counterweight to the clone ratchet. `noldor indirection` measures how many
