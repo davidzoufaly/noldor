@@ -126,38 +126,64 @@ function isInScopeSpecifier(spec: string | undefined, aliasPrefixes: readonly st
 }
 
 /**
- * Every `tsconfig*.json` under the scan roots, to a bounded depth, plus any at
- * the repo base.
+ * Depth-bounded directory walk over the scan roots, invoking `visit` with each
+ * directory's entries. One walker rather than two near-identical ones: the
+ * tsconfig and package-root scans differ only in what they harvest, and the
+ * clone gate flagged the copy. Kept local to this module because the sharing is
+ * intra-file — free on the indirection axis, which is the whole distinction the
+ * abstraction-cost rule draws.
  *
- * A monorepo declares `paths` per package (`packages/<pkg>/tsconfig.json`), so
- * reading only the base drops those alias edges silently. Depth is capped
- * because this runs on every pre-push and only package-root configs matter.
- * Every matching filename is returned, not two hard-coded names: a package whose
- * aliases live in `tsconfig.app.json` would otherwise be discovered as
- * "holds a tsconfig" and yield no prefixes, which is a silent drop.
+ * Depth is capped because this runs on every pre-push and only the configs a
+ * package root would carry matter, not every one in the tree.
  */
-function findTsconfigFiles(base: string, roots: readonly string[]): string[] {
-  const MAX_DEPTH = 3;
-  const out = new Set<string>();
+const WALK_MAX_DEPTH = 3;
+
+function walkRoots(
+  base: string,
+  roots: readonly string[],
+  visit: (dir: string, entries: readonly Dirent[]) => void,
+): void {
   const walk = (dir: string, depth: number): void => {
-    if (depth > MAX_DEPTH) return;
+    if (depth > WALK_MAX_DEPTH) return;
     let entries: Dirent[];
     try {
       entries = readdirSync(dir, { withFileTypes: true });
     } catch {
       return;
     }
+    visit(dir, entries);
     for (const e of entries) {
-      if (e.isFile() && e.name.startsWith('tsconfig') && e.name.endsWith('.json')) {
-        out.add(join(dir, e.name));
-      }
       if (!e.isDirectory()) continue;
       if (e.name.startsWith('.') || WALK_EXCLUDED_DIRS.has(e.name)) continue;
       walk(join(dir, e.name), depth + 1);
     }
   };
-  walk(base, MAX_DEPTH); // base itself only, no descent
   for (const r of roots) walk(resolve(base, r), 0);
+}
+
+/**
+ * Every `tsconfig*.json` under the scan roots, plus any at the repo base.
+ *
+ * A monorepo declares `paths` per package (`packages/<pkg>/tsconfig.json`), so
+ * reading only the base drops those alias edges silently. Every matching
+ * filename is returned, not two hard-coded names: a package whose aliases live
+ * in `tsconfig.app.json` would otherwise be discovered as "holds a tsconfig"
+ * and yield no prefixes, which is a silent drop dressed as coverage.
+ */
+function findTsconfigFiles(base: string, roots: readonly string[]): string[] {
+  const out = new Set<string>();
+  const harvest = (dir: string, entries: readonly Dirent[]): void => {
+    for (const e of entries) {
+      if (e.isFile() && e.name.startsWith('tsconfig') && e.name.endsWith('.json')) {
+        out.add(join(dir, e.name));
+      }
+    }
+  };
+  // The base itself, without descending — its own tsconfig still counts.
+  walkRoots(base, ['.'], (dir, entries) => {
+    if (dir === base) harvest(dir, entries);
+  });
+  walkRoots(base, roots, harvest);
   return [...out];
 }
 
@@ -233,31 +259,15 @@ function packageOf(source: string, packageRoots: readonly string[]): string | un
 
 /**
  * Directories under the scan roots that declare a `package.json`, repo-relative.
- * Bounded depth for the same reason the tsconfig walk is.
  */
 function findPackageRoots(base: string, roots: readonly string[]): string[] {
-  const MAX_DEPTH = 3;
   const out = new Set<string>();
-  const walk = (dir: string, depth: number): void => {
-    if (depth > MAX_DEPTH) return;
-    let entries: Dirent[];
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    if (entries.some((e) => e.isFile() && e.name === 'package.json')) {
-      const rel = toPosixRelative(base, dir);
-      // The repo root itself is not a boundary — everything would be "outside".
-      if (rel !== '' && !rel.startsWith('..')) out.add(rel);
-    }
-    for (const e of entries) {
-      if (!e.isDirectory()) continue;
-      if (e.name.startsWith('.') || WALK_EXCLUDED_DIRS.has(e.name)) continue;
-      walk(join(dir, e.name), depth + 1);
-    }
-  };
-  for (const r of roots) walk(resolve(base, r), 0);
+  walkRoots(base, roots, (dir, entries) => {
+    if (!entries.some((e) => e.isFile() && e.name === 'package.json')) return;
+    const rel = toPosixRelative(base, dir);
+    // The repo root itself is not a boundary — everything would be "outside".
+    if (rel !== '' && !rel.startsWith('..')) out.add(rel);
+  });
   return [...out];
 }
 
