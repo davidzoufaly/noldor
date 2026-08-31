@@ -32,7 +32,7 @@ import {
 } from './baseline.js';
 import type { BaselineOptions } from './baseline.js';
 import { INDIRECTION_CLOSURE_THRESHOLD, measureIndirection } from './detect.js';
-import type { IndirectionResult } from './detect.js';
+import type { IndirectionResult, MeasuredIndirection } from './detect.js';
 
 export interface IndirectionArgs {
   sub: 'report' | 'check' | 'baseline';
@@ -88,7 +88,14 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
   try {
     args = parseIndirectionArgs(argv);
   } catch (e) {
-    process.stderr.write(`${e instanceof Error ? e.message : String(e)}\n`);
+    const message = e instanceof Error ? e.message : String(e);
+    // `--json` may itself be the flag that parsed, so honour it when present in
+    // the raw argv rather than reaching for args, which does not exist yet.
+    process.stderr.write(
+      argv.includes('--json')
+        ? `${JSON.stringify({ verdict: 'could-not-look', reason: 'usage', message })}\n`
+        : `${message}\n`,
+    );
     return 3;
   }
 
@@ -100,12 +107,23 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
   if (result.kind === 'no-parser' || result.kind === 'unmeasurable') {
     // Rendered, not hand-formatted, so renderReport's failure branches are
     // reachable from a caller rather than dead code.
-    process.stderr.write(`${renderReport(result)}\n`);
+    process.stderr.write(
+      args.json
+        ? `${JSON.stringify({ verdict: 'could-not-look', reason: result.kind, message: result.message })}\n`
+        : `${renderReport(result)}\n`,
+    );
     return 3;
   }
 
   if (args.sub === 'report') {
-    process.stdout.write(args.json ? `${JSON.stringify(result)}\n` : `${renderReport(result)}\n`);
+    // An `empty` result carries no excessSum or percentiles of its own, but the
+    // documented JSON shape does — filling them here keeps one payload contract
+    // across both kinds instead of making every caller special-case emptiness.
+    const payload =
+      result.kind === 'empty'
+        ? { ...result, excessSum: 0, modules: [], flagged: [], percentiles: null }
+        : result;
+    process.stdout.write(args.json ? `${JSON.stringify(payload)}\n` : `${renderReport(result)}\n`);
     return 0;
   }
 
@@ -116,38 +134,34 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
   };
   const path = join(cwd, BASELINE_FILE);
 
-  // An empty corpus is still recorded. Writing nothing would leave `check`
-  // seeing an absent baseline, so the first commit that adds source files —
-  // however deep — would pass unratcheted.
-  if (result.kind === 'empty') {
-    if (args.sub === 'baseline') {
-      const baseline = buildEmptyBaseline(options, new Date().toISOString());
-      writeBaseline(path, baseline);
-      process.stdout.write(
-        args.json
-          ? `${JSON.stringify(baseline)}\n`
-          : `indirection baseline: recorded excess sum 0 across 0 module(s) ` +
-              `(empty corpus) -> ${BASELINE_FILE}\n`,
-      );
-      return 0;
-    }
-    process.stdout.write(
-      args.json
-        ? `${JSON.stringify({ verdict: 'green', reason: 'empty-corpus', excessSum: 0 })}\n`
-        : 'indirection check: no source files under the scan roots - green\n',
-    );
-    return 0;
-  }
+  // An empty corpus is measured, not skipped: it has an excess sum of zero, and
+  // a zero is a perfectly good thing to ratchet against. Treating it as a
+  // special early exit is what let an unreadable baseline pass as green and hid
+  // a fall to zero — so it flows through the same read/compare path below,
+  // standing in as a measured result with no modules.
+  const measured: MeasuredIndirection =
+    result.kind === 'empty'
+      ? {
+          kind: 'measured',
+          threshold: result.threshold,
+          excessSum: 0,
+          modules: [],
+          flagged: [],
+          percentiles: { p50: 0, p75: 0, p90: 0, p99: 0, max: 0 },
+          unresolvedInScope: [],
+        }
+      : result;
+  const corpusEmpty = result.kind === 'empty';
 
   // An incomplete graph must never be recorded as truth, nor compared as if it
   // were complete.
-  if (result.unresolvedInScope.length > 0) {
+  if (measured.unresolvedInScope.length > 0) {
     process.stderr.write(
       args.json
-        ? `${JSON.stringify({ verdict: 'could-not-look', reason: 'unresolved-imports', unresolvedInScope: result.unresolvedInScope })}\n`
-        : `indirection ${args.sub}: ${result.unresolvedInScope.length} unresolved in-scope ` +
+        ? `${JSON.stringify({ verdict: 'could-not-look', reason: 'unresolved-imports', unresolvedInScope: measured.unresolvedInScope })}\n`
+        : `indirection ${args.sub}: ${measured.unresolvedInScope.length} unresolved in-scope ` +
             `import(s) — the measured graph is incomplete\n` +
-            result.unresolvedInScope.map((u) => `  ${u}\n`).join(''),
+            measured.unresolvedInScope.map((u) => `  ${u}\n`).join(''),
     );
     return 3;
   }
@@ -158,7 +172,10 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
     // Writes unconditionally: re-recording is the only repair for an unreadable
     // or stale file, so refusing here would deadlock. The sibling behaves the
     // same way — clones-cli reads the prior only for the drift line.
-    const baseline = buildBaseline(result, options, new Date().toISOString());
+    const at = new Date().toISOString();
+    const baseline = corpusEmpty
+      ? buildEmptyBaseline(options, at)
+      : buildBaseline(measured, options, at);
     writeBaseline(path, baseline);
     const drift =
       prior.kind === 'ok' && prior.baseline.excessSum !== baseline.excessSum
@@ -175,11 +192,11 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
 
   if (prior.kind === 'absent') {
     const message =
-      `no baseline recorded (excess sum ${result.excessSum}) - ` +
+      `no baseline recorded (excess sum ${measured.excessSum}) - ` +
       `record one with 'noldor indirection baseline'`;
     process.stdout.write(
       args.json
-        ? `${JSON.stringify({ verdict: 'green', reason: 'no-baseline', excessSum: result.excessSum, message })}\n`
+        ? `${JSON.stringify({ verdict: 'green', reason: 'no-baseline', excessSum: measured.excessSum, message })}\n`
         : `indirection check: ${message}\n`,
     );
     return 0;
@@ -194,11 +211,11 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
     return 3;
   }
 
-  const verdict = compareToBaseline(result, prior.baseline, options);
+  const verdict = compareToBaseline(measured, prior.baseline, options);
   const stream = verdict.kind === 'red' ? process.stderr : process.stdout;
   stream.write(
     args.json
-      ? `${JSON.stringify({ verdict: verdict.kind, excessSum: result.excessSum, baseline: prior.baseline.excessSum, message: verdict.message })}\n`
+      ? `${JSON.stringify({ verdict: verdict.kind, excessSum: measured.excessSum, baseline: prior.baseline.excessSum, message: verdict.message })}\n`
       : `indirection check: ${verdict.message}\n`,
   );
   return verdict.kind === 'red' ? 1 : 0;

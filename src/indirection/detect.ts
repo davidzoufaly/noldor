@@ -8,12 +8,13 @@
  * cannot see a closure growing 31 -> 100, and can stay flat while one module
  * crosses the threshold and another drops below it.
  */
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import type { Dirent } from 'node:fs';
+import { isAbsolute, join, resolve, sep } from 'node:path';
 
 import { allExtensions, cruise } from 'dependency-cruiser';
 
-import { CODE_FILE_RE, TEST_FILE_RE, walkCodeFiles } from '../core/repo-paths.js';
+import { CODE_FILE_RE, TEST_FILE_RE, toPosixRelative, walkCodeFiles } from '../core/repo-paths.js';
 import { findUnparseableTsExtensions } from '../invariants/boundaries.js';
 
 /**
@@ -99,37 +100,86 @@ function percentile(sorted: readonly number[], p: number): number {
  * resolve — and treating those as failures would hard-block pre-push in
  * consumer repos that are perfectly fine.
  *
- * `aliasesInPlay` widens that: when the repo declares tsconfig `paths`, an
- * unresolved non-relative specifier may be an alias rather than a package, and
- * this toolchain cannot tell them apart — dependency-cruiser reads `paths`
- * through the `typescript` package it accepts only at `>=2 <6`, while this repo
- * is on 7 (the same constraint behind the parser guard). Passing `tsConfig` does
- * not help; verified against `dependency-cruiser@16.10.4`, an aliased import
- * comes back `couldNotResolve` with or without it. So the alias is reported and
- * the run refuses, rather than dropping the edge and recording a number that is
- * quietly too small.
+ * `aliasPrefixes` widens that by exactly the declared alias namespace and no
+ * further. dependency-cruiser reads tsconfig `paths` through the `typescript`
+ * package it accepts only at `>=2 <6`, while this repo is on 7 (the same
+ * constraint behind the parser guard), so an aliased import comes back
+ * `couldNotResolve` — verified against `dependency-cruiser@16.10.4`, with and
+ * without `tsConfig` passed. Dropping that edge would understate the ratchet,
+ * so a specifier matching a declared prefix is reported and the run refuses.
+ *
+ * Matching on the prefix rather than on "a tsconfig declares any paths" is the
+ * whole point: the broader test made an uninstalled optional peer fatal in every
+ * alias-using repo, which is the hazard this doc comment exists to rule out.
  */
-function isInScopeSpecifier(spec: string | undefined, aliasesInPlay: boolean): boolean {
+function isInScopeSpecifier(spec: string | undefined, aliasPrefixes: readonly string[]): boolean {
   if (spec === undefined) return false;
   if (spec.startsWith('./') || spec.startsWith('../') || spec.startsWith('#')) return true;
-  return aliasesInPlay;
+  return aliasPrefixes.some((a) => spec === a || spec.startsWith(`${a}/`));
 }
 
-/** Does the repo declare tsconfig `paths`? Then aliases cannot be resolved here. */
-function declaresPathAliases(base: string): boolean {
-  for (const name of ['tsconfig.json', 'tsconfig.base.json']) {
-    const p = join(base, name);
-    if (!existsSync(p)) continue;
+/**
+ * Directories under the scan roots that hold a tsconfig, to a bounded depth.
+ *
+ * A monorepo declares `paths` per package (`packages/<pkg>/tsconfig.json`), so
+ * reading only the repo base drops those alias edges silently — the failure this
+ * whole alias path exists to avoid. Depth is capped because this runs on every
+ * pre-push and the answer only needs the configs a package root would carry, not
+ * every one in the tree.
+ */
+function findTsconfigDirs(base: string, roots: readonly string[]): string[] {
+  const MAX_DEPTH = 3;
+  const out: string[] = [];
+  const walk = (dir: string, depth: number): void => {
+    if (depth > MAX_DEPTH) return;
+    let entries: Dirent[];
     try {
-      // Comments and trailing commas are common in a tsconfig, so this asks the
-      // cheap question — is there a `paths` key at all — rather than parsing.
-      if (/"paths"\s*:/.test(readFileSync(p, 'utf8'))) return true;
+      entries = readdirSync(dir, { withFileTypes: true });
     } catch {
-      // Unreadable tsconfig: assume no aliases. The parser guard and the
-      // completeness check already cover a genuinely broken tree.
+      return;
+    }
+    if (entries.some((e) => e.isFile() && e.name.startsWith('tsconfig'))) out.push(dir);
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      if (e.name.startsWith('.') || e.name === 'node_modules' || e.name === 'dist') continue;
+      walk(join(dir, e.name), depth + 1);
+    }
+  };
+  for (const r of roots) walk(resolve(base, r), 0);
+  return out;
+}
+
+/**
+ * Alias namespaces declared by any tsconfig at `base` or under a scan root — a
+ * monorepo commonly declares `paths` per package, and looking only at the base
+ * would drop those edges silently.
+ */
+function declaredAliasPrefixes(base: string, roots: readonly string[]): string[] {
+  const dirs = [base, ...findTsconfigDirs(base, roots)];
+  const prefixes = new Set<string>();
+  for (const dir of dirs) {
+    for (const name of ['tsconfig.json', 'tsconfig.base.json']) {
+      const p = join(dir, name);
+      if (!existsSync(p)) continue;
+      try {
+        // Only the alias KEYS are needed, and a tsconfig routinely carries
+        // comments and trailing commas that `JSON.parse` refuses — so this
+        // scans the `paths` block for its keys rather than parsing the file.
+        const text = readFileSync(p, 'utf8');
+        const block = /"paths"\s*:\s*\{([\s\S]*?)\n\s*\}/.exec(text);
+        if (block === null) continue;
+        for (const m of block[1]!.matchAll(/"([^"]+)"\s*:/g)) {
+          const key = m[1]!;
+          if (key.startsWith('.')) continue;
+          prefixes.add(key.endsWith('/*') ? key.slice(0, -2) : key);
+        }
+      } catch {
+        // Unreadable tsconfig: no aliases learned from it. The parser guard and
+        // the completeness check already cover a genuinely broken tree.
+      }
     }
   }
-  return false;
+  return [...prefixes];
 }
 
 /** cruise reports paths relative to baseDir; anything escaping it is not ours. */
@@ -166,7 +216,22 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   // every push hard-blocked by a missing `apps/`. Deduped as well: a repeated or
   // overlapping root would otherwise enumerate the same file twice.
   // `src/invariants/boundaries.ts` filters the same way before cruising.
-  const roots = [...new Set(opts.roots)].filter((r) => existsSync(join(base, r)));
+  // `resolve` in both the existence test and the walk below — `join` disagrees
+  // with it for an absolute root, and `scanPaths` is validated only as a
+  // non-empty string, so an absolute entry used to resolve to nothing, report
+  // `empty`, and let `baseline` record 0 — the gate silently disabling itself.
+  // An absolute root is refused rather than guessed at: it cannot be handed to
+  // cruise, which joins roots onto `baseDir`.
+  const absolute = opts.roots.filter((r) => isAbsolute(r));
+  if (absolute.length > 0) {
+    return {
+      kind: 'unmeasurable',
+      message:
+        `scan root(s) must be repo-relative, got absolute: ${absolute.join(', ')} — ` +
+        `cruise joins roots onto baseDir, so an absolute root cannot be measured`,
+    };
+  }
+  const roots = [...new Set(opts.roots)].filter((r) => existsSync(resolve(base, r)));
   if (roots.length === 0) return { kind: 'empty', threshold };
 
   // Does any MEASURABLE source file exist? Counting tests here would call a
@@ -181,9 +246,7 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   // walker admits. Without it, a file under a `WALK_EXCLUDED_DIRS` directory
   // that some measured module imports would enter the metric even though the
   // walker never offered it as a candidate — two different corpus rules.
-  const candidates = new Set(
-    candidateAbs.map((f) => relative(base, realpathSync(f)).split(sep).join('/')),
-  );
+  const candidates = new Set(candidateAbs.map((f) => toPosixRelative(base, realpathSync(f))));
 
   const unparseable = findUnparseableTsExtensions(opts.extensions ?? allExtensions);
   if (unparseable.length > 0) {
@@ -197,9 +260,8 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   }
 
   // Aliases cannot be resolved in this toolchain (see `isInScopeSpecifier`), so
-  // the question is only whether any are in play — if so, an unresolved
-  // non-relative specifier is reported instead of dropped.
-  const aliasesInPlay = declaresPathAliases(base);
+  // collect the declared namespaces and report only specifiers inside them.
+  const aliasPrefixes = declaredAliasPrefixes(base, roots);
 
   let raw: readonly CruiseModule[];
   try {
@@ -207,7 +269,13 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
       baseDir: base,
       validate: false,
       doNotFollow: { path: 'node_modules' },
-      exclude: { path: `node_modules|__tests__|${TEST_FILE_RE.source}` },
+      // Anchored to path segments, because `walkCodeFiles` excludes on an
+      // EXACT directory name (`WALK_EXCLUDED_DIRS.has(name)`). An unanchored
+      // substring made a directory merely CONTAINING `__tests__` — e.g.
+      // `src/__tests__helpers/` — excluded here but enumerated there, so the
+      // two corpus rules disagreed and the completeness guard tripped on a
+      // healthy repo.
+      exclude: { path: `(^|/)(node_modules|__tests__)(/|$)|${TEST_FILE_RE.source}` },
       tsPreCompilationDeps: true,
     });
     const out = result.output;
@@ -246,7 +314,7 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   const unresolvedInScope: string[] = [];
   for (const m of measured) {
     for (const d of m.dependencies) {
-      if (d.couldNotResolve === true && isInScopeSpecifier(d.module, aliasesInPlay)) {
+      if (d.couldNotResolve === true && isInScopeSpecifier(d.module, aliasPrefixes)) {
         unresolvedInScope.push(`${m.source} -> ${d.module ?? d.resolved}`);
       }
     }

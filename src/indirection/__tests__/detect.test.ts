@@ -199,3 +199,53 @@ describe('scan-root robustness', () => {
     expect(r.unresolvedInScope[0]).toContain('./does-not-exist.js');
   });
 });
+
+describe('alias namespace, not any-unresolved', () => {
+  it('reports an unresolved alias but never an unresolved bare package', async () => {
+    // The earlier widening made "any tsconfig declares paths" enough, so an
+    // uninstalled optional peer became fatal in every alias-using repo — the
+    // exact hazard isInScopeSpecifier's contract rules out.
+    const r = await measureIndirection(tree('alias-and-peer'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@lib/thing');
+    expect(r.unresolvedInScope.join()).not.toContain('some-optional-peer');
+  });
+
+  it('reports nothing when the only unresolved import is a bare package', async () => {
+    const r = await measureIndirection(tree('peer-only'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+  });
+
+  it('finds paths declared per package, not only at the base', async () => {
+    const r = await measureIndirection(tree('monorepo'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@pkg/thing');
+  });
+});
+
+describe('corpus-rule agreement', () => {
+  it('keeps a directory whose name merely contains an excluded segment', async () => {
+    // walkCodeFiles excludes on an EXACT directory name, so an unanchored cruise
+    // exclude made the two corpus rules disagree and tripped the completeness
+    // guard on a healthy repo.
+    const r = await measureIndirection(tree('near-miss'));
+    expect(r.kind).toBe('measured');
+    if (r.kind !== 'measured') return;
+    expect(r.modules.map((m) => m.source).sort()).toEqual(['__tests__helpers/h.ts', 'a.ts']);
+  });
+
+  it('refuses an absolute scan root instead of silently measuring nothing', async () => {
+    // join() and resolve() disagree for an absolute root, which used to yield
+    // `empty` — so `baseline` recorded 0 and the gate disabled itself forever.
+    const r = await measureIndirection({
+      roots: [join(import.meta.dirname, 'trees', 'chain')],
+      cwd: join(import.meta.dirname, 'trees', 'chain'),
+    });
+    expect(r.kind).toBe('unmeasurable');
+    if (r.kind !== 'unmeasurable') return;
+    expect(r.message).toContain('repo-relative');
+  });
+});
