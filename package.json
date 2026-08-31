@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^8.4.3",
+    "@swc/core": "^1.16.1",
     "dependency-cruiser": "^16.10.0",
     "gray-matter": "^4.0.3",
     "highlight.js": "^11.10.0",
@@ -61,7 +62,6 @@
     "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
-    "@swc/core": "^1.16.1",
     "@types/node": "^22.0.0",
     "@types/pngjs": "^6.0.5",
     "@types/semver": "^7.7.1",
