@@ -1,164 +1,159 @@
 # Graph Report - .  (2026-08-30)
 
 ## Corpus Check
-- Large corpus: 1117 files · ~1,312,646 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
+- Large corpus: 1118 files · ~1,314,892 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
 
 ## Summary
-- 3108 nodes · 8327 edges · 164 communities (153 shown, 11 thin omitted)
+- 3108 nodes · 8329 edges · 159 communities (147 shown, 12 thin omitted)
 - Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 1025 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_Capture and Version Probes|Capture and Version Probes]]
-- [[_COMMUNITY_Roadmap Ops and ADR Detection|Roadmap Ops and ADR Detection]]
-- [[_COMMUNITY_Codex CR Adapter|Codex CR Adapter]]
-- [[_COMMUNITY_CLI Command Registry|CLI Command Registry]]
-- [[_COMMUNITY_Dashboard WIP-Age Views|Dashboard WIP-Age Views]]
-- [[_COMMUNITY_Path and Doc Root Resolution|Path and Doc Root Resolution]]
-- [[_COMMUNITY_CR Aggregate and Template SHA|CR Aggregate and Template SHA]]
 - [[_COMMUNITY_Worktree Lifecycle|Worktree Lifecycle]]
-- [[_COMMUNITY_Override and Release Audit|Override and Release Audit]]
-- [[_COMMUNITY_Release Notes and Changelog|Release Notes and Changelog]]
-- [[_COMMUNITY_Metrics Collection|Metrics Collection]]
-- [[_COMMUNITY_Link-Drift Projection|Link-Drift Projection]]
-- [[_COMMUNITY_Queue Drain Supervisor|Queue Drain Supervisor]]
-- [[_COMMUNITY_PR Checks Gating|PR Checks Gating]]
-- [[_COMMUNITY_Prompt and Runner Utils|Prompt and Runner Utils]]
-- [[_COMMUNITY_Dashboard Server Boot|Dashboard Server Boot]]
-- [[_COMMUNITY_Design Context Ledger|Design Context Ledger]]
-- [[_COMMUNITY_Invariants and Boundaries|Invariants and Boundaries]]
-- [[_COMMUNITY_Build Runtime Selection|Build Runtime Selection]]
-- [[_COMMUNITY_Release Pipeline Checks|Release Pipeline Checks]]
-- [[_COMMUNITY_Geometry Compare|Geometry Compare]]
-- [[_COMMUNITY_Graph Digest Report|Graph Digest Report]]
-- [[_COMMUNITY_Rules Validation CLI|Rules Validation CLI]]
-- [[_COMMUNITY_Template Sync and Agents|Template Sync and Agents]]
-- [[_COMMUNITY_CLI Dispatch Entry|CLI Dispatch Entry]]
-- [[_COMMUNITY_Markdown Section Scan|Markdown Section Scan]]
-- [[_COMMUNITY_CR Lane Configuration|CR Lane Configuration]]
-- [[_COMMUNITY_Dashboard Routes and Queue|Dashboard Routes and Queue]]
-- [[_COMMUNITY_Drain Eligibility Sources|Drain Eligibility Sources]]
-- [[_COMMUNITY_Architecture Scan Roots|Architecture Scan Roots]]
-- [[_COMMUNITY_Garden Receipt Freshness|Garden Receipt Freshness]]
-- [[_COMMUNITY_Clone Baseline Ratchet|Clone Baseline Ratchet]]
-- [[_COMMUNITY_Gate Allowlist Predicates|Gate Allowlist Predicates]]
-- [[_COMMUNITY_Task Concurrency Runner|Task Concurrency Runner]]
-- [[_COMMUNITY_FD Link Rot Detection|FD Link Rot Detection]]
-- [[_COMMUNITY_Feature and Backlog Loading|Feature and Backlog Loading]]
-- [[_COMMUNITY_CR Subagent Dispatch|CR Subagent Dispatch]]
-- [[_COMMUNITY_Prep Index Rendering|Prep Index Rendering]]
-- [[_COMMUNITY_Garden Detectors|Garden Detectors]]
-- [[_COMMUNITY_Drain Branch Classify|Drain Branch Classify]]
-- [[_COMMUNITY_Community 40|Community 40]]
-- [[_COMMUNITY_Community 41|Community 41]]
-- [[_COMMUNITY_Community 42|Community 42]]
-- [[_COMMUNITY_Community 43|Community 43]]
-- [[_COMMUNITY_Community 44|Community 44]]
-- [[_COMMUNITY_Community 45|Community 45]]
-- [[_COMMUNITY_Community 46|Community 46]]
-- [[_COMMUNITY_Community 47|Community 47]]
-- [[_COMMUNITY_Community 48|Community 48]]
-- [[_COMMUNITY_Community 49|Community 49]]
-- [[_COMMUNITY_Community 50|Community 50]]
-- [[_COMMUNITY_Community 51|Community 51]]
-- [[_COMMUNITY_Community 52|Community 52]]
-- [[_COMMUNITY_Community 53|Community 53]]
-- [[_COMMUNITY_Community 54|Community 54]]
-- [[_COMMUNITY_Community 55|Community 55]]
-- [[_COMMUNITY_Community 56|Community 56]]
-- [[_COMMUNITY_Community 57|Community 57]]
-- [[_COMMUNITY_Community 58|Community 58]]
-- [[_COMMUNITY_Community 59|Community 59]]
-- [[_COMMUNITY_Community 60|Community 60]]
-- [[_COMMUNITY_Community 61|Community 61]]
-- [[_COMMUNITY_Community 62|Community 62]]
-- [[_COMMUNITY_Community 63|Community 63]]
-- [[_COMMUNITY_Community 64|Community 64]]
-- [[_COMMUNITY_Community 65|Community 65]]
-- [[_COMMUNITY_Community 66|Community 66]]
-- [[_COMMUNITY_Community 67|Community 67]]
-- [[_COMMUNITY_Community 68|Community 68]]
-- [[_COMMUNITY_Community 69|Community 69]]
-- [[_COMMUNITY_Community 70|Community 70]]
-- [[_COMMUNITY_Community 71|Community 71]]
-- [[_COMMUNITY_Community 72|Community 72]]
-- [[_COMMUNITY_Community 73|Community 73]]
-- [[_COMMUNITY_Community 74|Community 74]]
-- [[_COMMUNITY_Community 75|Community 75]]
-- [[_COMMUNITY_Community 76|Community 76]]
-- [[_COMMUNITY_Community 77|Community 77]]
-- [[_COMMUNITY_Community 78|Community 78]]
-- [[_COMMUNITY_Community 79|Community 79]]
-- [[_COMMUNITY_Community 80|Community 80]]
-- [[_COMMUNITY_Community 81|Community 81]]
-- [[_COMMUNITY_Community 82|Community 82]]
-- [[_COMMUNITY_Community 83|Community 83]]
-- [[_COMMUNITY_Community 84|Community 84]]
-- [[_COMMUNITY_Community 85|Community 85]]
-- [[_COMMUNITY_Community 86|Community 86]]
-- [[_COMMUNITY_Community 87|Community 87]]
-- [[_COMMUNITY_Community 88|Community 88]]
-- [[_COMMUNITY_Community 89|Community 89]]
-- [[_COMMUNITY_Community 90|Community 90]]
-- [[_COMMUNITY_Community 91|Community 91]]
-- [[_COMMUNITY_Community 92|Community 92]]
-- [[_COMMUNITY_Community 93|Community 93]]
-- [[_COMMUNITY_Community 94|Community 94]]
-- [[_COMMUNITY_Community 95|Community 95]]
-- [[_COMMUNITY_Community 96|Community 96]]
-- [[_COMMUNITY_Community 97|Community 97]]
-- [[_COMMUNITY_Community 98|Community 98]]
-- [[_COMMUNITY_Community 99|Community 99]]
-- [[_COMMUNITY_Community 100|Community 100]]
-- [[_COMMUNITY_Community 101|Community 101]]
-- [[_COMMUNITY_Community 102|Community 102]]
-- [[_COMMUNITY_Community 103|Community 103]]
-- [[_COMMUNITY_Community 104|Community 104]]
-- [[_COMMUNITY_Community 105|Community 105]]
-- [[_COMMUNITY_Community 106|Community 106]]
-- [[_COMMUNITY_Community 107|Community 107]]
-- [[_COMMUNITY_Community 108|Community 108]]
-- [[_COMMUNITY_Community 109|Community 109]]
-- [[_COMMUNITY_Community 110|Community 110]]
-- [[_COMMUNITY_Community 111|Community 111]]
-- [[_COMMUNITY_Community 112|Community 112]]
-- [[_COMMUNITY_Community 113|Community 113]]
-- [[_COMMUNITY_Community 114|Community 114]]
-- [[_COMMUNITY_Community 115|Community 115]]
-- [[_COMMUNITY_Community 116|Community 116]]
-- [[_COMMUNITY_Community 117|Community 117]]
-- [[_COMMUNITY_Community 118|Community 118]]
-- [[_COMMUNITY_Community 119|Community 119]]
-- [[_COMMUNITY_Community 120|Community 120]]
-- [[_COMMUNITY_Community 121|Community 121]]
-- [[_COMMUNITY_Community 122|Community 122]]
-- [[_COMMUNITY_Community 123|Community 123]]
-- [[_COMMUNITY_Community 124|Community 124]]
-- [[_COMMUNITY_Community 125|Community 125]]
-- [[_COMMUNITY_Community 126|Community 126]]
-- [[_COMMUNITY_Community 127|Community 127]]
-- [[_COMMUNITY_Community 128|Community 128]]
-- [[_COMMUNITY_Community 129|Community 129]]
-- [[_COMMUNITY_Community 130|Community 130]]
-- [[_COMMUNITY_Community 131|Community 131]]
-- [[_COMMUNITY_Community 132|Community 132]]
-- [[_COMMUNITY_Community 133|Community 133]]
-- [[_COMMUNITY_Community 134|Community 134]]
-- [[_COMMUNITY_Community 135|Community 135]]
-- [[_COMMUNITY_Community 136|Community 136]]
-- [[_COMMUNITY_Community 137|Community 137]]
-- [[_COMMUNITY_Community 138|Community 138]]
-- [[_COMMUNITY_Community 139|Community 139]]
-- [[_COMMUNITY_Community 140|Community 140]]
-- [[_COMMUNITY_Community 141|Community 141]]
-- [[_COMMUNITY_Community 142|Community 142]]
-- [[_COMMUNITY_Community 143|Community 143]]
-- [[_COMMUNITY_Community 144|Community 144]]
-- [[_COMMUNITY_Community 145|Community 145]]
-- [[_COMMUNITY_Community 146|Community 146]]
-- [[_COMMUNITY_Community 148|Community 148]]
-- [[_COMMUNITY_Community 150|Community 150]]
-- [[_COMMUNITY_Community 153|Community 153]]
+- [[_COMMUNITY_Rules Cascade|Rules Cascade]]
+- [[_COMMUNITY_Code-Review Pipeline|Code-Review Pipeline]]
+- [[_COMMUNITY_Docs Generation|Docs Generation]]
+- [[_COMMUNITY_Dashboard UI|Dashboard UI]]
+- [[_COMMUNITY_Dashboard UI 2|Dashboard UI 2]]
+- [[_COMMUNITY_Metrics Computation|Metrics Computation]]
+- [[_COMMUNITY_Code-Review Pipeline 2|Code-Review Pipeline 2]]
+- [[_COMMUNITY_Binary Entrypoints|Binary Entrypoints]]
+- [[_COMMUNITY_Release Machinery|Release Machinery]]
+- [[_COMMUNITY_Doc Gardening Detectors|Doc Gardening Detectors]]
+- [[_COMMUNITY_Architecture Invariants|Architecture Invariants]]
+- [[_COMMUNITY_Git Hook Enforcement|Git Hook Enforcement]]
+- [[_COMMUNITY_Doc-Code Link Sync|Doc-Code Link Sync]]
+- [[_COMMUNITY_Design Artifact Flow|Design Artifact Flow]]
+- [[_COMMUNITY_Dashboard UI 3|Dashboard UI 3]]
+- [[_COMMUNITY_Core Session and Gate|Core Session and Gate]]
+- [[_COMMUNITY_Dashboard UI 4|Dashboard UI 4]]
+- [[_COMMUNITY_Code-Review Pipeline 3|Code-Review Pipeline 3]]
+- [[_COMMUNITY_Core Session and Gate 2|Core Session and Gate 2]]
+- [[_COMMUNITY_Autonomous Drain Runner|Autonomous Drain Runner]]
+- [[_COMMUNITY_Design Artifact Flow 2|Design Artifact Flow 2]]
+- [[_COMMUNITY_Core Session and Gate 3|Core Session and Gate 3]]
+- [[_COMMUNITY_Doc Gardening Detectors 2|Doc Gardening Detectors 2]]
+- [[_COMMUNITY_Code-Review Pipeline 4|Code-Review Pipeline 4]]
+- [[_COMMUNITY_CLI Command Surface|CLI Command Surface]]
+- [[_COMMUNITY_Autonomous Drain Runner 2|Autonomous Drain Runner 2]]
+- [[_COMMUNITY_Consumer Templates|Consumer Templates]]
+- [[_COMMUNITY_Code-Review Pipeline 5|Code-Review Pipeline 5]]
+- [[_COMMUNITY_Code-Review Pipeline 6|Code-Review Pipeline 6]]
+- [[_COMMUNITY_Autonomous Drain Runner 3|Autonomous Drain Runner 3]]
+- [[_COMMUNITY_Doc Gardening Detectors 3|Doc Gardening Detectors 3]]
+- [[_COMMUNITY_Release Machinery 2|Release Machinery 2]]
+- [[_COMMUNITY_Research Fanout|Research Fanout]]
+- [[_COMMUNITY_Feature MD Schema|Feature MD Schema]]
+- [[_COMMUNITY_Core Session and Gate 4|Core Session and Gate 4]]
+- [[_COMMUNITY_Code-Review Pipeline 7|Code-Review Pipeline 7]]
+- [[_COMMUNITY_Dashboard UI 5|Dashboard UI 5]]
+- [[_COMMUNITY_Artifact Format Contracts|Artifact Format Contracts]]
+- [[_COMMUNITY_Code-Review Pipeline 8|Code-Review Pipeline 8]]
+- [[_COMMUNITY_Docs Generation 2|Docs Generation 2]]
+- [[_COMMUNITY_Dashboard UI 6|Dashboard UI 6]]
+- [[_COMMUNITY_Shared Utilities|Shared Utilities]]
+- [[_COMMUNITY_Core Session and Gate 5|Core Session and Gate 5]]
+- [[_COMMUNITY_Repo Checks|Repo Checks]]
+- [[_COMMUNITY_Core Session and Gate 6|Core Session and Gate 6]]
+- [[_COMMUNITY_Autonomous Drain Runner 4|Autonomous Drain Runner 4]]
+- [[_COMMUNITY_Design Artifact Flow 3|Design Artifact Flow 3]]
+- [[_COMMUNITY_Core Session and Gate 7|Core Session and Gate 7]]
+- [[_COMMUNITY_Artifact Format Contracts 2|Artifact Format Contracts 2]]
+- [[_COMMUNITY_Core Session and Gate 8|Core Session and Gate 8]]
+- [[_COMMUNITY_Release Machinery 3|Release Machinery 3]]
+- [[_COMMUNITY_Autonomous Drain Runner 5|Autonomous Drain Runner 5]]
+- [[_COMMUNITY_Core Session and Gate 9|Core Session and Gate 9]]
+- [[_COMMUNITY_Autonomous Drain Runner 6|Autonomous Drain Runner 6]]
+- [[_COMMUNITY_Release Machinery 4|Release Machinery 4]]
+- [[_COMMUNITY_Graph Integration|Graph Integration]]
+- [[_COMMUNITY_Release Machinery 5|Release Machinery 5]]
+- [[_COMMUNITY_Milestones|Milestones]]
+- [[_COMMUNITY_Clone Duplication Ratchet|Clone Duplication Ratchet]]
+- [[_COMMUNITY_Core Session and Gate 10|Core Session and Gate 10]]
+- [[_COMMUNITY_Artifact Format Contracts 3|Artifact Format Contracts 3]]
+- [[_COMMUNITY_Version Migrations|Version Migrations]]
+- [[_COMMUNITY_Architecture Invariants 2|Architecture Invariants 2]]
+- [[_COMMUNITY_Autonomous Drain Runner 7|Autonomous Drain Runner 7]]
+- [[_COMMUNITY_Design Artifact Flow 4|Design Artifact Flow 4]]
+- [[_COMMUNITY_Clone Duplication Ratchet 2|Clone Duplication Ratchet 2]]
+- [[_COMMUNITY_Core Session and Gate 11|Core Session and Gate 11]]
+- [[_COMMUNITY_Core Session and Gate 12|Core Session and Gate 12]]
+- [[_COMMUNITY_Artifact Format Contracts 4|Artifact Format Contracts 4]]
+- [[_COMMUNITY_Idea Triage|Idea Triage]]
+- [[_COMMUNITY_Dashboard UI 7|Dashboard UI 7]]
+- [[_COMMUNITY_Autonomous Drain Runner 8|Autonomous Drain Runner 8]]
+- [[_COMMUNITY_Core Session and Gate 13|Core Session and Gate 13]]
+- [[_COMMUNITY_Release Machinery 6|Release Machinery 6]]
+- [[_COMMUNITY_Core Session and Gate 14|Core Session and Gate 14]]
+- [[_COMMUNITY_Docs Generation 3|Docs Generation 3]]
+- [[_COMMUNITY_Graph Integration 2|Graph Integration 2]]
+- [[_COMMUNITY_Design Artifact Flow 5|Design Artifact Flow 5]]
+- [[_COMMUNITY_Release Machinery 7|Release Machinery 7]]
+- [[_COMMUNITY_Doc Gardening Detectors 4|Doc Gardening Detectors 4]]
+- [[_COMMUNITY_Idea Triage 2|Idea Triage 2]]
+- [[_COMMUNITY_Core Session and Gate 15|Core Session and Gate 15]]
+- [[_COMMUNITY_Repo Checks 2|Repo Checks 2]]
+- [[_COMMUNITY_Core Session and Gate 16|Core Session and Gate 16]]
+- [[_COMMUNITY_Release Machinery 8|Release Machinery 8]]
+- [[_COMMUNITY_Code-Review Pipeline 9|Code-Review Pipeline 9]]
+- [[_COMMUNITY_Code-Review Pipeline 10|Code-Review Pipeline 10]]
+- [[_COMMUNITY_Release Machinery 9|Release Machinery 9]]
+- [[_COMMUNITY_Feature MD Schema 2|Feature MD Schema 2]]
+- [[_COMMUNITY_Release Machinery 10|Release Machinery 10]]
+- [[_COMMUNITY_Doc Gardening Detectors 5|Doc Gardening Detectors 5]]
+- [[_COMMUNITY_Idea Triage 3|Idea Triage 3]]
+- [[_COMMUNITY_Design Artifact Flow 6|Design Artifact Flow 6]]
+- [[_COMMUNITY_Core Session and Gate 17|Core Session and Gate 17]]
+- [[_COMMUNITY_Core Session and Gate 18|Core Session and Gate 18]]
+- [[_COMMUNITY_Core Session and Gate 19|Core Session and Gate 19]]
+- [[_COMMUNITY_Design Artifact Flow 7|Design Artifact Flow 7]]
+- [[_COMMUNITY_Core Session and Gate 20|Core Session and Gate 20]]
+- [[_COMMUNITY_Core Session and Gate 21|Core Session and Gate 21]]
+- [[_COMMUNITY_Code-Review Pipeline 11|Code-Review Pipeline 11]]
+- [[_COMMUNITY_Dashboard UI 8|Dashboard UI 8]]
+- [[_COMMUNITY_Doc Gardening Detectors 6|Doc Gardening Detectors 6]]
+- [[_COMMUNITY_Doc-Code Link Sync 2|Doc-Code Link Sync 2]]
+- [[_COMMUNITY_Dashboard UI 9|Dashboard UI 9]]
+- [[_COMMUNITY_Design Artifact Flow 8|Design Artifact Flow 8]]
+- [[_COMMUNITY_Clone Duplication Ratchet 3|Clone Duplication Ratchet 3]]
+- [[_COMMUNITY_Repo Checks 3|Repo Checks 3]]
+- [[_COMMUNITY_Clone Duplication Ratchet 4|Clone Duplication Ratchet 4]]
+- [[_COMMUNITY_Git Hook Enforcement 2|Git Hook Enforcement 2]]
+- [[_COMMUNITY_Doc Gardening Detectors 7|Doc Gardening Detectors 7]]
+- [[_COMMUNITY_Design Artifact Flow 9|Design Artifact Flow 9]]
+- [[_COMMUNITY_Feature MD Schema 3|Feature MD Schema 3]]
+- [[_COMMUNITY_Doc Gardening Detectors 8|Doc Gardening Detectors 8]]
+- [[_COMMUNITY_Feature MD Schema 4|Feature MD Schema 4]]
+- [[_COMMUNITY_Feature MD Schema 5|Feature MD Schema 5]]
+- [[_COMMUNITY_Idea Triage 4|Idea Triage 4]]
+- [[_COMMUNITY_Core Session and Gate 22|Core Session and Gate 22]]
+- [[_COMMUNITY_Core Session and Gate 23|Core Session and Gate 23]]
+- [[_COMMUNITY_Release Machinery 11|Release Machinery 11]]
+- [[_COMMUNITY_Core Session and Gate 24|Core Session and Gate 24]]
+- [[_COMMUNITY_Repo Checks 4|Repo Checks 4]]
+- [[_COMMUNITY_Doc Gardening Detectors 9|Doc Gardening Detectors 9]]
+- [[_COMMUNITY_Core Session and Gate 25|Core Session and Gate 25]]
+- [[_COMMUNITY_Doc-Code Link Sync 3|Doc-Code Link Sync 3]]
+- [[_COMMUNITY_Doc Gardening Detectors 10|Doc Gardening Detectors 10]]
+- [[_COMMUNITY_Code-Review Pipeline 12|Code-Review Pipeline 12]]
+- [[_COMMUNITY_Feature MD Schema 6|Feature MD Schema 6]]
+- [[_COMMUNITY_Docs Generation 4|Docs Generation 4]]
+- [[_COMMUNITY_Docs Generation 5|Docs Generation 5]]
+- [[_COMMUNITY_Dashboard UI 10|Dashboard UI 10]]
+- [[_COMMUNITY_Test Harness|Test Harness]]
+- [[_COMMUNITY_Git Hook Enforcement 3|Git Hook Enforcement 3]]
+- [[_COMMUNITY_Core Session and Gate 26|Core Session and Gate 26]]
+- [[_COMMUNITY_Core Session and Gate 27|Core Session and Gate 27]]
+- [[_COMMUNITY_Core Session and Gate 28|Core Session and Gate 28]]
+- [[_COMMUNITY_Repo Checks 5|Repo Checks 5]]
+- [[_COMMUNITY_Release Machinery 12|Release Machinery 12]]
+- [[_COMMUNITY_Git Hook Enforcement 4|Git Hook Enforcement 4]]
+- [[_COMMUNITY_Milestones 2|Milestones 2]]
+- [[_COMMUNITY_Core Session and Gate 29|Core Session and Gate 29]]
+- [[_COMMUNITY_Idea Triage 5|Idea Triage 5]]
+- [[_COMMUNITY_Doc Gardening Detectors 11|Doc Gardening Detectors 11]]
+- [[_COMMUNITY_Release Machinery 13|Release Machinery 13]]
+- [[_COMMUNITY_Doc Gardening Detectors 12|Doc Gardening Detectors 12]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `loadDocRoots()` - 82 edges
@@ -173,588 +168,564 @@
 10. `main()` - 23 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `checkPackagedRuntime()` --calls--> `expectedOutputs()`  [INFERRED]
-  src/testing/contract-harness.ts → bin/build-manifest.mjs
 - `checkPackagedRuntime()` --calls--> `auditImportGraph()`  [INFERRED]
   src/testing/contract-harness.ts → bin/import-graph.mjs
+- `checkPackagedRuntime()` --calls--> `expectedOutputs()`  [INFERRED]
+  src/testing/contract-harness.ts → bin/build-manifest.mjs
 - `slug()` --calls--> `parseSlug()`  [INFERRED]
   src/cr/__tests__/expected-lanes-guard.test.ts → src/core/slug.ts
-- `walkTokens()` --calls--> `escapeHtml()`  [INFERRED]
-  src/dashboard/data.ts → src/dashboard/layout.ts
-- `compute()` --calls--> `extractFacts()`  [INFERRED]
-  src/metrics/compute.ts → src/metrics/facts.ts
+- `probeCtx()` --calls--> `makeProbeContext()`  [INFERRED]
+  src/release/__tests__/release-resume.test.ts → src/release/preflight-probes.ts
+- `main()` --calls--> `compute()`  [INFERRED]
+  src/garden/sdd-report.ts → src/metrics/compute.ts
 
-## Communities (164 total, 11 thin omitted)
+## Communities (159 total, 12 thin omitted)
 
-### Community 0 - "Capture and Version Probes"
+### Community 0 - "Worktree Lifecycle"
 Cohesion: 0.05
-Nodes (33): createBoundedCapture(), isHighSurrogate(), isLowSurrogate(), sliceHead(), sliceTail(), checkRunners(), compareDotted(), referencedRunners() (+25 more)
+Nodes (53): crossSection(), handleDemote(), handleMove(), handlePromote(), handleRemove(), sha256(), atomicWriteFile(), collapseConsecutiveBlanks() (+45 more)
 
-### Community 1 - "Roadmap Ops and ADR Detection"
-Cohesion: 0.07
-Nodes (47): crossSection(), handleDemote(), handleMove(), handlePromote(), handleRemove(), sha256(), atomicWriteFile(), detectAdrFindings() (+39 more)
+### Community 1 - "Rules Cascade"
+Cohesion: 0.06
+Nodes (31): discoverChangedFiles(), splitClassTag(), readFdSummary(), buildPrompt(), dispatcher(), dispatchSubagent(), renderPriorReview(), setDispatcher() (+23 more)
 
-### Community 2 - "Codex CR Adapter"
+### Community 2 - "Code-Review Pipeline"
 Cohesion: 0.07
 Nodes (40): settleWithin(), amendSubagentReceipt(), parseCliArgs(), makeCodexSpawn(), codexFailureHint(), describeCodexFailure(), formatStderrTail(), probeCodexVersion() (+32 more)
 
-### Community 3 - "CLI Command Registry"
+### Community 3 - "Docs Generation"
 Cohesion: 0.08
 Nodes (44): main(), buildCommandRegistry(), commandTokens(), extractCommandRefs(), isTerminator(), refResolves(), tableBareNames(), flattenManifest() (+36 more)
 
-### Community 4 - "Dashboard WIP-Age Views"
+### Community 4 - "Dashboard UI"
 Cohesion: 0.07
-Nodes (47): escapeHtml(), handleWipAge(), ageBucket(), barTable(), drainStatusLine(), formatAgentDuration(), genericMetricBody(), isRecord() (+39 more)
+Nodes (41): buildMilestoneGroups(), countScriptFiles(), getDocRoot(), getNoldorDir(), getReleaseNotesPath(), getScriptsDir(), getSkillsDir(), getVisionPath() (+33 more)
 
-### Community 5 - "Path and Doc Root Resolution"
+### Community 5 - "Dashboard UI 2"
 Cohesion: 0.07
-Nodes (45): countScriptFiles(), countTestCases(), getDocRoot(), getNoldorDir(), getReleaseNotesPath(), getScriptsDir(), getSkillsDir(), getVisionPath() (+37 more)
+Nodes (46): loadMetricsReport(), walkTokens(), escapeHtml(), handleMetrics(), handleWipAge(), ageBucket(), barTable(), drainStatusLine() (+38 more)
 
-### Community 6 - "CR Aggregate and Template SHA"
+### Community 6 - "Metrics Computation"
+Cohesion: 0.08
+Nodes (38): collectCrEffectiveness(), collectCycleTime(), percentile(), collectDrainReliability(), collectOverridePressure(), releaseWindow(), collectRoutingAccuracy(), metricHeading() (+30 more)
+
+### Community 7 - "Code-Review Pipeline 2"
 Cohesion: 0.09
 Nodes (30): isSha(), aggregate(), main(), parseArgs(), templateShaFor(), count(), git(), main() (+22 more)
 
-### Community 7 - "Worktree Lifecycle"
-Cohesion: 0.07
-Nodes (30): createRefusalMessage(), createWorktree(), main(), parseArgs(), bootDevSurfaces(), resolveAgentInvocation(), openEditor(), main() (+22 more)
-
-### Community 8 - "Override and Release Audit"
+### Community 8 - "Binary Entrypoints"
 Cohesion: 0.08
-Nodes (37): compareSemver(), extractPlanSlug(), isInfraFile(), isLinkEnforced(), auditOverrides(), auditOverrideTrailers(), auditReleasePushes(), classifyOverrideTrailer() (+29 more)
+Nodes (38): boot(), trace(), acquireLock(), allDistFiles(), allSourceFiles(), compiledInputs(), digestInputs(), expectedOutputs() (+30 more)
 
-### Community 9 - "Release Notes and Changelog"
+### Community 9 - "Release Machinery"
 Cohesion: 0.08
 Nodes (31): prsSinceLastTag(), buildPrompt(), joinSubjectsDeterministic(), polishSummary(), runAgentPolish(), extractUnreleasedSummary(), generateFdChangelogs(), prependChangelogBlock() (+23 more)
 
-### Community 10 - "Metrics Collection"
-Cohesion: 0.1
-Nodes (29): collectCrEffectiveness(), collectCycleTime(), percentile(), collectDrainReliability(), collectOverridePressure(), releaseWindow(), collectRoutingAccuracy(), loadMetricsReport() (+21 more)
+### Community 10 - "Doc Gardening Detectors"
+Cohesion: 0.09
+Nodes (35): compareSemver(), extractPlanSlug(), isInfraFile(), isLinkEnforced(), auditOverrides(), auditOverrideTrailers(), auditReleasePushes(), classifyOverrideTrailer() (+27 more)
 
-### Community 11 - "Link-Drift Projection"
+### Community 11 - "Architecture Invariants"
+Cohesion: 0.08
+Nodes (23): formatResults(), formatViolationLine(), printResults(), runAll(), warningBlock(), containsTsSources(), findUnparseableTsExtensions(), makeBoundariesInvariant() (+15 more)
+
+### Community 12 - "Git Hook Enforcement"
+Cohesion: 0.09
+Nodes (31): detectAdrFindings(), toGaps(), createAdr(), flipToSuperseded(), main(), isRealDate(), nextAdrNumber(), parseAdrFrontmatter() (+23 more)
+
+### Community 13 - "Doc-Code Link Sync"
 Cohesion: 0.11
 Nodes (28): sourceTreeAdapter(), detectLinksDrift(), linksDriftGaps(), buildSlugMap(), classifyFdEnoent(), collectTaggedMany(), diffProjection(), extractTagsWith() (+20 more)
 
-### Community 12 - "Queue Drain Supervisor"
-Cohesion: 0.13
-Nodes (36): assertQueueSourceSynced(), assertQueueSourceSyncedAt(), branchHasUnshippedWorkAt(), mergedPrExistsFor(), openPrExistsFor(), spawnGate(), syncMainCleanState(), runDrain() (+28 more)
+### Community 14 - "Design Artifact Flow"
+Cohesion: 0.14
+Nodes (30): isSlug(), slugErrorMessage(), digestBody(), locateForDialogue(), readArtifact(), parseContextArgs(), runContext(), emptyLedger() (+22 more)
 
-### Community 13 - "PR Checks Gating"
+### Community 15 - "Dashboard UI 3"
+Cohesion: 0.08
+Nodes (34): loadActiveMilestone(), loadAgentActivity(), loadArchitecturePages(), loadDrainObservation(), loadGaps(), loadWatchLogTail(), loadWorktreeHealth(), handle() (+26 more)
+
+### Community 16 - "Core Session and Gate"
 Cohesion: 0.09
-Nodes (28): touchesCode(), branchCarriesCode(), checkRedundantDelivery(), ChecksFailedError, ChecksPendingTimeoutError, composeBody(), composeSummary(), composeTitle() (+20 more)
+Nodes (27): touchesCode(), branchCarriesCode(), checkRedundantDelivery(), ChecksFailedError, ChecksPendingTimeoutError, composeBody(), composeSummary(), composeTitle() (+19 more)
 
-### Community 14 - "Prompt and Runner Utils"
-Cohesion: 0.11
-Nodes (15): promptSelect(), promptText(), writeJsonAtomic(), claudeSupportsMaxThinking(), execAsync(), osascriptSpawn(), runStandalone(), templateSha() (+7 more)
-
-### Community 15 - "Dashboard Server Boot"
+### Community 17 - "Dashboard UI 4"
 Cohesion: 0.16
 Nodes (29): ensureDashboard(), isDashboardUp(), main(), sleep(), spawnDetachedServer(), healthUrl(), resolveBindHost(), describeProbe() (+21 more)
 
-### Community 16 - "Design Context Ledger"
-Cohesion: 0.14
-Nodes (28): isSlug(), digestBody(), readArtifact(), parseContextArgs(), runContext(), emptyLedger(), groupEntries(), ledgerPath() (+20 more)
-
-### Community 17 - "Invariants and Boundaries"
-Cohesion: 0.1
-Nodes (17): containsTsSources(), findUnparseableTsExtensions(), makeBoundariesInvariant(), formatInvariantError(), makeInvariants(), runInvariantSafely(), escapeForRegExp(), findDeclaration() (+9 more)
-
-### Community 18 - "Build Runtime Selection"
-Cohesion: 0.11
-Nodes (24): boot(), trace(), acquireLock(), allDistFiles(), allSourceFiles(), compiledInputs(), digestInputs(), expectedOutputs() (+16 more)
-
-### Community 19 - "Release Pipeline Checks"
-Cohesion: 0.11
-Nodes (21): fillAllNoldorMarkers(), fillNoldorMarker(), extractLatestReleaseNotes(), resumeRelease(), run(), runCheck(), runCliCheck(), runOptionalCheck() (+13 more)
-
-### Community 20 - "Geometry Compare"
+### Community 18 - "Code-Review Pipeline 3"
 Cohesion: 0.1
 Nodes (14): invokedDirectly(), readValueFlags(), runIfDirect(), stdoutEmit(), compareGeometry(), extractFamilies(), unmatchedValues(), list() (+6 more)
 
-### Community 21 - "Graph Digest Report"
+### Community 19 - "Core Session and Gate 2"
+Cohesion: 0.11
+Nodes (13): checkRunners(), compareDotted(), referencedRunners(), parseOpencodeEvents(), opencodeWantsJson(), planSpawn(), spawnAgent(), spawnLanePrompt() (+5 more)
+
+### Community 20 - "Autonomous Drain Runner"
+Cohesion: 0.11
+Nodes (23): classifyDrainBranch(), closedUnmergedPr(), formatState(), main(), worktreeFor(), assertQueueSourceSynced(), assertQueueSourceSyncedAt(), branchHasUnshippedWork() (+15 more)
+
+### Community 21 - "Design Artifact Flow 2"
 Cohesion: 0.11
 Nodes (26): buildIndex(), main(), parseArgs(), renderDigest(), renderReport(), coMembersOf(), committedLegPasses(), crossEdgesOf() (+18 more)
 
-### Community 22 - "Rules Validation CLI"
-Cohesion: 0.11
-Nodes (11): runList(), runResolve(), runValidate(), main(), main(), dirStamp(), getRules(), loadRulesFromDir() (+3 more)
+### Community 22 - "Core Session and Gate 3"
+Cohesion: 0.16
+Nodes (25): specDateFromFilename(), readFileIfExists(), ancestorOk(), atxHeading(), blank(), cutReasons(), density(), docsRelativeDir() (+17 more)
 
-### Community 23 - "Template Sync and Agents"
+### Community 23 - "Doc Gardening Detectors 2"
+Cohesion: 0.13
+Nodes (24): loadDocRoots(), detectMalformedFds(), detectMigrationCoverage(), evaluateCoverage(), detectAll(), detectContradictions(), detectGateCompliance(), detectInvariants() (+16 more)
+
+### Community 24 - "Code-Review Pipeline 4"
 Cohesion: 0.14
-Nodes (15): loadAgentsConfig(), checkTemplateSync(), main(), resolveChangedFiles(), parseAgents(), ensureGitignoreBlock(), computeSteps(), isNoldorVendoredSkill() (+7 more)
+Nodes (22): sanitizationIssues(), sanitizeSurfaceName(), screenshotTemplateIssues(), openLaneSink(), cleanupPenScratch(), openDesignReviewRound(), sha256File(), stagePenScratch() (+14 more)
 
-### Community 24 - "CLI Dispatch Entry"
+### Community 25 - "CLI Command Surface"
 Cohesion: 0.14
 Nodes (21): printHelp(), dispatch(), failUnknown(), isHelpFlag(), main(), runtimeRelative(), isDirty(), loadConfigTolerant() (+13 more)
 
-### Community 25 - "Markdown Section Scan"
-Cohesion: 0.16
-Nodes (24): specDateFromFilename(), ancestorOk(), atxHeading(), blank(), cutReasons(), density(), docsRelativeDir(), listMd() (+16 more)
-
-### Community 26 - "CR Lane Configuration"
-Cohesion: 0.14
-Nodes (20): loadConfig(), resolveDispatchTimeoutMs(), resolveReviewProfile(), codexIsMandatory(), missingMandatoryReviewer(), withMandatoryCodex(), withMandatoryReviewer(), main() (+12 more)
-
-### Community 27 - "Dashboard Routes and Queue"
-Cohesion: 0.11
-Nodes (27): getBacklogPath(), getRoadmapPath(), loadArchitecturePages(), loadWorktreeHealth(), handle(), handleApiDemote(), handleApiMove(), handleApiPromote() (+19 more)
-
-### Community 28 - "Drain Eligibility Sources"
+### Community 26 - "Autonomous Drain Runner 2"
 Cohesion: 0.11
 Nodes (17): resolveRunner(), isDrainEligible(), implementerDispatch(), plansSource(), roadmapSource(), selectionReason(), specsSource(), buildDrainGatePrompt() (+9 more)
 
-### Community 29 - "Architecture Scan Roots"
-Cohesion: 0.1
-Nodes (15): originTaggedScanRoots(), scanRoots(), detectArchitectureAdvisories(), detectArchitectureFindings(), gapsFrom(), toAdvisoryGaps(), toFindingGaps(), checkArchitecture() (+7 more)
+### Community 27 - "Consumer Templates"
+Cohesion: 0.14
+Nodes (15): loadAgentsConfig(), checkTemplateSync(), main(), resolveChangedFiles(), parseAgents(), ensureGitignoreBlock(), computeSteps(), isNoldorVendoredSkill() (+7 more)
 
-### Community 30 - "Garden Receipt Freshness"
-Cohesion: 0.12
-Nodes (17): evaluateGardenFreshness(), latestGardenScanCommitTs(), main(), readGardenReceipt(), resolveGardenScanPaths(), writeGardenReceipt(), defaultStamp(), docSurfaceRow() (+9 more)
+### Community 28 - "Code-Review Pipeline 5"
+Cohesion: 0.13
+Nodes (15): loadLaneMode(), extractFdAcceptance(), basePayload(), commitProse(), keepRaw(), mkFinding(), proseReportsSuccess(), reapPort() (+7 more)
 
-### Community 31 - "Clone Baseline Ratchet"
+### Community 29 - "Code-Review Pipeline 6"
 Cohesion: 0.15
-Nodes (24): buildBaseline(), compareToBaseline(), describeOptions(), readBaseline(), sameOptions(), writeBaseline(), checkDiffScope(), checkRatchet() (+16 more)
+Nodes (19): loadConfig(), resolveDispatchTimeoutMs(), resolveReviewProfile(), codexIsMandatory(), missingMandatoryReviewer(), withMandatoryCodex(), withMandatoryReviewer(), parseArgs() (+11 more)
 
-### Community 32 - "Gate Allowlist Predicates"
+### Community 30 - "Autonomous Drain Runner 3"
 Cohesion: 0.17
-Nodes (20): everyPathMatches(), isBookkeepingOnly(), isMicroChoreAllowed(), isNoReviewLaneAllowed(), isReleaseSweepAllowed(), isRetirementOnly(), microChoreOffenders(), pathsOutside() (+12 more)
+Nodes (25): formatReconcile(), makeReconcileDeps(), reportIsEmpty(), formatNotAtRef(), selectionNotAtRef(), parkAwareSource(), notify(), makePhaseTap() (+17 more)
 
-### Community 33 - "Task Concurrency Runner"
+### Community 31 - "Doc Gardening Detectors 3"
+Cohesion: 0.15
+Nodes (19): originTaggedScanRoots(), actualPackageNames(), isSamplesPath(), newestMtimeInRoots(), resolvedPathAllowed(), scanRoots(), walkCodeFiles(), walkDir() (+11 more)
+
+### Community 32 - "Release Machinery 2"
+Cohesion: 0.12
+Nodes (16): fillAllNoldorMarkers(), fillNoldorMarker(), run(), runCheck(), runCliCheck(), runOptionalCheck(), prependToChangelog(), renderChangelogEntry() (+8 more)
+
+### Community 33 - "Research Fanout"
 Cohesion: 0.15
 Nodes (16): runWithConcurrency(), gitStatusPorcelain(), intArg(), loadTasks(), main(), parseArgs(), run(), strArg() (+8 more)
 
-### Community 34 - "FD Link Rot Detection"
+### Community 34 - "Feature MD Schema"
 Cohesion: 0.15
 Nodes (18): readFrontmatter(), isCheckableLinkPath(), collectTargets(), detectFdLinkRot(), collectTestFiles(), extractCodePackages(), main(), normalizeDeclaredPackage() (+10 more)
 
-### Community 35 - "Feature and Backlog Loading"
+### Community 35 - "Core Session and Gate 4"
+Cohesion: 0.17
+Nodes (16): ensureRolloutMarker(), isPostRollout(), readRolloutMarker(), rolloutMarkerExists(), appendToMessage(), detectDroppedTrailers(), formatTrailers(), parseTrailers() (+8 more)
+
+### Community 36 - "Code-Review Pipeline 7"
+Cohesion: 0.16
+Nodes (7): promptSelect(), promptText(), writeJsonAtomic(), laneSinkPath(), openLane(), runCodex(), runManual()
+
+### Community 37 - "Dashboard UI 5"
 Cohesion: 0.13
 Nodes (26): countMatching(), featureSlugsForCodePath(), getFeaturesDir(), loadBacklog(), loadBacklogWithHash(), loadCounts(), loadFeatureGitTimestamps(), loadFeatures() (+18 more)
 
-### Community 36 - "CR Subagent Dispatch"
-Cohesion: 0.14
-Nodes (13): discoverChangedFiles(), splitClassTag(), extractFdAcceptance(), readFdSummary(), buildPrompt(), dispatcher(), dispatchSubagent(), renderPriorReview() (+5 more)
-
-### Community 37 - "Prep Index Rendering"
+### Community 38 - "Artifact Format Contracts"
 Cohesion: 0.17
-Nodes (16): parseSlugList(), requireFlagValue(), discoverPrepEntries(), listFdSlugs(), listSpecFiles(), renderIndex(), intArg(), main() (+8 more)
+Nodes (20): isLinkedWorktree(), sizeSkipsSpec(), sizeToPath(), sizeToTier(), finishRun(), gh(), git(), main() (+12 more)
 
-### Community 38 - "Garden Detectors"
+### Community 39 - "Code-Review Pipeline 8"
 Cohesion: 0.16
-Nodes (20): detectAll(), detectContradictions(), detectGateCompliance(), detectInvariants(), detectSourceDrift(), detectStaleDesignArtifacts(), detectStalePlans(), detectStaleSpecs() (+12 more)
+Nodes (16): parseFencedJson(), parseLastJsonFence(), createDispatcherSeam(), penBridgeRecipe(), fencedJsonInstruction(), buildRenderExportPrompt(), parseRenderExportReport(), RenderExportError (+8 more)
 
-### Community 39 - "Drain Branch Classify"
-Cohesion: 0.15
-Nodes (14): classifyDrainBranch(), closedUnmergedPr(), formatState(), main(), worktreeFor(), branchHasUnshippedWork(), checkoutDirtState(), checkoutIsDirty() (+6 more)
+### Community 40 - "Docs Generation 2"
+Cohesion: 0.13
+Nodes (13): detectArchitectureAdvisories(), detectArchitectureFindings(), gapsFrom(), toAdvisoryGaps(), toFindingGaps(), checkArchitecture(), collectModuleAdvisories(), listModuleDirs() (+5 more)
 
-### Community 40 - "Community 40"
-Cohesion: 0.17
-Nodes (19): docPresenceRoots(), docProjectionRoots(), listDocMds(), resolveDesignSubdir(), extractSummary(), listDirEntsIfExists(), listPlans(), listSpecs() (+11 more)
+### Community 41 - "Dashboard UI 6"
+Cohesion: 0.13
+Nodes (18): getBacklogPath(), getRoadmapPath(), loadBlockedByGraph(), setDocRootsOverride(), handleApiDemote(), handleApiPromote(), handleApiRemove(), handleBlockedBy() (+10 more)
 
-### Community 41 - "Community 41"
-Cohesion: 0.16
-Nodes (13): basePayload(), commitProse(), keepRaw(), mkFinding(), proseReportsSuccess(), reapPort(), runVerify(), setSmokeRunner() (+5 more)
+### Community 42 - "Shared Utilities"
+Cohesion: 0.18
+Nodes (13): demoteStaleBacklog(), resolveEntryRef(), hasBlock(), main(), parseHasBlockArgs(), createSlugTracker(), mergeDepFields(), parseBacklog() (+5 more)
 
-### Community 42 - "Community 42"
+### Community 43 - "Core Session and Gate 5"
 Cohesion: 0.16
 Nodes (12): findEntry(), main(), readFileOrNull(), runSplitCheck(), toResult(), usageError(), assessEntrySplit(), assessFdBreadth() (+4 more)
 
-### Community 43 - "Community 43"
-Cohesion: 0.17
-Nodes (19): auditImportGraph(), jsFiles(), relativeSpecifiers(), resolvesToFile(), stripComments(), verifyTarball(), buildConsumerFixture(), CONSUMER_CONFIG() (+11 more)
-
-### Community 44 - "Community 44"
-Cohesion: 0.17
-Nodes (12): docSlugPath(), featurePath(), flipPhaseToDone(), revertPhaseForAttach(), parseSlug(), readFileNoFollow(), slugErrorMessage(), detectPlanWithoutFd() (+4 more)
-
-### Community 45 - "Community 45"
-Cohesion: 0.18
-Nodes (18): finishRun(), gh(), git(), main(), parseArgs(), preflight(), promoteExitCode(), promoteOne() (+10 more)
-
-### Community 46 - "Community 46"
-Cohesion: 0.14
-Nodes (15): loadLaneMode(), openLaneSink(), cleanupPenScratch(), openDesignReviewRound(), sha256File(), stagePenScratch(), makeTerminalWriter(), unmappedPathNotes() (+7 more)
-
-### Community 47 - "Community 47"
+### Community 44 - "Repo Checks"
 Cohesion: 0.13
 Nodes (11): evaluate(), isFeaturePen(), isPen(), main(), parseRawDiff(), stagedAwarePenLookup(), stagedAwareRecordLookup(), approvedRecord() (+3 more)
 
-### Community 48 - "Community 48"
-Cohesion: 0.22
-Nodes (17): parseReceiptWith(), penSlugFromFilename(), errMessage(), approvalRelPath(), main(), parseVerdictArgs(), resolveFeaturePen(), parseApprovalBytes() (+9 more)
+### Community 45 - "Core Session and Gate 6"
+Cohesion: 0.17
+Nodes (11): docSlugPath(), featurePath(), flipPhaseToDone(), revertPhaseForAttach(), parseSlug(), readFileNoFollow(), detectPlanWithoutFd(), planSlug() (+3 more)
 
-### Community 49 - "Community 49"
-Cohesion: 0.18
-Nodes (16): readReceiptFile(), receiptFilePath(), writeReceiptFile(), runCapture(), surfaceMap(), baselineStamp(), captureSurface(), declaredSurfaces() (+8 more)
+### Community 46 - "Autonomous Drain Runner 4"
+Cohesion: 0.12
+Nodes (7): decideNext(), runDrain(), applyCycleToState(), loadWatchState(), saveWatchState(), readJsonState(), StateFileCorruptError
 
-### Community 50 - "Community 50"
+### Community 47 - "Design Artifact Flow 3"
+Cohesion: 0.21
+Nodes (17): penSlugFromFilename(), errMessage(), runCapture(), approvalRelPath(), main(), parseVerdictArgs(), resolveFeaturePen(), parseApprovalBytes() (+9 more)
+
+### Community 48 - "Core Session and Gate 7"
 Cohesion: 0.21
 Nodes (16): contained(), inspectLink(), pathErrorMessage(), readFileNoFollowAsync(), readOnlyNoFollowFlags(), resolveErrorMessage(), resolveSlugPath(), slugPath() (+8 more)
 
-### Community 51 - "Community 51"
-Cohesion: 0.11
-Nodes (6): decideNext(), applyCycleToState(), loadWatchState(), saveWatchState(), readJsonState(), StateFileCorruptError
+### Community 49 - "Artifact Format Contracts 2"
+Cohesion: 0.19
+Nodes (17): parseSlugList(), requireFlagValue(), discoverPrepEntries(), listFdSlugs(), listSpecFiles(), intArg(), main(), parseArgs() (+9 more)
 
-### Community 52 - "Community 52"
-Cohesion: 0.21
-Nodes (12): parseFencedJson(), parseLastJsonFence(), createDispatcherSeam(), penBridgeRecipe(), fencedJsonInstruction(), buildRenderExportPrompt(), RenderExportError, buildUiReviewPrompt() (+4 more)
+### Community 50 - "Core Session and Gate 8"
+Cohesion: 0.2
+Nodes (17): docPresenceRoots(), docProjectionRoots(), listDocMds(), resolveDesignSubdir(), extractSummary(), listDirEntsIfExists(), listPlans(), listSpecs() (+9 more)
 
-### Community 53 - "Community 53"
-Cohesion: 0.22
-Nodes (13): sanitizationIssues(), sanitizeSurfaceName(), screenshotTemplateIssues(), cannot(), aggregateOutcomes(), decodePng(), diffDecoded(), diffRasters() (+5 more)
+### Community 51 - "Release Machinery 3"
+Cohesion: 0.16
+Nodes (12): evaluateGardenFreshness(), latestGardenScanCommitTs(), main(), readGardenReceipt(), resolveGardenScanPaths(), writeGardenReceipt(), defaultStamp(), docSurfaceRow() (+4 more)
 
-### Community 54 - "Community 54"
+### Community 52 - "Autonomous Drain Runner 5"
 Cohesion: 0.16
 Nodes (11): projectDrainState(), readState(), writeState(), diffPhases(), collectStatus(), formatStatus(), main(), appendAgentEvent() (+3 more)
 
-### Community 55 - "Community 55"
+### Community 53 - "Core Session and Gate 9"
 Cohesion: 0.22
 Nodes (10): clearSession(), readSession(), sessionMarkerExists(), sessionMarkerPath(), setAutonomous(), stampInjectedRules(), touchSession(), writeSession() (+2 more)
 
-### Community 56 - "Community 56"
-Cohesion: 0.18
-Nodes (17): loadAgentActivity(), loadDrainObservation(), loadWatchLogTail(), handleAgents(), handleAgentsLog(), handleApiAgents(), renderAgentsLog(), drainStatusText() (+9 more)
-
-### Community 57 - "Community 57"
+### Community 54 - "Autonomous Drain Runner 6"
 Cohesion: 0.2
 Nodes (13): acquireLock(), isAlive(), liveLockPid(), releaseLock(), binPathFrom(), detachChildArgv(), detachWatch(), stripDetach() (+5 more)
 
-### Community 58 - "Community 58"
+### Community 55 - "Release Machinery 4"
+Cohesion: 0.19
+Nodes (16): blobIdOfWorktreeFile(), baselineStamp(), captureSurface(), declaredSurfaces(), main(), runCaptureCommand(), sameStamp(), receiptRelPath() (+8 more)
+
+### Community 56 - "Graph Integration"
 Cohesion: 0.16
 Nodes (12): penFileName(), planSlugFromFilename(), specSlugFromFilename(), asArray(), docNodeId(), enrichDocNodes(), enrichGraph(), loadDocDir() (+4 more)
 
-### Community 59 - "Community 59"
-Cohesion: 0.21
-Nodes (13): flag(), runBootstrapCli(), injectBootstrapOverrides(), resolveIntroducedGate(), gateEntry(), isBootstrapReason(), declaredGateKeys(), detectBootstrapOverrideAudit() (+5 more)
-
-### Community 60 - "Community 60"
-Cohesion: 0.22
-Nodes (12): collectFloorViolations(), declaredDependencies(), dropTrailingCommas(), findPackageManifests(), isDenied(), libFloorChecks(), reactFloorChecks(), readConfig() (+4 more)
-
-### Community 61 - "Community 61"
-Cohesion: 0.16
-Nodes (6): computeSteps(), rewriteLanes(), computeSteps(), moveTree(), removeIfEmpty(), walkFiles()
-
-### Community 62 - "Community 62"
-Cohesion: 0.22
-Nodes (11): loadAreaCategories(), extractTouches(), looksLikePath(), normalizePath(), parseBacklogFromString(), areaToCategory(), getSectionBody(), liftSpecSections() (+3 more)
-
-### Community 63 - "Community 63"
-Cohesion: 0.19
-Nodes (7): listDirIfExists(), readFileIfExists(), detectFdWithoutPlan(), findCreationSha(), hasPlan(), detectMalformedFds(), detectTierMismatch()
-
-### Community 64 - "Community 64"
+### Community 57 - "Release Machinery 5"
 Cohesion: 0.23
-Nodes (13): clearMicroChoreSession(), execGit(), loadFdSummary(), loadVerifyEvidence(), nodeSpawn(), normalizeRepoUrl(), parseCommitFileLists(), parseCrTrailersFromLog() (+5 more)
+Nodes (16): expandCandidateValue(), isUiBearing(), matches(), sessionUiVerdict(), surfaceMap(), ancestryVerdict(), blobAtHead(), captureRemediation() (+8 more)
 
-### Community 65 - "Community 65"
+### Community 58 - "Milestones"
 Cohesion: 0.24
 Nodes (12): atomicWriteFileSync(), activateMilestone(), draftMilestone(), listMilestones(), loadMilestoneBySlug(), loadMilestones(), preflightActivate(), readMilestone() (+4 more)
 
-### Community 66 - "Community 66"
+### Community 59 - "Clone Duplication Ratchet"
+Cohesion: 0.18
+Nodes (11): buildBaseline(), compareToBaseline(), describeOptions(), readBaseline(), sameOptions(), writeBaseline(), ratchetOutcome(), detectClones() (+3 more)
+
+### Community 60 - "Core Session and Gate 10"
+Cohesion: 0.23
+Nodes (13): clearMicroChoreSession(), execGit(), loadFdSummary(), loadVerifyEvidence(), nodeSpawn(), normalizeRepoUrl(), parseCommitFileLists(), parseCrTrailersFromLog() (+5 more)
+
+### Community 61 - "Artifact Format Contracts 3"
+Cohesion: 0.22
+Nodes (11): loadAreaCategories(), extractTouches(), looksLikePath(), normalizePath(), parseBacklogFromString(), areaToCategory(), getSectionBody(), liftSpecSections() (+3 more)
+
+### Community 62 - "Version Migrations"
+Cohesion: 0.16
+Nodes (6): computeSteps(), rewriteLanes(), computeSteps(), moveTree(), removeIfEmpty(), walkFiles()
+
+### Community 63 - "Architecture Invariants 2"
+Cohesion: 0.22
+Nodes (12): collectFloorViolations(), declaredDependencies(), dropTrailingCommas(), findPackageManifests(), isDenied(), libFloorChecks(), reactFloorChecks(), readConfig() (+4 more)
+
+### Community 64 - "Autonomous Drain Runner 7"
 Cohesion: 0.22
 Nodes (12): appendJsonl(), applyCycleVerdict(), loadPark(), mapCycle(), parkKey(), readInboxRows(), savePark(), unparkSlug() (+4 more)
 
-### Community 67 - "Community 67"
+### Community 65 - "Design Artifact Flow 4"
 Cohesion: 0.21
 Nodes (11): declaresPath(), git(), main(), parseArchiveArgs(), rewriteArtifactLinks(), collect(), dialogueKeyFromSession(), resolveArchivePlan() (+3 more)
 
-### Community 68 - "Community 68"
+### Community 66 - "Clone Duplication Ratchet 2"
+Cohesion: 0.24
+Nodes (15): checkDiffScope(), checkRatchet(), checkThreshold(), loadCorpus(), parseClonesArgs(), renderSpans(), renderSummary(), runClones() (+7 more)
+
+### Community 67 - "Core Session and Gate 11"
 Cohesion: 0.25
 Nodes (14): defaultRunGit(), discoverAddedFiles(), git(), namesFrom(), renameDestExists(), repoRoot(), resolveDefaultBase(), runnerAndBase() (+6 more)
 
-### Community 69 - "Community 69"
-Cohesion: 0.25
-Nodes (11): main(), proposeCandidates(), rankCandidates(), buildFileToFdsMap(), getCommunityOwners(), getFdOwnersForFile(), getImportOwnersForTest(), isStaleGraphGap() (+3 more)
+### Community 68 - "Core Session and Gate 12"
+Cohesion: 0.28
+Nodes (13): everyPathMatches(), isBookkeepingOnly(), isMicroChoreAllowed(), isNoReviewLaneAllowed(), isReleaseSweepAllowed(), isRetirementOnly(), microChoreOffenders(), pathsOutside() (+5 more)
 
-### Community 70 - "Community 70"
+### Community 69 - "Artifact Format Contracts 4"
+Cohesion: 0.19
+Nodes (7): measureSections(), sectionLength(), sectionMarkers(), buildDraftPrompt(), renderIndex(), formatForKind(), main()
+
+### Community 70 - "Idea Triage"
 Cohesion: 0.24
 Nodes (10): backfillIds(), main(), formatEntryId(), mintEntryIds(), readNext(), scanBlock(), stampMissingIds(), liveMaxEntryId() (+2 more)
 
-### Community 71 - "Community 71"
+### Community 71 - "Dashboard UI 7"
 Cohesion: 0.14
 Nodes (6): edgeScrollVelocity(), init(), shouldInsertBefore(), wireButtons(), wireDescriptionOverflow(), wireDescriptionToggles()
 
-### Community 72 - "Community 72"
-Cohesion: 0.19
-Nodes (10): loadCategories(), firstParagraph(), loadHowtos(), main(), renderHowToIndex(), collectFeaturesForRelease(), extractChangelogSummary(), extractFirstParagraph() (+2 more)
+### Community 72 - "Autonomous Drain Runner 8"
+Cohesion: 0.18
+Nodes (10): classifyMergeView(), mergePr(), groupKillState(), parseWorktrees(), pruneShippedWorktrees(), reapOrphanAgents(), reconcileDeadRun(), reconcileOpenPrs() (+2 more)
 
-### Community 73 - "Community 73"
+### Community 73 - "Core Session and Gate 13"
 Cohesion: 0.25
 Nodes (12): formatEmit(), main(), parseWaitArgs(), UsageError, evalPredicate(), getPath(), parsePredicate(), PredicateParseError (+4 more)
 
-### Community 74 - "Community 74"
-Cohesion: 0.26
-Nodes (8): ensureRolloutMarker(), isPostRollout(), readRolloutMarker(), rolloutMarkerExists(), parseTrailers(), detectTrailerScopeMismatch(), rootCommitShas(), enforceReviewReceipt()
-
-### Community 75 - "Community 75"
-Cohesion: 0.27
-Nodes (9): demoteStaleBacklog(), createSlugTracker(), mergeDepFields(), parseBacklog(), parseBlockBody(), parseEntries(), parseRefList(), parseRoadmap() (+1 more)
-
-### Community 76 - "Community 76"
+### Community 74 - "Release Machinery 6"
 Cohesion: 0.21
 Nodes (8): appendOverrideLog(), main(), blockingIds(), recordOverrides(), idWidth(), renderPreflight(), runPreflight(), run()
 
-### Community 77 - "Community 77"
-Cohesion: 0.2
-Nodes (9): classifyMergeView(), mergePr(), parseWorktrees(), pruneShippedWorktrees(), reapOrphanAgents(), reconcileDeadRun(), reconcileOpenPrs(), bind() (+1 more)
+### Community 75 - "Core Session and Gate 14"
+Cohesion: 0.21
+Nodes (7): assertNodeFloor(), checkNodeFloor(), minMajor(), checkInstallFreshness(), checkBinaryPrerequisites(), checkConsumerScripts(), makeDefaultProbe()
 
-### Community 78 - "Community 78"
+### Community 76 - "Docs Generation 3"
+Cohesion: 0.19
+Nodes (10): loadCategories(), firstParagraph(), loadHowtos(), main(), renderHowToIndex(), collectFeaturesForRelease(), extractChangelogSummary(), extractFirstParagraph() (+2 more)
+
+### Community 77 - "Graph Integration 2"
 Cohesion: 0.28
 Nodes (16): buildIdToLabel(), buildNodeCommunityMap(), classifyEdges(), deriveCommunityLabel(), deriveCommunityLabels(), extractConceptsAndRationales(), extractPackages(), formatCrossEdgeLine() (+8 more)
 
-### Community 79 - "Community 79"
-Cohesion: 0.24
-Nodes (9): loadConsumerConfig(), loadDevConfig(), loadDevSurfaces(), loadScopeAliases(), loadVerifyCommands(), loadWaivers(), bumpAllPackages(), bumpPackageJson() (+1 more)
+### Community 78 - "Design Artifact Flow 5"
+Cohesion: 0.25
+Nodes (9): parseReceiptWith(), readReceiptFile(), receiptFilePath(), writeReceiptFile(), parseReceiptBytes(), readReceipt(), receiptPath(), deps() (+1 more)
 
-### Community 80 - "Community 80"
+### Community 79 - "Release Machinery 7"
 Cohesion: 0.2
-Nodes (8): detectClones(), overlaps(), collapseBuilderChains(), isDigit(), isIdentPart(), isIdentStart(), tokenize(), normOf()
+Nodes (10): extractLatestReleaseNotes(), resumeRelease(), runProbe(), clearReleaseState(), readReleaseState(), writeReleaseState(), addBareOrigin(), git() (+2 more)
 
-### Community 81 - "Community 81"
+### Community 80 - "Doc Gardening Detectors 4"
 Cohesion: 0.23
-Nodes (8): dedupeById(), renderBrief(), renderSection(), scopeOf(), unionResults(), parseBriefArgs(), runBrief(), UsageError
+Nodes (6): isBootstrapReason(), declaredGateKeys(), detectBootstrapOverrideAudit(), gateForTrailer(), auditCodexCrOverrides(), tally()
 
-### Community 82 - "Community 82"
+### Community 81 - "Idea Triage 2"
 Cohesion: 0.28
 Nodes (10): ok(), main(), parseRemoveBlockArgs(), readFlag(), loadRetiredIds(), recordRetiredId(), retiredRefs(), main() (+2 more)
 
-### Community 83 - "Community 83"
+### Community 82 - "Core Session and Gate 15"
+Cohesion: 0.24
+Nodes (9): loadConsumerConfig(), loadDevConfig(), loadDevSurfaces(), loadScopeAliases(), loadVerifyCommands(), loadWaivers(), bumpAllPackages(), bumpPackageJson() (+1 more)
+
+### Community 83 - "Repo Checks 2"
 Cohesion: 0.24
 Nodes (9): buildRefLine(), exclusionList(), gitValue(), prePushJobs(), replay(), runPushGates(), git(), ok() (+1 more)
 
-### Community 84 - "Community 84"
+### Community 84 - "Core Session and Gate 16"
 Cohesion: 0.27
 Nodes (12): admitsLiteralHyphen(), extractFencedBlocks(), findMessageFlag(), formatFindingHuman(), isCloseFence(), isGitCommitLine(), lineContainsFlag(), lintSnippets() (+4 more)
 
-### Community 85 - "Community 85"
-Cohesion: 0.2
-Nodes (7): setRenderCompareDeps(), git(), repo(), requiredFd(), seams(), bootServer(), waitForHttp200()
-
-### Community 86 - "Community 86"
+### Community 85 - "Release Machinery 8"
 Cohesion: 0.25
 Nodes (11): resolveSessionTtlHours(), isSessionStale(), autoStampOnCleanDetect(), ensureCleanTreeOnMain(), git(), inspectTreeState(), applyFix(), fixGardenReceipt() (+3 more)
 
-### Community 87 - "Community 87"
-Cohesion: 0.35
-Nodes (11): applyProposal(), backupFeatures(), collectCandidateFiles(), extractSummary(), generateProposal(), main(), parseLlmResponse(), parseProposal() (+3 more)
+### Community 86 - "Code-Review Pipeline 9"
+Cohesion: 0.2
+Nodes (7): setRenderCompareDeps(), git(), repo(), requiredFd(), seams(), bootServer(), waitForHttp200()
 
-### Community 88 - "Community 88"
+### Community 87 - "Code-Review Pipeline 10"
+Cohesion: 0.27
+Nodes (9): claudeSupportsMaxThinking(), execAsync(), osascriptSpawn(), runStandalone(), templateSha(), main(), escalate(), spawnDeepReview() (+1 more)
+
+### Community 88 - "Release Machinery 9"
 Cohesion: 0.22
 Nodes (7): checkCrGate(), collectNoldorTrailerLines(), formatReason(), commit(), git(), initRepo(), tagBase()
 
-### Community 89 - "Community 89"
+### Community 89 - "Feature MD Schema 2"
+Cohesion: 0.35
+Nodes (11): applyProposal(), backupFeatures(), collectCandidateFiles(), extractSummary(), generateProposal(), main(), parseLlmResponse(), parseProposal() (+3 more)
+
+### Community 90 - "Release Machinery 10"
+Cohesion: 0.27
+Nodes (9): awaitPublish(), cliMain(), envTuning(), isVersionOnRegistry(), publishLocal(), readPkgIdentity(), verifyTarball(), waitForVersion() (+1 more)
+
+### Community 91 - "Doc Gardening Detectors 5"
+Cohesion: 0.24
+Nodes (7): parseFdFrontmatter(), detectTierMismatch(), loadFeatureBySlug(), resolveOwner(), resolveByGraphAdjacency(), resolveByLinksField(), scanFdsForOwner()
+
+### Community 92 - "Idea Triage 3"
 Cohesion: 0.24
 Nodes (9): emptyGroupIssues(), loadFeatureRefs(), main(), parseArgv(), pushBlockedByIssues(), pushEmptyGroupIssues(), pushIdIssues(), pushIssues() (+1 more)
 
-### Community 90 - "Community 90"
-Cohesion: 0.26
-Nodes (9): resolveExisting(), assembleCohort(), contained(), generationStem(), listRoot(), locateArtifact(), locateForDialogue(), partNumber() (+1 more)
+### Community 93 - "Design Artifact Flow 6"
+Cohesion: 0.28
+Nodes (8): resolveExisting(), assembleCohort(), contained(), generationStem(), listRoot(), locateArtifact(), partNumber(), vet()
 
-### Community 91 - "Community 91"
-Cohesion: 0.31
-Nodes (11): applySiblingTrailer(), buildSiblingTrailerValue(), buildSuggestion(), headHasNoldorPages(), loadKnownSlugs(), loadScaffoldSlugs(), loadStagedFiles(), main() (+3 more)
-
-### Community 92 - "Community 92"
-Cohesion: 0.36
-Nodes (12): parseReceiptBytes(), ancestryVerdict(), blobAtHead(), captureRemediation(), classifyAncestry(), evaluateUiDesignFreshness(), git(), isAncestor() (+4 more)
-
-### Community 93 - "Community 93"
-Cohesion: 0.31
-Nodes (11): extractCommits(), extractFacts(), extractFeatures(), extractReleases(), git(), parseTrailerLines(), readJsonl(), readLaneFindings() (+3 more)
-
-### Community 94 - "Community 94"
+### Community 94 - "Core Session and Gate 17"
 Cohesion: 0.36
 Nodes (11): milestonePath(), findMilestoneMatch(), formatEntry(), getSuggestions(), getTopPriorityNext(), isWritePendingDeprecated(), loadInProgressFds(), loadMilestoneGate() (+3 more)
 
-### Community 95 - "Community 95"
-Cohesion: 0.3
-Nodes (7): main(), probe(), classifyCommit(), decideCommitVerdict(), short(), stagedLine(), runGit()
+### Community 95 - "Core Session and Gate 18"
+Cohesion: 0.31
+Nodes (11): applySiblingTrailer(), buildSiblingTrailerValue(), buildSuggestion(), headHasNoldorPages(), loadKnownSlugs(), loadScaffoldSlugs(), loadStagedFiles(), main() (+3 more)
 
-### Community 96 - "Community 96"
-Cohesion: 0.3
-Nodes (6): measureSections(), sectionLength(), sectionMarkers(), buildDraftPrompt(), formatForKind(), main()
+### Community 96 - "Core Session and Gate 19"
+Cohesion: 0.35
+Nodes (5): claudeProjectDirName(), claudeUsage(), codexUsage(), opencodeUsage(), stubUsage()
 
-### Community 97 - "Community 97"
-Cohesion: 0.36
-Nodes (7): defaultRunner(), lefthookPatchPresent(), main(), resolveOxfmt(), decideFmtGuard(), isNoTargetFailure(), shouldWarnPartialStaging()
-
-### Community 98 - "Community 98"
-Cohesion: 0.3
-Nodes (9): blobIdOfWorktreeFile(), receiptRelPath(), commit(), commitAt(), commitFiles(), commitReceipt(), exec(), initRepo() (+1 more)
-
-### Community 99 - "Community 99"
-Cohesion: 0.32
-Nodes (7): awaitPublish(), cliMain(), envTuning(), isVersionOnRegistry(), publishLocal(), readPkgIdentity(), waitForVersion()
-
-### Community 100 - "Community 100"
+### Community 97 - "Design Artifact Flow 7"
 Cohesion: 0.32
 Nodes (8): collapse(), collectWarnings(), confirmedDigestMatches(), fieldLines(), indentProse(), marker(), renderContext(), sentences()
 
-### Community 101 - "Community 101"
-Cohesion: 0.36
-Nodes (7): loadDocRoots(), parseFdFrontmatter(), loadFeatureBySlug(), resolveOwner(), resolveByGraphAdjacency(), resolveByLinksField(), scanFdsForOwner()
+### Community 98 - "Core Session and Gate 20"
+Cohesion: 0.3
+Nodes (7): main(), probe(), classifyCommit(), decideCommitVerdict(), short(), stagedLine(), runGit()
 
-### Community 102 - "Community 102"
+### Community 99 - "Core Session and Gate 21"
+Cohesion: 0.36
+Nodes (7): defaultRunner(), lefthookPatchPresent(), main(), resolveOxfmt(), decideFmtGuard(), isNoTargetFailure(), shouldWarnPartialStaging()
+
+### Community 100 - "Code-Review Pipeline 11"
+Cohesion: 0.32
+Nodes (9): flag(), runBootstrapCli(), injectBootstrapOverrides(), resolveIntroducedGate(), gateEntry(), git(), makeRepo(), treesOf() (+1 more)
+
+### Community 101 - "Dashboard UI 8"
+Cohesion: 0.35
+Nodes (10): drainStatusText(), emptyRow(), formatRuntime(), patchDrain(), poll(), renderDrainInFlight(), renderDrainParked(), renderInbox() (+2 more)
+
+### Community 102 - "Doc Gardening Detectors 6"
+Cohesion: 0.27
+Nodes (4): listDirIfExists(), detectFdWithoutPlan(), findCreationSha(), hasPlan()
+
+### Community 103 - "Doc-Code Link Sync 2"
 Cohesion: 0.38
 Nodes (7): appendList(), applyBlock(), buildResourcesBlock(), main(), resolveArchivedPath(), resolveArchivedPathList(), syncFile()
 
-### Community 103 - "Community 103"
-Cohesion: 0.33
-Nodes (7): loadBlockedByGraph(), buildBlockedByGraph(), detectCircularBlockedBy(), findBlockedByCycles(), findCyclesInBuild(), readOr(), tarjanCycles()
-
-### Community 104 - "Community 104"
+### Community 104 - "Dashboard UI 9"
 Cohesion: 0.36
 Nodes (5): faviconHref(), renderLayout(), repoDisplayName(), shell(), shell()
 
-### Community 105 - "Community 105"
-Cohesion: 0.36
-Nodes (6): formatResults(), formatViolationLine(), printResults(), runAll(), warningBlock(), runInvariants()
-
-### Community 106 - "Community 106"
-Cohesion: 0.29
-Nodes (3): autoBase(), parseUnifiedDiffRanges(), resolveChangedRanges()
-
-### Community 107 - "Community 107"
-Cohesion: 0.38
-Nodes (6): checkLefthookWiring(), extendsList(), frameworkHooks(), lefthookBlockDoc(), repairFor(), resolveRootConfig()
-
-### Community 108 - "Community 108"
-Cohesion: 0.38
-Nodes (6): actualPackageNames(), isSamplesPath(), newestMtimeInRoots(), resolvedPathAllowed(), walkCodeFiles(), walkDir()
-
-### Community 109 - "Community 109"
+### Community 105 - "Design Artifact Flow 8"
 Cohesion: 0.38
 Nodes (7): optionalFlag(), isStaged(), main(), renderSurfaceReport(), validateBaselineFile(), commit(), git()
 
-### Community 110 - "Community 110"
+### Community 106 - "Clone Duplication Ratchet 3"
+Cohesion: 0.29
+Nodes (3): autoBase(), parseUnifiedDiffRanges(), resolveChangedRanges()
+
+### Community 107 - "Repo Checks 3"
+Cohesion: 0.38
+Nodes (6): checkLefthookWiring(), extendsList(), frameworkHooks(), lefthookBlockDoc(), repairFor(), resolveRootConfig()
+
+### Community 108 - "Clone Duplication Ratchet 4"
+Cohesion: 0.39
+Nodes (6): collapseBuilderChains(), isDigit(), isIdentPart(), isIdentStart(), tokenize(), normOf()
+
+### Community 109 - "Git Hook Enforcement 2"
 Cohesion: 0.33
 Nodes (4): filePathFromPayload(), gitToplevel(), isTracked(), runPreEditGuard()
 
-### Community 111 - "Community 111"
-Cohesion: 0.56
-Nodes (6): main(), openInEditor(), renderPlan(), trackedPenFiles(), planPenBridge(), rankPenCandidates()
-
-### Community 112 - "Community 112"
-Cohesion: 0.5
-Nodes (6): extractArtifactLinks(), fixArtifactLink(), indexSrcByBasename(), main(), migrateOne(), rewriteScriptsPaths()
-
-### Community 113 - "Community 113"
+### Community 110 - "Doc Gardening Detectors 7"
 Cohesion: 0.33
 Nodes (4): noldorCliCommand(), extractJsonLine(), runGardenDetectViaCli(), runCli()
 
-### Community 114 - "Community 114"
+### Community 111 - "Design Artifact Flow 9"
+Cohesion: 0.56
+Nodes (6): main(), openInEditor(), renderPlan(), trackedPenFiles(), planPenBridge(), rankPenCandidates()
+
+### Community 112 - "Feature MD Schema 3"
+Cohesion: 0.5
+Nodes (6): extractArtifactLinks(), fixArtifactLink(), indexSrcByBasename(), main(), migrateOne(), rewriteScriptsPaths()
+
+### Community 113 - "Doc Gardening Detectors 8"
 Cohesion: 0.43
 Nodes (5): checkCommands(), checkPaths(), collectSkillMd(), detectSkillCodeDrift(), inlineCodeSpans()
 
-### Community 116 - "Community 116"
+### Community 114 - "Feature MD Schema 4"
 Cohesion: 0.54
 Nodes (6): areaFromPackage(), inferTier(), main(), walkFeaturesDir(), yamlToBacklogBlock(), yamlToFeatureMd()
 
-### Community 117 - "Community 117"
+### Community 115 - "Feature MD Schema 5"
 Cohesion: 0.43
 Nodes (5): main(), migrateChangelogContent(), migrateFeaturesDir(), parseChangelogSection(), renderSection()
 
-### Community 118 - "Community 118"
+### Community 116 - "Idea Triage 4"
 Cohesion: 0.5
 Nodes (4): buildMergeCandidates(), formatTable(), main(), readOrEmpty()
 
-### Community 119 - "Community 119"
-Cohesion: 0.43
-Nodes (4): resolveEntryRef(), hasBlock(), main(), parseHasBlockArgs()
+### Community 117 - "Core Session and Gate 22"
+Cohesion: 0.36
+Nodes (5): createBoundedCapture(), isHighSurrogate(), isLowSurrogate(), sliceHead(), sliceTail()
 
-### Community 120 - "Community 120"
+### Community 118 - "Core Session and Gate 23"
 Cohesion: 0.57
 Nodes (5): filterCommitsForPage(), listPageSlugs(), loadCommits(), main(), parseScope()
 
-### Community 121 - "Community 121"
+### Community 119 - "Release Machinery 11"
 Cohesion: 0.48
 Nodes (3): fillAllMarkers(), fillMarkers(), main()
 
-### Community 122 - "Community 122"
-Cohesion: 0.33
-Nodes (3): setDocRootsOverride(), parseCliArgs(), fixtureRepo()
-
-### Community 123 - "Community 123"
-Cohesion: 0.33
-Nodes (4): buildMilestoneGroups(), loadMilestoneGroups(), handleMilestones(), renderMilestones()
-
-### Community 124 - "Community 124"
-Cohesion: 0.53
-Nodes (3): checkBinaryPrerequisites(), checkConsumerScripts(), makeDefaultProbe()
-
-### Community 125 - "Community 125"
-Cohesion: 0.67
-Nodes (4): diffSkillSets(), loadSkillSlugs(), main(), parseCatalogSlugs()
-
-### Community 126 - "Community 126"
-Cohesion: 0.67
-Nodes (4): extractSpecSlug(), collectTaggedSpecs(), main(), updateFeatureMd()
-
-### Community 128 - "Community 128"
+### Community 121 - "Repo Checks 4"
 Cohesion: 0.67
 Nodes (4): exitCodeFor(), main(), renderRows(), loadUiConfig()
 
-### Community 129 - "Community 129"
-Cohesion: 0.53
-Nodes (4): expandCandidateValue(), isUiBearing(), matches(), sessionUiVerdict()
+### Community 123 - "Core Session and Gate 25"
+Cohesion: 0.67
+Nodes (4): diffSkillSets(), loadSkillSlugs(), main(), parseCatalogSlugs()
 
-### Community 130 - "Community 130"
+### Community 124 - "Doc-Code Link Sync 3"
+Cohesion: 0.67
+Nodes (4): extractSpecSlug(), collectTaggedSpecs(), main(), updateFeatureMd()
+
+### Community 127 - "Feature MD Schema 6"
 Cohesion: 0.6
 Nodes (4): extractLegacyBlock(), findLineStartingWith(), main(), migrateFd()
 
-### Community 131 - "Community 131"
+### Community 128 - "Docs Generation 4"
 Cohesion: 0.6
 Nodes (4): loadExamples(), main(), processTutorialDir(), transcludeMarkers()
 
-### Community 132 - "Community 132"
+### Community 129 - "Docs Generation 5"
 Cohesion: 0.6
 Nodes (4): addGeneratedHeader(), annotateAll(), main(), walkMd()
 
-### Community 133 - "Community 133"
-Cohesion: 0.67
-Nodes (3): assertNodeFloor(), checkNodeFloor(), minMajor()
+### Community 130 - "Dashboard UI 10"
+Cohesion: 0.53
+Nodes (5): countTestCases(), isTestPath(), loadTestPyramid(), handleTestPyramid(), renderTestPyramid()
 
-### Community 134 - "Community 134"
-Cohesion: 0.9
-Nodes (3): sizeSkipsSpec(), sizeToPath(), sizeToTier()
+### Community 131 - "Test Harness"
+Cohesion: 0.6
+Nodes (3): buildConsumerFixture(), CONSUMER_CONFIG(), ROADMAP()
 
-### Community 135 - "Community 135"
-Cohesion: 0.7
-Nodes (3): collectFiles(), main(), prefixSkills()
-
-### Community 136 - "Community 136"
-Cohesion: 0.7
-Nodes (3): collectFiles(), main(), renamePlanOnlyTier()
-
-### Community 138 - "Community 138"
-Cohesion: 0.7
-Nodes (3): loadKnownSlugs(), main(), validateFeatureSlugScope()
-
-### Community 139 - "Community 139"
-Cohesion: 0.7
-Nodes (3): appendToMessage(), detectDroppedTrailers(), formatTrailers()
-
-### Community 140 - "Community 140"
+### Community 132 - "Git Hook Enforcement 3"
 Cohesion: 0.6
 Nodes (3): archivedSpecRepo(), setupPostRollout(), setupRepo()
 
-### Community 141 - "Community 141"
+### Community 133 - "Core Session and Gate 26"
+Cohesion: 0.7
+Nodes (3): collectFiles(), main(), prefixSkills()
+
+### Community 134 - "Core Session and Gate 27"
+Cohesion: 0.7
+Nodes (3): collectFiles(), main(), renamePlanOnlyTier()
+
+### Community 136 - "Repo Checks 5"
+Cohesion: 0.7
+Nodes (3): loadKnownSlugs(), main(), validateFeatureSlugScope()
+
+### Community 137 - "Release Machinery 12"
 Cohesion: 0.6
 Nodes (3): loadWorkflow(), publishCommand(), publishStep()
 
 ## Knowledge Gaps
 - **3 isolated node(s):** `UsageError`, `UsageError`, `UsageError`
   These have ≤1 connection - possible missing edges or undocumented components.
-- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `loadDocRoots()` connect `Community 101` to `Roadmap Ops and ADR Detection`, `Path and Doc Root Resolution`, `Override and Release Audit`, `Link-Drift Projection`, `Design Context Ledger`, `Graph Digest Report`, `Markdown Section Scan`, `Dashboard Routes and Queue`, `Drain Eligibility Sources`, `Architecture Scan Roots`, `Gate Allowlist Predicates`, `Feature and Backlog Loading`, `Prep Index Rendering`, `Garden Detectors`, `Community 40`, `Community 42`, `Community 45`, `Community 48`, `Community 58`, `Community 59`, `Community 63`, `Community 67`, `Community 69`, `Community 70`, `Community 75`, `Community 90`, `Community 94`, `Community 118`?**
+- **Why does `loadDocRoots()` connect `Doc Gardening Detectors 2` to `Dashboard UI`, `Doc Gardening Detectors`, `Git Hook Enforcement`, `Idea Triage 5`, `Design Artifact Flow`, `Doc-Code Link Sync`, `Dashboard UI 3`, `Design Artifact Flow 2`, `Core Session and Gate 3`, `Autonomous Drain Runner 2`, `Doc Gardening Detectors 3`, `Core Session and Gate 4`, `Dashboard UI 5`, `Artifact Format Contracts`, `Docs Generation 2`, `Dashboard UI 6`, `Shared Utilities`, `Core Session and Gate 5`, `Design Artifact Flow 3`, `Artifact Format Contracts 2`, `Core Session and Gate 8`, `Graph Integration`, `Design Artifact Flow 4`, `Idea Triage`, `Doc Gardening Detectors 4`, `Doc Gardening Detectors 5`, `Design Artifact Flow 6`, `Core Session and Gate 17`, `Code-Review Pipeline 11`, `Idea Triage 4`?**
   _High betweenness centrality (0.070) - this node is a cross-community bridge._
-- **Why does `loadConsumerConfig()` connect `Community 79` to `Community 128`, `Dashboard WIP-Age Views`, `Path and Doc Root Resolution`, `Override and Release Audit`, `Release Notes and Changelog`, `Link-Drift Projection`, `Invariants and Boundaries`, `Release Pipeline Checks`, `CLI Dispatch Entry`, `Architecture Scan Roots`, `Garden Receipt Freshness`, `Gate Allowlist Predicates`, `FD Link Rot Detection`, `Community 43`, `Community 53`, `Community 60`, `Community 62`, `Community 69`, `Community 72`, `Community 76`, `Community 87`, `Community 108`?**
+- **Why does `loadConsumerConfig()` connect `Core Session and Gate 15` to `Dashboard UI 10`, `Test Harness`, `Dashboard UI`, `Dashboard UI 2`, `Release Machinery`, `Doc Gardening Detectors`, `Architecture Invariants`, `Doc-Code Link Sync`, `Code-Review Pipeline 4`, `CLI Command Surface`, `Doc Gardening Detectors 3`, `Release Machinery 2`, `Feature MD Schema`, `Core Session and Gate 4`, `Release Machinery 3`, `Artifact Format Contracts 3`, `Architecture Invariants 2`, `Release Machinery 6`, `Docs Generation 3`, `Feature MD Schema 2`, `Repo Checks 4`?**
   _High betweenness centrality (0.025) - this node is a cross-community bridge._
-- **Why does `readSession()` connect `Community 55` to `Community 64`, `Gate Allowlist Predicates`, `Community 67`, `CR Aggregate and Template SHA`, `Community 76`, `Community 45`, `Community 110`, `Design Context Ledger`, `Community 48`, `Community 86`, `Community 57`, `CR Lane Configuration`, `Garden Receipt Freshness`?**
+- **Why does `readSession()` connect `Core Session and Gate 9` to `Design Artifact Flow 4`, `Core Session and Gate 12`, `Artifact Format Contracts`, `Code-Review Pipeline 2`, `Release Machinery 6`, `Git Hook Enforcement 2`, `Design Artifact Flow`, `Design Artifact Flow 3`, `Release Machinery 3`, `Release Machinery 8`, `Autonomous Drain Runner 6`, `Core Session and Gate 10`, `Code-Review Pipeline 6`?**
   _High betweenness centrality (0.017) - this node is a cross-community bridge._
 - **Are the 47 inferred relationships involving `loadDocRoots()` (e.g. with `graphContext()` and `resolveArchivePlan()`) actually correct?**
   _`loadDocRoots()` has 47 INFERRED edges - model-reasoned connections that need verification._

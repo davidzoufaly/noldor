@@ -72,7 +72,13 @@ export async function actualPackageNames(cwd: string = process.cwd()): Promise<s
 export const CODE_FILE_RE = /\.(ts|tsx|js|jsx)$/;
 /** Test-file naming policy — mirrors `src/sync/sync-code-links.ts`. */
 export const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx|js|jsx)$/;
-const WALK_EXCLUDED_DIRS = new Set([
+/**
+ * Directory names every repo walk skips. Exported so a second corpus rule can be
+ * built from the same set rather than restating it — `src/indirection/detect.ts`
+ * derives its dependency-cruiser `exclude` from this, and a divergence between
+ * the two is what makes one enumerate files the other cannot see.
+ */
+export const WALK_EXCLUDED_DIRS = new Set([
   'node_modules',
   'dist',
   '.turbo',

@@ -1,0 +1,12 @@
+{
+  "consumer": {
+    "name": "fixture",
+    "repoUrl": "https://example.invalid/fixture",
+    "lockstepPackages": ["package.json"],
+    "scanPaths": ["."],
+    "e2ePrefix": "fixture",
+    "samplesPath": "samples",
+    "packagePrefix": "@fixture/",
+    "appPathPrefix": "apps/"
+  }
+}

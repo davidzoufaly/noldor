@@ -11,6 +11,9 @@ importers:
       '@inquirer/prompts':
         specifier: ^8.4.3
         version: 8.5.1(@types/node@22.19.19)
+      '@swc/core':
+        specifier: ^1.16.1
+        version: 1.16.1
       dependency-cruiser:
         specifier: ^16.10.0
         version: 16.10.4
@@ -48,9 +51,6 @@ importers:
         specifier: ^3.25.2
         version: 3.25.2(zod@3.25.76)
     devDependencies:
-      '@swc/core':
-        specifier: ^1.16.1
-        version: 1.16.1
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
