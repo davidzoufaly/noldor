@@ -1,0 +1,157 @@
+/**
+ * Whole-corpus indirection ratchet. `.noldor/indirection-baseline.json` records
+ * the excess sum a repo already carries; `indirection check` then reds only when
+ * that number GROWS.
+ *
+ * A knob mismatch is `stale` — reported, never red — following
+ * `src/clones/baseline.ts`. `scanRoots` and `includeTests` are consumer-owned,
+ * so reding on a mismatch would hard-block every push in a repo that merely
+ * edited `scanPaths`, and no framework migration can ship for a knob the
+ * framework does not own.
+ */
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+
+import { z } from 'zod';
+
+import { atomicWriteFileSync } from '../core/atomic-write.js';
+import { readJsonState } from '../core/state-file.js';
+import type { MeasuredIndirection } from './detect.js';
+
+/** Baseline location, relative to the repo root. Tracked, not transient. */
+export const BASELINE_FILE = '.noldor/indirection-baseline.json';
+
+/**
+ * Bumped whenever the closure traversal changes. `options` alone cannot catch a
+ * change in how the number is COMPUTED — a fix to alias handling moves every
+ * closure without moving a knob — and silently comparing across that boundary is
+ * worse than reporting stale.
+ */
+export const ALGORITHM_VERSION = 1;
+
+const count = z.number().int().nonnegative();
+
+export const baselineOptionsSchema = z
+  .object({
+    threshold: z.number().int().positive(),
+    scanRoots: z.array(z.string().min(1)),
+    includeTests: z.boolean(),
+  })
+  .strict();
+export type BaselineOptions = z.infer<typeof baselineOptionsSchema>;
+
+export const indirectionBaselineSchema = z
+  .object({
+    /** The ratchet number: total closure above the threshold. */
+    excessSum: count,
+    /** Recorded for the human reading the file; never compared. */
+    flaggedModules: count,
+    modulesScanned: count,
+    percentiles: z.object({ p50: count, p75: count, p90: count, p99: count, max: count }).strict(),
+    options: baselineOptionsSchema,
+    algorithmVersion: z.number().int().positive(),
+    recordedAt: z.string().min(1),
+  })
+  .strict();
+export type IndirectionBaseline = z.infer<typeof indirectionBaselineSchema>;
+
+export function buildBaseline(
+  result: MeasuredIndirection,
+  options: BaselineOptions,
+  recordedAt: string,
+): IndirectionBaseline {
+  return {
+    excessSum: result.excessSum,
+    flaggedModules: result.flagged.length,
+    modulesScanned: result.modules.length,
+    percentiles: result.percentiles,
+    options,
+    algorithmVersion: ALGORITHM_VERSION,
+    recordedAt,
+  };
+}
+
+export type BaselineRead =
+  | { readonly kind: 'ok'; readonly baseline: IndirectionBaseline }
+  | { readonly kind: 'absent' }
+  | { readonly kind: 'unreadable'; readonly message: string };
+
+export function readBaseline(path: string): BaselineRead {
+  let raw: unknown;
+  try {
+    raw = readJsonState(path);
+  } catch (e) {
+    // readJsonState throws StateFileCorruptError on unparseable content; the
+    // file is an external boundary, so convert rather than propagate.
+    return { kind: 'unreadable', message: e instanceof Error ? e.message : String(e) };
+  }
+  if (raw === undefined) return { kind: 'absent' };
+  const parsed = indirectionBaselineSchema.safeParse(raw);
+  return parsed.success
+    ? { kind: 'ok', baseline: parsed.data }
+    : { kind: 'unreadable', message: parsed.error.message };
+}
+
+export function writeBaseline(path: string, baseline: IndirectionBaseline): void {
+  mkdirSync(dirname(path), { recursive: true });
+  atomicWriteFileSync(path, `${JSON.stringify(baseline, null, 2)}\n`);
+}
+
+export type RatchetVerdict =
+  | { readonly kind: 'red'; readonly message: string }
+  | { readonly kind: 'green'; readonly message: string }
+  | { readonly kind: 'stale'; readonly message: string };
+
+function describeOptions(o: BaselineOptions): string {
+  return `threshold=${o.threshold} roots=${o.scanRoots.join(',')} includeTests=${o.includeTests}`;
+}
+
+function sameOptions(a: BaselineOptions, b: BaselineOptions): boolean {
+  return (
+    a.threshold === b.threshold &&
+    a.includeTests === b.includeTests &&
+    a.scanRoots.length === b.scanRoots.length &&
+    a.scanRoots.every((r, i) => r === b.scanRoots[i])
+  );
+}
+
+export function compareToBaseline(
+  result: MeasuredIndirection,
+  baseline: IndirectionBaseline,
+  options: BaselineOptions,
+): RatchetVerdict {
+  if (baseline.algorithmVersion !== ALGORITHM_VERSION) {
+    return {
+      kind: 'stale',
+      message:
+        `baseline recorded under algorithm version ${baseline.algorithmVersion}, this run is ` +
+        `${ALGORITHM_VERSION} - not comparable, skipped\n` +
+        `  re-record with 'noldor indirection baseline'`,
+    };
+  }
+  if (!sameOptions(baseline.options, options)) {
+    return {
+      kind: 'stale',
+      message:
+        `baseline recorded under different options (${describeOptions(baseline.options)}) ` +
+        `than this run (${describeOptions(options)}) - not comparable, skipped\n` +
+        `  re-record with 'noldor indirection baseline'`,
+    };
+  }
+  const delta = result.excessSum - baseline.excessSum;
+  if (delta > 0) {
+    return {
+      kind: 'red',
+      message:
+        `indirection excess rose ${baseline.excessSum} -> ${result.excessSum} (+${delta}) ` +
+        `above the baseline recorded ${baseline.recordedAt}`,
+    };
+  }
+  return {
+    kind: 'green',
+    message:
+      delta === 0
+        ? `indirection excess unchanged at ${result.excessSum}`
+        : `indirection excess fell ${baseline.excessSum} -> ${result.excessSum} (${delta})`,
+  };
+}
