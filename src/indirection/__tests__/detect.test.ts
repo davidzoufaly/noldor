@@ -78,3 +78,75 @@ describe('measureIndirection', () => {
     expect(INDIRECTION_CLOSURE_THRESHOLD).toBe(30);
   });
 });
+
+describe('edge semantics', () => {
+  it('counts type-only and literal dynamic edges, skips tests and declarations', async () => {
+    const r = await measureIndirection(tree('edges'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.modules.map((m) => m.source).sort()).toEqual([
+      'dyn.ts',
+      'leaf.ts',
+      'root.ts',
+      'typed.ts',
+    ]);
+    // typed.ts (import type) + leaf.ts (static) + dyn.ts (literal dynamic import)
+    expect(r.modules.find((m) => m.source === 'root.ts')?.closure).toBe(3);
+  });
+});
+
+describe('cycles', () => {
+  it('counts every member of a cycle once, and never the module itself', async () => {
+    const r = await measureIndirection(tree('cycle'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    // x -> y -> x: each reaches exactly the other, and `seen.delete(id)` is what
+    // keeps a module out of its own closure when the cycle returns to it.
+    expect(r.modules.find((m) => m.source === 'x.ts')?.closure).toBe(1);
+    expect(r.modules.find((m) => m.source === 'y.ts')?.closure).toBe(1);
+    expect(r.modules.find((m) => m.source === 'self.ts')?.closure).toBe(0);
+  });
+});
+
+describe('deterministic ordering', () => {
+  it('breaks a closure tie by path ascending', async () => {
+    // The chain fixture cannot prove this — every closure there differs, so
+    // reversing or deleting the tiebreak would not change its order.
+    const r = await measureIndirection(tree('tie'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    const tied = r.modules.filter((m) => m.closure === 1).map((m) => m.source);
+    expect(tied).toEqual(['p.ts', 'q.ts']);
+  });
+});
+
+describe('failure contract', () => {
+  it('returns no-parser — not a throw — when no TypeScript parser is available', async () => {
+    const r = await measureIndirection({
+      ...tree('chain'),
+      extensions: [
+        { extension: '.ts', available: false },
+        { extension: '.tsx', available: false },
+      ],
+    });
+    expect(r.kind).toBe('no-parser');
+    if (r.kind !== 'no-parser') return;
+    expect(r.extensions).toContain('.ts');
+    expect(r.message).toContain('@swc/core');
+  });
+});
+
+describe('deep aggregator', () => {
+  it('flags an aggregator above the threshold while its 32 leaf members stay at zero', async () => {
+    const r = await measureIndirection(tree('deep-registry'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    const agg = r.modules.find((m) => m.source === 'aggregator.ts');
+    expect(agg?.closure).toBe(32);
+    expect(agg?.excess).toBe(32 - INDIRECTION_CLOSURE_THRESHOLD);
+    // Registry immunity is conditional: the 32 leaf members cost nothing, the
+    // aggregator does once its own closure passes the threshold.
+    expect(r.modules.find((m) => m.source === 'dep1.ts')?.excess).toBe(0);
+    // member.ts is NOT a cost-free member — it imports the aggregator, so it
+    // inherits the whole closure (32 deps + the aggregator) and is itself deep.
+    const mem = r.modules.find((m) => m.source === 'member.ts');
+    expect(mem?.closure).toBe(33);
+    expect(mem?.excess).toBe(33 - INDIRECTION_CLOSURE_THRESHOLD);
+  });
+});
