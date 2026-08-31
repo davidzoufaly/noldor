@@ -10,9 +10,10 @@ links:
     - src/indirection/indirection-cli.ts
     - src/cli/manifest.ts
   tests:
-    - src/indirection/__tests__/detect.test.ts
     - src/indirection/__tests__/baseline.test.ts
+    - src/indirection/__tests__/detect.test.ts
     - src/indirection/__tests__/indirection-cli.test.ts
+    - src/indirection/__tests__/trees/edges/helper.spec.ts
     - src/indirection/__tests__/trees/tests-only/thing.spec.ts
   spec: docs/design/specs/archive/2026-08-30-abstraction-cost-ratchet-design.md
 name: Abstraction-Cost Ratchet
