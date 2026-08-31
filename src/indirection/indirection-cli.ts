@@ -99,10 +99,25 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
     return 3;
   }
 
-  // `scanRoots` already returns roots relative to the repo root, which is what
-  // `measureIndirection` wants — joining `cwd` onto them makes cruise resolve
-  // `<baseDir>/<abs>` and fail with ENOENT.
-  const result = await measureIndirection({ roots: scanRoots(cwd), cwd });
+  // `scanRoots` reads `.noldor/config.json` and THROWS when it is missing or
+  // invalid, so it sits inside the boundary: an unreadable config is a
+  // could-not-look (exit 3), not an unhandled rejection.
+  let roots: string[];
+  try {
+    // Already repo-relative, which is what `measureIndirection` wants — joining
+    // `cwd` onto them makes cruise resolve `<baseDir>/<abs>` and fail ENOENT.
+    roots = scanRoots(cwd);
+  } catch (e) {
+    const message = `could not resolve scan roots: ${e instanceof Error ? e.message : String(e)}`;
+    process.stderr.write(
+      args.json
+        ? `${JSON.stringify({ verdict: 'could-not-look', reason: 'config', message })}\n`
+        : `indirection ${args.sub}: ${message}\n`,
+    );
+    return 3;
+  }
+
+  const result = await measureIndirection({ roots, cwd });
 
   if (result.kind === 'no-parser' || result.kind === 'unmeasurable') {
     // Rendered, not hand-formatted, so renderReport's failure branches are
@@ -121,7 +136,16 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
     // across both kinds instead of making every caller special-case emptiness.
     const payload =
       result.kind === 'empty'
-        ? { ...result, excessSum: 0, modules: [], flagged: [], percentiles: null }
+        ? {
+            ...result,
+            excessSum: 0,
+            modules: [],
+            flagged: [],
+            percentiles: null,
+            // Present so a caller reading `payload.unresolvedInScope.length`
+            // does not throw on an empty repo — the point of one shared shape.
+            unresolvedInScope: [],
+          }
         : result;
     process.stdout.write(args.json ? `${JSON.stringify(payload)}\n` : `${renderReport(result)}\n`);
     return 0;
@@ -129,7 +153,7 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
 
   const options: BaselineOptions = {
     threshold: INDIRECTION_CLOSURE_THRESHOLD,
-    scanRoots: scanRoots(cwd),
+    scanRoots: roots,
     includeTests: false,
   };
   const path = join(cwd, BASELINE_FILE);

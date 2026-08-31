@@ -14,8 +14,15 @@ import { isAbsolute, join, resolve, sep } from 'node:path';
 
 import { allExtensions, cruise } from 'dependency-cruiser';
 
-import { CODE_FILE_RE, TEST_FILE_RE, toPosixRelative, walkCodeFiles } from '../core/repo-paths.js';
+import {
+  CODE_FILE_RE,
+  TEST_FILE_RE,
+  WALK_EXCLUDED_DIRS,
+  toPosixRelative,
+  walkCodeFiles,
+} from '../core/repo-paths.js';
 import { findUnparseableTsExtensions } from '../invariants/boundaries.js';
+import { stripJsonc } from '../invariants/toolchain-floor.js';
 
 /**
  * Closure size above which a module is flagged. The measured p90 of this repo,
@@ -119,17 +126,19 @@ function isInScopeSpecifier(spec: string | undefined, aliasPrefixes: readonly st
 }
 
 /**
- * Directories under the scan roots that hold a tsconfig, to a bounded depth.
+ * Every `tsconfig*.json` under the scan roots, to a bounded depth, plus any at
+ * the repo base.
  *
  * A monorepo declares `paths` per package (`packages/<pkg>/tsconfig.json`), so
- * reading only the repo base drops those alias edges silently — the failure this
- * whole alias path exists to avoid. Depth is capped because this runs on every
- * pre-push and the answer only needs the configs a package root would carry, not
- * every one in the tree.
+ * reading only the base drops those alias edges silently. Depth is capped
+ * because this runs on every pre-push and only package-root configs matter.
+ * Every matching filename is returned, not two hard-coded names: a package whose
+ * aliases live in `tsconfig.app.json` would otherwise be discovered as
+ * "holds a tsconfig" and yield no prefixes, which is a silent drop.
  */
-function findTsconfigDirs(base: string, roots: readonly string[]): string[] {
+function findTsconfigFiles(base: string, roots: readonly string[]): string[] {
   const MAX_DEPTH = 3;
-  const out: string[] = [];
+  const out = new Set<string>();
   const walk = (dir: string, depth: number): void => {
     if (depth > MAX_DEPTH) return;
     let entries: Dirent[];
@@ -138,48 +147,118 @@ function findTsconfigDirs(base: string, roots: readonly string[]): string[] {
     } catch {
       return;
     }
-    if (entries.some((e) => e.isFile() && e.name.startsWith('tsconfig'))) out.push(dir);
+    for (const e of entries) {
+      if (e.isFile() && e.name.startsWith('tsconfig') && e.name.endsWith('.json')) {
+        out.add(join(dir, e.name));
+      }
+      if (!e.isDirectory()) continue;
+      if (e.name.startsWith('.') || WALK_EXCLUDED_DIRS.has(e.name)) continue;
+      walk(join(dir, e.name), depth + 1);
+    }
+  };
+  walk(base, MAX_DEPTH); // base itself only, no descent
+  for (const r of roots) walk(resolve(base, r), 0);
+  return [...out];
+}
+
+/**
+ * Alias namespaces declared by any tsconfig under the scan roots.
+ *
+ * Parsed, not pattern-matched. An earlier version scanned the `paths` block with
+ * a lazy regex and was formatting-dependent in both directions: a single-line
+ * `paths` block let the match run past it and harvest sibling option keys — so
+ * `strict` became an alias prefix and an ordinary bare import was reported — and
+ * a whole tsconfig on one line matched nothing, dropping real aliases in
+ * silence. Two semantically identical tsconfigs gave opposite verdicts, and the
+ * baseline principles say to avoid regex for exactly this reason. `stripJsonc`
+ * is the repo's existing comment- and trailing-comma-tolerant reader, so the
+ * commented tsconfig that `tsc --init` emits parses here too.
+ */
+function declaredAliasPrefixes(base: string, roots: readonly string[]): string[] {
+  const prefixes = new Set<string>();
+  for (const file of findTsconfigFiles(base, roots)) {
+    let raw: string;
+    try {
+      raw = readFileSync(file, 'utf8');
+    } catch {
+      continue;
+    }
+    const scan = stripJsonc(raw);
+    if (!scan.ok) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(scan.text);
+    } catch {
+      continue;
+    }
+    if (typeof parsed !== 'object' || parsed === null) continue;
+    const compilerOptions = (parsed as { compilerOptions?: unknown }).compilerOptions;
+    if (typeof compilerOptions !== 'object' || compilerOptions === null) continue;
+    const paths = (compilerOptions as { paths?: unknown }).paths;
+    if (typeof paths !== 'object' || paths === null) continue;
+    for (const key of Object.keys(paths)) {
+      if (key.startsWith('.')) continue;
+      prefixes.add(key.endsWith('/*') ? key.slice(0, -2) : key);
+    }
+  }
+  return [...prefixes];
+}
+
+/**
+ * The dependency-cruiser `exclude` pattern for the directories every repo walk
+ * skips, anchored to whole path segments so it cannot match a longer name.
+ */
+function excludedSegments(): string {
+  const names = [...WALK_EXCLUDED_DIRS, '__tests__'].map((n) => n.replace(/\./g, '\\.'));
+  return `(^|/)(${names.join('|')})(/|$)`;
+}
+
+/**
+ * The workspace package a repo-relative path belongs to, or `undefined` for a
+ * file outside any package.
+ *
+ * A package root is a directory holding a `package.json`, which is
+ * layout-agnostic — it does not assume `packages/`. Deepest match wins, so a
+ * nested package is attributed to itself rather than its parent.
+ */
+function packageOf(source: string, packageRoots: readonly string[]): string | undefined {
+  let best: string | undefined;
+  for (const root of packageRoots) {
+    if (source === root || source.startsWith(`${root}/`)) {
+      if (best === undefined || root.length > best.length) best = root;
+    }
+  }
+  return best;
+}
+
+/**
+ * Directories under the scan roots that declare a `package.json`, repo-relative.
+ * Bounded depth for the same reason the tsconfig walk is.
+ */
+function findPackageRoots(base: string, roots: readonly string[]): string[] {
+  const MAX_DEPTH = 3;
+  const out = new Set<string>();
+  const walk = (dir: string, depth: number): void => {
+    if (depth > MAX_DEPTH) return;
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    if (entries.some((e) => e.isFile() && e.name === 'package.json')) {
+      const rel = toPosixRelative(base, dir);
+      // The repo root itself is not a boundary — everything would be "outside".
+      if (rel !== '' && !rel.startsWith('..')) out.add(rel);
+    }
     for (const e of entries) {
       if (!e.isDirectory()) continue;
-      if (e.name.startsWith('.') || e.name === 'node_modules' || e.name === 'dist') continue;
+      if (e.name.startsWith('.') || WALK_EXCLUDED_DIRS.has(e.name)) continue;
       walk(join(dir, e.name), depth + 1);
     }
   };
   for (const r of roots) walk(resolve(base, r), 0);
-  return out;
-}
-
-/**
- * Alias namespaces declared by any tsconfig at `base` or under a scan root — a
- * monorepo commonly declares `paths` per package, and looking only at the base
- * would drop those edges silently.
- */
-function declaredAliasPrefixes(base: string, roots: readonly string[]): string[] {
-  const dirs = [base, ...findTsconfigDirs(base, roots)];
-  const prefixes = new Set<string>();
-  for (const dir of dirs) {
-    for (const name of ['tsconfig.json', 'tsconfig.base.json']) {
-      const p = join(dir, name);
-      if (!existsSync(p)) continue;
-      try {
-        // Only the alias KEYS are needed, and a tsconfig routinely carries
-        // comments and trailing commas that `JSON.parse` refuses — so this
-        // scans the `paths` block for its keys rather than parsing the file.
-        const text = readFileSync(p, 'utf8');
-        const block = /"paths"\s*:\s*\{([\s\S]*?)\n\s*\}/.exec(text);
-        if (block === null) continue;
-        for (const m of block[1]!.matchAll(/"([^"]+)"\s*:/g)) {
-          const key = m[1]!;
-          if (key.startsWith('.')) continue;
-          prefixes.add(key.endsWith('/*') ? key.slice(0, -2) : key);
-        }
-      } catch {
-        // Unreadable tsconfig: no aliases learned from it. The parser guard and
-        // the completeness check already cover a genuinely broken tree.
-      }
-    }
-  }
-  return [...prefixes];
+  return [...out];
 }
 
 /** cruise reports paths relative to baseDir; anything escaping it is not ours. */
@@ -222,17 +301,34 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   // `empty`, and let `baseline` record 0 — the gate silently disabling itself.
   // An absolute root is refused rather than guessed at: it cannot be handed to
   // cruise, which joins roots onto `baseDir`.
-  const absolute = opts.roots.filter((r) => isAbsolute(r));
-  if (absolute.length > 0) {
+  // An absolute root cannot be handed to cruise, which joins roots onto
+  // `baseDir`; a parent-escaping one measures files `isInRepo` then discards, so
+  // it surfaced as a misdescribed "incomplete graph". `scanPaths` is validated
+  // only as a non-empty string, so both are equally reachable — refuse both with
+  // the same message rather than measuring something wrong.
+  const escaping = opts.roots.filter(
+    (r) => isAbsolute(r) || toPosixRelative(base, resolve(base, r)).startsWith('..'),
+  );
+  if (escaping.length > 0) {
+    return {
+      kind: 'unmeasurable',
+      message: `scan root(s) must be repo-relative and inside the repo, got: ${escaping.join(', ')}`,
+    };
+  }
+  const requested = [...new Set(opts.roots)];
+  const roots = requested.filter((r) => existsSync(resolve(base, r)));
+  // A partial miss is legitimately skippable — `DEFAULT_SCAN_ROOTS` is a union
+  // of layouts, so most of it is absent in any given repo. But when NO
+  // configured root exists, "empty" would record a zero baseline and leave the
+  // gate green forever: a `scanPaths: ["sourse"]` typo silently disabled it.
+  if (roots.length === 0) {
     return {
       kind: 'unmeasurable',
       message:
-        `scan root(s) must be repo-relative, got absolute: ${absolute.join(', ')} — ` +
-        `cruise joins roots onto baseDir, so an absolute root cannot be measured`,
+        `none of the configured scan root(s) exist: ${requested.join(', ')} — ` +
+        `check consumer.scanPaths in .noldor/config.json`,
     };
   }
-  const roots = [...new Set(opts.roots)].filter((r) => existsSync(resolve(base, r)));
-  if (roots.length === 0) return { kind: 'empty', threshold };
 
   // Does any MEASURABLE source file exist? Counting tests here would call a
   // test-only tree non-empty and then report it unmeasurable, since the cruise
@@ -269,13 +365,14 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
       baseDir: base,
       validate: false,
       doNotFollow: { path: 'node_modules' },
-      // Anchored to path segments, because `walkCodeFiles` excludes on an
-      // EXACT directory name (`WALK_EXCLUDED_DIRS.has(name)`). An unanchored
-      // substring made a directory merely CONTAINING `__tests__` — e.g.
-      // `src/__tests__helpers/` — excluded here but enumerated there, so the
-      // two corpus rules disagreed and the completeness guard tripped on a
-      // healthy repo.
-      exclude: { path: `(^|/)(node_modules|__tests__)(/|$)|${TEST_FILE_RE.source}` },
+      // Derived from `WALK_EXCLUDED_DIRS` and anchored to path segments, so the
+      // two corpus rules have one source. `walkCodeFiles` excludes on an EXACT
+      // directory name, so an unanchored substring made a directory merely
+      // CONTAINING `__tests__` — `src/__tests__helpers/` — excluded here but
+      // enumerated there, and the completeness guard tripped on a healthy repo.
+      // Restating the set instead of deriving it also left cruise parsing every
+      // `dist` and `coverage` tree the walker never offers.
+      exclude: { path: `${excludedSegments()}|${TEST_FILE_RE.source}` },
       tsPreCompilationDeps: true,
     });
     const out = result.output;
@@ -311,6 +408,13 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
 
   const byId = new Map(measured.map((m) => [m.source, m]));
 
+  // A workspace sibling is a published boundary, not an in-repo hop: the edge
+  // into it counts once, but its own closure is not inherited. Without this a
+  // monorepo's ordinary cross-package import inflates every closure upstream of
+  // it and reds the gate on a normal layout.
+  const packageRoots = findPackageRoots(base, roots);
+  const pkgOf = new Map(measured.map((m) => [m.source, packageOf(m.source, packageRoots)]));
+
   const unresolvedInScope: string[] = [];
   for (const m of measured) {
     for (const d of m.dependencies) {
@@ -321,6 +425,7 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   }
 
   const closureOf = (id: string): number => {
+    const home = pkgOf.get(id);
     const seen = new Set<string>();
     const stack = [id];
     while (stack.length > 0) {
@@ -328,7 +433,9 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
       for (const d of byId.get(cur)?.dependencies ?? []) {
         if (!byId.has(d.resolved) || seen.has(d.resolved)) continue;
         seen.add(d.resolved);
-        stack.push(d.resolved);
+        // Count the crossing, then stop: a file in another workspace package is
+        // one fetch, not a doorway into that package's whole graph.
+        if (pkgOf.get(d.resolved) === home) stack.push(d.resolved);
       }
     }
     seen.delete(id);

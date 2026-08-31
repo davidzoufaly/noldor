@@ -249,3 +249,72 @@ describe('corpus-rule agreement', () => {
     expect(r.message).toContain('repo-relative');
   });
 });
+
+describe('tsconfig is parsed, not pattern-matched', () => {
+  it('finds aliases in a single-line tsconfig', async () => {
+    // The lazy regex had no `\n\s*}` to stop at here, so it learned nothing and
+    // dropped the alias edge silently.
+    const r = await measureIndirection(tree('tsc-oneline'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@/thing.js');
+  });
+
+  it('does not mistake a sibling compilerOption for an alias prefix', async () => {
+    // With a one-line `paths` block the regex ran past it and harvested
+    // `strict` as a prefix, so `import from 'strict'` hard-blocked a healthy repo.
+    const r = await measureIndirection(tree('tsc-sibling'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+  });
+
+  it('reads a tsconfig carrying comments and a trailing comma', async () => {
+    const r = await measureIndirection(tree('tsc-commented'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@x/thing');
+  });
+});
+
+describe('workspace boundaries', () => {
+  it('counts a cross-package edge once without inheriting that package closure', async () => {
+    const r = await measureIndirection(tree('workspace'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    const a = r.modules.find((m) => m.source === 'packages/a/index.ts');
+    // packages/b/index.ts is one fetch; b's own 7-module chain is not inherited.
+    expect(a?.closure).toBe(1);
+    const b = r.modules.find((m) => m.source === 'packages/b/index.ts');
+    expect(b?.closure).toBe(6);
+  });
+});
+
+describe('misconfigured scan roots refuse rather than measure nothing', () => {
+  it('refuses when no configured root exists', async () => {
+    const r = await measureIndirection({
+      roots: ['sourse'],
+      cwd: join(import.meta.dirname, 'trees', 'chain'),
+    });
+    expect(r.kind).toBe('unmeasurable');
+    if (r.kind !== 'unmeasurable') return;
+    expect(r.message).toContain('none of the configured scan root(s) exist');
+  });
+
+  it('refuses a parent-escaping relative root', async () => {
+    const r = await measureIndirection({
+      // `../tie` genuinely leaves the base; `../chain` would resolve back to it.
+      roots: ['../tie'],
+      cwd: join(import.meta.dirname, 'trees', 'chain'),
+    });
+    expect(r.kind).toBe('unmeasurable');
+    if (r.kind !== 'unmeasurable') return;
+    expect(r.message).toContain('repo-relative');
+  });
+
+  it('still skips a partial miss, since DEFAULT_SCAN_ROOTS is a union of layouts', async () => {
+    const r = await measureIndirection({
+      roots: ['.', 'apps', 'packages'],
+      cwd: join(import.meta.dirname, 'trees', 'chain'),
+    });
+    expect(r.kind).toBe('measured');
+  });
+});

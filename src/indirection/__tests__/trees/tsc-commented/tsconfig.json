@@ -1,0 +1,7 @@
+{
+  // tsc --init emits comments
+  "compilerOptions": {
+    /* and block ones */
+    "paths": { "@x/*": ["lib/*"] }
+  }
+}
