@@ -1,7 +1,7 @@
 // @tests: noldor
 import { describe, expect, it } from 'vitest';
 
-import { sizeSkipsSpec, sizeToPath, sizeToTier } from '../size-routing.js';
+import { sizeSkipsSpec, sizeToPath, sizeToTier, sizeToTimeoutMs } from '../size-routing.js';
 
 describe(sizeSkipsSpec, () => {
   it('returns true for the no-spec sizes XS and S', () => {
@@ -62,5 +62,35 @@ describe(sizeToPath, () => {
     expect(sizeToPath(undefined, false)).toBe('specs-only-new');
     expect(sizeToPath(undefined, true)).toBe('specs-only-attach');
     expect(sizeToPath('Huge', false)).toBe('specs-only-new');
+  });
+});
+
+describe(sizeToTimeoutMs, () => {
+  it('leaves the XS budget at the base — the base IS the XS budget', () => {
+    expect(sizeToTimeoutMs('XS', 30 * 60 * 1000)).toBe(30 * 60 * 1000);
+  });
+
+  it('gives an S entry room for real CR rounds — an hour off a 30-minute base', () => {
+    expect(sizeToTimeoutMs('S', 30 * 60 * 1000)).toBe(60 * 60 * 1000);
+  });
+
+  it('scales further for the spec-bearing sizes', () => {
+    expect(sizeToTimeoutMs('M', 30 * 60 * 1000)).toBe(90 * 60 * 1000);
+    expect(sizeToTimeoutMs('L', 30 * 60 * 1000)).toBe(120 * 60 * 1000);
+    expect(sizeToTimeoutMs('XL', 30 * 60 * 1000)).toBe(120 * 60 * 1000);
+  });
+
+  it('reads a lower-cased size the same as the canonical upper-cased one', () => {
+    expect(sizeToTimeoutMs('s', 1000)).toBe(2000);
+  });
+
+  it('budgets a missing or unknown size like the LARGEST, never like the base', () => {
+    expect(sizeToTimeoutMs(undefined, 1000)).toBe(4000);
+    expect(sizeToTimeoutMs('', 1000)).toBe(4000);
+    expect(sizeToTimeoutMs('Huge', 1000)).toBe(4000);
+  });
+
+  it('scales off whatever base it is handed, not off a hard-coded 30 minutes', () => {
+    expect(sizeToTimeoutMs('S', 60_000)).toBe(120_000);
   });
 });

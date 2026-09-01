@@ -25,6 +25,8 @@ function harness(
     closedUnmergedPr?: () => boolean;
     stop?: () => boolean;
     eligibleFor?: (slug: string) => boolean;
+    /** omit → candidates carry no `size` (a source without the axis, e.g. plansSource) */
+    sizeFor?: (slug: string) => string | undefined;
     nextItemImpl?: (skip: ReadonlySet<string>) => ReturnType<DrainSource['nextItem']>;
     parseAllImpl?: () => string[];
   } = {},
@@ -38,7 +40,13 @@ function harness(
       ((skip: ReadonlySet<string>) => {
         lastTarget = roadmap.find((s) => !skip.has(s)) ?? null;
         if (lastTarget === null) return null;
-        return { slug: lastTarget, description: 'x', eligible: eligibleFor(lastTarget) };
+        const size = opts.sizeFor?.(lastTarget);
+        return {
+          slug: lastTarget,
+          description: 'x',
+          eligible: eligibleFor(lastTarget),
+          ...(size !== undefined ? { size } : {}),
+        };
       }),
   );
   const spawnGate = vi.fn(
@@ -452,5 +460,27 @@ describe('finish mode: committed-but-undelivered work', () => {
     await runDrain(h.deps, { ...opts, maxRetries: 1, concurrency: 2, startupStaggerMs: 0 });
     expect(promptsOf(h)).toEqual(['/gate a', '/finish a']);
     expect(h.deps.mergePr).not.toHaveBeenCalled(); // no PR was ever opened
+  });
+
+  it('(size-1) scales the per-entry budget off the candidate size — S gets double the XS base', async () => {
+    const h = harness(['xs-one', 's-one'], {
+      sizeFor: (slug) => (slug === 's-one' ? 'S' : 'XS'),
+    });
+    const r = await runDrain(h.deps, opts);
+    expect(r.shipped).toBe(2);
+    const budgets = h.spawnGate.mock.calls.map((c) => c[1]);
+    expect(budgets).toEqual([1000, 2000]);
+  });
+
+  it('(size-2) budgets a size-less candidate like the largest size, not like the base', async () => {
+    const h = harness(['no-size'], {});
+    await runDrain(h.deps, opts);
+    expect(h.spawnGate.mock.calls[0]?.[1]).toBe(4000);
+  });
+
+  it('(size-3) an explicit --iteration-timeout is a flat cap — size is ignored', async () => {
+    const h = harness(['s-one'], { sizeFor: () => 'S' });
+    await runDrain(h.deps, { ...opts, timeoutFixed: true });
+    expect(h.spawnGate.mock.calls[0]?.[1]).toBe(1000);
   });
 });

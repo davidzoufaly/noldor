@@ -46,10 +46,29 @@ and escalates the rest to a structured inbox instead of dying or blocking.
 Wall-clock cap per item is the existing `--iteration-timeout` (default 30 min). There is no
 token-budget rail: no token accounting exists yet (the metrics roadmap entry owns it).
 
-The 30-minute default is sized for XS work, and **the cap is not size-aware** — raise
-`--iteration-timeout` explicitly for any S batch (XS entries finish in ~15 min; S entries with
-real CR rounds want 45-60). A batch of S entries otherwise burns one retry each. Note that a
-timeout is **recoverable, not wasted**: the retry inherits the same worktree and branch, so
+**The default cap is size-aware.** The 30-minute default is the XS budget, and each entry's
+own `- size:` scales it via `sizeToTimeoutMs()` in
+[`src/core/size-routing.ts`](../../src/core/size-routing.ts) — the same field `sizeToPath()`
+already reads:
+
+| `size:`                | budget off the 30-min default |
+| ---------------------- | ----------------------------- |
+| `XS`                   | 30 min                        |
+| `S`                    | 60 min                        |
+| `M`                    | 90 min                        |
+| `L` / `XL`             | 120 min                       |
+| missing / unrecognized | 120 min                       |
+
+A size-less entry gets the largest budget rather than the base: the source that omits the axis
+(`--source plans`) drains spec-bearing M/L/XL FDs, so reading "unsized" as "smallest" would
+under-budget the longest work. Under-budgeting is the expensive direction; over-budgeting only
+delays the kill of a genuinely hung child, which `--max-features` / `--max-spawns` still bound.
+
+**Naming `--iteration-timeout` explicitly turns scaling off** — the value you pass is then a flat
+cap for every entry, size ignored. That is the lever for pinning a smoke run to a short budget;
+to widen a batch instead, leave the flag off and let the size do it.
+
+Note that a timeout is **recoverable, not wasted**: the retry inherits the same worktree and branch, so
 Q-0107 was killed mid-CR having already produced 4 commits with green tests and shipped on
 attempt 2 — the cost was one slot, not the entry. What it does leave behind is a branch holding
 finished work, which is exactly the finish-mode case the drain's rebuild path must not destroy

@@ -51,7 +51,10 @@ export interface WatchArgs {
   intervalMinutes: number;
   maxFeatures: number;
   maxRetries: number;
+  /** Base per-iteration budget; scaled per entry `size:` unless {@link WatchArgs.timeoutFixed}. */
   timeoutMs: number;
+  /** True when `--iteration-timeout` was named explicitly — flat cap, no size scaling. */
+  timeoutFixed: boolean;
   once: boolean;
   json: boolean;
   dryRun: boolean;
@@ -73,6 +76,7 @@ export function parseWatchArgs(args: readonly string[], configInterval: number):
     maxFeatures: intFlag(args, '--max-features', 1),
     maxRetries: intFlag(args, '--max-retries', 2),
     timeoutMs: intFlag(args, '--iteration-timeout', 30 * 60 * 1000),
+    timeoutFixed: args.includes('--iteration-timeout'),
     once: args.includes('--once'),
     json: args.includes('--json'),
     dryRun: args.includes('--dry-run'),
@@ -350,6 +354,7 @@ async function main(): Promise<void> {
         maxRetries: parsed.maxRetries,
         maxSpawns: parsed.maxFeatures * (parsed.maxRetries + 1),
         timeoutMs: parsed.timeoutMs,
+        timeoutFixed: parsed.timeoutFixed,
         dryRun: parsed.dryRun,
         cwd,
         concurrency: 1,

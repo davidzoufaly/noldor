@@ -123,4 +123,16 @@ describe('queue-drain CLI helpers', () => {
   it('missing-block error shows the headless-safe block to add', () => {
     expect(() => assertConfig({})).toThrow(/skipLanePicker.*true[\s\S]*onFailure.*abort/);
   });
+
+  it('marks the default iteration timeout as NOT fixed, so it scales per entry size', () => {
+    const a = parseArgs([]);
+    expect(a.timeoutMs).toBe(30 * 60 * 1000);
+    expect(a.timeoutFixed).toBe(false);
+  });
+
+  it('marks an explicitly named --iteration-timeout as fixed — a flat cap for every entry', () => {
+    const a = parseArgs(['--iteration-timeout', '60000']);
+    expect(a.timeoutMs).toBe(60000);
+    expect(a.timeoutFixed).toBe(true);
+  });
 });
