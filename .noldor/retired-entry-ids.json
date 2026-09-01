@@ -257,5 +257,9 @@
   "Q-0154": {
     "slug": "kind-less-cr-aggregate-re-reds-on-a-stale-addressed-spec-sink",
     "retiredAt": "2026-09-01"
+  },
+  "Q-0156": {
+    "slug": "size-aware-iteration-timeout-for-the-drain-runner",
+    "retiredAt": "2026-09-01"
   }
 }

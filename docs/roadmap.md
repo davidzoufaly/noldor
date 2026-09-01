@@ -182,18 +182,6 @@ Hand-editing an FD's `links.code` is only safe on an FD that carries **no** `// 
 
 `pnpm noldor design log --support` (Q-0053) already captures prior art into the design ledger, but nothing enforces that it was used — a spec whose ledger renders `Existing support (0) - (none recorded)` passes silently, which means the reuse question was never asked. Spec-lint should reject an approved spec with zero support anchors unless the operator records an explicit `--support "none: <reason>"`. The side benefit is that the CR `reuse` dimension gains a falsifiable claim to check against instead of reviewing in the dark.
 
-### Size-Aware `--iteration-timeout` for the Drain Runner
-
-- id: Q-0156
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: XS
-- impact: med
-- confidence: high
-
-`--iteration-timeout` should scale with `size:` the way routing already does — XS entries finish in ~15 min while S entries with real CR rounds want 45-60, so a batch of S entries on the 30-minute default systematically burns one retry each (Q-0107 was killed mid-CR with 4 commits and green tests already produced). The operator workaround is documented in [`autonomy.md`](noldor/autonomy.md); the fix is a size-aware cap derived from the same `size:` field [`sizeToPath()`](../src/core/size-routing.ts) already reads. Deletion test: a drain batch of S entries completes without a timeout-induced retry at the default. (absorbed from a lesson, surfaced draining the 2026-08-13 S/med/fix batch, PRs #315-#319)
-
 ### Geometry-Compare Lane — the Automated Half
 
 - id: Q-0180
