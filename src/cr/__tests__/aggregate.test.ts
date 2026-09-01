@@ -137,6 +137,52 @@ describe('aggregate', () => {
     });
   });
 
+  describe('integrity tagging (Q-0154)', () => {
+    it('a finding a lane filed is not tagged integrity', async () => {
+      await copy('findings-blockers.json', 'x-spec-reviewer.json');
+      const r = await aggregate('x', 'spec', { cwd: root });
+      expect(r.blockers.map((b) => b.integrity)).toEqual([undefined]);
+    });
+    it('unparseable sink is tagged integrity', async () => {
+      await writeFile(join(crDir, 'x-spec-manual.json'), '{not json', 'utf8');
+      const r = await aggregate('x', 'spec', { cwd: root });
+      expect(r.blockers[0].integrity).toBe(true);
+    });
+    it('schema-invalid sink is tagged integrity', async () => {
+      await writeFile(
+        join(crDir, 'x-spec-manual.json'),
+        JSON.stringify({ lane: 'manual' }),
+        'utf8',
+      );
+      const r = await aggregate('x', 'spec', { cwd: root });
+      expect(r.blockers[0].integrity).toBe(true);
+    });
+    it('non-conforming filename is tagged integrity', async () => {
+      await writeFile(join(crDir, 'x-spec-unknown.json'), '{}', 'utf8');
+      const r = await aggregate('x', 'spec', { cwd: root });
+      expect(r.blockers[0].integrity).toBe(true);
+    });
+    it('lane mismatch is tagged integrity', async () => {
+      await copy('findings-lane-mismatch.json', 'x-spec-manual.json');
+      const r = await aggregate('x', 'spec', { cwd: root });
+      expect(r.blockers[0].integrity).toBe(true);
+    });
+    it('corrupt expected-lanes record is tagged integrity', async () => {
+      const dir = join(root, '.noldor', 'cr', 'expected');
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, 'x-spec.json'), '{not json', 'utf8');
+      const r = await aggregate('x', 'spec', { cwd: root });
+      expect(r.blockers[0].integrity).toBe(true);
+    });
+    it('separates a lane-filed finding from an integrity blocker in one round', async () => {
+      await copy('findings-blockers.json', 'x-spec-reviewer.json');
+      await writeFile(join(crDir, 'x-spec-manual.json'), '{not json', 'utf8');
+      const r = await aggregate('x', 'spec', { cwd: root });
+      expect(r.blockers.filter((b) => b.integrity === true)).toHaveLength(1);
+      expect(r.blockers.filter((b) => b.integrity === undefined)).toHaveLength(1);
+    });
+  });
+
   it('emits notes entry when standalone templateSha drifts vs current', async () => {
     await mkdir(join(root, 'src', 'cr'), { recursive: true });
     await writeFile(

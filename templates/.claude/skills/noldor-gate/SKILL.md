@@ -250,10 +250,12 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 - **Wait for in-flight standalone from Step 2.5.** Before code-stage review starts, drain any artifact-stage lanes that are still running (a standalone-claude spawned earlier may still be writing its sink):
 
   ```
-  pnpm noldor cr aggregate --slug <slug> --wait-ms 150000
+  pnpm noldor cr aggregate --slug <slug> --wait-ms 150000 --unresolved-only
   ```
 
-  Polls up to 2.5 minutes for unresolved lanes. Exit 0 = artifact-stage clean; exit 1 = blockers surfaced (loop back to Step 2.5 `address-blockers`).
+  Polls up to 2.5 minutes for unresolved lanes. Exit 0 = every artifact-stage lane has finished writing; exit 1 = a lane is still unresolved, or a sink cannot be read/parsed/trusted (integrity) — loop back to Step 2.5 `address-blockers`.
+
+  `--unresolved-only` is what makes this step ask the question it is here to ask. The call is kind-less on purpose (the controller cannot know which artifact kinds this session produced), so it also reads the spec/plan sinks — and a round that **fix-and-proceeded at the re-round cap leaves its sink red by design**: the findings were fixed in commits and deliberately not re-dispatched. Without the flag this step re-reds on those already-addressed findings, and the controller has to recognise the staleness by hand and proceed on the Q-0069 precedent (code-stage green earns the receipt) — a manual override on every such session (Q-0154; hit on Q-0131 and again on Q-0092). With the flag, review findings still print (nothing is hidden) but only lane resolution and sink integrity set the exit code. The artifact's verdict is not this step's business: it was settled at the Step 2.5 continue-dialog, and the code-stage aggregate below is already `--kind code`-scoped.
 
 - **Preflight the push-range gates (before any code-stage review).** `pr-flow`'s push fires the pre-push chain (main-push block + docs/adr/ append-only scan, `template-sync`, `noldor-clones`) only after the review receipt is earned — so a gate failure at push time forces a fix commit, the tree changes, the `Noldor-Reviewed-Subagent` receipt invalidates, and a full code-stage dispatch runs purely to re-earn it (Q-0112: 2 of 6 code-stage dispatches plus 3 failed pushes were this class — zero review value). Replay the real hook author-side first, while no receipt exists to lose:
 

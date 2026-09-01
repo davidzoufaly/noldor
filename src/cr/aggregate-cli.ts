@@ -7,6 +7,25 @@ interface Args {
   slug: Slug;
   kind?: 'spec' | 'plan' | 'code';
   waitMs?: number;
+  /**
+   * Report on lane RESOLUTION only: review findings still print, but they no
+   * longer set the exit code. For the gate's "drain any artifact-stage lanes
+   * that are still running" step, whose question is whether a lane is still
+   * writing — not whether its verdict was green.
+   *
+   * That step calls kind-lessly (it cannot know which artifact kinds this
+   * session produced), so it also reads the spec/plan sinks. A round that
+   * fix-and-proceeded at the re-round cap leaves such a sink red BY DESIGN — the
+   * findings were fixed in commits and deliberately not re-dispatched — so the
+   * default exit code re-red on already-addressed findings and the operator had
+   * to recognise the staleness by hand and override (Q-0154; hit on Q-0131 and
+   * again on Q-0092).
+   *
+   * Integrity blockers keep gating regardless: a sink that cannot be read,
+   * parsed or trusted is not a stale verdict, and muting it would re-open the
+   * Q-0100 fail-open hole this command exists to close.
+   */
+  unresolvedOnly?: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -18,6 +37,7 @@ function parseArgs(argv: string[]): Args {
     if (t === '--slug') rawSlug = argv[++i];
     else if (t === '--kind') a.kind = artifactKindSchema.parse(argv[++i]);
     else if (t === '--wait-ms') a.waitMs = Number(argv[++i]);
+    else if (t === '--unresolved-only') a.unresolvedOnly = true;
   }
   if (!rawSlug) throw new Error('--slug required');
   // The value reaches `.noldor/cr/<slug>-<kind>-<lane>.json` sink paths.
@@ -44,7 +64,16 @@ async function main() {
       for (const b of r.blockers) {
         console.log(`  [${b.severity}] ${b.lane} ${b.file}: ${b.message}`);
       }
-      process.exit(r.ok ? 0 : 1);
+      if (!args.unresolvedOnly) process.exit(r.ok ? 0 : 1);
+      // Derived at the one use point rather than tracked alongside `ok`: which
+      // blockers gate is a property of this invocation, not of the sinks.
+      const integrity = r.blockers.filter((b) => b.integrity === true);
+      const muted = r.blockers.length - integrity.length;
+      console.log(
+        `  --unresolved-only: ${muted} review finding(s) above do NOT gate; ` +
+          `${r.unresolved.length} unresolved lane(s) and ${integrity.length} integrity blocker(s) do`,
+      );
+      process.exit(r.unresolved.length > 0 || integrity.length > 0 ? 1 : 0);
     }
     await new Promise((res) => setTimeout(res, 2000));
   }

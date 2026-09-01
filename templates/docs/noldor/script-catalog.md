@@ -333,7 +333,7 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 
 ### `cr:orchestrate` / `cr:aggregate` / `cr:codex` / `cr:escalate`
 
-- **Trigger:** `pnpm noldor cr orchestrate --slug <slug> --artifact <path> --kind <spec\|plan\|code> --lanes <list>` (run lanes for an artifact); `pnpm noldor cr aggregate --slug <slug> [--kind <kind>] [--wait-ms <n>]` (collapse lane sinks into one verdict); `pnpm noldor cr codex` (codex second-opinion pass); `pnpm noldor cr escalate --slug <slug> --reason <cr-red\|test-red> --context-file <path>` (escalation dialog on red).
+- **Trigger:** `pnpm noldor cr orchestrate --slug <slug> --artifact <path> --kind <spec\|plan\|code> --lanes <list>` (run lanes for an artifact); `pnpm noldor cr aggregate --slug <slug> [--kind <kind>] [--wait-ms <n>] [--unresolved-only]` (collapse lane sinks into one verdict; `--unresolved-only` gates on lane resolution + sink integrity only, leaving review findings informational); `pnpm noldor cr codex` (codex second-opinion pass); `pnpm noldor cr escalate --slug <slug> --reason <cr-red\|test-red> --context-file <path>` (escalation dialog on red).
 - **Inputs:** the artifact diff/file, lane config (`crLanes.<kind>` in `.noldor/config.json`), per-lane sinks at `.noldor/cr/<slug>-<kind>-<lane>.json`.
 - **Outputs:** lane sinks + an aggregate verdict (exit 0 clean / exit 1 blockers). `escalate` drives retry / spawn-deep-review / override / abort. Driven by `/noldor-gate` Step 2.5 + Step 4.
 - **Source:** [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts), [`src/cr/aggregate-cli.ts`](../../src/cr/aggregate-cli.ts), [`src/cr/codex.ts`](../../src/cr/codex.ts), [`src/cr/escalate-cli.ts`](../../src/cr/escalate-cli.ts)

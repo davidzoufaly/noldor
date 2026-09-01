@@ -1,6 +1,6 @@
 // @tests: noldor
 import { execFile } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -41,5 +41,44 @@ describe('aggregate CLI', () => {
     await expect(
       exec(TSX, [CLI, '--slug', 'x', '--kind', 'spec'], { cwd: root }),
     ).rejects.toMatchObject({ code: 1 });
+  });
+
+  // The gate's kind-less "wait for in-flight lanes" step asks whether a lane is
+  // still writing, not whether its verdict was green. A spec sink left red by a
+  // fix-and-proceed at the re-round cap used to re-red that step and force a
+  // manual override on every such session.
+  describe('--unresolved-only (Q-0154)', () => {
+    it('exits 0 on a finished-but-red sink, still printing the finding', async () => {
+      await copyFile(
+        join(FIX, 'findings-blockers.json'),
+        join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
+      );
+      const r = await exec(TSX, [CLI, '--slug', 'x', '--unresolved-only'], { cwd: root });
+      expect(r.stdout).toMatch(/missing type/);
+      expect(r.stdout).toMatch(/1 review finding\(s\) above do NOT gate/);
+    });
+    it('exits 1 while a lane is still unresolved', async () => {
+      await copyFile(
+        join(FIX, 'findings-in-progress.json'),
+        join(root, '.noldor', 'cr', 'x-spec-standalone.json'),
+      );
+      await expect(
+        exec(TSX, [CLI, '--slug', 'x', '--unresolved-only'], { cwd: root }),
+      ).rejects.toMatchObject({ code: 1 });
+    });
+    it('exits 1 on an untrustworthy sink — integrity is never muted', async () => {
+      await writeFile(join(root, '.noldor', 'cr', 'x-spec-manual.json'), '{not json', 'utf8');
+      await expect(
+        exec(TSX, [CLI, '--slug', 'x', '--unresolved-only'], { cwd: root }),
+      ).rejects.toMatchObject({ code: 1 });
+    });
+    it('exits 1 on a corrupt expected-lanes record — the Q-0100 hole stays closed', async () => {
+      const dir = join(root, '.noldor', 'cr', 'expected');
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, 'x-spec.json'), '{not json', 'utf8');
+      await expect(
+        exec(TSX, [CLI, '--slug', 'x', '--unresolved-only'], { cwd: root }),
+      ).rejects.toMatchObject({ code: 1 });
+    });
   });
 });
