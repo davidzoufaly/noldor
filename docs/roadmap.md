@@ -85,19 +85,6 @@ Q-0130's re-round cap (2, controller prose) has no tooling enforcement and no os
 
 `staleSpecs` is blind to attach-flow specs that no FD references. Twelve specs sit live in `docs/design/specs/` (dating back to 2026-06-07) whose parent features are all `phase: done` — `registry-distribution-*`, `make-noldor-agent-agnostic-runner-parity-followups`, `memory-intake-*-memories-migration`, `outcome-telemetry-*-metrics-page-ui`, two `de-superpowers-*` enhancement specs — and eleven of them are referenced by no FD's `links.spec` at all, because the attach flow names them `<parent>-<enhancement>` and the parent FD keeps pointing at its own original spec. The detector reports zero. `noldor design archive` only moves artifacts the *current gate session* owns, so an attach session that ended without running it leaves its spec live forever with nothing to notice. Flag a spec whose filename-derived parent slug resolves to a done FD and which appears in no `links.spec`, so `/noldor-garden` can offer the archive. (found 2026-08-23 in the pre-1.5.0 release sweep)
 
-### Architecture Module Advisory Fires on Generated Trees
-
-- id: Q-0169
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: XS
-- impact: low
-- confidence: high
-- parent: consumer-architecture-doc-surface
-
-The architecture module advisory fires on `src/graphify-out` — a gitignored generated AST cache (`.gitignore:54`), not a module. `docs/architecture/modules.md` is asked to name a directory that must never be documented, so the advisory can only be silenced by writing a lie into the registry. The module scan needs the same ignore-generated-trees treatment PR #360 gave the runtime-asset scan. Advisory-only, so it never blocks a release — which is also why it has sat there unfixed. (found 2026-08-23 closing SDD gaps before the 1.5.0 release)
-
 ### Garden Skill Checklist Enumerates a Fixed Section List
 
 - id: Q-0198
