@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { detectFdCommandRot } from '../fd-command-rot.js';
+import { FD_COMMAND_ROT_IGNORE_MARKER, detectFdCommandRot } from '../fd-command-rot.js';
 
 interface FdSpec {
   slug: string;
@@ -96,6 +96,86 @@ describe('detectFdCommandRot', () => {
     expect(gaps).toHaveLength(1);
     expect(gaps[0].itemId).toBe('shipped');
     expect(gaps[0].message).toContain('ghost-cmd');
+  });
+
+  it('suppresses a phantom on a line carrying the ignore marker', async () => {
+    const repo = repoWith([
+      {
+        slug: 'shipped',
+        body: 'Rejected: `pnpm noldor gate --drain <slug>` <!-- noldor-fd-command-rot-ignore -->',
+      },
+    ]);
+    expect(await detectFdCommandRot(repo)).toEqual([]);
+  });
+
+  it('suppresses the line after a marker alone on its own line', async () => {
+    const repo = repoWith([
+      {
+        slug: 'shipped',
+        body: ['<!-- noldor-fd-command-rot-ignore -->', 'Road not taken: `noldor ghost-cmd`.'].join(
+          '\n',
+        ),
+      },
+    ]);
+    expect(await detectFdCommandRot(repo)).toEqual([]);
+  });
+
+  it('suppresses only the marked line, not its neighbours', async () => {
+    const repo = repoWith([
+      {
+        slug: 'shipped',
+        body: [
+          'Live phantom above: `pnpm noldor phantom-above`.',
+          'Rejected: `pnpm noldor phantom-marked` <!-- noldor-fd-command-rot-ignore -->',
+          'Live phantom below: `pnpm noldor phantom-below`.',
+        ].join('\n\n'),
+      },
+    ]);
+    const gaps = await detectFdCommandRot(repo);
+    expect(gaps.map((g) => g.message.split(': ').at(-1))).toEqual([
+      'phantom-above',
+      'phantom-below',
+    ]);
+  });
+
+  it('suppresses a marked line inside a fenced block', async () => {
+    const repo = repoWith([
+      {
+        slug: 'shipped',
+        body: [
+          '```bash',
+          'pnpm noldor fenced-ghost # <!-- noldor-fd-command-rot-ignore -->',
+          '```',
+        ].join('\n'),
+      },
+    ]);
+    expect(await detectFdCommandRot(repo)).toEqual([]);
+  });
+
+  it('keeps fence boundaries intact when a marker precedes an opening fence', async () => {
+    // Blanking the fence opener would invert every later boundary; the phantom
+    // inside the second fence must still be reported.
+    const repo = repoWith([
+      {
+        slug: 'shipped',
+        body: [
+          '<!-- noldor-fd-command-rot-ignore -->',
+          '```bash',
+          'pnpm noldor first-ghost',
+          '```',
+          '',
+          '```bash',
+          'pnpm noldor second-ghost',
+          '```',
+        ].join('\n'),
+      },
+    ]);
+    const gaps = await detectFdCommandRot(repo);
+    expect(gaps.map((g) => g.message.split(': ').at(-1))).toEqual(['first-ghost', 'second-ghost']);
+  });
+
+  it('exports the marker string the FD bodies embed', () => {
+    expect(FD_COMMAND_ROT_IGNORE_MARKER).toBe('noldor-fd-command-rot-ignore');
   });
 
   it('returns empty when the features dir is missing', async () => {
