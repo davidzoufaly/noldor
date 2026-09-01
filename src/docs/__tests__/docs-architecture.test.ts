@@ -161,7 +161,15 @@ describe(listModuleDirs, () => {
 
   it('skips hidden, underscore-prefixed and generated directories', async () => {
     const root = await makeRepo(['src']);
-    for (const name of ['core', '.hidden', '_internal', 'node_modules', 'dist', '__tests__']) {
+    for (const name of [
+      'core',
+      '.hidden',
+      '_internal',
+      'node_modules',
+      'dist',
+      '__tests__',
+      'graphify-out',
+    ]) {
       await mkdir(join(root, 'src', name), { recursive: true });
     }
     expect(await listModuleDirs(root)).toStrictEqual(['src/core']);
@@ -270,6 +278,20 @@ describe(checkArchitecture, () => {
     // carry no registry sections, so they also emit section advisories.
     const modules = report.advisories.filter((a) => a.kind === 'module').map((a) => a.module);
     expect(modules).toStrictEqual(['src/unnamed']);
+  });
+
+  it('emits no module advisory for a gitignored generated tree, but still flags a real module', async () => {
+    // `src/graphify-out/` is a gitignored AST cache, not a module. Asking the
+    // modules page to name it means writing a lie into the registry, so the
+    // scan excludes it — while an undocumented real sibling must still fire.
+    const root = await makeRepo(['src']);
+    await mkdir(join(root, 'src', 'graphify-out', 'cache'), { recursive: true });
+    await mkdir(join(root, 'src', 'unnamed'), { recursive: true });
+    await writePages(root, goodBody);
+    const report = await checkArchitecture(root);
+    expect(report.advisories.filter((a) => a.kind === 'module').map((a) => a.module)).toStrictEqual(
+      ['src/unnamed'],
+    );
   });
 
   it('emits no module advisories when the modules page is missing', async () => {

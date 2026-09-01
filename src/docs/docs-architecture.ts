@@ -88,12 +88,24 @@ export interface ArchitectureReport {
  * test scaffolding. Names beginning `.` or `_` are excluded separately, which
  * already covers `__tests__` / `__mocks__` — they are listed anyway so the
  * intent survives a change to the prefix rule.
+ *
+ * `graphify-out` is a generated AST cache (gitignored nested at `.gitignore:54`),
+ * so `src/graphify-out/` is not a module and the modules page must never name it
+ * — the advisory could otherwise only be silenced by writing a lie into the
+ * registry. Listing the name statically rather than asking git what is ignored
+ * mirrors the runtime-asset scan's exclusion in `bin/build-manifest.mjs`, for the
+ * reason documented there: a git query answers "ignored" for every candidate
+ * whenever the package root sits inside a consumer's `node_modules/`, which would
+ * turn the scan into a silent no-op. A future generated tree under a scan root
+ * therefore keeps emitting an advisory until someone adds it here — explicit
+ * over inferred.
  */
 const EXCLUDED_DIRS = new Set([
   'node_modules',
   'dist',
   'build',
   'coverage',
+  'graphify-out',
   '__tests__',
   '__mocks__',
 ]);
