@@ -1,3 +1,4 @@
+import { sizeToTimeoutMs } from '../core/size-routing.js';
 import type { DrainSource, DrainCandidate } from './drain-source.js';
 import type { MergeOutcome } from './drain-io.js';
 import type { InFlight, DrainStateSnapshot } from './drain-state.js';
@@ -92,7 +93,22 @@ export interface DrainOpts {
   maxFeatures: number;
   maxRetries: number;
   maxSpawns: number;
+  /**
+   * BASE per-iteration wall-clock budget. Unless {@link DrainOpts.timeoutFixed} is set this is
+   * the XS budget and every larger entry scales up from it via `sizeToTimeoutMs` — see
+   * {@link DrainOpts.timeoutFixed}.
+   */
   timeoutMs: number;
+  /**
+   * True when the operator named `--iteration-timeout` explicitly: {@link DrainOpts.timeoutMs} is
+   * then the flat cap for every entry, size ignored. Absent/false → the default is scaled per
+   * candidate `size`, so a batch of S entries is not killed mid-CR on an XS-sized budget.
+   *
+   * Explicit wins because a number the operator typed is an instruction, not a starting point —
+   * and it is what keeps a test or a smoke run that passes `--iteration-timeout 60000` bounded at
+   * the 60s it asked for instead of silently four times that.
+   */
+  timeoutFixed?: boolean;
   dryRun: boolean;
   cwd: string;
   /** Max features built concurrently. 1 (default) = today's sequential, inline-merge behavior. */
@@ -383,7 +399,9 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
         if (finishPrompt === undefined) deps.salvageStaleBase?.(candidate.slug, branch);
         const code = await deps.spawnGate(
           envFor(candidate.slug, finishPrompt !== undefined),
-          opts.timeoutMs,
+          opts.timeoutFixed === true
+            ? opts.timeoutMs
+            : sizeToTimeoutMs(candidate.size, opts.timeoutMs),
           finishPrompt !== undefined
             ? finishPrompt(candidate.slug)
             : deps.source.gatePrompt(candidate.slug),

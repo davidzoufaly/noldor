@@ -43,7 +43,10 @@ export interface ParsedArgs {
   maxFeatures: number;
   maxRetries: number;
   maxSpawns: number;
+  /** Base per-iteration budget; scaled per entry `size:` unless {@link ParsedArgs.timeoutFixed}. */
   timeoutMs: number;
+  /** True when `--iteration-timeout` was named explicitly — flat cap, no size scaling. */
+  timeoutFixed: boolean;
   dryRun: boolean;
   json: boolean;
   source: SourceId;
@@ -140,6 +143,7 @@ export function parseArgs(args: readonly string[]): ParsedArgs {
     maxRetries,
     maxSpawns: intFlag(args, '--max-spawns', maxFeatures * (maxRetries + 1)),
     timeoutMs: intFlag(args, '--iteration-timeout', 30 * 60 * 1000),
+    timeoutFixed: args.includes('--iteration-timeout'),
     dryRun: args.includes('--dry-run'),
     json: args.includes('--json'),
     source,
