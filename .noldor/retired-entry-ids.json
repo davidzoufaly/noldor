@@ -253,5 +253,9 @@
   "Q-0169": {
     "slug": "architecture-module-advisory-fires-on-generated-trees",
     "retiredAt": "2026-09-01"
+  },
+  "Q-0154": {
+    "slug": "kind-less-cr-aggregate-re-reds-on-a-stale-addressed-spec-sink",
+    "retiredAt": "2026-09-01"
   }
 }

@@ -13,7 +13,19 @@ import { PROMPT_TEMPLATE_PATH } from './deep-review-spawn.js';
  * (`cr autofix`): a second copy of the shape elsewhere needs a cast to bridge the
  * two, and that cast is exactly what would swallow a later change to this type.
  */
-export type LaneBlocker = Finding & { lane: Lane };
+export type LaneBlocker = Finding & {
+  lane: Lane;
+  /**
+   * Set when the blocker is about the SINK rather than about the artifact: an
+   * unreadable / unparseable / schema-invalid file, a payload whose lane
+   * disagrees with its filename, or a corrupt expected-lanes record. Such a
+   * blocker says "this verdict cannot be trusted", which no amount of fixing the
+   * artifact addresses — so it must keep gating even where a caller has decided
+   * that review findings no longer do (`aggregate --unresolved-only`). Absent on
+   * every finding a lane actually filed.
+   */
+  integrity?: true;
+};
 
 export interface AggregateResult {
   ok: boolean;
@@ -55,6 +67,7 @@ export async function aggregate(
         file,
         message: `non-conforming filename: ${file}`,
         lane: 'manual',
+        integrity: true,
       });
       continue;
     }
@@ -68,6 +81,7 @@ export async function aggregate(
         file,
         message: `read error: ${(err as Error).message}`,
         lane: filenameLane,
+        integrity: true,
       });
       summaries[filenameLane] = 'read error';
       continue;
@@ -81,6 +95,7 @@ export async function aggregate(
         file,
         message: `JSON parse error: ${(err as Error).message}`,
         lane: filenameLane,
+        integrity: true,
       });
       summaries[filenameLane] = 'parse error';
       continue;
@@ -92,6 +107,7 @@ export async function aggregate(
         file,
         message: `schema error: ${parsed.error.message}`,
         lane: filenameLane,
+        integrity: true,
       });
       summaries[filenameLane] = 'schema error';
       continue;
@@ -102,6 +118,7 @@ export async function aggregate(
         file,
         message: `lane mismatch: payload lane ${parsed.data.lane} ≠ filename lane ${filenameLane}`,
         lane: filenameLane,
+        integrity: true,
       });
       summaries[filenameLane] = 'lane mismatch';
       continue;
@@ -132,7 +149,13 @@ export async function aggregate(
   // is a blocker, since dropping it silently would re-open the fail-open hole.
   const expected = await readExpectedLanes(opts.cwd ?? process.cwd(), slug, kind);
   for (const e of expected.errors) {
-    blockers.push({ severity: 'high', file: e.file, message: e.message, lane: 'manual' });
+    blockers.push({
+      severity: 'high',
+      file: e.file,
+      message: e.message,
+      lane: 'manual',
+      integrity: true,
+    });
   }
   for (const lane of expected.lanes) {
     if (!seen.has(lane) && !unresolved.includes(lane)) unresolved.push(lane);

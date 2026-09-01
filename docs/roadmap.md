@@ -182,18 +182,6 @@ Hand-editing an FD's `links.code` is only safe on an FD that carries **no** `// 
 
 `pnpm noldor design log --support` (Q-0053) already captures prior art into the design ledger, but nothing enforces that it was used — a spec whose ledger renders `Existing support (0) - (none recorded)` passes silently, which means the reuse question was never asked. Spec-lint should reject an approved spec with zero support anchors unless the operator records an explicit `--support "none: <reason>"`. The side benefit is that the CR `reuse` dimension gains a falsifiable claim to check against instead of reviewing in the dark.
 
-### Kind-Less `cr aggregate` Re-Reds on a Stale Addressed Spec Sink
-
-- id: Q-0154
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: XS
-- impact: med
-- confidence: high
-
-Gate Step 4's "wait for in-flight" `cr aggregate --slug <slug>` (no `--kind`) re-reds on a stale addressed spec sink: fix-and-proceed at the re-round cap leaves the artifact-stage sink red by design (no re-dispatch), so the kind-less aggregate exits 1 on findings already fixed in commits and the controller has to recognise the staleness by hand and proceed on the Q-0069 precedent (code-stage green earns the receipt). Hit on Q-0131 and again on Q-0092. Either kind-scope the wait step to the running/standalone lanes, or have fix-and-proceed archive or annotate the sink it consciously leaves red. Deletion test: a session that fix-and-proceeds at the spec-stage cap reaches Step 4 without a manual override. (absorbed from a lesson, surfaced shipping Q-0131 attach, PR #331)
-
 ### Size-Aware `--iteration-timeout` for the Drain Runner
 
 - id: Q-0156
