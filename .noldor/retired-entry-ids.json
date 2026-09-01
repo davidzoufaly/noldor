@@ -245,5 +245,9 @@
     "slug": "enforceable-design-approval-signal",
     "retiredInto": "pendev-ui-design-phase",
     "retiredAt": "2026-08-30"
+  },
+  "Q-0168": {
+    "slug": "fd-command-rot-needs-an-ignore-marker",
+    "retiredAt": "2026-09-01"
   }
 }

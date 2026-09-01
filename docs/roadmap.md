@@ -85,19 +85,6 @@ Q-0130's re-round cap (2, controller prose) has no tooling enforcement and no os
 
 `staleSpecs` is blind to attach-flow specs that no FD references. Twelve specs sit live in `docs/design/specs/` (dating back to 2026-06-07) whose parent features are all `phase: done` — `registry-distribution-*`, `make-noldor-agent-agnostic-runner-parity-followups`, `memory-intake-*-memories-migration`, `outcome-telemetry-*-metrics-page-ui`, two `de-superpowers-*` enhancement specs — and eleven of them are referenced by no FD's `links.spec` at all, because the attach flow names them `<parent>-<enhancement>` and the parent FD keeps pointing at its own original spec. The detector reports zero. `noldor design archive` only moves artifacts the *current gate session* owns, so an attach session that ended without running it leaves its spec live forever with nothing to notice. Flag a spec whose filename-derived parent slug resolves to a done FD and which appears in no `links.spec`, so `/noldor-garden` can offer the archive. (found 2026-08-23 in the pre-1.5.0 release sweep)
 
-### fd-command-rot Needs an Ignore Marker
-
-- id: Q-0168
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: XS
-- impact: low
-- confidence: high
-- parent: doc-gardening-skill
-
-`fd-command-rot` (`src/garden/detectors/fd-command-rot.ts`) has no ignore marker, unlike its sibling `skill-code-drift` which honours `noldor-skill-drift-ignore`. A done FD's Summary routinely names design options that were *rejected* — `portable-gate-entrypoint-for-non-claude-runners` documents "(a) a portable `noldor gate --drain <slug>` CLI entrypoint" as the road not taken — and the detector reads any backticked `noldor …` span as a live invocation, so recording why an option lost costs a permanent SDD gap. The only fix available today is to de-backtick the prose, which degrades the FD to make a detector happy. Give the detector the same ignore marker its sibling already has. (found 2026-08-23 closing SDD gaps before the 1.5.0 release)
-
 ### Architecture Module Advisory Fires on Generated Trees
 
 - id: Q-0169
