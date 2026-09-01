@@ -249,5 +249,9 @@
   "Q-0168": {
     "slug": "fd-command-rot-needs-an-ignore-marker",
     "retiredAt": "2026-09-01"
+  },
+  "Q-0169": {
+    "slug": "architecture-module-advisory-fires-on-generated-trees",
+    "retiredAt": "2026-09-01"
   }
 }
