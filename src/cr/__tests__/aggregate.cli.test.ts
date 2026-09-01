@@ -55,7 +55,8 @@ describe('aggregate CLI', () => {
       );
       const r = await exec(TSX, [CLI, '--slug', 'x', '--unresolved-only'], { cwd: root });
       expect(r.stdout).toMatch(/missing type/);
-      expect(r.stdout).toMatch(/1 review finding\(s\) above do NOT gate/);
+      expect(r.stdout).toMatch(/ok=true/);
+      expect(r.stdout).toMatch(/1 lane finding\(s\) above do NOT gate/);
     });
     it('exits 1 while a lane is still unresolved', async () => {
       await copyFile(

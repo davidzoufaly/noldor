@@ -24,6 +24,13 @@ interface Args {
    * Integrity blockers keep gating regardless: a sink that cannot be read,
    * parsed or trusted is not a stale verdict, and muting it would re-open the
    * Q-0100 fail-open hole this command exists to close.
+   *
+   * The mute is every blocker a lane FILED, which is wider than "findings about
+   * the artifact" — a sink reporting that its own review never happened
+   * (`verdict: cannot-verify` with `reason: dispatch-failed` / `timeout`) is muted
+   * too. Deliberate: that sink was already surfaced by the artifact stage's own
+   * aggregate at the Step 2.5 continue-dialog, which is where the artifact's
+   * verdict is settled. A lane still WRITING is `unresolved`, so it keeps gating.
    */
   unresolvedOnly?: boolean;
 }
@@ -56,7 +63,15 @@ async function main() {
     const r = await aggregate(args.slug, args.kind);
     const stillWaiting = r.unresolved.length > 0 && Date.now() - start < budget;
     if (!stillWaiting) {
-      console.log(`slug=${args.slug} kind=${args.kind ?? '<any>'} ok=${r.ok}`);
+      // Which blockers gate is a property of this invocation, not of the sinks,
+      // so it is derived here rather than tracked alongside `AggregateResult.ok`.
+      // Derived BEFORE the header line on purpose: the header reports the verdict
+      // this run will exit on, because printing `ok=false` above an exit 0 is
+      // exactly the contradiction that makes a controller stop and adjudicate by
+      // hand — the cost `--unresolved-only` exists to remove.
+      const integrity = r.blockers.filter((b) => b.integrity === true);
+      const ok = args.unresolvedOnly ? r.unresolved.length === 0 && integrity.length === 0 : r.ok;
+      console.log(`slug=${args.slug} kind=${args.kind ?? '<any>'} ok=${ok}`);
       for (const [lane, summary] of Object.entries(r.summaries)) {
         console.log(`  ${lane}: ${summary}`);
       }
@@ -64,16 +79,14 @@ async function main() {
       for (const b of r.blockers) {
         console.log(`  [${b.severity}] ${b.lane} ${b.file}: ${b.message}`);
       }
-      if (!args.unresolvedOnly) process.exit(r.ok ? 0 : 1);
-      // Derived at the one use point rather than tracked alongside `ok`: which
-      // blockers gate is a property of this invocation, not of the sinks.
-      const integrity = r.blockers.filter((b) => b.integrity === true);
-      const muted = r.blockers.length - integrity.length;
-      console.log(
-        `  --unresolved-only: ${muted} review finding(s) above do NOT gate; ` +
-          `${r.unresolved.length} unresolved lane(s) and ${integrity.length} integrity blocker(s) do`,
-      );
-      process.exit(r.unresolved.length > 0 || integrity.length > 0 ? 1 : 0);
+      if (args.unresolvedOnly) {
+        console.log(
+          `  --unresolved-only: ${r.blockers.length - integrity.length} lane finding(s) above ` +
+            `do NOT gate; ${r.unresolved.length} unresolved lane(s) and ` +
+            `${integrity.length} integrity blocker(s) do`,
+        );
+      }
+      process.exit(ok ? 0 : 1);
     }
     await new Promise((res) => setTimeout(res, 2000));
   }
