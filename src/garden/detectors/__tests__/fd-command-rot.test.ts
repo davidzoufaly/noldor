@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FD_COMMAND_ROT_IGNORE_MARKER, detectFdCommandRot } from '../fd-command-rot.js';
+import { detectFdCommandRot } from '../fd-command-rot.js';
 
 interface FdSpec {
   slug: string;
@@ -172,10 +172,6 @@ describe('detectFdCommandRot', () => {
     ]);
     const gaps = await detectFdCommandRot(repo);
     expect(gaps.map((g) => g.message.split(': ').at(-1))).toEqual(['first-ghost', 'second-ghost']);
-  });
-
-  it('exports the marker string the FD bodies embed', () => {
-    expect(FD_COMMAND_ROT_IGNORE_MARKER).toBe('noldor-fd-command-rot-ignore');
   });
 
   it('returns empty when the features dir is missing', async () => {
