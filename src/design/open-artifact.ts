@@ -300,8 +300,9 @@ export function resolveArtifact(req: ResolveArtifactRequest): ResolveArtifactRes
  *
  * The deadline lives in the default launcher rather than here: this function
  * cannot interrupt a synchronous callback, so promising to would be a lie.
- * `openInEditor` passes `EDITOR_TIMEOUT_MS` to `execFileSync` and the kernel
- * enforces it; an injected launcher is the caller's own code.
+ * `openInEditor` passes `EDITOR_TIMEOUT_MS` to whichever child it spawns — the
+ * background `open -g` or the `code` fallback — and the kernel enforces it; an
+ * injected launcher is the caller's own code.
  */
 export function launchArtifact(
   absPath: string,
