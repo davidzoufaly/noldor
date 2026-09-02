@@ -163,10 +163,11 @@ export function renderLaunchFailure(outcome: PenLaunch, absPath: string): string
 export async function main(
   argv: string[],
   cwd: string = process.cwd(),
-  // Injected so the ordering rule below — nothing is claimed before the launcher
-  // answers — is testable without a real `open`, which cannot be made to fail on
-  // demand and does not exist off macOS at all.
-  launch: (absPath: string, cwd: string) => PenLaunch = openPenFile,
+  // The launcher's OWN boundary seam, forwarded. Stubbing `openPenFile` here
+  // instead would mock an internal collaborator of this module — the ordering
+  // test would then prove only that the stub's value was routed, never that a
+  // real `open` result maps to the outcome the ordering depends on.
+  deps: Partial<PenLaunchDeps> = {},
 ): Promise<number> {
   // One usage-error exit for every way `--pen` can be wrong: absent value, a
   // value that is not a `.pen` (the bridge only wakes on a design file), or a
@@ -204,7 +205,7 @@ export async function main(
   // repo-relative `docs/design/ui/` prefix, so absolutising the candidate list
   // going in would score every entry at the worst rank and collapse the order.
   const absPath = isAbsolute(plan.path) ? plan.path : join(cwd, plan.path);
-  const outcome = launch(absPath, cwd);
+  const outcome = openPenFile(absPath, cwd, deps);
   // The launch line comes AFTER the outcome, and only for `dispatched`. Printed
   // first — as it was — stdout announced a request and told the reader to retry
   // the MCP call even on a platform that spawned nothing, with stderr then

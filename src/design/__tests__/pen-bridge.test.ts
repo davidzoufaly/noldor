@@ -14,11 +14,12 @@ import {
   rankPenCandidates,
 } from '../pen-bridge.js';
 import {
+  BUNDLE_UNRESOLVED_MARKER,
   main,
   openPenFile,
   renderPlan,
   trackedPenFiles,
-  type PenLaunch,
+  type PenLaunchDeps,
 } from '../pen-bridge-cli.js';
 
 /**
@@ -227,18 +228,15 @@ describe('trackedPenFiles', () => {
     await expect(main(['--pen', 'kept.pen', '--print-only'], repo)).resolves.toBe(0);
   });
 
-  /** stdout captured across one `main` call. */
-  async function runMain(launch: (p: string, c: string) => PenLaunch): Promise<{
-    code: number;
-    out: string;
-  }> {
+  /** stdout captured across one `main` call, driving the real launcher. */
+  async function runMain(deps: Partial<PenLaunchDeps>): Promise<{ code: number; out: string }> {
     const lines: string[] = [];
     const log = console.log;
     console.log = (...a: unknown[]) => void lines.push(a.map(String).join(' '));
     const err = console.error;
     console.error = () => {};
     try {
-      const code = await main(['--pen', 'kept.pen'], repo, launch);
+      const code = await main(['--pen', 'kept.pen'], repo, deps);
       return { code, out: lines.join('\n') };
     } finally {
       console.log = log;
@@ -249,23 +247,27 @@ describe('trackedPenFiles', () => {
   // The whole point of the `dispatched` naming is that nothing claims a wake
   // that did not happen. Printing the plan before launching defeats it: on a
   // platform that spawns nothing, stdout still told the reader to retry MCP.
+  // Every case pins `platform` AND supplies a `run`, so no case can reach the
+  // real `spawnSync`. An earlier revision passed a stub where deps were expected;
+  // `platform` came back undefined, fell through to the host darwin, and handed a
+  // junk temp file to the actual desktop app.
   it.each([
+    ['an unsupported platform', { platform: 'linux', run: runner({}).run }, 4],
     [
-      'an unsupported platform',
-      { kind: 'unsupported-platform', platform: 'linux' } as PenLaunch,
-      4,
+      'a missing app',
+      { platform: 'darwin', run: runner({ status: 1, stderr: BUNDLE_UNRESOLVED_MARKER }).run },
+      3,
     ],
-    ['a missing app', { kind: 'not-installed', error: 'boom' } as PenLaunch, 3],
-    ['a failed launch', { kind: 'failed', error: 'boom' } as PenLaunch, 2],
-  ])('says nothing about a request on %s', async (_label, outcome, expected) => {
-    const { code, out } = await runMain(() => outcome);
+    ['a failed launch', { platform: 'darwin', run: runner({ status: 1, stderr: 'boom' }).run }, 2],
+  ])('says nothing about a request on %s', async (_label, deps, expected) => {
+    const { code, out } = await runMain(deps);
     expect(code).toBe(expected);
     expect(out).not.toContain('requested');
     expect(out).not.toContain('retry the failing pencil MCP');
   });
 
   it('reports the request only once the launcher dispatched one', async () => {
-    const { code, out } = await runMain(() => ({ kind: 'dispatched' }));
+    const { code, out } = await runMain({ platform: 'darwin', run: runner({ status: 0 }).run });
     expect(code).toBe(0);
     expect(out).toContain('requested');
   });

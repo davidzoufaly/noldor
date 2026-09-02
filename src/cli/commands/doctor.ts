@@ -113,8 +113,16 @@ if (freshness.status !== 'ok' && freshness.status !== 'no-lockfile') {
 // the machine, and a filtered view is a different diagnostic from the one the
 // standalone command gives: an operator who sees nothing cannot tell "healthy"
 // from "could not determine" from "this check did not run".
+// Three labels, not two: an `ok` beside "could not determine the pencil MCP pin"
+// reads as a clean bill of health for a question that was never answered, which
+// is the exact confusion this check exists to remove.
 for (const row of checkPenBridge(process.cwd())) {
-  const level = row.kind === 'mcp-app-mismatch' || row.kind === 'app-missing' ? 'warn' : 'ok';
+  const level =
+    row.kind === 'mcp-app-mismatch' || row.kind === 'app-missing'
+      ? 'warn'
+      : row.kind === 'mcp-app-ok' || row.kind === 'app-ok'
+        ? 'ok'
+        : 'unknown';
   console.log(`${level.padEnd(12)} ${renderPenBridgeRow(row)}`);
 }
 
