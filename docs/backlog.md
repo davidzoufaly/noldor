@@ -4,6 +4,26 @@ Parking lot for items not on the roadmap. Each entry carries a `- id: Q-NNNN` bu
 
 Dependencies are declared with a `- blocked-by: <slug|Q-id, …>` bullet (the entries this work waits on); `- deps:` is the legacy alias, still accepted and unioned with `blocked-by:` during the migration window. Prefer `blocked-by:` in new entries.
 
+### Inject CR Lane Seams Instead of Mocking Them
+
+- id: Q-0195
+- area: testing
+- type: refactor
+- since: 2026-08-26
+- size: M
+- impact: low
+- confidence: high
+
+`.noldor/rules/test-mocking-boundaries.md` (enforce, shipped in #391) bans mocking a module the change itself owns, and the CR pipeline is where the repo breaks its own rule: 23 relative `vi.mock` calls across 12 test files, 11 of them under `src/cr/`. `cr/orchestrate.ts` imports `runManual` / `runCodex` / `runSubagent` / `runRenderCompare` statically into its `LANES` table, so `orchestrate.test.ts`, `orchestrate.integration.test.ts`, `delta.test.ts` and `prior-review.test.ts` can only reach the dispatch logic by replacing those modules.
+
+**This is maintenance debt, not a coverage hole — measured, so nobody re-derives a false urgency.** Two real dispatch regressions were injected into `orchestrate.ts` and the four suites run against them: leaking `priorReview` onto every lane instead of only the reviewer, and dropping the `delete dispatchInput.baseSha` that a `fullReviewOverride` round depends on. Result `2 failed | 47 passed` — both caught. The mocks are inspected through `mock.calls`, which makes them scripted fakes wired via the module registry rather than via a parameter; functionally equivalent, so the suites are not blind.
+
+What the current shape actually costs: a lane file that moves or is renamed breaks the tests with no behaviour change, which is the exact failure the rule exists to prevent; `vi.mock` is file-wide, so no single file can mix a real lane with a fake one; the mock factories hoist above the `import { run }` beneath them, so the file reads in a different order than it runs; and the repo already does this properly elsewhere — `setSmokeRunner` and `setVerifyDispatcher` are injected in that same test file, and `upWorktree(opts, deps = defaultDeps)` is the parameter form. The four main lanes just never caught up.
+
+Seven seams, all the same shape: the lane registry in `orchestrate.ts`; `core/prompt-stdin.js` (`overwrite-guard`, `escalate`, `lanes/manual`); `core/agent-runner/registry.js` (`subagent-dispatch`, `verify-dispatch`); `deep-review-spawn.js` (`escalate`); `read-fd-summary.js` + `core/branch-added.js` (`lanes/subagent`); `review-with-codex.js` + `codex-adapter.js` (`lanes/codex`); and `release/fd-prs-since-tag.js` (`dashboard-render-markdown`, the one non-CR file). Fix each with an optional second parameter defaulting to the real implementations, so call sites keep their signature and each test passes a hand-rolled fake.
+
+Sized M on volume — seven seams, ~20 files — while `impact: low` reflects that nothing is broken today; the two together are why this sits low in the file rather than at the top. A cheaper route than a standalone PR is folding each seam into whatever change next touches that file, since the spec-worthy question is only sequencing: which seams convert together, and how the code-stage receipt is re-earned mid-refactor when the refactor edits the CR pipeline itself. Deletion test: after the conversion, `grep -rn "vi\.mock(['\"]\.\.\?/" src` returns nothing outside a seam carrying a written justification, and both sabotage probes above still red. (found 2026-08-26, rationale corrected 2026-08-27)
+
 ### Queue-Document Grammar Module
 
 - id: Q-0113

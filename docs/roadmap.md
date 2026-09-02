@@ -16,6 +16,58 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Consumer Indirection Baseline Is Never Seeded
+
+- id: Q-0203
+- area: tooling
+- type: fix
+- since: 2026-09-02
+- size: S
+- impact: high
+- confidence: high
+- parent: abstraction-cost-ratchet
+
+PR #411 shipped the abstraction-cost guard into the template — `templates/lefthook/noldor.yml` hard-gates `noldor indirection check` pre-push, `templates/.noldor/rules/abstraction-cost.md` syncs the prose rule, dep-cruiser is bundled in the package — and it is inert in every consumer repo for two independent reasons. (1) Existing consumers hold a pre-#411 copy of `lefthook/noldor.yml`; charuy's stops at `noldor-clones` with no `noldor-indirection` line, and nothing re-copies the template until an upgrade does. (2) Even with the hook installed, `check` exits 0 green on an absent baseline (`src/indirection/indirection-cli.ts` exit table, a deliberate fail-open), and no init/upgrade/migration step seeds `.noldor/indirection-baseline.json` — charuy has `clones-baseline.json` but no indirection one, so the ratchet can never red there. Fix = baseline seeding on the consumer upgrade path (run `noldor indirection baseline` when the file is absent), mirroring however `clones-baseline.json` got seeded. Ranked at the top of the file on the vision's standing adoption tie-breaker rather than on score alone: a guard that reports green in 100% of consumer installs is an adoption defect, not internal polish. Deletion test: a fresh consumer upgrade leaves a repo where `noldor indirection check` compares against a recorded baseline, not the no-baseline green branch. (found 2026-08-31)
+
+### PR Body Lists Only One Plan Part
+
+- id: Q-0205
+- area: tooling
+- type: fix
+- since: 2026-09-02
+- size: XS
+- impact: med
+- confidence: high
+- parent: framework-pr-flow-agent-auto-merge
+
+A PR opened for a split feature links exactly one plan, so every part but the last is invisible from the PR. Observed on PR #411, which listed part 2 and nothing else. The cause is a single-value contract end to end: `pickMostRecentByDatePrefix` in [`src/core/pr-flow-cli.ts:314`](../src/core/pr-flow-cli.ts) selects one file out of the plan directory, `PrFlowInput.planPath` is typed `string | null` ([`src/core/pr-flow.ts:58`](../src/core/pr-flow.ts)), and the body renderer emits one `- Plan:` line from it ([`src/core/pr-flow.ts:147-148`](../src/core/pr-flow.ts)). Since `/noldor-plan` splits write sibling part files under the same date prefix, most-recent-wins silently drops the rest — the reviewer sees the tail of a plan whose earlier parts set its contract. Wanted: collect every plan belonging to the task and render all of them, so widening the field to a list rather than adding a second lookup at the call site. Deletion test: a PR opened on a feature with three plan parts links all three. (found 2026-09-02 reviewing PR #411)
+
+### Auto-Open Link Resolves Against the Worktree, Not the Editor's Workspace
+
+- id: Q-0207
+- area: tooling
+- type: fix
+- since: 2026-09-02
+- size: S
+- impact: high
+- confidence: high
+- parent: auto-open-design-artifacts
+
+Every spec or plan link the auto-open hook hands an operator in a `specs-only-*` / `full-*` session is dead, because those sessions all run inside `.worktrees/<slug>/` and the link resolves against the worktree rather than the editor's workspace folder. Hit live on the desktop-app-bridge spec: the hook returned `docs/design/specs/<file>.md`, the editor was open on the main checkout, and that path exists only under `.worktrees/<slug>/`. The cause is the last rung of the ladder: [`resolveRoot`](../src/design/open-artifact.ts) falls back to the artifact's own checkout (`verdict.toplevel`, from `git rev-parse --show-toplevel`) when neither a named `--workspace-root` nor the hook's `payload.cwd` hint contains the artifact — and in a worktree that fallback is *always* the worktree, which is precisely the case the ladder exists to handle. The mechanism itself is sound: the manual escape prints the correct `.worktrees/<slug>/docs/...` link, and only the inference is wrong. What makes this `high` rather than `med` is that three skills (`/noldor-gate`, `/noldor-spec`, `/noldor-plan`) instruct pasting the hook's link **verbatim** on the grounds that a hand-built one silently fails — so following the instruction faithfully still produces a dead link, in every worktree session. Two candidate fixes: prefer the main checkout when `git rev-parse --git-common-dir` shows the artifact sits in a linked worktree (note the code deliberately chose `--show-toplevel` over it, so that trade-off has to be re-argued rather than assumed), or have the gate export `NOLDOR_WORKSPACE_ROOT` at worktree creation — the variable is already read as an operator override and nothing anywhere sets it. Survived PRs #416 and #417, which wired the hook and stopped it stealing focus without touching the root inference. Deletion test: a spec written inside `.worktrees/<slug>/` reports a link that opens from a workspace rooted at the main checkout. (found 2026-09-02, desktop-app-bridge spec session; absorbed from a lesson)
+
+### Task ID as the First Scope Bullet in a PR Summary
+
+- id: Q-0202
+- area: tooling
+- type: feat
+- since: 2026-09-02
+- size: XS
+- impact: med
+- confidence: med
+- parent: pr-summary-body-enforcement
+
+A PR summary carries no machine-readable link back to the queue entry that motivated it, so tracing a merged PR to its `Q-NNNN` means reading the branch name, the FD, or the commit trailers. Require the task ID as the first bullet of the PR body's Scope section, and have `pr-flow` fill it rather than the operator: the value is already resolvable at PR-open time from the FD's `entry-id:` frontmatter, or from `.noldor/retired-entry-ids.json` on the no-FD paths (fast-track, attach) that `roadmap remove-block` maintains. The contract lives in `src/core/summary-body-contract.ts` and is gated by `validatePrSummary`, so this is a contract addition plus a renderer change, not a new surface. Note the seam question worth settling in the change: whether a missing ID is a hard reject (correct for a promoted entry) or tolerated (necessary for an ad-hoc fast-track that never had an entry). Deletion test: every PR that shipped a queue entry names that entry's ID in its first Scope bullet without anyone typing it. (found 2026-09-02)
+
 ### Milestone-Queue Linking
 
 - id: Q-0083
@@ -43,6 +95,32 @@ Milestones (`docs/milestones/<slug>.md`) currently live independent of the queue
 - parent: feature-md-links-overhaul
 
 `pnpm noldor sync code-links` is repo-wide with no scope flag, so running it inside a feature worktree to populate one FD's links also rewrites every other FD the tag scan touches. On the liquid-glass-ui ship it reordered `coordinate-frame-and-measurement-tools.md` and added six entries to it, pulling unrelated FD churn into a feature PR that had to be reverted by hand. The gap is in `parseRunOptions()` (`src/sync/projection.ts`), which parses only `--check`, `--force` and `--quiet` — so all four projection runners (`code-links`, `test-links`, `doc-links`, `spec-links`) share it. Add `--slug <slug>` (repeatable, or comma-separated) that restricts the write set to the named FDs while still scanning the repo for their tags, since the tags themselves live outside the FD. Deletion test: a `sync code-links --slug <x>` run leaves every FD but `<x>` byte-identical. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
+
+### writeJsonState Missing From the State-File Module
+
+- id: Q-0204
+- area: tooling
+- type: refactor
+- since: 2026-09-02
+- size: S
+- impact: med
+- confidence: high
+- parent: state-file-fail-open-hardening
+
+`src/core/state-file.ts` owns the read half of JSON state (`readJsonState<T>`) and not the write half, so ten modules hand-roll the same two lines — `mkdirSync(dirname(p), { recursive: true })` then `atomicWriteFileSync(p, JSON.stringify(v, null, 2) + '\n')`. The sites: `src/design/ledger.ts`, `src/clones/baseline.ts`, `src/core/rollout-marker.ts`, `src/core/receipt-store.ts`, `src/core/session.ts`, `src/indirection/baseline.ts`, `src/autonomous/watch-state.ts`, `src/autonomous/escalations.ts`, `src/milestones/lib.ts`, and `atomic-write.ts` itself. The asymmetry is the whole bug: the module that exists to own this pattern owns one direction of it. Ten instances is far past rule-of-3, and the extraction costs no indirection — every one of those modules already imports from `src/core/`, so the closure count does not move; `indirection check` held at 882 across the abstraction-cost-ratchet branch. Deletion test: after the extraction, `grep -l atomicWriteFileSync src | xargs grep -l mkdirSync` returns only `state-file.ts`. Surfaced while judging the clone-ratchet rebaseline on the abstraction-cost-ratchet branch, where two of six new clone groups were real and four were façades. (found 2026-08-31)
+
+### Toolchain Floor Reads Root tsconfigs Only
+
+- id: Q-0208
+- area: tooling
+- type: fix
+- since: 2026-09-02
+- size: S
+- impact: med
+- confidence: high
+- parent: architecture-invariants
+
+`toolchain-floor` checks the root tsconfigs and nothing else — `TSCONFIG_CANDIDATES` is `['tsconfig.base.json', 'tsconfig.json']` in [`src/invariants/toolchain-floor.ts`](../src/invariants/toolchain-floor.ts) — so a nested config sitting below the lib floor passes unseen. Found live in this repo: `src/dashboard/static/tsconfig.json` sat at `lib: ["ES2023", "DOM"]` while the `platform-over-dependency` and `deterministic-cleanup` rules both bind `**/*.ts` (which covers `drag.ts` and `agents.ts`) and mandate `Set.prototype.union` and `Symbol.dispose` — each a TS2550 under that lib. So two *enforced* rules were directing agents to write code a real config in the same repo rejects, and no gate said a word. The `lib-inherited` guard cannot cover this: it stays quiet because the root config does declare a `lib`, and it is decided repo-wide by design. Two candidate fixes: walk every tsconfig the workspace scan already finds (the manifest walk is right there), or assert that a nested config either declares no `lib` at all — inheriting the base — or meets the floor itself. Worth carrying forward that `lib` **replaces** rather than merges across `extends`, so putting the floor in a base config protects only those children that omit `lib` entirely — which is why the second option is the stronger invariant. Deletion test: a nested tsconfig whose `lib` sits below the floor reds the invariant. (found 2026-08-26, CR on the tsconfig-shared-base refactor; absorbed from a lesson)
 
 ### CR Re-Round Cap Enforcement and Oscillation Detector
 
@@ -98,6 +176,21 @@ Q-0130's re-round cap (2, controller prose) has no tooling enforcement and no os
 - recovered: 2026-08-29
 
 `/noldor-garden` step 1 orders "check every key the payload carries, not a fixed count — `structuralContextStubs` is a finding like any other, and a gate that enumerates a subset silently swallows whichever key it predates". Step 4 of the same skill then enumerates a fixed checklist: Stale plans, Stale specs, Manual sweep, Unused backlog, Rule contradictions, SDD gaps, Structural context stubs, Architecture invariant violations. The two steps contradict each other, and the cost is already live: `architectureAdvisories` (Q-0093) has no row — the checklist's "Architecture invariant violations" renders `invariantViolations`, a different key — so every module-advisory row `detectArchitectureAdvisories` produces is parsed by step 1 and then dropped by step 4. `structuralContextStubs` has a row only because it was added by hand when Q-0194 shipped, which is the pattern step 1 exists to end. The `fdDiagramStubs` key Q-0185 introduces will land in the same hole. Wanted: step 4 renders whatever non-empty keys the payload carries rather than a hand-maintained list, in the skill and its `templates/` twin. Note `garden detect` stdout is pure JSON by contract (step 1 parses it, and `--ci` deliberately routes its message to stderr), so the fix is in the skill's rendering, not a new text mode on the CLI. Deletion test: a new advisory `GardenFindings` key reaches the operator checklist with no edit to `/noldor-garden`. (carved out of Q-0185's spec dialogue, 2026-08-29 — D8, corrected at CR round 1)
+
+### Clones Ratchet and Clone-Group Check Disagree on Attribution
+
+- id: Q-0193
+- area: tooling
+- type: fix
+- since: 2026-08-25
+- size: S
+- impact: med
+- confidence: high
+- parent: code-clone-detector
+
+`clones check` printed `no clone group touches this change - green` and reddened in the same run on `duplicated tokens rose 27735 -> 27845 (+110)` — the standalone CLI disagreeing with itself. The rise came from a new test reusing its file's established 15-instance scaffold (`const commits: Commit[] = [...]` + `checkCrGate({...runGit: makeGitFake(commits)})`), i.e. exactly the idiom consistency the test rules ask for, so any PR that adds a case to a table-driven test file currently owes a baseline re-record commit. The check also declines to name what moved the total: the operator has to diff group lists between branches, and a green run prints no group list to diff against, so there is nothing to compare. Two candidate fixes, not exclusive: exempt `**/__tests__/**` from the token ratchet (or weight it separately from production code), and make `clones check` name the files that moved the total the way `microChoreOffenders` names its offenders. Related to Q-0165 (preflight vs hook disagreement) but distinct — that was two entry points diverging, this is one run contradicting itself. Deletion test: adding a case to a table-driven test file does not red the ratchet, and any ratchet rise names the files responsible. (found 2026-08-25 shipping Q-0164)
+
+- The ratchet also counts thin typed façades as duplication, and this one blocked a release sweep. On the 2026-08-30 sweep the whole-corpus ratchet redded at +112 tokens over the baseline PR #406 recorded, and the largest new group was `src/design/design-approval.ts:63-92` vs `src/design/ui-capture.ts:76-108` (82 tokens). Neither site holds copied logic: both are one-line delegations to the already-shared receipt store (`parseReceiptWith`, `writeReceiptFile`, `readReceiptFile`), each binding a *different* schema, dir-segment tuple and return type. The tokenizer skips comments but normalizes identifiers to `ID` for Type-2 matching, so two same-shaped one-line delegations match structurally. The rest of the delta was import blocks (`src/design/ledger.ts` vs `src/cr/orchestrate.ts`, `src/metrics/compute.ts`, `src/garden/garden-detect.ts`). Extracting is strictly worse here — one generic untyped wrapper, indirection added, zero logic shared. Two more candidate fixes on the same axis as the ones above: skip a group whose every span is a single `return <call>(…)` statement, and exclude leading import runs from the token stream. Rebaselined to 28844 by hand to unblock the sweep, which is now the second forced re-record on this entry — hence the move up the file. Deletion test: a file pair whose only overlap is imports plus a delegating one-liner produces no group. (found 2026-08-30, release sweep)
 
 ### Main-Module Guard Fails on Percent-Encoded Paths
 
@@ -182,6 +275,32 @@ Hand-editing an FD's `links.code` is only safe on an FD that carries **no** `// 
 
 `pnpm noldor design log --support` (Q-0053) already captures prior art into the design ledger, but nothing enforces that it was used — a spec whose ledger renders `Existing support (0) - (none recorded)` passes silently, which means the reuse question was never asked. Spec-lint should reject an approved spec with zero support anchors unless the operator records an explicit `--support "none: <reason>"`. The side benefit is that the CR `reuse` dimension gains a falsifiable claim to check against instead of reviewing in the dark.
 
+### Bugfix Lane in the Priority Suggestions
+
+- id: Q-0201
+- area: tooling
+- type: feat
+- since: 2026-09-02
+- size: S
+- impact: med
+- confidence: med
+- parent: gate-flow-rework
+
+The gate's Step 0 pickup offers three substantive buckets — `Top priority`, `Quick win` (`size ∈ {XS,S}` AND `impact ∈ {high,critical}`) and `Milestone-aligned` — built by [`getSuggestions()`](../src/core/next-priority.ts). None of them is a bugfix lane, so a `type: fix` entry surfaces only if it happens to win on score or size, and the roadmap's fix backlog (Q-0166, Q-0171 through Q-0174, Q-0183, Q-0192, Q-0193 as of today) is never offered *as* a repair queue. Wanted: a fourth bucket that filters on `type: fix` and sorts by `impact` descending, so the operator can choose to fix rather than to build. **The constraint that makes this S and not XS:** the bucket question is already at its ceiling — the gate skill records that the worst case (`in-progress + top + quick + milestone + path picker`) is five options against `AskUserQuestion`'s four, resolved by dropping `Milestone-aligned` ([SKILL.md:34](../.claude/skills/noldor-gate/SKILL.md)). A fifth bucket needs an explicit budget policy, not another ad-hoc drop, and the change spans the skill plus its `templates/` twin. Deletion test: with a roadmap holding several `type: fix` entries, the gate offers them as one impact-ordered bucket. (found 2026-09-02)
+
+### Autonomous Address-Blockers Without an Operator Confirm
+
+- id: Q-0206
+- area: tooling
+- type: feat
+- since: 2026-09-02
+- size: S
+- impact: med
+- confidence: med
+- parent: autonomous-plan-to-pr-merge
+
+The `address-blockers` branch of the gate's continue-dialog stops for the operator even in an otherwise autonomous run, which breaks the plan-confirm-to-merge chain at exactly the point a drain most needs to keep going. Part of the machinery already exists: `autonomous.onBlockers: 'auto-fix'` turns on the autofix seam, so a fully-mechanical round applies its `M<n>` blockers, records the ledger entry and re-rounds with no human in the loop. The remaining stops are deliberate and each needs an answer before the confirm can go: a MIXED round exits 11 `apply-then-stop` and surfaces the `D<n>` design blockers for arbitration; a decline exits 10 with a `reason:` (`prior-deferred`, `round-cap`, `no-progress`, `no-mechanical`, `no-base-sha`); the seam is capped at 2 rounds per artifact kind; and the split-back sub-question (`fix-in-place / split-back / back`) is itself a judgment call. So this is a policy change, not a default flip — decide what an autonomous session does with a design blocker (escalate to the inbox and park the slug is the obvious candidate, since `autonomous` already owns both) and what it does at the cap, then default the knob on for autonomous sessions only. Deletion test: an autonomous drain hitting a mechanical-only blocker round reaches the PR with no operator prompt, and hitting a design blocker lands in the escalation inbox rather than waiting on a prompt nobody will answer. (found 2026-09-02)
+
 ### Geometry-Compare Lane — the Automated Half
 
 - id: Q-0180
@@ -211,19 +330,6 @@ The `geometry-compare` comparison engine shipped as two hand-runnable commands (
 
 Neither UI-design review lane is enabled anywhere, four days after the second one shipped: this repo declares no `consumer.uiPaths` at all, and charuy declares `uiPaths` but no `uiSurfaces`, no `uiBoot`, and `crLanes.code: [reviewer]`. Q-0144's design phase has traction (3 `.pen` files tracked in charuy) but Q-0145 `ui-reviewer` and Q-0146 `render-compare` have zero installs — which is why Q-0180, a third sibling lane, was carved back to the roadmap rather than built. The habit worth mechanising: for an entry that extends a feature, check whether the feature it extends is switched on in any known repo BEFORE sizing the work. A `pnpm noldor doctor` row or a triage-time hint reporting "the parent feature's opt-in is unset in every known consumer" turns a remembered check into a reported one. The input is already there — `- parent:` on the block, and the consumer config keys the parent feature reads. Deletion test: triaging an extension of a feature no consumer has enabled surfaces the fact in the proposal table without anyone remembering to look. (found 2026-08-25 deciding to park Q-0180)
 
-### Clones Ratchet and Clone-Group Check Disagree on Attribution
-
-- id: Q-0193
-- area: tooling
-- type: fix
-- since: 2026-08-25
-- size: S
-- impact: med
-- confidence: high
-- parent: code-clone-detector
-
-`clones check` printed `no clone group touches this change - green` and reddened in the same run on `duplicated tokens rose 27735 -> 27845 (+110)` — the standalone CLI disagreeing with itself. The rise came from a new test reusing its file's established 15-instance scaffold (`const commits: Commit[] = [...]` + `checkCrGate({...runGit: makeGitFake(commits)})`), i.e. exactly the idiom consistency the test rules ask for, so any PR that adds a case to a table-driven test file currently owes a baseline re-record commit. The check also declines to name what moved the total: the operator has to diff group lists between branches, and a green run prints no group list to diff against, so there is nothing to compare. Two candidate fixes, not exclusive: exempt `**/__tests__/**` from the token ratchet (or weight it separately from production code), and make `clones check` name the files that moved the total the way `microChoreOffenders` names its offenders. Related to Q-0165 (preflight vs hook disagreement) but distinct — that was two entry points diverging, this is one run contradicting itself. Deletion test: adding a case to a table-driven test file does not red the ratchet, and any ratchet rise names the files responsible. (found 2026-08-25 shipping Q-0164)
-
 ### Gate Prose Should Pre-Empt the Sibling-Scope Trailer
 
 - id: Q-0192
@@ -248,23 +354,3 @@ A commit touching `src/**` and `docs/noldor/**` needs a `Noldor-Sibling-Scope: n
 - confidence: low
 
 `pnpm noldor commit` was SIGKILLed (exit 137) on a commit carrying a long multi-paragraph `-m` body, with no output at all before the kill; plain `git commit -F <file>` with the identical message succeeded and every hook ran green. The wrapper (`src/core/commit-cli.ts`) is the documented path and its failure mode is silent, so an operator reads it as a hook failure and starts debugging the wrong layer. Reproduce first — whether the kill is the wrapper OOMing on large argv, the harness truncating it, or the platform's argv limit is unknown — then either fix the handling or spool a long body through a temp file the way `-F` does. Deletion test: a commit with a multi-kilobyte body succeeds through the wrapper, or fails with a message that names the cause. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
-
-### Inject CR Lane Seams Instead of Mocking Them
-
-- id: Q-0195
-- area: testing
-- type: refactor
-- since: 2026-08-26
-- size: M
-- impact: low
-- confidence: high
-
-`.noldor/rules/test-mocking-boundaries.md` (enforce, shipped in #391) bans mocking a module the change itself owns, and the CR pipeline is where the repo breaks its own rule: 23 relative `vi.mock` calls across 12 test files, 11 of them under `src/cr/`. `cr/orchestrate.ts` imports `runManual` / `runCodex` / `runSubagent` / `runRenderCompare` statically into its `LANES` table, so `orchestrate.test.ts`, `orchestrate.integration.test.ts`, `delta.test.ts` and `prior-review.test.ts` can only reach the dispatch logic by replacing those modules.
-
-**This is maintenance debt, not a coverage hole — measured, so nobody re-derives a false urgency.** Two real dispatch regressions were injected into `orchestrate.ts` and the four suites run against them: leaking `priorReview` onto every lane instead of only the reviewer, and dropping the `delete dispatchInput.baseSha` that a `fullReviewOverride` round depends on. Result `2 failed | 47 passed` — both caught. The mocks are inspected through `mock.calls`, which makes them scripted fakes wired via the module registry rather than via a parameter; functionally equivalent, so the suites are not blind.
-
-What the current shape actually costs: a lane file that moves or is renamed breaks the tests with no behaviour change, which is the exact failure the rule exists to prevent; `vi.mock` is file-wide, so no single file can mix a real lane with a fake one; the mock factories hoist above the `import { run }` beneath them, so the file reads in a different order than it runs; and the repo already does this properly elsewhere — `setSmokeRunner` and `setVerifyDispatcher` are injected in that same test file, and `upWorktree(opts, deps = defaultDeps)` is the parameter form. The four main lanes just never caught up.
-
-Seven seams, all the same shape: the lane registry in `orchestrate.ts`; `core/prompt-stdin.js` (`overwrite-guard`, `escalate`, `lanes/manual`); `core/agent-runner/registry.js` (`subagent-dispatch`, `verify-dispatch`); `deep-review-spawn.js` (`escalate`); `read-fd-summary.js` + `core/branch-added.js` (`lanes/subagent`); `review-with-codex.js` + `codex-adapter.js` (`lanes/codex`); and `release/fd-prs-since-tag.js` (`dashboard-render-markdown`, the one non-CR file). Fix each with an optional second parameter defaulting to the real implementations, so call sites keep their signature and each test passes a hand-rolled fake.
-
-Sized M on volume — seven seams, ~20 files — while `impact: low` reflects that nothing is broken today; the two together are why this sits low in the file rather than at the top. A cheaper route than a standalone PR is folding each seam into whatever change next touches that file, since the spec-worthy question is only sequencing: which seams convert together, and how the code-stage receipt is re-earned mid-refactor when the refactor edits the CR pipeline itself. Deletion test: after the conversion, `grep -rn "vi\.mock(['\"]\.\.\?/" src` returns nothing outside a seam carrying a written justification, and both sabotage probes above still red. (found 2026-08-26, rationale corrected 2026-08-27)
