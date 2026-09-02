@@ -14,6 +14,9 @@ links:
     - src/core/feature-schema.ts
     - src/release/ui-design-freshness.ts
     - src/checks/check-ui-design-freshness.ts
+    - src/checks/check-pen-bridge.ts
+    - src/design/pen-bridge.ts
+    - src/design/pen-bridge-cli.ts
     - src/design/ui-capture.ts
     - src/design/ui-capture-cli.ts
     - src/design/ui-sync-cli.ts
@@ -23,6 +26,7 @@ links:
   spec: docs/design/specs/archive/2026-08-19-pendev-ui-design-phase-design.md
   tests:
     - src/checks/__tests__/check-ui-design-freshness.test.ts
+    - src/checks/__tests__/check-pen-bridge.test.ts
     - src/core/__tests__/design-artifact-names.test.ts
     - src/core/__tests__/ui-predicate.test.ts
     - src/design/__tests__/design-approval.test.ts
@@ -55,6 +59,8 @@ As an operator shipping a UI feature through the gate, I want the spec phase to 
 - Approval enforcement (automatic): the pre-commit `shared-files` job refuses a feature `.pen` entering the index without a matching record — `pen-unapproved` (none usable in the resulting tree) or `pen-approval-mismatch` (the record names a different version of the design); `NOLDOR_ALLOW_PEN_WRITE` waives neither, and a record already committed in `HEAD` satisfies it. At code stage the `ui-reviewer` lane refuses a design with no record (`design-unapproved`) or one edited after its verdict (`design-approval-stale`) — advisory by default, red under `autonomous.uiReviewMode: blocking`. Remedy for every one of them: re-run `design verdict` on the design as it now stands (the write overwrites).
 - Override: set `design: required` or `design: skip` in the FD frontmatter to force either verdict (operator-only field).
 - Capture: `pnpm noldor design capture [--surface <name>] [--vouch-only]` runs each surface's declared command and writes `.noldor/ui-capture/<surface>.json` only when it exits 0 and produced a baseline. Surfaces run sequentially; a failure leaves that surface's receipt untouched and exits non-zero. Commit the baseline together with its receipt — the receipt is what the freshness check reads, so a capture that fails can no longer leave a surface reading `fresh`. After a sanctioned hand edit to a baseline (the gate's Step 4 write-back), use `--surface <name> --vouch-only`: it records a receipt for the file on disk without running the command, which would otherwise overwrite the edit. It needs `--surface` (a bare vouch would green untouched surfaces) and works even where no `uiCapture` command is declared.
+- Editor: `.pen` files open in the **pen.dev desktop app** (bundle id `dev.pencil.desktop`), not in a VS Code extension. `pnpm noldor design pen-bridge --pen <path>` asks macOS to open one without taking focus; a bare invocation picks a tracked `.pen` by ranking. Exit 0 means the open was *requested*, not that a canvas came up — retry the pencil MCP call to find out. Exit 1 = the repo tracks no `.pen`, so open the app, create a document and **Save As** into `docs/design/ui/` (a document the app saves for itself lands in `~/.pencil/documents/` and is never committed); 2 = a bad `--pen` or a launch that failed; 3 = the app is not installed; 4 = not macOS, where the printed path must be opened by hand. An agent cannot start the app — a GUI launch from a tool shell exits 0 and starts nothing, so a dead bridge is an operator action. Spec and plan `.md` artifacts are unaffected and still open via `code`.
+- Bridge wiring: `pnpm noldor checks pen-bridge` (also surfaced advisorily by `pnpm noldor doctor`). The pencil MCP server derives its socket from its own `--app` flag, so a server pinned to another app fails every call with the same `A file needs to be open in the editor` a closed editor produces. The check names the scope and file holding the effective pencil entry — local `projects[<cwd>]`, an approved `.mcp.json`, or the user-wide block — and reds when `--app` is not `desktop`; the flag is read once at startup, so a fix needs a Claude Code restart. Unreadable or unfamiliar config reports indeterminate, never a finding. Exit 1 on a mismatch or a missing app, 0 otherwise — including off macOS, where it probes nothing.
 - Freshness: `pnpm noldor checks ui-design-freshness` any time; gate Step 4 and release preflight run it automatically. Remediation depends on the row, and the report names the right one per surface: `unverified` and a receipt-backed `stale` are repaired by `pnpm noldor design capture`; `uninitialized`, and a surface still on the pre-receipt read, by hand via `pnpm noldor design ui-sync`.
 
 ## PRs

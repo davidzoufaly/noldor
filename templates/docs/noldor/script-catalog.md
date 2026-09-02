@@ -111,7 +111,7 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 
 - **Trigger:** `pnpm noldor design pen-bridge [--pen <path>] [--print-only]`. Run when a pencil MCP call fails with `A file needs to be open in the editor` — before waiving a UI-design step.
 - **Inputs:** `--pen` (a caller's own `.pen`, e.g. a lane's scratch copy) when given, else the tracked `.pen` set from `git ls-files`, ranked feature design → baseline → anything else.
-- **Outputs:** the resolved path plus the retry instruction, and opens the editor on it **without taking focus** where it can — macOS `open -g` against the `.app` enclosing the `code` on PATH, falling back to `code <path>` (which does raise the window) on other platforms or when no bundle is found. Exit 0 = a `.pen` was resolved and opened (or resolved only, under `--print-only`), 1 = the repo tracks no `.pen` so the editor must author one (Node cannot: `.pen` is encrypted), 2 = usage error or no `code` on PATH — in which case the pencil desktop app is the manual fallback. It never claims the bridge is live: only a retried pencil MCP call proves that.
+- **Outputs:** the resolved path plus the retry instruction, and asks macOS to open it in the pen.dev desktop app **without taking focus** (`open -g -b dev.pencil.desktop <abs path>`). Exit 0 = the open was *requested* (or the path resolved only, under `--print-only`) — never a claim that a canvas came up, since a launch from a context with no window-server connection exits 0 and starts nothing; only a retried pencil MCP call proves the bridge is live. Exit 1 = the repo tracks no `.pen` so the app must author one and **Save As** into the repo (Node cannot: `.pen` is encrypted). Exit 2 = usage error or a failed launch, 3 = nothing is registered for the bundle id (install the app), 4 = not macOS, where there is no scriptable open and the printed path must be opened by hand.
 - **When to use:** waking the bridge before `design ui-sync`, the spec skill's UI-design step, the gate's baseline write-back, or a `ui-reviewer` / `render-compare` lane child that reports `pen-unreadable`.
 - **Source:** [`src/design/pen-bridge-cli.ts`](../../src/design/pen-bridge-cli.ts)
 
@@ -162,6 +162,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **Outputs:** one line per documentation surface no README link reaches, found by a transitive markdown-link walk seeded from the README. Operational degradations print as `note:` lines and never change the exit code. Exit 0 clean or when there is no readable README, 1 on findings — callers choose whether that blocks. Command validation is out of scope (Q-0148).
 - **When to use:** after adding a `docs/<dir>/` documentation surface. Repair by linking it from `README.md`.
 - **Source:** [`src/checks/check-readme.ts`](../../src/checks/check-readme.ts)
+
+### `check:pen-bridge`
+
+- **Trigger:** `pnpm noldor checks pen-bridge`. Also surfaced by `pnpm noldor doctor` (advisory there — it never changes doctor's exit code).
+- **Inputs:** the pencil MCP server entry, resolved in Claude Code's own scope order — `projects[<cwd>].mcpServers.pencil` in `~/.claude.json`, then `mcpServers.pencil` in `<cwd>/.mcp.json` when that server is listed in the same project's `enabledMcpjsonServers`, then top-level `mcpServers.pencil`. Plus a Spotlight query for the `dev.pencil.desktop` bundle.
+- **Outputs:** one MCP row and one app row. The MCP row reds when the entry's `--app` is anything but `desktop`, naming the scope and file that supplied it so the fix lands on the block actually in force; it reports indeterminate — never a mismatch — for unparseable or unreadable config, a missing pencil entry, and a missing or valueless `--app`, and a malformed higher-precedence source stops the search rather than falling through. The app row reds when nothing is registered for the bundle id. Exit 1 on a mismatch or a missing app, 0 otherwise; a single `not-applicable` row off macOS.
+- **When to use:** when pencil MCP keeps answering `A file needs to be open in the editor` even though a `.pen` is open. That message cannot distinguish a closed editor from a server pinned to a different app, and this check names the second case. Repair: set `--app` to `desktop` in the block the report names, then restart Claude Code — the server reads the flag once, at startup.
+- **Source:** [`src/checks/check-pen-bridge.ts`](../../src/checks/check-pen-bridge.ts)
 
 ### Other validators
 

@@ -348,6 +348,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'checks/check-readme.ts',
         desc: 'README command + doc-surface link checks; exit 1 on findings — callers choose whether that blocks',
       },
+      'pen-bridge': {
+        src: 'checks/check-pen-bridge.ts',
+        desc: 'pencil MCP --app pin + pen.dev desktop app presence; exit 1 on mismatch or missing app',
+      },
     },
   },
   graphify: {

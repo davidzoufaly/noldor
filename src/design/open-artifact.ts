@@ -13,7 +13,7 @@ import { loadConfigSync } from '../core/config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { toPosixRelative } from '../core/repo-paths.js';
 
-import { openInEditor, type OpenResult } from './pen-bridge-cli.js';
+import { openInEditor, type OpenResult } from './editor-launch.js';
 
 /**
  * Deadline on each `git rev-parse` probe. Enforced by `execFileSync`'s own
@@ -21,7 +21,7 @@ import { openInEditor, type OpenResult } from './pen-bridge-cli.js';
  * PostToolUse hook is a hang, and a hang reads to the operator as a broken tool.
  * Not configurable: a knob here would be a second way to produce one.
  *
- * The editor spawn's twin lives beside `openInEditor` in `pen-bridge-cli.ts`,
+ * The editor spawn's twin lives beside `openInEditor` in `editor-launch.ts`,
  * where the process is actually started.
  */
 export const GIT_TIMEOUT_MS = 2_000;

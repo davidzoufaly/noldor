@@ -167,13 +167,32 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 
 - **"A file needs to be open in the editor" is a bridge-liveness gate, not a
   per-file lock.** `.pen` is encrypted, so pencil MCP is the only reader, and
-  every call fails with that message until *some* `.pen` is open in a running
-  VS Code Pencil tab (extension `highagency.pencildev`). Once any file is open,
-  `execute` routes to any *existing* `.pen` by `filePath` — including a scratch
-  copy that was never opened. So the fix is to open a file, not to change the
-  path you asked for: `pnpm noldor design pen-bridge` finds and opens one
-  (exit 1 = the repo tracks no `.pen` and the editor must author it, since Node
-  cannot).
+  every call fails with that message until *some* `.pen` is open in the pen.dev
+  desktop app. Once any file is open, `execute` routes to any *existing* `.pen`
+  by `filePath` — including a scratch copy that was never opened. So the fix is
+  to open a file, not to change the path you asked for: `pnpm noldor design
+  pen-bridge` finds and opens one (exit 1 = the repo tracks no `.pen` and the
+  app must author it, since Node cannot).
+- **That same message also means the MCP server is pinned to the wrong app —
+  and nothing distinguishes the two cases.** The server derives its socket as
+  `~/.pencil/socket/pencil-<app>.sock` from its own `--app` flag, so a server
+  started with `--app visual_studio_code` talks past a perfectly healthy desktop
+  app forever, reporting exactly the liveness error above. `pnpm noldor checks
+  pen-bridge` is what tells them apart: it names the scope and file holding the
+  effective pencil entry. The flag is read once, at startup, so a fix needs a
+  Claude Code restart.
+- **An agent cannot start the desktop app.** A GUI launch from a tool shell
+  exits 0, prints nothing, and starts nothing — sandbox on or off — while the
+  same command works from the operator's terminal. Handing a file to an
+  *already running* app does work from a tool shell. So `pen-bridge` reports
+  that the open was *requested*, never that it succeeded; retrying the pencil
+  MCP call is the only proof, and a still-dead bridge is an operator action.
+- **The desktop app parks documents it authors itself under
+  `~/.pencil/documents/<uuid>/`.** A file opened from a repo path stays at that
+  path and is edited in place, but one created inside the app lands in its own
+  library where nothing in the repo will ever commit it. Bootstrapping a repo's
+  first `.pen` therefore needs an explicit **Save As** into
+  `docs/design/ui/`.
 - **A `filePath` that does not exist is a silent write to the open canvas, not
   an error.** Routing holds only while the file is there; otherwise the edit
   lands on whatever document the app currently has open, with no diagnostic. A
@@ -187,10 +206,14 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   from a worktree; any archived `.pen` modified or moved out of `archive/`;
   `NOLDOR_ALLOW_PEN_WRITE=1` waives both for the gate's one sanctioned baseline
   write-back). (Q-0187)
-- **The VS Code extension is the default editor; the desktop app is the
-  fallback.** Both satisfy pencil MCP equally — the extension wins only because
-  `code <file>.pen` is scriptable, so an agent can wake the bridge unattended.
-  Without a `code` on PATH the desktop app has to be opened by hand.
+- **The pen.dev desktop app is the `.pen` editor, addressed by bundle id
+  `dev.pencil.desktop`.** It registers `.pen` as a document type, so
+  `open -g -b dev.pencil.desktop <abs path>.pen` opens that exact file — the
+  older claim that it "has no scriptable open" was wrong, and the VS Code
+  extension it justified is gone from this path. Spec and plan `.md` artifacts
+  still open via `code`; only `.pen` moved. An unregistered bundle id exits 1
+  with `LSCopyApplicationURLsForBundleIdentifier` in stderr, which is how "not
+  installed" is told from "launch failed".
 - **Waive the UI-design step only after a wake attempt.** A closed editor and
   an absent editor look identical from Node, and recording `uiWaiver` for the
   first one buys permanent baseline debt for a fixable five-second problem.

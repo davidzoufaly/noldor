@@ -9,6 +9,7 @@ links:
     - src/design/open-artifact.ts
     - src/hooks/noldor-open-artifact.ts
   tests:
+    - src/design/__tests__/editor-launch.test.ts
     - src/design/__tests__/open-artifact-cli.test.ts
     - src/design/__tests__/open-artifact.test.ts
     - src/hooks/__tests__/noldor-open-artifact.test.ts

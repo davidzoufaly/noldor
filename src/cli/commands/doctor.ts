@@ -22,6 +22,11 @@ import {
 import { computeDrift } from '../../templates/diff.js';
 import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
 import { REPAIR, checkInstallFreshness } from '../../checks/check-install-freshness.js';
+import {
+  checkPenBridge,
+  penBridgeRowLevel,
+  renderPenBridgeRow,
+} from '../../checks/check-pen-bridge.js';
 import { loadUiConfig } from '../../core/consumer-config.js';
 import { evaluateUiDesignFreshness } from '../../release/ui-design-freshness.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
@@ -101,6 +106,23 @@ if (freshness.status !== 'ok' && freshness.status !== 'no-lockfile') {
     freshnessBad++;
     console.log(`${'stale'.padEnd(12)} install: ${freshness.detail}`);
   }
+}
+
+// Pencil bridge wiring: advisory only (does NOT affect exit code). A wrong
+// `--app` pin is a real finding for `checks pen-bridge`, which exits 1 on it,
+// but it breaks only the UI-design step — failing a whole doctor run on it would
+// block every repo that never opens a `.pen`.
+//
+// Every row prints, not just the findings. Doctor's job is to show the state of
+// the machine, and a filtered view is a different diagnostic from the one the
+// standalone command gives: an operator who sees nothing cannot tell "healthy"
+// from "could not determine" from "this check did not run".
+// Three labels, not two: an `ok` beside "could not determine the pencil MCP pin"
+// reads as a clean bill of health for a question that was never answered, which
+// is the exact confusion this check exists to remove.
+for (const row of checkPenBridge(process.cwd())) {
+  const level = { finding: 'warn', healthy: 'ok', undetermined: 'unknown' }[penBridgeRowLevel(row)];
+  console.log(`${level.padEnd(12)} ${renderPenBridgeRow(row)}`);
 }
 
 // Framework-version skew: advisory only (does NOT affect exit code). A consumer
