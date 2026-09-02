@@ -6,9 +6,10 @@
 // decides and they print.
 
 import { execFileSync } from 'node:child_process';
-import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { lstatSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
+import { loadConfigSync } from '../core/config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { toPosixRelative } from '../core/repo-paths.js';
 
@@ -33,18 +34,19 @@ export const WORKSPACE_ROOT_ENV = 'NOLDOR_WORKSPACE_ROOT';
  * `false` — see `designConfigSchema.autoOpen` for why the tab, unlike the
  * reported link, cannot be made non-disruptive.
  *
- * Read synchronously and fail-open-to-`false` rather than through the async
- * `loadConfig`: the caller is a `PostToolUse` hook that must stay synchronous and
- * must never throw, and an unreadable or malformed config has to mean "not opted
- * in" rather than an exception. The `=== true` comparison is the whole validation
- * — every other JSON value, including a string `"true"`, correctly reads as off.
+ * `loadConfigSync` inside a `try`/`catch`, which is the house pattern for a hook
+ * that must not throw (`src/hooks/noldor-pre-commit.ts` reads its TTL the same
+ * way): the caller is a `PostToolUse` hook, so it must stay synchronous — ruling
+ * out the async `loadConfig` — and an absent, unreadable or malformed config has
+ * to mean "not opted in" rather than an exception. Going through the schema keeps
+ * {@link designConfigSchema} the single definition of what the knob means; a
+ * hand-rolled `readFileSync` + cast here would be a second one.
  */
 export function autoOpenEnabled(checkoutRoot: string): boolean {
   try {
-    const raw = readFileSync(join(checkoutRoot, '.noldor', 'config.json'), 'utf8');
-    return (JSON.parse(raw) as { design?: { autoOpen?: unknown } }).design?.autoOpen === true;
+    return loadConfigSync(join(checkoutRoot, '.noldor', 'config.json'))?.design?.autoOpen ?? false;
   } catch {
-    // No config, unreadable, or not JSON: the default stands.
+    // Malformed config, or unreadable for any reason but absence: default stands.
     return false;
   }
 }
