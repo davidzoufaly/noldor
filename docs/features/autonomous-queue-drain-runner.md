@@ -5,15 +5,8 @@ deps:
   - autonomous-plan-to-pr-merge
 links:
   code:
-    - src/autonomous/queue-drain.ts
-    - src/autonomous/drain-loop.ts
-    - src/autonomous/drain-eligibility.ts
-    - src/autonomous/drain-lock.ts
-    - src/autonomous/drain-state.ts
-    - src/autonomous/drain-io.ts
-    - src/core/next-priority.ts
-    - src/cli/manifest.ts
     - .claude/skills/noldor-gate/SKILL.md
+    - src/autonomous/drain-branch-state.ts
   tests:
     - src/autonomous/__tests__/branch-work.test.ts
     - src/autonomous/__tests__/build-pool.test.ts
@@ -97,15 +90,8 @@ a merged PR (not merely a clean child exit).
 
 - **Spec:** [`docs/design/specs/archive/2026-06-10-autonomous-queue-drain-runner-design.md`](../../docs/design/specs/archive/2026-06-10-autonomous-queue-drain-runner-design.md)
 - **Code:**
-  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
-  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
-  - [`src/autonomous/drain-eligibility.ts`](../../src/autonomous/drain-eligibility.ts)
-  - [`src/autonomous/drain-lock.ts`](../../src/autonomous/drain-lock.ts)
-  - [`src/autonomous/drain-state.ts`](../../src/autonomous/drain-state.ts)
-  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
-  - [`src/core/next-priority.ts`](../../src/core/next-priority.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
+  - [`src/autonomous/drain-branch-state.ts`](../../src/autonomous/drain-branch-state.ts)
 - **Tests:**
   - [`src/autonomous/__tests__/branch-work.test.ts`](../../src/autonomous/__tests__/branch-work.test.ts)
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
