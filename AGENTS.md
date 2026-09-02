@@ -34,15 +34,29 @@ The framework's interactive flows are CLI-backed. Invoke via the matching
 `pnpm noldor` verb + the named doc; opencode users also have thin
 `.opencode/command/<name>` shims (codex reads this prose instead):
 
-- **gate** — `docs/noldor/workflow.md`; start every change here.
-- **spec** — `pnpm noldor prep format spec`; `docs/noldor/workflow.md`.
-- **plan** — `pnpm noldor prep format plan`.
+- **gate** — `docs/noldor/workflow.md`; start every change here. Surface an artifact path
+  via the link rule below.
+- **spec** — `pnpm noldor prep format spec`; `docs/noldor/workflow.md`. After writing the
+  spec, run `pnpm noldor design open <path>` and report its `link:` line.
+- **plan** — `pnpm noldor prep format plan`. Same: `design open` after writing, report the
+  `link:` line.
 - **triage** — `pnpm noldor triage merge-candidates`; `docs/noldor/triage.md`.
 - **promote / new-feature** — `docs/noldor/feature-md-schema.md`.
 - **draft-feature-md** — draft User Story / Usage from spec/code (before `phase: done`).
 - **milestone** — `pnpm noldor milestone`; `docs/noldor/milestones.md`.
 - **garden** — `pnpm noldor garden-detect`; `docs/noldor/garden-and-drift.md`.
 - **research** — `pnpm noldor research fanout`; `docs/noldor/research-fanout.md`.
+
+**Reporting a spec/plan path — never build the link yourself.** Run
+`pnpm noldor design open <artifact-path>`: it opens the file in a VS Code tab and prints
+both the raw path and a ready-made `link:` line. Report that line verbatim. A markdown link
+resolves against the **editor's workspace folder**, while an artifact's repo-relative path
+is relative to the **session's checkout** — and every `specs-only-*` / `full-*` session runs
+inside `.worktrees/<slug>/`. The two coincide on `main` and diverge in a worktree, so a
+hand-built link renders as a link and does nothing. Exit 2 means the path is not a live
+design artifact; a missing `code` still prints the link and exits 0. Set
+`NOLDOR_WORKSPACE_ROOT` when the editor's workspace folder is not the session's cwd (a
+multi-root workspace, or a session started elsewhere).
 
 `noldor-refactor` / `noldor-release-sweep` are Claude-agent orchestrations (no
 thin-shim equivalent); `noldor-verify` and `noldor-debug` are discipline rules — see the Hard rules

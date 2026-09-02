@@ -4,15 +4,20 @@ category: Tooling
 deps: []
 entry-id: Q-0200
 links:
-  code: []
-  tests: []
+  code:
+    - src/design/open-artifact-cli.ts
+    - src/design/open-artifact.ts
+    - src/hooks/noldor-open-artifact.ts
+  tests:
+    - src/design/__tests__/open-artifact-cli.test.ts
+    - src/design/__tests__/open-artifact.test.ts
+    - src/hooks/__tests__/noldor-open-artifact.test.ts
 name: Auto-Open Design Artifacts
 packages:
   - package.json
 phase: in-progress
 noldor-tier: specs-only
 ---
-
 ## Summary
 
 A newly written spec or plan opens itself as a VS Code tab, and every artifact path the

@@ -16,6 +16,13 @@ Run the Noldor plan flow. Read the approved spec + `docs/noldor/workflow.md`, th
    is required, since `design log` defaults to the spec and would digest the wrong file.
 2. Write bite-size TDD tasks (failing test → implement → pass → commit) per `pnpm noldor prep format plan` to `docs/design/plans/YYYY-MM-DD-<slug>.md`.
 3. Run `pnpm noldor noldor split-check --plan <path>`. On a P1 signal, diagnose first: oversized **scope** bounces to a scope split (siblings back to the roadmap, plan narrowed to slice 1); a right-sized but verbose plan splits into `-part<N>` files.
-4. Stop after the plan — the gate owns review.
+4. Report the plan with `pnpm noldor design open <path>` — it opens the file in a VS Code
+   tab and prints a ready-made `link:` line. Report that line verbatim; never build the
+   link yourself. A markdown link resolves against the editor's workspace folder while the
+   plan's repo-relative path is relative to this session's checkout, and every `full-*`
+   session runs inside `.worktrees/<slug>/` — so a hand-built link works on `main` and
+   silently does nothing from a worktree. Set `NOLDOR_WORKSPACE_ROOT` when the editor's
+   folder is not this session's cwd.
+5. Stop after the plan — the gate owns review.
 
 Commit messages need a `Noldor-FD: <slug>` trailer.

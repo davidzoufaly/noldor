@@ -115,6 +115,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** waking the bridge before `design ui-sync`, the spec skill's UI-design step, the gate's baseline write-back, or a `ui-reviewer` / `render-compare` lane child that reports `pen-unreadable`.
 - **Source:** [`src/design/pen-bridge-cli.ts`](../../src/design/pen-bridge-cli.ts)
 
+### `design:open`
+
+- **Trigger:** `pnpm noldor design open <artifact-path> [--workspace-root <abs-path>]`. Run after writing a spec or plan, to open it and to get the link text to report. Claude sessions get this automatically via `hooks:open-artifact`; codex and opencode prose call it directly.
+- **Inputs:** a `.md` regular file sitting directly in its own checkout's specs or plans doc root (`archive/` children excluded — history, not a review surface). The checkout comes from `git rev-parse --show-toplevel` at the artifact, never `--git-common-dir` (which names the MAIN checkout from inside a worktree and would reject every gate artifact). The workspace root resolves by ladder: `--workspace-root`, then `NOLDOR_WORKSPACE_ROOT`, then the artifact's own checkout root, then cwd — a *named* root that is relative, absent, or not a directory is a usage error, while one that simply does not contain the artifact warns and falls back.
+- **Outputs:** two stdout lines — the workspace-root-relative path, then `link: [<basename>](<encoded-path>)` — then launches `code` on the absolute path. Exit 0 = the path was reported, whether or not a tab opened; a missing `code` warns on stderr and still exits 0, because other runners' prose calls this and a cosmetic absence must not fail their gate step. Exit 2 = usage error only (not an artifact, no such file, no repo, malformed named root).
+- **When to use:** reporting any spec/plan path to an operator. A markdown link resolves against the *editor's workspace folder* while an artifact's repo-relative path is relative to the *session's checkout*; those diverge for every session inside `.worktrees/<slug>/`, which is why a hand-built link works on `main` and silently does nothing from a worktree.
+- **Source:** [`src/design/open-artifact-cli.ts`](../../src/design/open-artifact-cli.ts)
+
 ### `design:verdict`
 
 - **Trigger:** `pnpm noldor design verdict --pen <path> --approve --surface <s> [--surface <s>...] [--reservation <text>]`, or `--waive --reason "<why>"`. Run by `/noldor-spec` step 1.5 — the `--approve` form after the operator's approve verdict lands its sentence in the spec's `## Design`, the `--waive` form in the waiver-after-Seed branch.
@@ -208,6 +216,14 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 - **Inputs:** PreToolUse JSON payload on stdin (`tool_input.file_path` / `notebook_path` / `path`, plus `cwd`), or a file path as argv. The enforcement root (rollout marker + `.noldor/session.json`) is resolved from the edited file's git toplevel, so worktree sessions read their own marker, not the main workspace's.
 - **Outputs:** exit 0 to allow, exit 2 + stderr to block (Claude Code blocking convention). Soft mode (no rollout marker) always passes. Deliberately open for untracked files (new-file scaffolding — the commit-stage gate owns those), files outside any git repo, a bare TTY invocation, and malformed payloads (fail-open — a guard bug must never brick the editor). Otherwise blocks edits to tracked files unless a `/noldor-gate` session marker is present. Enforces "no edit without `/noldor-gate`".
 - **Source:** [`src/hooks/noldor-pre-edit-guard.ts`](../../src/hooks/noldor-pre-edit-guard.ts)
+
+### `hook:noldor:open-artifact`
+
+- **Trigger:** wired as a Claude Code **PostToolUse** hook on `Write` in `.claude/settings.json` (`pnpm --silent noldor hooks open-artifact`), not a git hook. `Write` only, never `Edit`: an artifact is *created* by the strawman `Write` and *refined* by `Edit` for the rest of the design dialogue, so the tool boundary is a free stateless dedupe — one tab per artifact rather than a focus-steal on every recorded decision.
+- **Inputs:** PostToolUse JSON payload on stdin (`tool_input.file_path` / `notebook_path` / `path`, plus `cwd`), read through the same exported `filePathFromPayload` the pre-edit guard uses. `payload.cwd` rides the *soft* workspace-root rung, so a `cwd` that is not a real directory falls through the ladder instead of suppressing the report; `NOLDOR_WORKSPACE_ROOT` is the named rung.
+- **Outputs:** for a design artifact, one JSON line carrying `hookSpecificOutput.additionalContext` with a ready-to-paste markdown link — a `PostToolUse` hook's plain stdout is transcript-only, so this field is the only way the path reaches the model, and handing over a finished link is what stops agents deriving one. Emitted even when the editor could not launch (the path is the deliverable), with the warning appended; nothing at all for a non-artifact, which is every `Write` to a source file. **Always exits 0** — TTY stdin, malformed stdin, absent `file_path`, failing or throwing launcher included. A hook that can fail is a hook that can wedge a gate step for a cosmetic convenience.
+- **When to use:** never by hand — `pnpm noldor hooks open-artifact` with no payload reads a TTY stdin and exits 0 having done nothing. It is the Claude wiring for `design:open`; codex and opencode reach the same unit through that command's prose instead.
+- **Source:** [`src/hooks/noldor-open-artifact.ts`](../../src/hooks/noldor-open-artifact.ts)
 
 ## Sync (FD link populators)
 

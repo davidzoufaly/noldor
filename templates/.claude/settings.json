@@ -21,6 +21,17 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm --silent noldor hooks open-artifact"
+          }
+        ]
+      }
     ]
   }
 }

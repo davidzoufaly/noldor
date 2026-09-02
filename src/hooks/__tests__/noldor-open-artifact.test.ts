@@ -1,0 +1,126 @@
+// @tests: auto-open-design-artifacts
+import { execSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+import { WORKSPACE_ROOT_ENV } from '../../design/open-artifact.js';
+import type { OpenResult } from '../../design/pen-bridge-cli.js';
+import { openArtifactForPayload } from '../noldor-open-artifact.js';
+
+const ok = (): OpenResult => ({ ok: true });
+const fails = (): OpenResult => ({ ok: false, error: 'code: command not found' });
+
+function setupRepo(): { root: string; spec: string } {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'qoah-')));
+  execSync('git init -q', { cwd: root });
+  execSync('git config user.email t@t.t', { cwd: root });
+  execSync('git config user.name t', { cwd: root });
+  mkdirSync(join(root, 'docs', 'design', 'specs'), { recursive: true });
+  mkdirSync(join(root, 'src'), { recursive: true });
+  const spec = join(root, 'docs', 'design', 'specs', '2026-01-01-x-design.md');
+  writeFileSync(spec, '# X\n');
+  writeFileSync(join(root, 'src', 'a.ts'), 'x\n');
+  execSync('git add -A', { cwd: root });
+  execSync('git commit -qm init', { cwd: root });
+  return { root, spec };
+}
+
+/** The context string an agent would actually receive, or `''`. */
+function contextFor(
+  payload: unknown,
+  env: Record<string, string | undefined> = {},
+  launch = ok,
+): string {
+  const out = openArtifactForPayload(payload as never, env, launch);
+  return out?.hookSpecificOutput.additionalContext ?? '';
+}
+
+describe('hooks open-artifact', () => {
+  it('hands the agent a ready-made markdown link for a new spec', () => {
+    const { root, spec } = setupRepo();
+    const ctx = contextFor({ cwd: root, tool_input: { file_path: spec } });
+    expect(ctx).toContain('[2026-01-01-x-design.md](docs/design/specs/2026-01-01-x-design.md)');
+  });
+
+  it('resolves the link against payload.cwd, not the artifact checkout', () => {
+    const { root } = setupRepo();
+    const tree = join(root, '.worktrees', 'wt');
+    execSync(`git worktree add -q -b feat/wt ${tree}`, { cwd: root });
+    const treeSpec = join(tree, 'docs', 'design', 'specs', '2026-01-01-x-design.md');
+    // The common Claude case: the editor has the MAIN checkout open while the
+    // gate session writes into the worktree beneath it.
+    expect(contextFor({ cwd: root, tool_input: { file_path: treeSpec } })).toContain(
+      '(.worktrees/wt/docs/design/specs/2026-01-01-x-design.md)',
+    );
+    // The inverse layout: the operator opened the worktree as its own window.
+    expect(contextFor({ cwd: tree, tool_input: { file_path: treeSpec } })).toContain(
+      '(docs/design/specs/2026-01-01-x-design.md)',
+    );
+  });
+
+  // A `payload.cwd` that is not a directory must fall through the ladder, not
+  // come back `bad-workspace-root` — routing the inferred value through the hard
+  // field would report no path at all.
+  it('still reports a path when payload.cwd is not a real directory', () => {
+    const { root, spec } = setupRepo();
+    const ctx = contextFor({ cwd: join(root, 'gone'), tool_input: { file_path: spec } });
+    expect(ctx).toContain('(docs/design/specs/2026-01-01-x-design.md)');
+  });
+
+  it('honours the workspace-root env var as the named root', () => {
+    const { root } = setupRepo();
+    const tree = join(root, '.worktrees', 'wt');
+    execSync(`git worktree add -q -b feat/wt ${tree}`, { cwd: root });
+    const treeSpec = join(tree, 'docs', 'design', 'specs', '2026-01-01-x-design.md');
+    const ctx = contextFor(
+      { cwd: tree, tool_input: { file_path: treeSpec } },
+      {
+        [WORKSPACE_ROOT_ENV]: root,
+      },
+    );
+    expect(ctx).toContain('(.worktrees/wt/docs/design/specs/2026-01-01-x-design.md)');
+  });
+
+  it('reports the path AND says no tab opened when the editor is missing', () => {
+    const { root, spec } = setupRepo();
+    const ctx = contextFor({ cwd: root, tool_input: { file_path: spec } }, {}, fails);
+    expect(ctx).toContain('(docs/design/specs/2026-01-01-x-design.md)');
+    expect(ctx).toContain('No editor tab opened');
+  });
+
+  it.each([
+    [
+      'a source file',
+      (root: string, _s: string) => ({
+        cwd: root,
+        tool_input: { file_path: join(root, 'src/a.ts') },
+      }),
+    ],
+    ['an absent file_path', (root: string) => ({ cwd: root, tool_input: {} })],
+    ['an absent tool_input', (root: string) => ({ cwd: root })],
+    ['an empty payload', () => ({})],
+  ])('emits nothing for %s', (_label, build) => {
+    const { root, spec } = setupRepo();
+    expect(openArtifactForPayload(build(root, spec) as never, {}, ok)).toBeUndefined();
+  });
+
+  it('absorbs a throwing launcher into the report instead of propagating it', () => {
+    const { root, spec } = setupRepo();
+    const boom = (): OpenResult => {
+      throw new Error('spawn exploded');
+    };
+    const ctx = contextFor({ cwd: root, tool_input: { file_path: spec } }, {}, boom);
+    // The path is still reported — the deliverable survives a dead editor.
+    expect(ctx).toContain('(docs/design/specs/2026-01-01-x-design.md)');
+    expect(ctx).toContain('No editor tab opened');
+    expect(ctx).toContain('spawn exploded');
+  });
+
+  it('names the PostToolUse event so the runner feeds the text to the model', () => {
+    const { root, spec } = setupRepo();
+    const out = openArtifactForPayload({ cwd: root, tool_input: { file_path: spec } }, {}, ok);
+    expect(out?.hookSpecificOutput.hookEventName).toBe('PostToolUse');
+  });
+});
