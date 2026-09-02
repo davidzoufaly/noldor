@@ -7,7 +7,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { lstatSync, realpathSync, statSync } from 'node:fs';
-import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
 import { toPosixRelative } from '../core/repo-paths.js';
@@ -109,19 +109,38 @@ function canonical(path: string): string {
   }
 }
 
+/** Purely lexical containment — the relationship the editor itself sees. */
+function under(parent: string, child: string): boolean {
+  const rel = relative(parent, child);
+  return rel.length > 0 && !rel.startsWith('..') && !isAbsolute(rel);
+}
+
 /**
- * True when `child` lives beneath `parent`, comparing CANONICAL paths.
+ * Canonicalize a path's DIRECTORY while keeping its leaf lexical.
  *
- * Canonicalizing both sides is required, not tidy: a root may arrive as a
- * realpath (`git rev-parse --show-toplevel` always returns one) while the
- * artifact path stays lexical, and mixing the two makes a symlinked checkout
- * look outside its own workspace. Left lexical, this returned false for a repo
- * reached through a symlink and `relative` then produced a `../<symlink>/…` hop
- * out of the very workspace the link is supposed to resolve against.
+ * Never `realpath` the leaf: an artifact may itself be a symlink to a file
+ * elsewhere — a shape `classify` explicitly supports — and canonicalizing it
+ * hands the operator a link to the symlink's TARGET while the editor opens the
+ * symlink. That mismatch is worse than the one it would fix.
+ */
+function canonicalDir(path: string): string {
+  return join(canonical(dirname(path)), basename(path));
+}
+
+/**
+ * True when `child` lives beneath `parent`, lexically or after canonicalizing.
+ *
+ * Lexical comes FIRST because it is what the editor resolves: VS Code joins its
+ * workspace folder to the link text, so a root that lexically holds the artifact
+ * is the correct answer even when a symlink sits in the middle of the path (a
+ * `repo` symlink nested under a broader workspace folder). The canonical pass is
+ * only a bridge for the mismatched case — a realpath root (`--show-toplevel`
+ * always returns one) against a lexical artifact path — which left unbridged made
+ * a symlinked checkout look outside its own workspace and produced a
+ * `../<symlink>/…` hop out of it.
  */
 function contains(parent: string, child: string): boolean {
-  const rel = relative(canonical(parent), canonical(child));
-  return rel.length > 0 && !rel.startsWith('..') && !isAbsolute(rel);
+  return under(parent, child) || under(canonical(parent), canonicalDir(child));
 }
 
 /**
@@ -230,6 +249,17 @@ export function resolveArtifact(req: ResolveArtifactRequest): ResolveArtifactRes
   if (req.path === undefined || req.path.trim().length === 0) {
     return { kind: 'rejected', reason: 'no-path', message: 'no file path given' };
   }
+  const git = req.git ?? probeGit;
+  const absPath = resolve(req.cwd, req.path);
+
+  const verdict = classify(absPath, git);
+  if (!verdict.ok) return { kind: 'rejected', reason: verdict.reason, message: verdict.message };
+
+  // Named-root validation comes AFTER the predicate, deliberately. Checked
+  // eagerly, a stale `NOLDOR_WORKSPACE_ROOT` rejects every path — and the hook
+  // reports that rejection, so the misconfiguration notice would land in the
+  // model's context on every `Write` to any file. A bad root only matters once
+  // there is an artifact whose path it would have been used to report.
   if (req.workspaceRoot !== undefined && existingDir(req.workspaceRoot) === undefined) {
     return {
       kind: 'rejected',
@@ -238,19 +268,17 @@ export function resolveArtifact(req: ResolveArtifactRequest): ResolveArtifactRes
     };
   }
 
-  const git = req.git ?? probeGit;
-  const absPath = resolve(req.cwd, req.path);
-
-  const verdict = classify(absPath, git);
-  if (!verdict.ok) return { kind: 'rejected', reason: verdict.reason, message: verdict.message };
-
   const { root, warning } = resolveRoot(absPath, req, verdict.toplevel);
-  // Canonical on both sides, matching `contains`: a realpath root against a
-  // lexical artifact path yields a `../` hop out of the workspace. `absPath`
-  // stays lexical for the launch — VS Code opens either form.
+  // Mirrors `contains`, and for the same reason: the lexical relationship is the
+  // one the editor resolves, so it wins whenever it exists. Only when it does not
+  // is the canonical bridge used, and even then the leaf stays lexical
+  // (`canonicalDir`) so a symlinked artifact links to itself rather than to its
+  // target. `absPath` is always lexical — VS Code opens either form.
   // POSIX separators because the value is a markdown link target, not a shell
   // argument; `toPosixRelative` is the repo's one implementation of that.
-  const linkPath = toPosixRelative(canonical(root), canonical(absPath));
+  const linkPath = under(root, absPath)
+    ? toPosixRelative(root, absPath)
+    : toPosixRelative(canonical(root), canonicalDir(absPath));
   return warning === undefined
     ? { kind: 'artifact', absPath, linkPath }
     : { kind: 'artifact', absPath, linkPath, warning };

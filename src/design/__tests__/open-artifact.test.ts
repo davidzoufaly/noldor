@@ -127,6 +127,36 @@ describe('resolveArtifact — the artifact predicate', () => {
     expect(r.kind === 'artifact' && r.warning).toBeUndefined();
   });
 
+  // The over-correction the first symlink fix introduced: canonicalizing the
+  // whole path resolved the LEAF too, so an artifact that is itself a symlink was
+  // reported as its target — the editor opened one file and the operator got a
+  // link to another.
+  it('links a symlinked artifact to itself, not to its target', () => {
+    const { root } = setupRepo();
+    mkdirSync(join(root, 'shared'), { recursive: true });
+    writeFileSync(join(root, 'shared', 'real-design.md'), '# real\n');
+    const artifact = join(root, 'docs', 'design', 'specs', '2026-01-02-y-design.md');
+    symlinkSync(join(root, 'shared', 'real-design.md'), artifact);
+    const r = resolveArtifact({ path: artifact, cwd: root });
+    expect(r.kind === 'artifact' && r.linkPath).toBe('docs/design/specs/2026-01-02-y-design.md');
+  });
+
+  // The second over-correction: canonical-ONLY containment discarded a workspace
+  // root that lexically holds the artifact through a symlink nested under it —
+  // and lexical is what the editor actually resolves.
+  it('keeps a workspace root that holds the artifact through a nested symlink', () => {
+    const { root, spec } = setupRepo();
+    const workspace = tempDir('qoa-ws-');
+    // `workspace/repo` -> the repo, which lives outside `workspace`.
+    symlinkSync(root, join(workspace, 'repo'));
+    const viaWorkspace = spec.replace(root, join(workspace, 'repo'));
+    const r = resolveArtifact({ path: viaWorkspace, cwd: workspace, workspaceRoot: workspace });
+    expect(r.kind === 'artifact' && r.linkPath).toBe(
+      'repo/docs/design/specs/2026-01-01-x-design.md',
+    );
+    if (r.kind === 'artifact') expect(r.warning).toBeUndefined();
+  });
+
   it('probes git exactly once for a successful resolution', () => {
     const { root, spec } = setupRepo();
     const calls: string[][] = [];

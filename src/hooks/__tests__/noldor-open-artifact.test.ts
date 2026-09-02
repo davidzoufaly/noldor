@@ -135,6 +135,31 @@ describe('hooks open-artifact', () => {
     expect(ctx).toContain('spawn exploded');
   });
 
+  // A stale env var used to be validated before the artifact predicate ran, so
+  // the misconfiguration notice landed in the model's context on EVERY `Write`,
+  // artifact or not. It must stay silent for a non-artifact.
+  it('stays silent about a stale workspace-root env var on a non-artifact write', () => {
+    const { root } = setupRepo();
+    const out = openArtifactForPayload(
+      { cwd: root, tool_input: { file_path: join(root, 'src', 'a.ts') } },
+      { [WORKSPACE_ROOT_ENV]: join(root, 'nope-gone') },
+      ok,
+    );
+    expect(out).toBeUndefined();
+  });
+
+  it('reports a stale workspace-root env var when there IS an artifact to report', () => {
+    const { root, spec } = setupRepo();
+    const ctx = contextFor(
+      { cwd: root, tool_input: { file_path: spec } },
+      {
+        [WORKSPACE_ROOT_ENV]: join(root, 'nope-gone'),
+      },
+    );
+    expect(ctx).toContain(WORKSPACE_ROOT_ENV);
+    expect(ctx).toContain('misconfigured');
+  });
+
   it('names the PostToolUse event so the runner feeds the text to the model', () => {
     const { root, spec } = setupRepo();
     const out = openArtifactForPayload({ cwd: root, tool_input: { file_path: spec } }, {}, ok);
