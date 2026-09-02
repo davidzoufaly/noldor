@@ -107,11 +107,19 @@ the pen.dev desktop app and returns the existing `OpenResult`. It runs
 `EDITOR_TIMEOUT_MS`, resolving the app by **bundle id** rather than a
 `/Applications` path so a relocated or user-installed copy still resolves.
 
-Success is judged the way `openInBackground` already judges it: `open` exits 0
-even when it cannot find the application, printing to stderr, so a zero exit with
-empty stderr is the only success and everything else is a failure. That rule is
-already documented in this file; the new function reuses it rather than restating
-it.
+Success is judged by the same disjunction `openInBackground` already applies — a
+non-zero exit **or** any stderr is a failure, and only a zero exit with empty
+stderr passes — but not for the reason that function gives. Its comment describes
+`open -a`, where an unresolvable application was observed to exit 0. `open -b`
+does not behave that way: an unregistered bundle id exits **1** and prints
+`LSCopyApplicationURLsForBundleIdentifier() failed while trying to determine the
+application with bundle identifier <id>.` (measured, 2026-09-02). The stderr limb
+of the rule is therefore belt-and-braces here rather than the load-bearing half.
+
+That exit-1-plus-that-message is also the concrete mechanism D4 asks for. "Not
+installed" is not an inference from a separate probe: it is this exact failure,
+distinguishable from every other launch failure by the `LSCopyApplicationURLs`
+marker in stderr, and it is what unit 4's bundle-resolution row reports on.
 
 `-g` keeps the launch from stealing focus, matching the posture PR #417
 established for `.md` artifacts.
