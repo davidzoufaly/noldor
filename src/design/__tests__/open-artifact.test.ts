@@ -1,9 +1,9 @@
 // @tests: auto-open-design-artifacts
 import { execSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import type { OpenResult } from '../pen-bridge-cli.js';
 import {
@@ -12,6 +12,23 @@ import {
   resolveArtifact,
   type GitProbe,
 } from '../open-artifact.js';
+
+/**
+ * Every temp path this file creates, removed in `afterAll`. Temp directories are
+ * named by the deterministic-cleanup rule as one of the shapes that leak, and a
+ * `git worktree`-bearing fixture leaves more than an empty dir behind.
+ */
+const tracked: string[] = [];
+afterAll(() => {
+  for (const p of tracked) rmSync(p, { recursive: true, force: true });
+});
+
+/** `mkdtemp` that registers itself for cleanup. */
+function tempDir(prefix: string): string {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
+  tracked.push(dir);
+  return dir;
+}
 
 /**
  * A real repo with a real spec. Real git, not a stubbed probe: the whole point of
@@ -23,7 +40,7 @@ import {
  * symlink case gets its own test below rather than contaminating every row.
  */
 function setupRepo(): { root: string; spec: string } {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'qoa-')));
+  const root = tempDir('qoa-');
   execSync('git init -q', { cwd: root });
   execSync('git config user.email t@t.t', { cwd: root });
   execSync('git config user.name t', { cwd: root });
@@ -78,11 +95,50 @@ describe('resolveArtifact — the artifact predicate', () => {
     const { root, spec } = setupRepo();
     const link = `${root}-link`;
     symlinkSync(root, link);
+    tracked.push(link);
     const viaLink = spec.replace(root, link);
     const r = resolveArtifact({ path: viaLink, cwd: link });
     expect(r.kind).toBe('artifact');
     // The lexical path survives into the report: it is what the editor opens.
     if (r.kind === 'artifact') expect(r.absPath).toBe(viaLink);
+  });
+
+  // Accepting the symlink case is not enough — the FIRST version accepted it and
+  // still emitted `../<symlink>/docs/…`, a hop out of the very workspace the link
+  // must resolve against, because the root was canonical and the path lexical.
+  it('does not escape the workspace with ../ for a symlinked repo path', () => {
+    const { root, spec } = setupRepo();
+    const link = `${root}-link`;
+    symlinkSync(root, link);
+    tracked.push(link);
+    const r = resolveArtifact({ path: spec.replace(root, link), cwd: link });
+    expect(r.kind === 'artifact' && r.linkPath).toBe('docs/design/specs/2026-01-01-x-design.md');
+    if (r.kind === 'artifact') expect(r.linkPath.startsWith('..')).toBe(false);
+  });
+
+  it('raises no bogus discard warning when the named root is the realpath twin', () => {
+    const { root, spec } = setupRepo();
+    const link = `${root}-link`;
+    symlinkSync(root, link);
+    tracked.push(link);
+    // Named root = the realpath, artifact reached via the symlink: the same
+    // mismatch used to report "does not contain" for a path plainly inside it.
+    const r = resolveArtifact({ path: spec.replace(root, link), cwd: link, workspaceRoot: root });
+    expect(r.kind === 'artifact' && r.warning).toBeUndefined();
+  });
+
+  it('probes git exactly once for a successful resolution', () => {
+    const { root, spec } = setupRepo();
+    const calls: string[][] = [];
+    const counting: GitProbe = (args, cwd) => {
+      calls.push([...args]);
+      return execSync(`git ${args.join(' ')}`, { cwd, encoding: 'utf8' }).trim();
+    };
+    const r = resolveArtifact({ path: spec, cwd: root, git: counting });
+    expect(r.kind).toBe('artifact');
+    // classify owns the one probe and hands its result to the ladder; an earlier
+    // version re-ran the identical command twice more.
+    expect(calls).toEqual([['rev-parse', '--show-toplevel']]);
   });
 
   it.each([
@@ -129,7 +185,7 @@ describe('resolveArtifact — the artifact predicate', () => {
   });
 
   it('rejects an unrelated tree whose dirs merely end in the same segments', () => {
-    const outside = mkdtempSync(join(tmpdir(), 'qoa-bare-'));
+    const outside = tempDir('qoa-bare-');
     const specs = join(outside, 'docs', 'design', 'specs');
     mkdirSync(specs, { recursive: true });
     const path = join(specs, 'x-design.md');
@@ -200,7 +256,7 @@ describe('resolveArtifact — the workspace-root ladder', () => {
 
   it('warns but still prints when a well-formed named root does not contain the artifact', () => {
     const { root, spec } = setupRepo();
-    const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'qoa-other-')));
+    const elsewhere = tempDir('qoa-other-');
     const r = resolveArtifact({ path: spec, cwd: root, workspaceRoot: elsewhere });
     expect(r.kind).toBe('artifact');
     if (r.kind === 'artifact') {

@@ -1,19 +1,36 @@
 // @tests: auto-open-design-artifacts
 import { execSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import { WORKSPACE_ROOT_ENV } from '../../design/open-artifact.js';
 import type { OpenResult } from '../../design/pen-bridge-cli.js';
 import { openArtifactForPayload } from '../noldor-open-artifact.js';
 
+/**
+ * Every temp path this file creates, removed in `afterAll`. Temp directories are
+ * named by the deterministic-cleanup rule as one of the shapes that leak, and a
+ * `git worktree`-bearing fixture leaves more than an empty dir behind.
+ */
+const tracked: string[] = [];
+afterAll(() => {
+  for (const p of tracked) rmSync(p, { recursive: true, force: true });
+});
+
+/** `mkdtemp` that registers itself for cleanup. */
+function tempDir(prefix: string): string {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
+  tracked.push(dir);
+  return dir;
+}
+
 const ok = (): OpenResult => ({ ok: true });
 const fails = (): OpenResult => ({ ok: false, error: 'code: command not found' });
 
 function setupRepo(): { root: string; spec: string } {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'qoah-')));
+  const root = tempDir('qoah-');
   execSync('git init -q', { cwd: root });
   execSync('git config user.email t@t.t', { cwd: root });
   execSync('git config user.name t', { cwd: root });

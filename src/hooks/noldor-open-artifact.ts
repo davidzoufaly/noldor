@@ -67,7 +67,22 @@ export function openArtifactForPayload(
     workspaceRoot: env[WORKSPACE_ROOT_ENV],
     hintRoot: payload.cwd,
   });
-  if (resolved.kind === 'rejected') return undefined;
+  if (resolved.kind === 'rejected') {
+    // A bad NAMED root is the one rejection worth reporting. It can only come
+    // from a stale WORKSPACE_ROOT_ENV — the operator's own misconfiguration —
+    // and staying silent there makes the feature look like it simply stopped
+    // working: no link, no reason, nothing to fix. Every other rejection is
+    // ordinary (a `Write` to a source file takes `not-an-artifact` on every
+    // single edit), so reporting those would be noise on every tool call.
+    return resolved.reason === 'bad-workspace-root'
+      ? {
+          hookSpecificOutput: {
+            hookEventName: 'PostToolUse',
+            additionalContext: `Design-artifact auto-open is misconfigured: ${resolved.message}. Unset or correct ${WORKSPACE_ROOT_ENV}; tell the operator, since no artifact link can be reported until it is fixed.`,
+          },
+        }
+      : undefined;
+  }
 
   // Launch BEFORE emitting, inverting the CLI's order deliberately: a hook's
   // stdout is read only after the process exits, so printing first buys nothing
@@ -110,5 +125,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     // their own failures. Kept because the exit-0 contract must hold even if a
     // future edit breaks that, and a thrown hook is a wedged gate step.
   }
-  process.exit(0);
+  // `process.exitCode`, never `process.exit(0)`. When stdout is a pipe — which is
+  // exactly how a hook is run — a write is asynchronous, and `process.exit` tears
+  // the process down without waiting for the buffer to drain. That would
+  // intermittently swallow the `additionalContext` JSON, i.e. the feature's whole
+  // output. Setting the code lets Node exit naturally once stdout has flushed,
+  // and 0 is what the exit-0-always contract requires anyway.
+  process.exitCode = 0;
 }

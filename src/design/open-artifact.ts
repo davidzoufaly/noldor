@@ -7,9 +7,10 @@
 
 import { execFileSync } from 'node:child_process';
 import { lstatSync, realpathSync, statSync } from 'node:fs';
-import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
+import { toPosixRelative } from '../core/repo-paths.js';
 
 import { openInEditor, type OpenResult } from './pen-bridge-cli.js';
 
@@ -108,9 +109,18 @@ function canonical(path: string): string {
   }
 }
 
-/** True when `child` is `parent` or lives beneath it. Lexical, not `realpath`. */
+/**
+ * True when `child` lives beneath `parent`, comparing CANONICAL paths.
+ *
+ * Canonicalizing both sides is required, not tidy: a root may arrive as a
+ * realpath (`git rev-parse --show-toplevel` always returns one) while the
+ * artifact path stays lexical, and mixing the two makes a symlinked checkout
+ * look outside its own workspace. Left lexical, this returned false for a repo
+ * reached through a symlink and `relative` then produced a `../<symlink>/…` hop
+ * out of the very workspace the link is supposed to resolve against.
+ */
 function contains(parent: string, child: string): boolean {
-  const rel = relative(parent, child);
+  const rel = relative(canonical(parent), canonical(child));
   return rel.length > 0 && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
@@ -130,7 +140,7 @@ function contains(parent: string, child: string): boolean {
 function classify(
   absPath: string,
   git: GitProbe,
-): { ok: true } | { ok: false; reason: RejectReason; message: string } {
+): { ok: true; toplevel: string } | { ok: false; reason: RejectReason; message: string } {
   let stat;
   try {
     stat = lstatSync(absPath);
@@ -146,8 +156,10 @@ function classify(
   }
 
   const parent = dirname(absPath);
-  // Mandatory, unlike the ladder's probe below: without a checkout root there is
-  // no doc root to compare against, so this cannot degrade to a guess.
+  // The ONE git probe. Mandatory, unlike the ladder's rungs: without a checkout
+  // root there is no doc root to compare against, so this cannot degrade to a
+  // guess. The resolved value is returned rather than re-probed by the caller —
+  // repeating it broke the documented single-probe latency bound.
   const toplevel = git(['rev-parse', '--show-toplevel'], parent);
   if (toplevel === undefined) {
     return { ok: false, reason: 'no-repo', message: `not inside a git repository: ${absPath}` };
@@ -157,7 +169,7 @@ function classify(
   const parentReal = canonical(parent);
   const isArtifactDir = [roots.specs, roots.plans].some((r) => canonical(r) === parentReal);
   return isArtifactDir
-    ? { ok: true }
+    ? { ok: true, toplevel }
     : {
         ok: false,
         reason: 'not-an-artifact',
@@ -173,33 +185,37 @@ function classify(
  * which every containment check accepts and every printed path is then wrong
  * against).
  *
+ * @param absPath - The resolved artifact path.
+ * @param req - The caller's request, read for the two supplied rungs.
+ * @param checkout - The artifact's own checkout root, already probed by
+ *   {@link classify}. Passed in rather than re-derived: this is rung 3, and a
+ *   second probe would buy nothing but latency inside a hook.
  * @returns the root to print against, plus a warning when a NAMED root was
  *   discarded for not containing the artifact.
  */
 function resolveRoot(
   absPath: string,
   req: ResolveArtifactRequest,
-  git: GitProbe,
-  checkout: string | undefined,
+  checkout: string,
 ): { root: string; warning?: string } {
   const named = existingDir(req.workspaceRoot);
   if (named !== undefined && contains(named, absPath)) return { root: named };
 
-  const fallback =
-    existingDir(req.hintRoot) !== undefined && contains(req.hintRoot as string, absPath)
-      ? (req.hintRoot as string)
-      : (checkout ??
-        existingDir(git(['rev-parse', '--show-toplevel'], dirname(absPath))) ??
-        req.cwd);
+  const hint = existingDir(req.hintRoot);
+  const fallback = hint !== undefined && contains(hint, absPath) ? hint : checkout;
 
   // A named root that is well-formed but cannot express this path gets both: the
   // path still falls back, and the discard is reported. Refusing to print
   // anything would withhold the deliverable over a recoverable mistake.
+  //
+  // "workspace root", not "--workspace-root": the same named value also arrives
+  // from NOLDOR_WORKSPACE_ROOT, and naming the flag tells an operator with a
+  // stale env var to fix something they never typed.
   return named === undefined
     ? { root: fallback }
     : {
         root: fallback,
-        warning: `--workspace-root ${named} does not contain ${absPath} — printed relative to ${fallback}`,
+        warning: `workspace root ${named} does not contain ${absPath} — printed relative to ${fallback}`,
       };
 }
 
@@ -228,10 +244,13 @@ export function resolveArtifact(req: ResolveArtifactRequest): ResolveArtifactRes
   const verdict = classify(absPath, git);
   if (!verdict.ok) return { kind: 'rejected', reason: verdict.reason, message: verdict.message };
 
-  const checkout = git(['rev-parse', '--show-toplevel'], dirname(absPath));
-  const { root, warning } = resolveRoot(absPath, req, git, checkout);
-  // POSIX separators: the value is a markdown link target, not a shell argument.
-  const linkPath = relative(root, absPath).split(sep).join('/');
+  const { root, warning } = resolveRoot(absPath, req, verdict.toplevel);
+  // Canonical on both sides, matching `contains`: a realpath root against a
+  // lexical artifact path yields a `../` hop out of the workspace. `absPath`
+  // stays lexical for the launch — VS Code opens either form.
+  // POSIX separators because the value is a markdown link target, not a shell
+  // argument; `toPosixRelative` is the repo's one implementation of that.
+  const linkPath = toPosixRelative(canonical(root), canonical(absPath));
   return warning === undefined
     ? { kind: 'artifact', absPath, linkPath }
     : { kind: 'artifact', absPath, linkPath, warning };
