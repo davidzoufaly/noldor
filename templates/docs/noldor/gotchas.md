@@ -26,6 +26,21 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   full-tree glob — no manifest edit needed) and it becomes a synced twin. If you
   link a new page from the templated `README.md` index, give it a template twin
   too or consumer scaffolds get a broken link.
+- **A half-commented mermaid fence makes a whole markdown file scan as empty —
+  green, with no diagnostic.** A flowchart edge *is* an HTML comment terminator:
+  `<!--` … ` ```mermaid ` … `a --> b` … ` ``` ` … `-->` closes at the **arrow**,
+  not at the trailing `-->`. So the fence's *opening* delimiter is blanked (it
+  sat inside the comment) while its *closing* one survives and reads as an
+  opener, and every heading to EOF disappears — `locateSection('## Usage')`
+  returns `null` and the file's tags scan as `[]`. `markdown-section-scan.ts`
+  answers this by requiring a hidden fence to be **born and die inside one
+  comment**, so when you comment out a diagram put both fence delimiters inside
+  the same `<!-- -->` pair rather than wrapping only the prose around it. The
+  same constraint is why a scanner that blanks comments must interleave comment
+  state with fence state in ONE pass and keep the CommonMark fence grammar in
+  exactly one place: three consecutive attempts on the `fd-diagram` detector
+  (Q-0185) each shipped a distinct hole, and two copies of the grammar in one
+  file had already drifted on a rejected backtick opener.
 
 ## CR sinks
 

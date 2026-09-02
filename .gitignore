@@ -27,6 +27,7 @@ docs/ideas.md
 .noldor/drain-stop
 .noldor/drain.pause
 .noldor/drain-*.log
+.noldor/*-drain.log
 .noldor/escalations.jsonl
 .noldor/drain-park.json
 .noldor/watch-state.json
