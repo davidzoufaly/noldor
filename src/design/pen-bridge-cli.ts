@@ -44,10 +44,23 @@ export interface OpenResult {
   error?: string;
 }
 
-/** Launch the VS Code CLI on `path`. Failure is expected (no `code` on PATH). */
+/**
+ * Deadline on the `code` spawn, enforced by `execFileSync` so the kernel does the
+ * interrupting. It lives here rather than at the call site because this is the
+ * only place a subprocess is actually started — a caller cannot interrupt a
+ * synchronous callback, so a timeout promised anywhere else would be a lie. An
+ * untimed spawn inside a PostToolUse hook is a hang, and a hang reads to the
+ * operator as a broken tool.
+ */
+export const EDITOR_TIMEOUT_MS = 5_000;
+
+/**
+ * Launch the VS Code CLI on `path`. Failure is expected (no `code` on PATH), and
+ * an expired {@link EDITOR_TIMEOUT_MS} arrives here as one more failed launch.
+ */
 export function openInEditor(path: string, cwd: string): OpenResult {
   try {
-    execFileSync('code', [path], { cwd, stdio: 'pipe' });
+    execFileSync('code', [path], { cwd, stdio: 'pipe', timeout: EDITOR_TIMEOUT_MS });
     return { ok: true };
   } catch (err) {
     const stderr = (err as { stderr?: Buffer | string }).stderr?.toString() ?? String(err);

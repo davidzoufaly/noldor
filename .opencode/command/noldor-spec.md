@@ -16,6 +16,13 @@ feature doc at `docs/features/<slug>.md` when one exists, then:
    recommendation.
 4. Walk the sections in order: bring each to one or two paragraphs, ask, then
    `pnpm noldor design log --slug <slug> --confirm-section "<heading>"` on the yes.
-5. Stop after the spec — the gate owns review (`pnpm noldor cr orchestrate --kind spec`).
+5. Report the spec with `pnpm noldor design open <path>` — it opens the file in a VS Code
+   tab and prints a ready-made `link:` line. Report that line verbatim; never build the
+   link yourself. A markdown link resolves against the editor's workspace folder while the
+   artifact's repo-relative path is relative to this session's checkout, and every
+   `specs-only-*` / `full-*` session runs inside `.worktrees/<slug>/` — so a hand-built
+   link works on `main` and silently does nothing from a worktree. Set
+   `NOLDOR_WORKSPACE_ROOT` when the editor's folder is not this session's cwd.
+6. Stop after the spec — the gate owns review (`pnpm noldor cr orchestrate --kind spec`).
 
 Commit messages need a `Noldor-FD: <slug>` trailer.

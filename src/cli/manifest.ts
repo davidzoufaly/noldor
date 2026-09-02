@@ -87,6 +87,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'design/pen-bridge-cli.ts',
         desc: 'Open a .pen in the default editor so pencil MCP answers (bridge wake)',
       },
+      open: {
+        src: 'design/open-artifact-cli.ts',
+        desc: "Open a spec/plan in VS Code and print the path that resolves from the editor's workspace",
+      },
       verdict: {
         src: 'design/design-approval-cli.ts',
         desc: "Write a design's approval/waiver record (--approve|--waive), blob-bound to the .pen",
@@ -310,6 +314,10 @@ export const MANIFEST: Record<string, Group> = {
       },
       'pre-push': { src: 'hooks/noldor-pre-push.ts', desc: 'Pre-push gate' },
       'pre-edit-guard': { src: 'hooks/noldor-pre-edit-guard.ts', desc: 'PreToolUse guard' },
+      'open-artifact': {
+        src: 'hooks/noldor-open-artifact.ts',
+        desc: 'PostToolUse(Write): open a new spec/plan in VS Code, hand the agent its link',
+      },
     },
   },
   checks: {
