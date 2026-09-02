@@ -22,7 +22,11 @@ import {
 import { computeDrift } from '../../templates/diff.js';
 import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
 import { REPAIR, checkInstallFreshness } from '../../checks/check-install-freshness.js';
-import { checkPenBridge, renderPenBridgeRow } from '../../checks/check-pen-bridge.js';
+import {
+  checkPenBridge,
+  penBridgeRowLevel,
+  renderPenBridgeRow,
+} from '../../checks/check-pen-bridge.js';
 import { loadUiConfig } from '../../core/consumer-config.js';
 import { evaluateUiDesignFreshness } from '../../release/ui-design-freshness.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
@@ -117,12 +121,7 @@ if (freshness.status !== 'ok' && freshness.status !== 'no-lockfile') {
 // reads as a clean bill of health for a question that was never answered, which
 // is the exact confusion this check exists to remove.
 for (const row of checkPenBridge(process.cwd())) {
-  const level =
-    row.kind === 'mcp-app-mismatch' || row.kind === 'app-missing'
-      ? 'warn'
-      : row.kind === 'mcp-app-ok' || row.kind === 'app-ok'
-        ? 'ok'
-        : 'unknown';
+  const level = { finding: 'warn', healthy: 'ok', undetermined: 'unknown' }[penBridgeRowLevel(row)];
   console.log(`${level.padEnd(12)} ${renderPenBridgeRow(row)}`);
 }
 

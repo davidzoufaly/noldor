@@ -237,13 +237,35 @@ export function checkPenBridge(
 }
 
 /**
- * Exit code for the standalone command. Only a mismatch or a missing app is a
- * real finding; indeterminate and not-applicable print without reddening, since
- * inventing a finding from an unfamiliar or absent config would be worse than
- * silence for a consumer on another harness.
+ * How serious a row is, as one exhaustive switch beside the taxonomy it grades.
+ *
+ * Both the exit code and doctor's prefix read this, so adding a `PenBridgeRow`
+ * kind is a compile error here rather than a silent `unknown` in one place and a
+ * silent 0 in the other. `finding` is the only level that reds anything.
+ */
+export function penBridgeRowLevel(row: PenBridgeRow): 'finding' | 'healthy' | 'undetermined' {
+  switch (row.kind) {
+    case 'mcp-app-mismatch':
+    case 'app-missing':
+      return 'finding';
+    case 'mcp-app-ok':
+    case 'app-ok':
+      return 'healthy';
+    case 'mcp-indeterminate':
+    case 'app-indeterminate':
+    case 'not-applicable':
+      return 'undetermined';
+  }
+}
+
+/**
+ * Exit code for the standalone command. Only a finding reds; undetermined and
+ * not-applicable rows print without changing it, since inventing a finding from
+ * an unfamiliar or absent config would be worse than silence for a consumer on
+ * another harness.
  */
 export function penBridgeExitCode(rows: readonly PenBridgeRow[]): number {
-  return rows.some((r) => r.kind === 'mcp-app-mismatch' || r.kind === 'app-missing') ? 1 : 0;
+  return rows.some((r) => penBridgeRowLevel(r) === 'finding') ? 1 : 0;
 }
 
 /** Operator-facing line per row, including the remedy where there is one. */

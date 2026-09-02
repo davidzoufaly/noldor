@@ -229,7 +229,9 @@ describe('trackedPenFiles', () => {
   });
 
   /** stdout captured across one `main` call, driving the real launcher. */
-  async function runMain(deps: Partial<PenLaunchDeps>): Promise<{ code: number; out: string }> {
+  // NOT Partial: the compiler, not the comment below, is what keeps a case from
+  // omitting `platform` or `run` and falling through to the real `spawnSync`.
+  async function runMain(deps: PenLaunchDeps): Promise<{ code: number; out: string }> {
     const lines: string[] = [];
     const log = console.log;
     console.log = (...a: unknown[]) => void lines.push(a.map(String).join(' '));
