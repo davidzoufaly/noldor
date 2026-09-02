@@ -45,27 +45,26 @@ UI-design step.
   path stays there; the one case that escapes — a document the app authors
   itself, which lands in `~/.pencil/documents/<uuid>/` — must be steered back
   into the repo by the bootstrap instruction rather than left to chance.
-- Give the `--app` mismatch a name. An operator whose MCP is pinned to the wrong
-  app should be told exactly that, with the edit to make, instead of inferring it
-  from a message about a closed editor.
+- Give the `--app` mismatch a name, and name the file that has to change.
+- Never report a wake that did not happen.
 - Leave the spec/plan `.md` open path exactly as it is.
 
 ## Non-goals
 
-- Writing the operator's MCP configuration. `~/.claude.json` is personal and
-  harness-owned; the framework reports and never edits it.
+- Writing the operator's MCP configuration. It is personal and harness-owned;
+  the framework reports and never edits it.
 - Supporting the `pencil://` URL scheme. The app registers one, but the file-arg
-  open works and its contract is documented by macOS; reverse-engineering a URL
-  shape buys nothing here.
+  open works and its contract is documented by macOS.
 - Cold-starting the app from an agent. Established this session: a GUI launch
-  from the Claude Code Bash tool fails silently whether or not the sandbox is on,
-  while the same command works from the operator's terminal. Handing a file to an
-  *already running* app does work from the tool shell, so that is the capability
-  the design rests on.
+  from the Claude Code Bash tool fails silently — `open` exits 0, stderr is
+  empty, no app appears — whether or not the sandbox is on, while the same
+  command works from the operator's terminal. Handing a file to an *already
+  running* app does work from the tool shell. This asymmetry is load-bearing and
+  unit 1 is designed around it.
+- A configurable `.pen` editor. After this change there is one route.
 - Authoring a `.pen` from Node. The format is encrypted and `execute` cannot
   create one at a path (Q-0187). Bootstrap stays a human step.
-- Removing the VS Code extension path for `.md` artifacts, or changing anything
-  in `src/design/open-artifact.ts`.
+- Changing anything in `src/design/open-artifact.ts`.
 
 ## Design
 
@@ -101,218 +100,314 @@ cannot see it. It was found by reading instead.
 
 ### Unit 1 — the pen-only launcher
 
-A new exported function in `src/design/pen-bridge-cli.ts` that opens a `.pen` in
-the pen.dev desktop app and returns the existing `OpenResult`. It runs
-`open -g -b dev.pencil.desktop <path>` via `spawnSync` under
-`EDITOR_TIMEOUT_MS`, resolving the app by **bundle id** rather than a
-`/Applications` path so a relocated or user-installed copy still resolves.
+```ts
+export type PenLaunch =
+  | { kind: 'dispatched' }
+  | { kind: 'not-installed'; error: string }
+  | { kind: 'failed'; error: string }
+  | { kind: 'unsupported-platform'; platform: string };
 
-Success is judged by the same disjunction `openInBackground` already applies — a
-non-zero exit **or** any stderr is a failure, and only a zero exit with empty
-stderr passes — but not for the reason that function gives. Its comment describes
-`open -a`, where an unresolvable application was observed to exit 0. `open -b`
-does not behave that way: an unregistered bundle id exits **1** and prints
-`LSCopyApplicationURLsForBundleIdentifier() failed while trying to determine the
-application with bundle identifier <id>.` (measured, 2026-09-02). The stderr limb
-of the rule is therefore belt-and-braces here rather than the load-bearing half.
+export interface PenLaunchDeps {
+  readonly platform: string;                       // defaults to process.platform
+  readonly run: (cmd: string, args: readonly string[], cwd: string)
+    => { status: number | null; stderr: string; error?: Error };
+}
 
-That exit-1-plus-that-message is also the concrete mechanism D4 asks for. "Not
-installed" is not an inference from a separate probe: it is this exact failure,
-distinguishable from every other launch failure by the `LSCopyApplicationURLs`
-marker in stderr, and it is what unit 4's bundle-resolution row reports on.
+export function openPenFile(
+  absPath: string,
+  cwd: string,
+  deps?: Partial<PenLaunchDeps>,
+): PenLaunch;
+```
 
-`-g` keeps the launch from stealing focus, matching the posture PR #417
-established for `.md` artifacts.
+Synchronous, in `src/design/pen-bridge-cli.ts`, beside the existing launcher.
+`absPath` must already be absolute — the CLI owns resolution (unit 2a) so that
+this function has one input contract and `open` is never handed a relative path
+whose meaning depends on the child's cwd. `deps` exists so tests drive every
+branch without spawning anything; the default `run` is `spawnSync` bounded by
+`EDITOR_TIMEOUT_MS`.
+
+Off `darwin` it returns `unsupported-platform` **without spawning** — there is no
+`open` and no bundle id, and the `code` fallback is gone from this path. The
+caller renders the resolved path and tells the operator to open it by hand.
+
+On `darwin` it runs `open -g -b dev.pencil.desktop <absPath>`. `-g` keeps the
+launch from stealing focus, matching PR #417's posture for `.md`.
+
+**The outcome is `dispatched`, never `opened`.** A cold start from a non-GUI
+context exits 0 with empty stderr and no app — measured this session — so a
+success claim here would be exactly the false wake the goals forbid. The name,
+and every message derived from it, says only that the file was handed to macOS.
+Whether a canvas actually came up is answerable only by pencil MCP, in-session,
+by retrying a call — which is what the recipe tells the reader to do.
+
+Failure is classified, not merely detected. Anything on stderr, or a non-zero
+exit, or a spawn error is a failure; among those, stderr containing
+`LSCopyApplicationURLsForBundleIdentifier` is `not-installed` and everything else
+is `failed`. That marker is the measured signature of an unregistered bundle id
+(`open -g -b <unknown> <file>` → exit 1 plus that message, 2026-09-02), and it is
+the whole mechanism behind the install-versus-launch distinction — there is no
+second probe.
 
 ### Unit 2 — the launcher seam stays split
 
 `openInEditor` is imported by `src/design/open-artifact.ts:16` and used by
 `launchArtifact` to open **spec and plan `.md`** files; its `classify` rejects
 any path not ending in `.md` (`open-artifact.ts:212`). The two callers are
-therefore disjoint by input but share one launcher today.
+disjoint by input but share one launcher today.
 
 They stop sharing it. `openPenFile` becomes the `.pen` route and `openInEditor`
-keeps the `code` route unchanged for `.md`. `appBundleFor` and the
-`openInBackground` helper stay where they are — they serve the `.md` path and are
-not VS-Code-specific in any way that this change touches. Nothing in
-`open-artifact.ts` is edited.
+keeps the `code` route unchanged for `.md`. `appBundleFor` and `openInBackground`
+stay where they are — they serve the `.md` path. Nothing in `open-artifact.ts` is
+edited.
 
-The distinction to hold on to: "rip VS Code out" is scoped to the `.pen` path.
-Applying it to the shared launcher would break three shipped PRs.
+"Rip VS Code out" is scoped to the `.pen` path. Applying it to the shared
+launcher would break three shipped PRs.
+
+**2a — the path contract.** `main()` already validates `--pen`: it must end in
+`.pen` and exist on disk (`pen-bridge-cli.ts:171-179`). That validation stays and
+gains one step — resolve to an absolute path against `cwd` before handing it on,
+so `openPenFile`'s precondition is established at the one place a caller-supplied
+path enters. Ranked candidates from `trackedPenFiles` are repo-relative and get
+the same `join(cwd, …)` treatment.
+
+Repo-containment is deliberately **not** enforced. `--pen` is an operator-typed
+argument and the bridge's whole job is to wake on whatever `.pen` is reachable;
+refusing an out-of-repo path would break the documented recovery where any open
+`.pen` unblocks MCP for every other file. Symlinks are followed by `existsSync`
+and passed through unresolved, matching `open-artifact.ts`'s rule that the leaf
+stays lexical. `bootstrap` creates no directory: nothing writes a `.pen` from
+Node, so a directory made here would be an empty promise.
 
 ### Unit 3 — the recipe and the bootstrap instruction
 
-`PENCIL_EDITOR_DEFAULT` becomes `'desktop'` and `PENCIL_EXTENSION_ID` is
-deleted, along with the comment paragraph that justified the VS Code default on
-grounds now known to be false. A new exported constant carries the bundle id so
-the launcher and the prose share one definition.
+`PENCIL_EDITOR_DEFAULT` becomes `'desktop'` and its type narrows to that single
+literal — after this change there is one `.pen` route and no switch, so a union
+type would advertise a choice no code can make. `PENCIL_EXTENSION_ID` is deleted
+along with the comment paragraph that justified the VS Code default on grounds
+now known to be false. A new exported `PENCIL_BUNDLE_ID = 'dev.pencil.desktop'`
+gives the launcher and the prose one definition.
 
-What that constant means changes, and the change is worth stating because unit 4
-reads it. It stops being a switch and becomes a record: after this change there
-is exactly one `.pen` route, the desktop one, and `openPenFile` opens that app
-unconditionally. The constant declares which app the framework has settled on, so
-that the check has something to compare an MCP config against without restating
-the opinion. Its `'vscode'` value therefore survives only as a value the *map* in
-unit 4 can interpret when reading a config an operator has not migrated yet — not
-as a route this code can take.
+`penBridgeRecipe` is rewritten. It must carry three things the old text did not:
+that the wake command is `pnpm noldor design pen-bridge --pen <path>`; that a
+dispatch is not a confirmed open, so the reader retries the MCP call to find out;
+and that **an agent cannot start the app** — a not-running app is an operator
+action. Both lane prompts pick the new text up for free.
 
-`penBridgeRecipe` is rewritten to tell an agent that the bridge is woken by
-`pnpm noldor design pen-bridge --pen <path>`, and that when the app is not
-running the operator has to start it — an agent cannot. Both lane prompts pick
-the new text up for free, since both interpolate the same function.
-
-`renderPlan`'s bootstrap branch is the one place where "keep files in the repo"
-is enforced by prose rather than by code. It must say: open the app, create a
-document, then **Save As** to `docs/design/ui/bridge-scratch.pen` inside this
-repo. A document the app creates for itself is parked under
-`~/.pencil/documents/<uuid>/` and will never be committed, so an instruction that
-stops at "create one" produces a design nobody can review.
+`renderPlan`'s bootstrap branch is where "keep files in the repo" is enforced by
+prose rather than by code. It must say: open the app, create a document, then
+**Save As** to `docs/design/ui/bridge-scratch.pen` inside this repo. A document
+the app creates for itself is parked under `~/.pencil/documents/<uuid>/` and will
+never be committed, so an instruction that stops at "create one" produces a
+design nobody can review.
 
 ### Unit 4 — the pen-bridge check
 
-A new module `src/checks/check-pen-bridge.ts` following the shape of
-`check-install-freshness.ts`: a pure function over an injected filesystem view
-returning a typed result, with the CLI and `doctor.ts` doing the printing. It is
-registered in `src/cli/manifest.ts` under `checks` and imported by
-`src/cli/commands/doctor.ts` the way `checkInstallFreshness` already is.
+```ts
+export type PenBridgeRow =
+  | { kind: 'mcp-app-ok'; source: string }
+  | { kind: 'mcp-app-mismatch'; source: string; found: string }
+  | { kind: 'mcp-indeterminate'; reason: string }
+  | { kind: 'app-ok' }
+  | { kind: 'app-missing' }
+  | { kind: 'app-indeterminate'; reason: string }
+  | { kind: 'not-applicable'; platform: string };
 
-It reports three things:
+export interface PenBridgeCheckDeps {
+  readonly platform: string;
+  readonly home: string;
+  readonly readFile: (path: string) => string | undefined;  // undefined = unreadable
+  readonly probeBundle: (bundleId: string) => 'ok' | 'missing' | 'indeterminate';
+}
 
-1. **The `--app` pin.** Read the pencil MCP server entry and inspect its `--app`
-   argument. The expected value is derived from `PENCIL_EDITOR_DEFAULT`, not
-   hardcoded: the framework already declares which editor it opens `.pen` files
-   in, and a check that restated that opinion would produce a false finding for
-   any consumer still running the VS Code extension — a setup that works. A
-   mismatch is printed with the exact replacement value and the fact that Claude
-   Code must be restarted before it takes effect.
+export function checkPenBridge(
+  cwd: string,
+  deps?: Partial<PenBridgeCheckDeps>,
+): readonly PenBridgeRow[];
+```
 
-   The two vocabularies are not the same, so the comparison goes through an
-   explicit mapping rather than a string equality: `PENCIL_EDITOR_DEFAULT` is
-   `'vscode' | 'desktop'` while the MCP flag takes `visual_studio_code |
-   desktop`. That map is the single place the correspondence is written down, and
-   an editor value with no mapping is a "cannot determine", never a finding.
-2. **A stale desktop socket.** `~/.pencil/socket/pencil-desktop.sock` being a
-   *symlink* is a finding — it is the hand-made workaround for the pin, and the
-   desktop app replaces it with a real socket on startup. A real socket there is
-   correct and silent; an absent one only means the app is not running, which is
-   not a misconfiguration.
-3. **The app itself.** Whether a bundle with id `dev.pencil.desktop` resolves.
+A new module `src/checks/check-pen-bridge.ts` shaped like
+`check-install-freshness.ts` — a function returning typed rows, with the CLI and
+`doctor.ts` doing every bit of printing. Registered in `src/cli/manifest.ts`
+under `checks`; imported by `src/cli/commands/doctor.ts` the way
+`checkInstallFreshness` already is. Off `darwin` it returns a single
+`not-applicable` row and probes nothing.
 
-Every row is advisory. The check never writes configuration and never blocks a
-commit.
+**Row 1 — the `--app` pin.** The expected value is the literal `desktop`. There
+is no editor→app map and no derivation: `openPenFile` opens the desktop app
+unconditionally, so a `visual_studio_code` pin genuinely is a mismatch and saying
+otherwise would describe a configurability this design removed.
+
+Discovery reads two sources in order and **stops at the first that yields a
+pencil entry**: `<cwd>/.mcp.json`, then `<home>/.claude.json`. A server entry is
+"the pencil entry" when its key under `mcpServers` is `pencil`; key match only,
+because a command-path heuristic would misfire on a renamed binary. In
+`~/.claude.json` the `mcpServers` object may be nested per-project, so every
+`mcpServers` object in the document is searched and a `pencil` key at any depth
+qualifies — matching how the file is actually written.
+
+The `--app` value is read from the entry's `args` array in either accepted form:
+`["--app", "desktop"]` or `["--app=desktop"]`. First occurrence wins if repeated.
+Every other shape is `mcp-indeterminate` with the reason named — absent `args`,
+`--app` present with no following value, unparseable JSON, an unreadable file, no
+pencil entry in either source. **Indeterminate is never a mismatch**: the check's
+value is naming a specific misconfiguration, and inventing one from an absent or
+unfamiliar file would be worse than silence, especially for a consumer on another
+harness.
+
+`source` carries the file that supplied the effective entry, and every mismatch
+message names that file as the one to edit. Without it the diagnostic can send an
+operator to `~/.claude.json` while a higher-priority project `.mcp.json` holds
+the real pin, and the prescribed fix does nothing.
+
+**Row 2 — the app.** `probeBundle` resolves `PENCIL_BUNDLE_ID`; its three states
+map to `app-ok`, `app-missing` (with the install hint) and `app-indeterminate`.
+It is a dependency rather than inline code precisely because it is not a
+filesystem read, which keeps the rest of the function deterministic under test.
+
+There is **no socket row**. `~/.pencil/socket/pencil-desktop.sock` may be a
+leftover symlink from the hand workaround, but the desktop app replaces it with a
+real socket on startup — so the finding is observable only while the app is down,
+which is not a misconfiguration. A row that is silent exactly when it would
+matter is not worth its error surface.
+
+**Exit status.** `checks pen-bridge` exits 1 when any row is `mcp-app-mismatch`
+or `app-missing`, and 0 otherwise — indeterminate and not-applicable rows print
+but never set it. `doctor` prints the same rows and **never** lets them change
+its own exit code. "Advisory" means precisely that: the standalone command
+reports a real finding honestly through its exit code for anyone scripting it,
+while no commit or push gate consumes this check at all.
 
 ### Unit 5 — documentation
 
-The parent FD's Usage section, `docs/noldor/gotchas.md`, and the `/noldor-spec`
-and `/noldor-gate` skill prose all instruct `code <file>.pen` today. Each is
-updated and mirrored into `templates/`, without which `doctor` drift reds
-`cli.test.ts`.
+Four surfaces instruct `code <file>.pen` today and each is updated, then mirrored
+into `templates/` (without which `doctor` drift reds `cli.test.ts`): the parent
+FD's Usage section, `docs/noldor/gotchas.md`, and the `/noldor-spec` and
+`/noldor-gate` skill prose.
 
 `docs/noldor/gotchas.md` is where the operational facts belong, per the vision's
-self-ownership rule: the bundle id, the socket-path derivation, the `--app` pin,
-and the fact that an agent cannot cold-start the app.
+self-ownership rule — the bundle id, the `pencil-<app>.sock` derivation, the
+`--app` pin and its restart requirement, and the fact that an agent cannot
+cold-start the app. Template-sync proves the copies match; it cannot prove the
+facts are present, so criterion 11 pins the content directly.
 
 ## Acceptance criteria
 
-1. `openPenFile` runs `open` with `-g`, `-b dev.pencil.desktop`, and the given
-   path, and is bounded by `EDITOR_TIMEOUT_MS`.
-2. `openPenFile` reports failure when `open` exits non-zero, when it errors, and
-   when it exits 0 with non-empty stderr.
-3. `openInEditor` still spawns `code` for a `.md` path, and `launchArtifact`'s
-   behaviour for spec and plan artifacts is unchanged.
-4. `pnpm noldor design pen-bridge --pen <existing .pen>` routes through
-   `openPenFile`, not through `code`.
-5. `PENCIL_EDITOR_DEFAULT` is `'desktop'` and no symbol named
-   `PENCIL_EXTENSION_ID` is exported from `src/design/pen-bridge.ts`.
-6. `penBridgeRecipe`'s output contains no `code <path>` instruction, and both
-   `ui-review-dispatch.ts` and `render-export-dispatch.ts` render the new text.
-7. `renderPlan`'s bootstrap output names `docs/design/ui/bridge-scratch.pen` and
+1. `openPenFile` returns `unsupported-platform` off `darwin` and spawns nothing;
+   on `darwin` it runs `open` with `-g`, `-b dev.pencil.desktop` and the given
+   absolute path, bounded by `EDITOR_TIMEOUT_MS`.
+2. `openPenFile` returns `not-installed` when stderr carries
+   `LSCopyApplicationURLsForBundleIdentifier`, `failed` on any other non-zero
+   exit, stderr or spawn error, and `dispatched` only on exit 0 with empty
+   stderr.
+3. No success path of `pen-bridge` claims the file was opened; the rendered text
+   says the file was handed to the app and directs the reader to retry the
+   pencil MCP call.
+4. `pen-bridge` resolves `--pen` and ranked candidates to absolute paths before
+   launching, still rejects a non-`.pen` or non-existent `--pen` with exit 2, and
+   accepts a path outside the repo.
+5. `pnpm noldor design pen-bridge --pen <existing .pen>` routes through
+   `openPenFile`; `openInEditor` still spawns `code` for a `.md` path and
+   `launchArtifact`'s behaviour for spec and plan artifacts is unchanged.
+6. `PENCIL_EDITOR_DEFAULT` is `'desktop'`, `PENCIL_BUNDLE_ID` is exported, and no
+   symbol named `PENCIL_EXTENSION_ID` is exported from `src/design/pen-bridge.ts`.
+7. `penBridgeRecipe`'s output contains no `code <path>` instruction, states that
+   an agent cannot start the app, and is rendered by both
+   `ui-review-dispatch.ts` and `render-export-dispatch.ts`.
+8. `renderPlan`'s bootstrap output names `docs/design/ui/bridge-scratch.pen` and
    instructs a save into the repo.
-8. `checks pen-bridge` exits non-zero and names the required value when the MCP
-   entry's `--app` does not match the app mapped from `PENCIL_EDITOR_DEFAULT`,
-   and reports no finding when it does — for both mapped editor values.
-9. `checks pen-bridge` reports a finding when the desktop socket path is a
-   symlink, and no finding when it is a socket or absent.
-10. `checks pen-bridge` exits 0 with no findings on a correctly configured
-    machine, and degrades to a reported "cannot determine" rather than throwing
-    when no MCP configuration is found.
-11. `doctor` surfaces the pen-bridge rows without its own exit code becoming
-    blocking on them.
-12. `pnpm noldor checks template-sync` passes with the updated docs and skills.
+9. `checkPenBridge` returns `mcp-app-mismatch` for `--app visual_studio_code` and
+   `mcp-app-ok` for `desktop`, in both `["--app","desktop"]` and
+   `["--app=desktop"]` forms, from `.mcp.json` in preference to `~/.claude.json`,
+   with `source` naming the file that supplied the entry.
+10. `checkPenBridge` returns an indeterminate row — never a mismatch, never a
+    throw — for unparseable JSON, an unreadable file, a missing pencil entry, an
+    absent `args`, and `--app` with no value; and a single `not-applicable` row
+    off `darwin`.
+11. `checks pen-bridge` exits 1 on mismatch or missing app and 0 otherwise;
+    `doctor` prints the rows without its exit code changing.
+12. `docs/noldor/gotchas.md` states the bundle id, the `pencil-<app>.sock`
+    derivation, the restart requirement, and that an agent cannot cold-start the
+    app; no `code <file>.pen` instruction survives in the FD, gotchas, either
+    skill, or their `templates/` mirrors; `checks template-sync` passes.
 
 ## Risks / trade-offs
 
-**The design rests on macOS-only mechanics.** `open` and bundle ids do not exist
-on Linux or Windows. The framework already had this exposure — `openInBackground`
-is `darwin`-gated — but there the `code` fallback covered the gap, and for `.pen`
-there is no equivalent. See D1.
+**macOS-only, with no fallback.** `open` and bundle ids do not exist elsewhere,
+and unlike the `.md` path there is no `code` route left to degrade to. A Linux or
+Windows consumer gets a resolved path and an instruction, which is a real
+capability loss — accepted because the `.pen` format's only reader is a macOS app
+plus a VS Code extension the operator is deliberately leaving behind.
 
-**An agent cannot recover the bridge alone.** Verified this session: a cold GUI
-launch from the tool shell fails silently. The recipe must therefore be honest
-that a not-running app is an operator action, which makes the UI-design step
-slightly more human-dependent than the VS Code arrangement claimed to be — though
-that claim was never tested, and `code` from a hook has its own failure modes.
+**An agent cannot recover the bridge alone.** The `dispatched` naming and the
+recipe are honest about this, but the UI-design step becomes more
+human-dependent than the VS Code arrangement *claimed* to be — a claim never
+tested, and `code` from a hook has its own failure modes.
 
-**The check reads a file it does not own.** `~/.claude.json` is harness-owned and
-its schema can change. A parse that fails must degrade to "cannot determine"
-rather than to a false finding; criterion 10 pins this.
+**The check reads files it does not own.** Schemas can change under it. Every
+unfamiliar shape degrades to indeterminate rather than to a finding; criterion 10
+pins this, and it is the reason discovery matches on the `pencil` key alone.
 
 **Nothing here is exercised in this repo.** Zero `.pen` files are tracked, so
-`design pen-bridge` always takes the bootstrap branch locally. The launcher's
-real exercise is in a consumer, which means the tests carry more of the
-verification weight than usual.
+`design pen-bridge` always takes the bootstrap branch locally. The tests carry
+more of the verification weight than usual, which is why unit 1 and unit 4 both
+take injected dependencies.
 
 ## User Story
 
 As an operator running the UI-design step, I want `.pen` files to open in the
 pen.dev desktop app I actually use, on files that stay inside my repo, so that I
 can design without installing a VS Code extension and so a misconfigured MCP
-tells me it is misconfigured instead of looking like a closed editor.
+tells me which file to fix instead of looking like a closed editor.
 
 ## Usage
 
 - Open a `.pen`: `pnpm noldor design pen-bridge --pen docs/design/ui/<file>.pen`.
-  A bare `pnpm noldor design pen-bridge` picks a tracked `.pen` by ranking.
+  A bare `pnpm noldor design pen-bridge` picks a tracked `.pen` by ranking. The
+  command reports that the file was handed to the app — retry the pencil MCP call
+  to confirm the bridge is live, and start the app yourself if it is not running.
 - First `.pen` in a repo: run the command, follow the bootstrap instruction —
   open the app, create a document, Save As to `docs/design/ui/bridge-scratch.pen`
   inside the repo, then retry the failing pencil MCP call.
 - Check the wiring: `pnpm noldor checks pen-bridge`, or `pnpm noldor doctor`
-  which includes it. When it reports the `--app` pin, edit the pencil MCP entry
-  in `~/.claude.json` to `"--app", "desktop"` and restart Claude Code.
+  which includes it. A mismatch row names the configuration file holding the
+  pencil entry; set its `--app` to `desktop` in **that** file and restart Claude
+  Code.
 
 ## Open questions (resolved)
 
 1. *What does the `.pen` launcher do on Linux and Windows, where there is no
    `open` and no bundle id?*
-   -> Report a platform-specific failure naming the path to open by hand, and
-   keep the resolved path in the message. (D1) A silent no-op would report a wake
-   that never happened, and the recipe already treats "open it yourself" as a
-   legitimate terminal state; a wrong-but-quiet launcher is worse than an honest
-   refusal.
+   -> Return `unsupported-platform` without spawning, and render the resolved
+   path with an open-it-yourself instruction. (D1) A silent no-op would report a
+   wake that never happened; the recipe already treats manual opening as a
+   legitimate terminal state.
 
 2. *Standalone `checks pen-bridge`, or folded into an existing doctor probe?*
-   -> Standalone module, registered under `checks`, imported by `doctor`. (D2)
-   This is exactly how `check-install-freshness.ts` relates to `doctor.ts` in the
-   same graph community, and a standalone command is runnable on its own when an
-   operator is debugging the bridge rather than the whole environment.
+   -> Standalone module under `checks`, imported by `doctor`. (D2) It mirrors how
+   `check-install-freshness.ts` relates to `doctor.ts` in the same graph
+   community, and stays runnable alone when the bridge is what is being debugged.
 
 3. *How does the check find the MCP configuration on a consumer that may not use
    `~/.claude.json`?*
-   -> Probe a small ordered list — project `.mcp.json`, then `~/.claude.json` —
-   and report "cannot determine" when neither yields a pencil entry. (D3) The
-   check's value is naming a specific misconfiguration; inventing one from an
-   absent file would be worse than silence, and a consumer on another harness
-   should not be told their setup is wrong.
+   -> Project `.mcp.json` first, then `~/.claude.json`, matching on the
+   `mcpServers.pencil` key at any depth, first hit wins, and "cannot determine"
+   when neither yields one. (D3) The diagnostic names the file it actually read,
+   so the prescribed fix lands on the entry that is in force.
 
-4. *What should `pen-bridge` do when Pen.app is not installed at all?*
-   -> Fail with a message naming the app and where to get it, distinct from the
-   "could not launch" message. (D4) The two have different remedies — install
-   versus start the app — and collapsing them reproduces exactly the ambiguity
-   this design is trying to remove from the `--app` mismatch.
+4. *What should `pen-bridge` do when Pen.app is not installed?*
+   -> Report `not-installed` with an install hint, distinguished from a launch
+   failure by the `LSCopyApplicationURLsForBundleIdentifier` marker macOS emits
+   for an unregistered bundle id. (D4) The two have different remedies, and this
+   marker makes the distinction free rather than requiring a second probe.
 
-5. *Should the framework detect that the app is running before trying to open a
-   file in it?*
-   -> No. Attempt the open and report what `open` says. (D5) A liveness probe
-   would be a second source of truth about the same question, and the honest
-   answer is already available from the call itself; the recipe carries the "an
-   agent cannot start it, you must" instruction for the case where it fails.
+5. *Should the framework probe whether the app is running before opening a file?*
+   -> No, but the outcome is renamed. (D5) A liveness probe would be a second
+   source of truth about a question pencil MCP answers definitively; the honest
+   fix is to stop claiming an open ever happened. Hence `dispatched`, and prose
+   that sends the reader to the MCP retry.
+
+6. *Should the check flag a leftover `pencil-desktop.sock` symlink?*
+   -> No; the row is dropped. (D6) The desktop app overwrites the symlink with a
+   real socket on startup, so the finding is visible only while the app is down —
+   which the design already treats as normal, not as misconfiguration.
