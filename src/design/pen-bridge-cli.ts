@@ -13,7 +13,7 @@ import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
 
 import {
   BRIDGE_BOOTSTRAP_PATH,
-  PENCIL_EXTENSION_ID,
+  PENCIL_BUNDLE_ID,
   planPenBridge,
   type PenBridgePlan,
 } from './pen-bridge.js';
@@ -137,6 +137,85 @@ function openInBackground(path: string, cwd: string): OpenResult | undefined {
  * (no `code` on PATH at all) and an expired {@link EDITOR_TIMEOUT_MS} arrives
  * here as one more failed launch.
  */
+/**
+ * What asking macOS to open a `.pen` produced.
+ *
+ * `dispatched` is deliberately not `opened`. A launch from a context with no
+ * window-server connection — every agent tool shell — exits 0 with empty stderr
+ * and starts nothing, so nothing reachable from here can prove a canvas came up.
+ * Only pencil MCP can, by answering a retried call. Naming the success `opened`
+ * would report a wake that never happened, which is the failure this whole
+ * module exists to avoid.
+ */
+export type PenLaunch =
+  | { kind: 'dispatched' }
+  | { kind: 'not-installed'; error: string }
+  | { kind: 'failed'; error: string }
+  | { kind: 'unsupported-platform'; platform: string };
+
+/** Injectable seams. Defaults are `process.platform` and a bounded `spawnSync`. */
+export interface PenLaunchDeps {
+  readonly platform: string;
+  readonly run: (
+    cmd: string,
+    args: readonly string[],
+    cwd: string,
+  ) => { status: number | null; stderr: string; error?: Error };
+}
+
+/**
+ * The marker macOS prints when a bundle id resolves to nothing. It is the whole
+ * mechanism behind the not-installed / failed split — there is no second probe.
+ * Measured 2026-09-02: `open -g -b <unregistered> <file>` exits 1 with it.
+ */
+export const BUNDLE_UNRESOLVED_MARKER = 'LSCopyApplicationURLsForBundleIdentifier';
+
+/**
+ * Ask macOS to open `absPath` in the pen.dev desktop app, without taking focus.
+ *
+ * `absPath` must already be absolute — {@link main} resolves it, so `open` never
+ * receives a path whose meaning depends on the child's working directory.
+ *
+ * Off darwin this spawns nothing: there is no `open`, no bundle id, and (unlike
+ * the `.md` path, which keeps `openInEditor`) no `code` fallback to degrade to.
+ * Guessing at a launcher there would be the silent no-op this type exists to
+ * prevent, so the caller renders the path and the operator opens it by hand.
+ */
+export function openPenFile(
+  absPath: string,
+  cwd: string,
+  deps: Partial<PenLaunchDeps> = {},
+): PenLaunch {
+  const platform = deps.platform ?? process.platform;
+  if (platform !== 'darwin') return { kind: 'unsupported-platform', platform };
+
+  const run = deps.run ?? defaultRun;
+  const out = run('open', ['-g', '-b', PENCIL_BUNDLE_ID, absPath], cwd);
+  const stderr = (out.stderr ?? '').trim();
+  // Belt and braces. For `-b` a bad bundle id already exits non-zero, unlike the
+  // `-a` behaviour `openInBackground` documents — but stderr on a zero exit is
+  // still the cheaper signal to keep than to re-derive.
+  if (out.error === undefined && out.status === 0 && stderr.length === 0) {
+    return { kind: 'dispatched' };
+  }
+  const error = out.error?.message ?? (stderr.length > 0 ? stderr : `exit ${String(out.status)}`);
+  return stderr.includes(BUNDLE_UNRESOLVED_MARKER)
+    ? { kind: 'not-installed', error }
+    : { kind: 'failed', error };
+}
+
+/** `spawnSync`, bounded, reduced to the three fields {@link openPenFile} reads. */
+function defaultRun(
+  cmd: string,
+  args: readonly string[],
+  cwd: string,
+): { status: number | null; stderr: string; error?: Error } {
+  const run = spawnSync(cmd, [...args], { cwd, encoding: 'utf8', timeout: EDITOR_TIMEOUT_MS });
+  return run.error === undefined
+    ? { status: run.status, stderr: run.stderr ?? '' }
+    : { status: run.status, stderr: run.stderr ?? '', error: run.error };
+}
+
 export function openInEditor(path: string, cwd: string): OpenResult {
   const background = openInBackground(path, cwd);
   if (background !== undefined) return background;
@@ -156,11 +235,38 @@ export function openInEditor(path: string, cwd: string): OpenResult {
  */
 export function renderPlan(plan: PenBridgePlan, launch = true): string {
   if (plan.kind === 'bootstrap') {
-    return `pen-bridge: no .pen is tracked in this repo — the editor must author one (Node cannot: .pen is encrypted)\n  → open ${BRIDGE_BOOTSTRAP_PATH} in VS Code with the ${PENCIL_EXTENSION_ID} extension, save it, then retry the pencil MCP call`;
+    // "Save As", not "save": a document the app authors for itself lands under
+    // ~/.pencil/documents/<uuid>/, where nothing in this repo will ever commit
+    // it — so an instruction that stops at "create one" loses the design.
+    return `pen-bridge: no .pen is tracked in this repo — the app must author one (Node cannot: .pen is encrypted)\n  → open the pen.dev desktop app, create a document, then Save As to ${BRIDGE_BOOTSTRAP_PATH} INSIDE this repo (a document the app saves for itself lands in ~/.pencil/documents/ and is never committed), then retry the pencil MCP call`;
   }
   return launch
-    ? `pen-bridge: opening ${plan.path}\n  → retry the failing pencil MCP call in a few seconds; the bridge answers once the tab is up`
-    : `pen-bridge: resolved ${plan.path} (not opened — --print-only)\n  → run \`code ${plan.path}\` yourself, then retry the failing pencil MCP call`;
+    ? `pen-bridge: open requested for ${plan.path}\n  → retry the failing pencil MCP call in a few seconds; a request is not a confirmed open, and if it still fails the app is not running — start it yourself`
+    : `pen-bridge: resolved ${plan.path} (nothing launched — --print-only)\n  → open ${plan.path} in the pen.dev desktop app yourself, then retry the failing pencil MCP call`;
+}
+
+/**
+ * Exit code per launch outcome. `2` is the existing launch-failure code and also
+ * a bad `--pen`; `3` and `4` are new because "install the app", "open it by hand
+ * on this platform" and "you typed a bad path" are three different remedies, and
+ * collapsing them leaves a script unable to tell them apart.
+ */
+export const LAUNCH_EXIT: Record<PenLaunch['kind'], number> = {
+  dispatched: 0,
+  failed: 2,
+  'not-installed': 3,
+  'unsupported-platform': 4,
+};
+
+/** Operator-facing remedy for a launch that did not dispatch. */
+export function renderLaunchFailure(outcome: PenLaunch, absPath: string): string {
+  if (outcome.kind === 'unsupported-platform') {
+    return `pen-bridge: no scriptable open on ${outcome.platform} — the pen.dev desktop app is macOS-only\n  → open ${absPath} by hand, then retry the failing pencil MCP call`;
+  }
+  if (outcome.kind === 'not-installed') {
+    return `pen-bridge: no application is registered for bundle id ${PENCIL_BUNDLE_ID}\n  → install the pen.dev desktop app, then re-run this command`;
+  }
+  return `pen-bridge: could not ask macOS to open ${absPath}: ${outcome.kind === 'failed' ? outcome.error : ''}\n  → open it in the pen.dev desktop app by hand — the path above is still correct`;
 }
 
 export async function main(argv: string[], cwd: string = process.cwd()): Promise<number> {
@@ -189,14 +295,14 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
   // does not exist yet would print "opening" for a file nothing can read.
   if (plan.kind === 'bootstrap') return 1;
   if (printOnly) return 0;
-  const opened = openInEditor(plan.path, cwd);
-  if (opened.ok) return 0;
-  console.error(
-    `pen-bridge: could not launch the editor: ${opened.error ?? 'unknown error'}\n` +
-      "  → install the VS Code shell command (Command Palette → 'Shell Command: Install code command in PATH'), " +
-      `or open ${plan.path} in the pencil desktop app by hand — the app satisfies pencil MCP too, it just cannot be scripted`,
-  );
-  return 2;
+  // Resolve AFTER planPenBridge has chosen. `rankPenCandidates` ranks on the
+  // repo-relative `docs/design/ui/` prefix, so absolutising the candidate list
+  // going in would score every entry at the worst rank and collapse the order.
+  const absPath = isAbsolute(plan.path) ? plan.path : join(cwd, plan.path);
+  const outcome = openPenFile(absPath, cwd);
+  if (outcome.kind === 'dispatched') return 0;
+  console.error(renderLaunchFailure(outcome, absPath));
+  return LAUNCH_EXIT[outcome.kind];
 }
 
 runIfDirect('pen-bridge-cli', 'design pen-bridge', async () => main(process.argv.slice(2)));

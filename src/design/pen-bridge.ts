@@ -4,9 +4,9 @@
 //
 // `.pen` is encrypted, so pencil MCP is the only reader — and every MCP call
 // fails with "A file needs to be open in the editor" until SOME `.pen` is open
-// in a running VS Code Pencil tab. That is a bridge-liveness gate, not a
-// per-file lock: once any file is open, `execute` routes to any EXISTING `.pen`
-// by `filePath`, including a scratch copy that was never opened. A `filePath`
+// in the pen.dev desktop app. That is a bridge-liveness gate, not a per-file
+// lock: once any file is open, `execute` routes to any EXISTING `.pen` by
+// `filePath`, including a scratch copy that was never opened. A `filePath`
 // that does not exist is worse than an error — the write silently lands on the
 // canvas the app has open (Q-0187). The first two facts were observed in the
 // render-compare export spike (2026-08-21) and lived only in that spec plus one
@@ -15,16 +15,18 @@
 import { UI_BASELINE_DIR } from '../core/design-artifact-names.js';
 
 /**
- * The declared default editor. The VS Code extension wins over the standalone
- * desktop app for one reason only: `code <file>.pen` wakes the bridge from a
- * shell, so an agent can recover unattended. The desktop app satisfies pencil
- * MCP just as well but has no scriptable open, so it is the fallback a human
- * drives.
+ * The pen.dev desktop app, addressed by bundle id rather than by install path so
+ * a relocated or user-installed copy still resolves.
+ *
+ * This replaced a `PENCIL_EDITOR_DEFAULT` / `PENCIL_EXTENSION_ID` pair that named
+ * the VS Code extension. That default rested on the claim that the desktop app
+ * "has no scriptable open", which is false: the bundle registers `.pen` as a
+ * document type, so `open -b <this id> <file>.pen` opens that exact file in
+ * place. No editor-selection constant replaces them — there is one `.pen` route
+ * now, and a declared default nothing reads only advertises a choice the code
+ * cannot make.
  */
-export const PENCIL_EDITOR_DEFAULT = 'vscode' as const;
-
-/** VS Code extension that hosts the bridge. */
-export const PENCIL_EXTENSION_ID = 'highagency.pencildev';
+export const PENCIL_BUNDLE_ID = 'dev.pencil.desktop';
 
 /** The MCP error that means the bridge is down rather than the file is bad. */
 export const BRIDGE_DOWN_MESSAGE = 'A file needs to be open in the editor';
@@ -83,5 +85,5 @@ export function planPenBridge(paths: readonly string[], preferred?: string): Pen
  * `penPath` is the file that lane already owns.
  */
 export function penBridgeRecipe(penPath: string): string {
-  return `If every pencil MCP call fails with "${BRIDGE_DOWN_MESSAGE}", the bridge is down, not the file: run \`code ${penPath}\` in a shell (VS Code with the \`${PENCIL_EXTENSION_ID}\` extension is the default editor), wait a few seconds, and retry. Once any \`.pen\` is open in a running Pencil tab, \`execute\` reaches this file by \`filePath\` even if it was never opened. \`pnpm noldor design pen-bridge\` finds and opens a \`.pen\` for you when you have no path of your own; the pencil desktop app is the fallback when no \`code\` command is available, and it has to be opened by hand.`;
+  return `If every pencil MCP call fails with "${BRIDGE_DOWN_MESSAGE}", the bridge is down, not the file: run \`pnpm noldor design pen-bridge --pen ${penPath}\`, wait a few seconds, and retry the call. Once any \`.pen\` is open in the pen.dev desktop app, \`execute\` reaches this file by \`filePath\` even if it was never opened. A bare \`pnpm noldor design pen-bridge\` picks a tracked \`.pen\` when you have no path of your own. Exit 0 means the open was requested of macOS, not that a canvas came up — retrying the MCP call is the only way to find out. If it still fails, the app is not running: you cannot start it from a tool shell (the launch exits 0 and starts nothing), so ask the operator to open it.`;
 }
