@@ -4,10 +4,9 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/graphify/enrich-doc-nodes.ts
-    - src/garden/garden-detect.ts
-    - src/garden/plan-resolution.ts
-    - src/cli/manifest.ts
+    - src/design/graph-context-cli.ts
+    - src/design/graph-context.ts
+    - src/garden/detectors/structural-context.ts
   docs: []
   tests:
     - src/design/__tests__/graph-context-cli.test.ts
@@ -27,6 +26,7 @@ noldor-tier: specs-only
 introduced: 0.4.0
 updated: 1.6.0
 ---
+
 ## Summary
 
 Extend graphify to emit nodes for `docs/design/plans/*.md` and `docs/design/specs/*.md`, plus `plan-of` / `spec-of` relations linking them to owning FD nodes. Today's graph tracks `imports` / `imports_from` between source files only; plans/specs aren't represented. Once available, enables `src/garden/garden-detect.ts:detectStalePlans` graph-adjacency fallback (originally fallback B from release-sweep-process-hardening; deferred from that FD when audit confirmed the graph schema didn't support it).
@@ -121,10 +121,9 @@ fd nodes + plan-of/spec-of edges added to graph, plus graph-adjacency stale fall
 
 - **Spec:** [`docs/design/specs/archive/2026-06-14-graphify-plan-of-edges-nodes-for-plans-specs-design.md`](../../docs/design/specs/archive/2026-06-14-graphify-plan-of-edges-nodes-for-plans-specs-design.md)
 - **Code:**
-  - [`src/graphify/enrich-doc-nodes.ts`](../../src/graphify/enrich-doc-nodes.ts)
-  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
-  - [`src/garden/plan-resolution.ts`](../../src/garden/plan-resolution.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`src/design/graph-context-cli.ts`](../../src/design/graph-context-cli.ts)
+  - [`src/design/graph-context.ts`](../../src/design/graph-context.ts)
+  - [`src/garden/detectors/structural-context.ts`](../../src/garden/detectors/structural-context.ts)
 - **Tests:**
   - [`src/design/__tests__/graph-context-cli.test.ts`](../../src/design/__tests__/graph-context-cli.test.ts)
   - [`src/design/__tests__/graph-context.test.ts`](../../src/design/__tests__/graph-context.test.ts)

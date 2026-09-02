@@ -22,6 +22,7 @@ packages:
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 A counterweight to the clone ratchet. `noldor indirection` measures how many
@@ -111,3 +112,22 @@ _none — CLI and pre-push hook only._
 <!-- @prs-since-last-release: abstraction-cost-ratchet -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/design/specs/archive/2026-08-30-abstraction-cost-ratchet-design.md`](../../docs/design/specs/archive/2026-08-30-abstraction-cost-ratchet-design.md)
+- **Code:**
+  - [`src/indirection/detect.ts`](../../src/indirection/detect.ts)
+  - [`src/indirection/baseline.ts`](../../src/indirection/baseline.ts)
+  - [`src/indirection/indirection-cli.ts`](../../src/indirection/indirection-cli.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+- **Tests:**
+  - [`src/indirection/__tests__/baseline.test.ts`](../../src/indirection/__tests__/baseline.test.ts)
+  - [`src/indirection/__tests__/detect.test.ts`](../../src/indirection/__tests__/detect.test.ts)
+  - [`src/indirection/__tests__/indirection-cli.test.ts`](../../src/indirection/__tests__/indirection-cli.test.ts)
+  - [`src/indirection/__tests__/trees/edges/helper.spec.ts`](../../src/indirection/__tests__/trees/edges/helper.spec.ts)
+  - [`src/indirection/__tests__/trees/tests-only/thing.spec.ts`](../../src/indirection/__tests__/trees/tests-only/thing.spec.ts)
+
+<!-- /generated: resources -->
