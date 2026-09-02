@@ -109,7 +109,7 @@ Every consumer ships `.noldor/config.json` with a `consumer:` block (repo URL, b
 pnpm noldor validate noldor-config
 ```
 
-Eight optional top-level blocks unlock extra behaviour, all defaulting sanely: `crLanes`, `crReview`, `autonomous`, `gate`, `agents`, `release`, `garden`, `clones`. The CR blocks drive unsupervised review and PR-merge — see [`cr-pipeline.md`](docs/noldor/cr-pipeline.md). Annotated field table: the [adoption guide](docs/noldor/adoption-guide.md).
+Nine optional top-level blocks unlock extra behaviour, all defaulting sanely: `crLanes`, `crReview`, `autonomous`, `gate`, `agents`, `release`, `garden`, `clones`, `design`. The CR blocks drive unsupervised review and PR-merge — see [`cr-pipeline.md`](docs/noldor/cr-pipeline.md). Annotated field table: the [adoption guide](docs/noldor/adoption-guide.md).
 
 ---
 
