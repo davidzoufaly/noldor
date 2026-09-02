@@ -90,6 +90,16 @@ function probeGit(args: readonly string[], cwd: string): string | undefined {
   }
 }
 
+/**
+ * True when `path` is an absolute directory that exists. Exported so the CLI can
+ * reject a typo in the TYPED `--workspace-root` eagerly, without duplicating the
+ * predicate — `resolveArtifact` applies the same rule lazily, where the value may
+ * instead be an ambient env var.
+ */
+export function isExistingDir(path: string | undefined): boolean {
+  return existingDir(path) !== undefined;
+}
+
 /** An existing directory, or `undefined`. Never throws on a bad path. */
 function existingDir(path: string | undefined): string | undefined {
   if (path === undefined || path.length === 0 || !isAbsolute(path)) return undefined;

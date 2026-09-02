@@ -113,6 +113,18 @@ describe('design open', () => {
     expect(r.err.join('\n')).toContain('absolute existing directory');
   });
 
+  // A typo in the TYPED flag must be named even when the path argument is also
+  // wrong: reporting "not a .md file" would send the operator after the wrong
+  // mistake. The env var is validated lazily instead, so a stale export cannot
+  // shout about every unrelated file.
+  it('names a bad --workspace-root ahead of a bad path argument', () => {
+    const { root } = setupRepo();
+    const r = run([join(root, 'a.ts'), '--workspace-root', join(root, 'nope-gone')], root);
+    expect(r.code).toBe(2);
+    expect(r.err.join('\n')).toContain('--workspace-root');
+    expect(r.err.join('\n')).not.toContain('not a .md file');
+  });
+
   it('exits 2 for --workspace-root with no value', () => {
     const { root, spec } = setupRepo();
     const r = run([spec, '--workspace-root'], root);

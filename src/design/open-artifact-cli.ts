@@ -9,6 +9,7 @@ import { readValueFlags, runIfDirect } from '../core/cli-entry.js';
 import {
   WORKSPACE_ROOT_ENV,
   buildArtifactLink,
+  isExistingDir,
   launchArtifact,
   resolveArtifact,
 } from './open-artifact.js';
@@ -42,12 +43,26 @@ export function runOpenArtifact(argv: readonly string[], deps: OpenArtifactCliDe
     return 2;
   }
 
+  // A typo in the TYPED flag is a usage error, reported before anything else is
+  // judged — `design open --workspace-root /tmp/nope src/foo.ts` must name the
+  // bad root, not the file. `resolveArtifact` validates the same value lazily
+  // (after the artifact predicate) because there it also carries the ambient env
+  // var, where an eager check would report a stale export on every unrelated
+  // path. Typed-here versus ambient is the distinction; the CLI owns the first.
+  const flagRoot = read.values.get('--workspace-root');
+  if (flagRoot !== undefined && !isExistingDir(flagRoot)) {
+    deps.err(
+      `design open: --workspace-root must be an absolute existing directory (got '${flagRoot}')`,
+    );
+    return 2;
+  }
+
   const resolved = resolveArtifact({
     path: read.positional[0],
     cwd: deps.cwd,
     // The flag wins over the env var: both are NAMED roots, and the one typed on
     // this invocation is the more specific statement of intent.
-    workspaceRoot: read.values.get('--workspace-root') ?? deps.env[WORKSPACE_ROOT_ENV],
+    workspaceRoot: flagRoot ?? deps.env[WORKSPACE_ROOT_ENV],
   });
   if (resolved.kind === 'rejected') {
     deps.err(`design open: ${resolved.message}`);
