@@ -21,8 +21,8 @@ packages:
   - package.json
 phase: done
 noldor-tier: full
+introduced: 1.7.0
 ---
-
 ## Summary
 
 A counterweight to the clone ratchet. `noldor indirection` measures how many
@@ -112,6 +112,16 @@ _none — CLI and pre-push hook only._
 <!-- @prs-since-last-release: abstraction-cost-ratchet -->
 
 ## Changelog
+
+### Initial Release (v1.7.0)
+
+#### Summary
+
+This release adds a feature to measure per-module transitive import closure (#411).
+
+#### PRs
+
+- #411: measure per-module transitive import closure ([link](https://github.com/davidzoufaly/noldor/pull/411))
 
 <!-- generated: resources -->
 

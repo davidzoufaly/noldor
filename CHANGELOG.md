@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.7.0 — 2026-09-02
+
+### Features
+
+- feat(features:pendev-ui-design-phase): open .pen files in the pen.dev desktop app (#419) ([49ac3d2](https://github.com/davidzoufaly/noldor/commit/49ac3d2da70a57b555d16d91f24e0ec7ac6805b5)) ([#419](https://github.com/davidzoufaly/noldor/pull/419))
+- feat(design): make the artifact tab opt-in via design.autoOpen, default off (#418) ([e6ee2d2](https://github.com/davidzoufaly/noldor/commit/e6ee2d25d27fd96289c07f519c8272eaeeb062bd)) ([#418](https://github.com/davidzoufaly/noldor/pull/418))
+- feat(features:auto-open-design-artifacts): auto-open specs/plans and report a link that resolves (#416) ([1d6fc05](https://github.com/davidzoufaly/noldor/commit/1d6fc05f21629bcb111e596de0f3c1373bbe9aed)) ([#416](https://github.com/davidzoufaly/noldor/pull/416))
+- feat(autonomous): scale the drain iteration timeout by entry size (#415) ([10c2d47](https://github.com/davidzoufaly/noldor/commit/10c2d4768747c462a48925ae2c2bbed1cf24e86a)) ([#415](https://github.com/davidzoufaly/noldor/pull/415))
+- feat(indirection): measure per-module transitive import closure (#411) ([86ed29a](https://github.com/davidzoufaly/noldor/commit/86ed29ab25ee79110fa9fe61f5af2efeafee5108)) ([#411](https://github.com/davidzoufaly/noldor/pull/411))
+
+### Fixes
+
+- fix(design): open specs, plans and .pen files without stealing window focus (#417) ([dc489c4](https://github.com/davidzoufaly/noldor/commit/dc489c4fcf028299d65ba44b7651fd27b99890f6)) ([#417](https://github.com/davidzoufaly/noldor/pull/417))
+- fix(cr): gate the in-flight wait on lane resolution, not stale artifact findings (#414) ([30f2cf9](https://github.com/davidzoufaly/noldor/commit/30f2cf93f0823d43d4685c1e8341aada8c9a065b)) ([#414](https://github.com/davidzoufaly/noldor/pull/414))
+- fix(docs): stop the architecture module advisory firing on generated trees (#413) ([92d5b28](https://github.com/davidzoufaly/noldor/commit/92d5b28a95b88be1e06461a0f3ac178afa2a1ea1)) ([#413](https://github.com/davidzoufaly/noldor/pull/413))
+- fix(garden): give fd-command-rot an ignore marker for rejected-option prose (#412) ([ca08377](https://github.com/davidzoufaly/noldor/commit/ca0837797588a1d46c4357d82b6642e5ceb13f2a)) ([#412](https://github.com/davidzoufaly/noldor/pull/412))
+
+### Other changes
+
+- docs: fix README config-block count, garden skill command, and sdd-report drift (#422) ([c3e7307](https://github.com/davidzoufaly/noldor/commit/c3e7307d7702e22cf742bff7c4e4ee6951fcf2f9)) ([#422](https://github.com/davidzoufaly/noldor/pull/422))
+- chore(release-sweep): pre-empt sdd:report drift (#421) ([d7a5480](https://github.com/davidzoufaly/noldor/commit/d7a5480719c0408d86651bbaca6754ae27e28d10)) ([#421](https://github.com/davidzoufaly/noldor/pull/421))
+- docs(noldor): file triage batch Q-0201..Q-0208 and close drain-log ignore gap (#420) ([ba3d782](https://github.com/davidzoufaly/noldor/commit/ba3d782b17601bf7be61f3e0ff93971832ca6566)) ([#420](https://github.com/davidzoufaly/noldor/pull/420))
+
 ## v1.6.0 — 2026-08-30
 
 ### BREAKING CHANGES

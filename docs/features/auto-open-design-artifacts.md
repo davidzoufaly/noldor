@@ -18,8 +18,8 @@ packages:
   - package.json
 phase: done
 noldor-tier: specs-only
+introduced: 1.7.0
 ---
-
 ## Summary
 
 Every artifact path the framework reports resolves from the editor's workspace folder
@@ -102,6 +102,16 @@ multi-root workspace.
 <!-- @prs-since-last-release: auto-open-design-artifacts -->
 
 ## Changelog
+
+### Initial Release (v1.7.0)
+
+#### Summary
+
+The auto-open feature for specs and plans now reports a link that resolves (#416).
+
+#### PRs
+
+- #416: auto-open specs/plans and report a link that resolves ([link](https://github.com/davidzoufaly/noldor/pull/416))
 
 <!-- generated: resources -->
 

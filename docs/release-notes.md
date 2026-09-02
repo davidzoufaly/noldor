@@ -1,5 +1,27 @@
 # Release Notes
 
+## v1.7.0 — 2026-09-02
+
+### Tooling
+
+#### Abstraction-Cost Ratchet
+
+This release adds a feature to measure per-module transitive import closure (#411).
+
+[Feature page](/features/abstraction-cost-ratchet)
+
+#### Auto-Open Design Artifacts
+
+The auto-open feature for specs and plans now reports a link that resolves (#416).
+
+[Feature page](/features/auto-open-design-artifacts)
+
+#### pen.dev UI Design Phase *(updated)*
+
+This release adds support for opening .pen files in the pen.dev desktop app (#419).
+
+[Feature page](/features/pendev-ui-design-phase)
+
 ## v1.6.0 — 2026-08-30
 
 ### Breaking
