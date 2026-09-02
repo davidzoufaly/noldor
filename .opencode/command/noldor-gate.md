@@ -15,7 +15,8 @@ Commit messages need a `Noldor-FD: <slug>` trailer (lefthook injects it when a
 session marker exists).
 
 Surfacing a spec/plan path at the review pause: run `pnpm noldor design open <path>` and
-report its `link:` line verbatim — never build the link yourself. A markdown link resolves
+report its `link:` line verbatim — never build the link yourself. It opens a tab only when
+the repo sets `design.autoOpen: true` or you pass `--open` (off by default). A markdown link resolves
 against the editor's workspace folder while the artifact's repo-relative path is relative
 to this session's checkout, and those diverge for every session inside `.worktrees/<slug>/`,
 so a hand-built link renders and does nothing. `NOLDOR_WORKSPACE_ROOT` overrides the

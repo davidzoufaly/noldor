@@ -20,10 +20,10 @@ noldor-tier: specs-only
 ---
 ## Summary
 
-A newly written spec or plan opens itself as a VS Code tab, and every artifact path the
-framework reports resolves from the editor's workspace folder instead of the session's repo
-root — so the operator ratifies a document they have actually had open, and the link they
-are handed is never a dead one.
+Every artifact path the framework reports resolves from the editor's workspace folder
+instead of the session's repo root, so the link the operator is handed is never a dead one.
+Opening the artifact as a VS Code tab rides along, opt-in via `design.autoOpen` — a launch
+cannot be made non-disruptive, so it is the operator's call rather than the default.
 
 ## Diagram
 
@@ -51,21 +51,36 @@ C4Component
 
 Two entry points, one decision unit. The hook is the Claude wiring and supplies the
 workspace root from the payload's `cwd`; the CLI is what codex and opencode call and
-resolves that root through a fallback ladder. Both delegate the launch to the same
-`openInEditor` the pencil bridge uses, and neither can fail in a way that blocks a gate
-step — the hook always exits 0, and the CLI prints the path even when no editor launches.
+resolves that root through a fallback ladder. Reporting the link is unconditional; the
+launch is gated on `design.autoOpen` and, when it happens, delegates to the same
+`openInEditor` the pencil bridge uses. Neither entry point can fail in a way that blocks a
+gate step — the hook always exits 0, and the CLI prints the path even when no editor
+launches.
 
 ## User Story
 
 As an operator reviewing a spec at the gate's approval pause, I want the artifact to open
-in a VS Code tab the moment it is written and every reported path to be clickable from my
-workspace, so that I ratify a document I have actually read instead of one summarised to
-me in chat.
+every reported path to be clickable from my workspace — and the tab to open only when I
+have asked for it — so that I ratify a document I can actually reach in one click without
+having a window yanked out from under me mid-task.
 
 ## Usage
 
 Automatic in a Claude Code session: writing a spec or plan under a specs or plans doc root
-opens it as a VS Code tab and hands the agent the path to report. No operator action.
+hands the agent a ready-to-paste markdown link that resolves from the editor's workspace.
+No operator action.
+
+The tab is **off by default**. Opt in per repo:
+
+```json
+{ "design": { "autoOpen": true } }
+```
+
+Why off: macOS `open -g` keeps the *application* backgrounded, but when the artifact belongs
+to a different editor **window** than the one you are in, the editor raises that window
+itself — and nothing outside the editor can stop it (`code` has no preserve-focus flag, and
+per-window IPC sockets exist only for integrated terminals). One click beats an interrupted
+train of thought, so the link is unconditional and the tab is not.
 
 By hand, or from a codex/opencode session:
 

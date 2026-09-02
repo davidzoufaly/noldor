@@ -48,8 +48,10 @@ The framework's interactive flows are CLI-backed. Invoke via the matching
 - **research** — `pnpm noldor research fanout`; `docs/noldor/research-fanout.md`.
 
 **Reporting a spec/plan path — never build the link yourself.** Run
-`pnpm noldor design open <artifact-path>`: it opens the file in a VS Code tab and prints
-both the raw path and a ready-made `link:` line. Report that line verbatim. A markdown link
+`pnpm noldor design open <artifact-path>`: it prints both the raw path and a ready-made
+`link:` line. Report that line verbatim. It opens a tab only when the repo sets
+`design.autoOpen: true`, or when you pass `--open` — off by default, because a launch can
+raise a different editor window and interrupt the operator. A markdown link
 resolves against the **editor's workspace folder**, while an artifact's repo-relative path
 is relative to the **session's checkout** — and every `specs-only-*` / `full-*` session runs
 inside `.worktrees/<slug>/`. The two coincide on `main` and diverge in a worktree, so a

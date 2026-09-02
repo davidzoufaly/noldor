@@ -80,6 +80,26 @@ export const gateConfigSchema = z.object({
   sessionTtlHours: z.number().positive(),
 });
 
+export const designConfigSchema = z.object({
+  /**
+   * Launch an editor on a freshly written spec/plan? Default **off**.
+   *
+   * Off is not timidity: a launch cannot be made non-disruptive. macOS `open -g`
+   * keeps the *application* in the background, but when the artifact belongs to a
+   * different editor WINDOW than the one the operator is in, the editor raises
+   * that window itself — and nothing outside the editor can stop it. The `code`
+   * CLI has no background or preserve-focus flag, and per-window IPC sockets
+   * exist only for integrated terminals, so no external caller can address one
+   * window without revealing it. Interrupting parallel work is worse than one
+   * click, so the tab is opt-in while the reported link — the actual fix for an
+   * unclickable path — is unconditional.
+   */
+  autoOpen: z.boolean().default(false),
+});
+
+/** Parsed `design:` block. */
+export type DesignConfig = z.infer<typeof designConfigSchema>;
+
 /**
  * Wall-clock cap per CR agent dispatch (`reviewer` and `verifier` lanes), in ms.
  *
@@ -219,6 +239,7 @@ export const noldorConfigSchema = z.object({
   crReview: crReviewConfigSchema.optional(),
   autonomous: autonomousConfigSchema.optional(),
   gate: gateConfigSchema.optional(),
+  design: designConfigSchema.optional(),
   agents: agentsConfigSchema.optional(),
   release: releaseConfigSchema.optional(),
   garden: gardenConfigSchema.optional(),

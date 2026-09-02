@@ -16,9 +16,10 @@ feature doc at `docs/features/<slug>.md` when one exists, then:
    recommendation.
 4. Walk the sections in order: bring each to one or two paragraphs, ask, then
    `pnpm noldor design log --slug <slug> --confirm-section "<heading>"` on the yes.
-5. Report the spec with `pnpm noldor design open <path>` — it opens the file in a VS Code
-   tab and prints a ready-made `link:` line. Report that line verbatim; never build the
-   link yourself. A markdown link resolves against the editor's workspace folder while the
+5. Report the spec with `pnpm noldor design open <path>` — it prints a ready-made `link:`
+   line. Report that line verbatim; never build the link yourself. It opens a tab only when
+   the repo sets `design.autoOpen: true` or you pass `--open` (off by default, so a launch
+   cannot raise a different editor window mid-task). A markdown link resolves against the editor's workspace folder while the
    artifact's repo-relative path is relative to this session's checkout, and every
    `specs-only-*` / `full-*` session runs inside `.worktrees/<slug>/` — so a hand-built
    link works on `main` and silently does nothing from a worktree. Set

@@ -29,7 +29,7 @@ function tempDir(prefix: string): string {
 const ok = (): OpenResult => ({ ok: true });
 const fails = (): OpenResult => ({ ok: false, error: 'code: command not found' });
 
-function setupRepo(): { root: string; spec: string } {
+function setupRepo(autoOpen = false): { root: string; spec: string } {
   const root = tempDir('qoah-');
   execSync('git init -q', { cwd: root });
   execSync('git config user.email t@t.t', { cwd: root });
@@ -39,6 +39,13 @@ function setupRepo(): { root: string; spec: string } {
   const spec = join(root, 'docs', 'design', 'specs', '2026-01-01-x-design.md');
   writeFileSync(spec, '# X\n');
   writeFileSync(join(root, 'src', 'a.ts'), 'x\n');
+  mkdirSync(join(root, '.noldor'), { recursive: true });
+  if (autoOpen) {
+    writeFileSync(
+      join(root, '.noldor', 'config.json'),
+      JSON.stringify({ design: { autoOpen: true } }),
+    );
+  }
   execSync('git add -A', { cwd: root });
   execSync('git commit -qm init', { cwd: root });
   return { root, spec };
@@ -101,7 +108,7 @@ describe('hooks open-artifact', () => {
   });
 
   it('reports the path AND says no tab opened when the editor is missing', () => {
-    const { root, spec } = setupRepo();
+    const { root, spec } = setupRepo(true);
     const ctx = contextFor({ cwd: root, tool_input: { file_path: spec } }, {}, fails);
     expect(ctx).toContain('(docs/design/specs/2026-01-01-x-design.md)');
     expect(ctx).toContain('No editor tab opened');
@@ -124,7 +131,7 @@ describe('hooks open-artifact', () => {
   });
 
   it('absorbs a throwing launcher into the report instead of propagating it', () => {
-    const { root, spec } = setupRepo();
+    const { root, spec } = setupRepo(true);
     const boom = (): OpenResult => {
       throw new Error('spawn exploded');
     };
@@ -158,6 +165,42 @@ describe('hooks open-artifact', () => {
     );
     expect(ctx).toContain(WORKSPACE_ROOT_ENV);
     expect(ctx).toContain('misconfigured');
+  });
+
+  // The link is the fix; the tab is opt-in. Off by default, the hook must still
+  // hand over a usable link — it just must not raise anyone's window.
+  it('reports the link but launches nothing while autoOpen is off', () => {
+    const { root, spec } = setupRepo();
+    let launches = 0;
+    const ctx = contextFor({ cwd: root, tool_input: { file_path: spec } }, {}, () => {
+      launches += 1;
+      return { ok: true };
+    });
+    expect(ctx).toContain('(docs/design/specs/2026-01-01-x-design.md)');
+    expect(launches).toBe(0);
+    expect(ctx).not.toContain('No editor tab opened');
+  });
+
+  it('launches once when design.autoOpen is opted into', () => {
+    const { root, spec } = setupRepo(true);
+    let launches = 0;
+    contextFor({ cwd: root, tool_input: { file_path: spec } }, {}, () => {
+      launches += 1;
+      return { ok: true };
+    });
+    expect(launches).toBe(1);
+  });
+
+  it('treats a malformed config as not opted in rather than throwing', () => {
+    const { root, spec } = setupRepo();
+    writeFileSync(join(root, '.noldor', 'config.json'), 'not json at all');
+    let launches = 0;
+    const ctx = contextFor({ cwd: root, tool_input: { file_path: spec } }, {}, () => {
+      launches += 1;
+      return { ok: true };
+    });
+    expect(ctx).toContain('(docs/design/specs/2026-01-01-x-design.md)');
+    expect(launches).toBe(0);
   });
 
   it('names the PostToolUse event so the runner feeds the text to the model', () => {
