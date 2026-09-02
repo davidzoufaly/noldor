@@ -15,7 +15,7 @@ links:
 name: Auto-Open Design Artifacts
 packages:
   - package.json
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
