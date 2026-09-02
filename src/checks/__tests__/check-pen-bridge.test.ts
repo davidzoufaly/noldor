@@ -1,5 +1,5 @@
 // @tests: pendev-ui-design-phase
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -169,6 +169,8 @@ describe('checkPenBridge — indeterminate never becomes a finding', () => {
     ['a non-array args', { user: pencil('--app desktop') }],
     ['args carrying no --app', { user: pencil(['--agent', 'claudeCodeCLI']) }],
     ['--app with nothing after it', { user: pencil(['--agent', 'x', '--app']) }],
+    ['an inline --app with an empty value', { user: pencil(['--app=']) }],
+    ['--app followed by another flag', { user: pencil(['--app', '--agent', 'x']) }],
   ])('reports %s as indeterminate with a reason', (_label, opts) => {
     const row = mcpRow(fixture(opts));
     expect(row.kind).toBe('mcp-indeterminate');
@@ -183,6 +185,22 @@ describe('checkPenBridge — indeterminate never becomes a finding', () => {
     writeFileSync(join(home, '.claude.json'), '{ broken');
     writeFileSync(join(cwd, '.mcp.json'), JSON.stringify({ mcpServers: pencil(['--app', 'x']) }));
     expect(mcpRow({ cwd, home }).kind).toBe('mcp-indeterminate');
+  });
+
+  // An unreadable file is not an absent one. Treating the two alike lets a
+  // higher-precedence source that EXISTS fall through, so a lower pin gets
+  // reported as effective and the check exits green on a config it never read.
+  it('stops the search on an unreadable higher-precedence source', () => {
+    const home = mkdtempSync(join(tmpdir(), 'pen-bridge-home-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'pen-bridge-repo-'));
+    writeFileSync(
+      join(home, '.claude.json'),
+      JSON.stringify({ mcpServers: pencil(['--app', 'desktop']) }),
+    );
+    // A directory where a file is expected: readFileSync throws EISDIR, not ENOENT.
+    mkdirSync(join(cwd, '.mcp.json'));
+    const row = mcpRow({ cwd, home });
+    expect(row.kind).toBe('mcp-indeterminate');
   });
 });
 

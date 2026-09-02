@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-import type { OpenResult } from '../pen-bridge-cli.js';
+import type { OpenResult } from '../editor-launch.js';
 import {
   buildArtifactLink,
   launchArtifact,

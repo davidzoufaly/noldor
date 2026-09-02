@@ -107,12 +107,15 @@ if (freshness.status !== 'ok' && freshness.status !== 'no-lockfile') {
 // Pencil bridge wiring: advisory only (does NOT affect exit code). A wrong
 // `--app` pin is a real finding for `checks pen-bridge`, which exits 1 on it,
 // but it breaks only the UI-design step — failing a whole doctor run on it would
-// block every repo that never opens a `.pen`. Silent off macOS and on any state
-// the check could not determine.
+// block every repo that never opens a `.pen`.
+//
+// Every row prints, not just the findings. Doctor's job is to show the state of
+// the machine, and a filtered view is a different diagnostic from the one the
+// standalone command gives: an operator who sees nothing cannot tell "healthy"
+// from "could not determine" from "this check did not run".
 for (const row of checkPenBridge(process.cwd())) {
-  if (row.kind === 'mcp-app-mismatch' || row.kind === 'app-missing') {
-    console.log(`warn         ${renderPenBridgeRow(row)}`);
-  }
+  const level = row.kind === 'mcp-app-mismatch' || row.kind === 'app-missing' ? 'warn' : 'ok';
+  console.log(`${level.padEnd(12)} ${renderPenBridgeRow(row)}`);
 }
 
 // Framework-version skew: advisory only (does NOT affect exit code). A consumer

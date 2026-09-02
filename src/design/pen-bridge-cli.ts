@@ -6,10 +6,12 @@
 // pencil MCP can prove that, in-session, by retrying a call.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, realpathSync } from 'node:fs';
-import { dirname, isAbsolute, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 
 import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
+
+import { EDITOR_TIMEOUT_MS } from './editor-launch.js';
 
 import {
   BRIDGE_BOOTSTRAP_PATH,
@@ -38,105 +40,6 @@ export function trackedPenFiles(cwd: string): string[] {
   }
 }
 
-export interface OpenResult {
-  ok: boolean;
-  /** Present when the editor could not be launched. */
-  error?: string;
-}
-
-/**
- * Deadline on the `code` spawn, enforced by `execFileSync` so the kernel does the
- * interrupting. It lives here rather than at the call site because this is the
- * only place a subprocess is actually started — a caller cannot interrupt a
- * synchronous callback, so a timeout promised anywhere else would be a lie. An
- * untimed spawn inside a PostToolUse hook is a hang, and a hang reads to the
- * operator as a broken tool.
- */
-export const EDITOR_TIMEOUT_MS = 5_000;
-
-/**
- * The `.app` bundle directory enclosing `binPath`, or `undefined` when the path
- * is not inside one.
- *
- * Pure, and exported for its own tests: `code` on macOS is a shim buried in the
- * bundle (…/Visual Studio Code.app/Contents/Resources/app/bin/code), so the
- * bundle is found by walking ancestors. Deriving it beats hardcoding
- * `com.microsoft.VSCode` — the background launch then follows whatever editor
- * the operator installed (Insiders, a fork, a non-standard location) off the same
- * "`code` on PATH" contract the foreground path already relies on, instead of
- * silently reverting them all to a focus-stealing launch. A Linux `/usr/bin/code`
- * is correctly `undefined`: there is no bundle, and no `open` either.
- */
-export function appBundleFor(binPath: string): string | undefined {
-  let dir = binPath;
-  while (dir.length > 1) {
-    if (dir.endsWith('.app')) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return undefined;
-    dir = parent;
-  }
-  return undefined;
-}
-
-/** The `.app` enclosing the `code` on PATH, resolved through symlinks. */
-function enclosingAppBundle(cwd: string): string | undefined {
-  try {
-    const bin = execFileSync('which', ['code'], {
-      cwd,
-      encoding: 'utf8',
-      stdio: 'pipe',
-      timeout: EDITOR_TIMEOUT_MS,
-    }).trim();
-    return bin.length === 0 ? undefined : appBundleFor(realpathSync(bin));
-  } catch {
-    // No `code` on PATH, or `which` unavailable: the foreground fallback owns it.
-    return undefined;
-  }
-}
-
-/**
- * Open `path` in the editor WITHOUT taking focus, via macOS `open -g`.
- *
- * `undefined` means this route is unavailable and the caller must fall back.
- *
- * Two things make this the only workable no-focus route. The `code` CLI has no
- * background flag at all, so it always raises the window — which interrupts
- * whatever the operator was doing, on every artifact. And `open` cannot be
- * trusted by exit code: an absent app prints `Unable to find application …` to
- * stderr and still exits **0**, so stderr content is the real failure signal and
- * an empty stderr is the only success.
- *
- * Window routing is unchanged and deliberately left to the editor: `open` hands
- * the file to the running app, which places it in the window whose workspace
- * contains it, exactly as `code` does. That is why this needs no window logic of
- * its own.
- */
-function openInBackground(path: string, cwd: string): OpenResult | undefined {
-  if (process.platform !== 'darwin') return undefined;
-  const app = enclosingAppBundle(cwd);
-  if (app === undefined) return undefined;
-  // `spawnSync`, not `execFileSync`: the latter RETURNS stdout, and the signal
-  // that matters here is stderr on a ZERO exit — which `execFileSync` only
-  // surfaces on a throw that never comes.
-  const run = spawnSync('open', ['-g', '-a', app, path], {
-    cwd,
-    encoding: 'utf8',
-    timeout: EDITOR_TIMEOUT_MS,
-  });
-  if (run.error !== undefined || run.status !== 0) return undefined;
-  // Exit 0 proves nothing here — see above. Anything on stderr is a failure.
-  return (run.stderr ?? '').trim().length === 0 ? { ok: true } : undefined;
-}
-
-/**
- * Open `path` in the editor, preferring a launch that does not steal focus.
- *
- * Background first (macOS `open -g`), then the `code` CLI. The fallback is not a
- * degraded mode to be avoided: it is the only route on Linux and Windows, and it
- * still opens the file — it just raises the window. Failure of BOTH is expected
- * (no `code` on PATH at all) and an expired {@link EDITOR_TIMEOUT_MS} arrives
- * here as one more failed launch.
- */
 /**
  * What asking macOS to open a `.pen` produced.
  *
@@ -193,7 +96,7 @@ export function openPenFile(
   const out = run('open', ['-g', '-b', PENCIL_BUNDLE_ID, absPath], cwd);
   const stderr = (out.stderr ?? '').trim();
   // Belt and braces. For `-b` a bad bundle id already exits non-zero, unlike the
-  // `-a` behaviour `openInBackground` documents — but stderr on a zero exit is
+  // `-a` behaviour `editor-launch.ts` documents — but stderr on a zero exit is
   // still the cheaper signal to keep than to re-derive.
   if (out.error === undefined && out.status === 0 && stderr.length === 0) {
     return { kind: 'dispatched' };
@@ -214,18 +117,6 @@ function defaultRun(
   return run.error === undefined
     ? { status: run.status, stderr: run.stderr ?? '' }
     : { status: run.status, stderr: run.stderr ?? '', error: run.error };
-}
-
-export function openInEditor(path: string, cwd: string): OpenResult {
-  const background = openInBackground(path, cwd);
-  if (background !== undefined) return background;
-  try {
-    execFileSync('code', [path], { cwd, stdio: 'pipe', timeout: EDITOR_TIMEOUT_MS });
-    return { ok: true };
-  } catch (err) {
-    const stderr = (err as { stderr?: Buffer | string }).stderr?.toString() ?? String(err);
-    return { ok: false, error: stderr.trim() };
-  }
 }
 
 /**
@@ -269,7 +160,14 @@ export function renderLaunchFailure(outcome: PenLaunch, absPath: string): string
   return `pen-bridge: could not ask macOS to open ${absPath}: ${outcome.kind === 'failed' ? outcome.error : ''}\n  → open it in the pen.dev desktop app by hand — the path above is still correct`;
 }
 
-export async function main(argv: string[], cwd: string = process.cwd()): Promise<number> {
+export async function main(
+  argv: string[],
+  cwd: string = process.cwd(),
+  // Injected so the ordering rule below — nothing is claimed before the launcher
+  // answers — is testable without a real `open`, which cannot be made to fail on
+  // demand and does not exist off macOS at all.
+  launch: (absPath: string, cwd: string) => PenLaunch = openPenFile,
+): Promise<number> {
   // One usage-error exit for every way `--pen` can be wrong: absent value, a
   // value that is not a `.pen` (the bridge only wakes on a design file), or a
   // path that does not exist — opening a missing file wakes nothing, so it must
@@ -290,17 +188,32 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
   const preferred = pen.value;
   const printOnly = argv.includes('--print-only');
   const plan = planPenBridge(trackedPenFiles(cwd), preferred);
-  console.log(renderPlan(plan, !printOnly));
-  // Bootstrap is reported, never attempted: launching the editor on a path that
-  // does not exist yet would print "opening" for a file nothing can read.
-  if (plan.kind === 'bootstrap') return 1;
-  if (printOnly) return 0;
+
+  // Bootstrap is reported, never attempted: launching on a path that does not
+  // exist yet would describe a file nothing can read.
+  if (plan.kind === 'bootstrap') {
+    console.log(renderPlan(plan));
+    return 1;
+  }
+  if (printOnly) {
+    console.log(renderPlan(plan, false));
+    return 0;
+  }
+
   // Resolve AFTER planPenBridge has chosen. `rankPenCandidates` ranks on the
   // repo-relative `docs/design/ui/` prefix, so absolutising the candidate list
   // going in would score every entry at the worst rank and collapse the order.
   const absPath = isAbsolute(plan.path) ? plan.path : join(cwd, plan.path);
-  const outcome = openPenFile(absPath, cwd);
-  if (outcome.kind === 'dispatched') return 0;
+  const outcome = launch(absPath, cwd);
+  // The launch line comes AFTER the outcome, and only for `dispatched`. Printed
+  // first — as it was — stdout announced a request and told the reader to retry
+  // the MCP call even on a platform that spawned nothing, with stderr then
+  // contradicting it. That is precisely the false wake `PenLaunch` exists to
+  // prevent, and the ordering is the only thing enforcing it.
+  if (outcome.kind === 'dispatched') {
+    console.log(renderPlan(plan));
+    return 0;
+  }
   console.error(renderLaunchFailure(outcome, absPath));
   return LAUNCH_EXIT[outcome.kind];
 }

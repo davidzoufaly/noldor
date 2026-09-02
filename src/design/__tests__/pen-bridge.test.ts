@@ -13,7 +13,13 @@ import {
   planPenBridge,
   rankPenCandidates,
 } from '../pen-bridge.js';
-import { appBundleFor, main, openPenFile, renderPlan, trackedPenFiles } from '../pen-bridge-cli.js';
+import {
+  main,
+  openPenFile,
+  renderPlan,
+  trackedPenFiles,
+  type PenLaunch,
+} from '../pen-bridge-cli.js';
 
 /**
  * A scripted `open` run. `stderr` is the signal that matters — macOS reports a
@@ -27,42 +33,6 @@ function runner(result: { status?: number | null; stderr?: string; error?: Error
   };
   return { calls, run };
 }
-
-describe('appBundleFor', () => {
-  it.each([
-    [
-      'the VS Code shim inside its bundle',
-      '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code',
-      '/Applications/Visual Studio Code.app',
-    ],
-    [
-      'an Insiders install',
-      '/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code',
-      '/Applications/Visual Studio Code - Insiders.app',
-    ],
-    [
-      'a fork in a non-standard location',
-      '/Users/me/Apps/Cursor.app/Contents/Resources/app/bin/code',
-      '/Users/me/Apps/Cursor.app',
-    ],
-    ['the bundle directory itself', '/Applications/Code.app', '/Applications/Code.app'],
-  ])('finds the bundle for %s', (_label, bin, expected) => {
-    expect(appBundleFor(bin)).toBe(expected);
-  });
-
-  it.each([
-    ['a Linux system install', '/usr/bin/code'],
-    ['a bare relative name', 'code'],
-    ['the filesystem root', '/'],
-  ])('returns undefined for %s — no bundle, so no background launch', (_label, bin) => {
-    expect(appBundleFor(bin)).toBeUndefined();
-  });
-
-  // The walk must terminate on every input, since it runs inside a hook.
-  it('terminates on a path with no bundle however deep', () => {
-    expect(appBundleFor(`/${'a/'.repeat(200)}code`)).toBeUndefined();
-  });
-});
 
 describe('rankPenCandidates', () => {
   it('prefers a feature design over a baseline over anything else', () => {
@@ -255,5 +225,48 @@ describe('trackedPenFiles', () => {
 
   it('accepts a --pen path that exists', async () => {
     await expect(main(['--pen', 'kept.pen', '--print-only'], repo)).resolves.toBe(0);
+  });
+
+  /** stdout captured across one `main` call. */
+  async function runMain(launch: (p: string, c: string) => PenLaunch): Promise<{
+    code: number;
+    out: string;
+  }> {
+    const lines: string[] = [];
+    const log = console.log;
+    console.log = (...a: unknown[]) => void lines.push(a.map(String).join(' '));
+    const err = console.error;
+    console.error = () => {};
+    try {
+      const code = await main(['--pen', 'kept.pen'], repo, launch);
+      return { code, out: lines.join('\n') };
+    } finally {
+      console.log = log;
+      console.error = err;
+    }
+  }
+
+  // The whole point of the `dispatched` naming is that nothing claims a wake
+  // that did not happen. Printing the plan before launching defeats it: on a
+  // platform that spawns nothing, stdout still told the reader to retry MCP.
+  it.each([
+    [
+      'an unsupported platform',
+      { kind: 'unsupported-platform', platform: 'linux' } as PenLaunch,
+      4,
+    ],
+    ['a missing app', { kind: 'not-installed', error: 'boom' } as PenLaunch, 3],
+    ['a failed launch', { kind: 'failed', error: 'boom' } as PenLaunch, 2],
+  ])('says nothing about a request on %s', async (_label, outcome, expected) => {
+    const { code, out } = await runMain(() => outcome);
+    expect(code).toBe(expected);
+    expect(out).not.toContain('requested');
+    expect(out).not.toContain('retry the failing pencil MCP');
+  });
+
+  it('reports the request only once the launcher dispatched one', async () => {
+    const { code, out } = await runMain(() => ({ kind: 'dispatched' }));
+    expect(code).toBe(0);
+    expect(out).toContain('requested');
   });
 });

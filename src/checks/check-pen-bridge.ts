@@ -49,25 +49,40 @@ export interface PenBridgeCheckDeps {
   readonly probeBundle: BundleProbe;
 }
 
-/** JSON at `path`, or a reason it could not be read as an object. */
-function readJson(
-  path: string,
-): { ok: true; value: Record<string, unknown> } | { ok: false; reason: string } {
+/**
+ * A config source's three outcomes.
+ *
+ * `missing` and `blocked` are kept apart deliberately, and only `missing` lets
+ * scope resolution continue to a lower precedence. A file that EXISTS but cannot
+ * be read or parsed must stop the search: falling through would report a lower
+ * pin as effective while a higher one — possibly contradicting it — went unread,
+ * and the check would exit green on a configuration it never saw.
+ */
+type JsonSource =
+  | { kind: 'found'; value: Record<string, unknown> }
+  | { kind: 'missing' }
+  | { kind: 'blocked'; reason: string };
+
+/** JSON at `path`, classified per {@link JsonSource}. */
+function readJson(path: string): JsonSource {
   let raw: string;
   try {
     raw = readFileSync(path, 'utf8');
-  } catch {
-    // Absent is the common case and not an error — the caller decides whether a
-    // missing source ends the search or just skips a scope.
-    return { ok: false, reason: `absent:${path}` };
+  } catch (e) {
+    // ENOENT is the ordinary "this scope declares nothing" case. Every other
+    // errno (EACCES, EISDIR, EIO) means the file is there and the read failed,
+    // which is a different fact and earns a different verdict.
+    return (e as NodeJS.ErrnoException).code === 'ENOENT'
+      ? { kind: 'missing' }
+      : { kind: 'blocked', reason: `${path} exists but could not be read (${String(e)})` };
   }
   try {
     const parsed: unknown = JSON.parse(raw);
     return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? { ok: true, value: parsed as Record<string, unknown> }
-      : { ok: false, reason: `malformed:${path} is not a JSON object` };
+      ? { kind: 'found', value: parsed as Record<string, unknown> }
+      : { kind: 'blocked', reason: `${path} is not a JSON object` };
   } catch (e) {
-    return { ok: false, reason: `malformed:${path} is not parseable JSON (${String(e)})` };
+    return { kind: 'blocked', reason: `${path} is not parseable JSON (${String(e)})` };
   }
 }
 
@@ -101,14 +116,22 @@ function appFlag(
 ): { ok: true; value: string } | { ok: false; reason: string } {
   const args = entry['args'];
   if (!Array.isArray(args)) return { ok: false, reason: 'the pencil entry has no args array' };
+  const valueless = { ok: false, reason: '--app is present with no value' } as const;
   for (const [i, raw] of args.entries()) {
     if (typeof raw !== 'string') continue;
-    if (raw.startsWith('--app=')) return { ok: true, value: raw.slice('--app='.length) };
+    if (raw.startsWith('--app=')) {
+      // `--app=` carries an empty string, which is an unusable pin rather than a
+      // wrong one — reporting it as a mismatch would name '' as the found app.
+      const value = raw.slice('--app='.length);
+      return value.length === 0 ? valueless : { ok: true, value };
+    }
     if (raw !== '--app') continue;
     const next = args[i + 1];
-    return typeof next === 'string'
+    // A following flag is not this flag's value: `["--app", "--agent", "x"]`
+    // would otherwise pin the app to '--agent'.
+    return typeof next === 'string' && next.length > 0 && !next.startsWith('-')
       ? { ok: true, value: next }
-      : { ok: false, reason: '--app is present with no value after it' };
+      : valueless;
   }
   return { ok: false, reason: 'the pencil entry declares no --app' };
 }
@@ -133,12 +156,9 @@ function resolveScope(
   cwd: string,
   home: string,
 ): { ok: true; scope: Scope } | { ok: false; reason: string } {
-  const claudePath = join(home, '.claude.json');
-  const claude = readJson(claudePath);
-  if (!claude.ok && claude.reason.startsWith('malformed:')) {
-    return { ok: false, reason: claude.reason.slice('malformed:'.length) };
-  }
-  const root = claude.ok ? claude.value : undefined;
+  const claude = readJson(join(home, '.claude.json'));
+  if (claude.kind === 'blocked') return { ok: false, reason: claude.reason };
+  const root = claude.kind === 'found' ? claude.value : undefined;
   const project = objectAt(objectAt(root, 'projects'), cwd);
 
   const local = pencilEntry(objectAt(project, 'mcpServers'));
@@ -146,10 +166,8 @@ function resolveScope(
     return { ok: true, scope: { source: 'local (~/.claude.json)', entry: local } };
 
   const mcpJson = readJson(join(cwd, '.mcp.json'));
-  if (!mcpJson.ok && mcpJson.reason.startsWith('malformed:')) {
-    return { ok: false, reason: mcpJson.reason.slice('malformed:'.length) };
-  }
-  if (mcpJson.ok) {
+  if (mcpJson.kind === 'blocked') return { ok: false, reason: mcpJson.reason };
+  if (mcpJson.kind === 'found') {
     const declared = pencilEntry(objectAt(mcpJson.value, 'mcpServers'));
     // An unapproved .mcp.json server is not in force, so naming its pin would
     // send the operator to edit a file Claude Code is not reading.
