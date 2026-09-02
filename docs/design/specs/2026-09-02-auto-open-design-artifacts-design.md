@@ -58,9 +58,10 @@ than as a wrong path, and the operator's recovery is to ask for the path again.
 - Editors other than VS Code. `openInEditor` already treats `code` as the one scriptable
   editor (`src/design/pen-bridge-cli.ts:47`), and an absent `code` is an expected,
   handled outcome rather than a configuration axis.
-- Multi-root VS Code workspaces. Named as a known limitation under Risks rather than
-  supported: nothing reaching this code can tell which of several folders the operator's
-  markdown preview resolves against.
+- Guaranteeing the workspace root in every layout. Multi-root workspaces, and sessions
+  whose cwd is not the folder the editor opened, are named as known limitations under Risks
+  with `--workspace-root` as the escape hatch — nothing reaching this code can tell which
+  folder the operator's markdown preview resolves against.
 - A `.pen` / UI-design path. `pnpm noldor design pen-bridge` already owns opening design
   files for the pencil bridge, and its purpose is liveness, not review.
 
@@ -78,38 +79,44 @@ pass on this branch would attach a multi-megabyte generated diff to a three-file
 per-path digest — the interesting question it would answer is whether `src/cli/manifest.ts`
 is the god node this change's registration edit suggests it is.`
 
-### U0 — the workspace root is an input, never a derivation
+### U0 — the workspace root is an input, and it is not always knowable
 
-This is the decision the rest of the design hangs off, and it is the one the first draft
-got wrong. Git cannot answer "which folder did the editor open": from
-`<repo>/docs/design/specs` on `main`, `git rev-parse --git-common-dir` prints the
-*cwd-relative* `../../../.git`, and from the same directory inside a worktree it prints
-the absolute `<main-root>/.git`. Neither output names the editor's workspace folder, and
-an operator who opens `.worktrees/<slug>/` directly as their window has a workspace folder
-git will never mention. Deriving the root from git therefore inverts the bug for that
-layout: the `.worktrees/<slug>/…` prefix becomes the dead link and the bare repo-relative
-path the live one.
+This is the decision the rest of the design hangs off. **Nothing reachable from this code
+can prove which folder the editor opened**, and the design says so rather than asserting a
+derivation that holds only sometimes.
 
-Claude Code already supplies the right value. A hook payload carries `cwd` — the session's
-working directory, which is the folder the editor opened —
-and `src/hooks/noldor-pre-edit-guard.ts:91` already consumes it exactly this way
-(`payload.cwd ?? process.cwd()`). So the workspace root is resolved by a ladder, first rung
-that answers wins:
+Git cannot answer it. From `<repo>/docs/design/specs` on `main`,
+`git rev-parse --git-common-dir` prints the *cwd-relative* `../../../.git`; from the same
+directory inside a worktree it prints the absolute `<main-root>/.git`. Neither output names
+the editor's workspace folder, and an operator who opens `.worktrees/<slug>/` directly has
+a workspace folder git will never mention.
+
+The environment cannot answer it either. `VSCODE_CWD` is the cwd the VS Code *application*
+was launched from, not the workspace folder — on this machine it is `/`, which is absolute,
+would satisfy any "is it set and absolute" test, contains every path so no containment check
+rejects it, and yields `Users/davidzoufaly/code/noldor/.worktrees/…`. It is therefore not a
+rung at all.
+
+What is left is a **best signal plus an explicit override**, resolved by a ladder where the
+first rung that answers wins:
 
 1. `--workspace-root <abs-path>` when passed — the explicit override, and what the tests
-   drive.
-2. The hook payload's `cwd` (U2's path).
-3. `VSCODE_CWD` from the environment, when set and absolute.
-4. `path.resolve(cwd, <git rev-parse --git-common-dir output>)`'s parent directory. The
-   `resolve` is what M1 corrects: a naive `dirname` on the raw output yields `../../..` on
-   `main` and prints a garbage path for exactly the case that works today.
-5. `process.cwd()`.
+   drive. A relative, absent or non-directory value is a usage error, never a silent
+   fallthrough.
+2. The hook payload's `cwd` (U2's path). This is the session's working directory, which for
+   a session the VS Code extension launched *is* the workspace folder, and
+   `src/hooks/noldor-pre-edit-guard.ts:91` already consumes it this way
+   (`payload.cwd ?? process.cwd()`). It is a strong default, not a guarantee — see the
+   limitation under Risks.
+3. `git rev-parse --show-toplevel` from the artifact's directory — the artifact's **own**
+   checkout root, so a worktree artifact yields the worktree root. This is the rung that
+   reproduces today's working behaviour when nothing better is available.
+4. `process.cwd()`.
 
-Rungs 4 and 5 are best-effort fallbacks for a bare CLI invocation, and the command never
-fails because a rung did not answer. One containment rule keeps a wrong rung from printing
-nonsense: if the artifact is not inside the resolved root, the command discards that root
-and prints the path relative to the artifact's own repo root instead, which is the current
-behaviour rather than a worse one.
+The command never fails because a rung did not answer. One containment rule keeps a wrong
+rung from printing nonsense: if the artifact is not inside the resolved root, that root is
+discarded and the path is printed relative to the artifact's own checkout root (rung 3),
+which is today's behaviour rather than a worse one.
 
 ### U1 — `noldor design open <path>`: the runner-neutral core
 
@@ -119,65 +126,105 @@ cwd, refuses a path that is not a live design artifact and refuses one that is n
 disk, prints on stdout the path **relative to the workspace root**, and launches the
 editor on the **absolute** path.
 
-**Printing and launching are separate outcomes, and printing wins.** The path is written to
-stdout before the launch is attempted, and a launch that cannot happen — no `code` on
-PATH, a spawn that times out — is a warning on stderr with exit still 0. This is what
-resolves the conflict between a global fail-open goal and a command other runners' prose
-is required to call: a codex session on a machine with no `code` still gets its link and
-its gate step still proceeds. Only a **usage** error is non-zero.
+**Resolution and launch are separate steps, in that order, and the shared unit performs
+only the first.** `resolveArtifact` decides and returns; the caller prints; the caller then
+calls `launch`. The unit never launches, so the required ordering — path on stdout before
+any editor is touched — is expressible rather than merely asserted, which the first draft's
+launch-inside-the-unit shape could not satisfy. A launch that cannot happen (no `code` on
+PATH, a spawn that times out or throws) is a warning on stderr with exit still 0. That is
+what reconciles the global fail-open goal with a command other runners' prose is required
+to call: a codex session on a machine with no `code` still gets its link and its gate step
+still proceeds. Only a **usage** error is non-zero.
 
 **The artifact predicate**, shared verbatim with U2 so the two cannot disagree:
 
 - Resolve the input to an absolute path (`path.resolve`) without resolving symlinks —
   lexical containment only, so a symlinked repo is judged by the path the caller used.
+- `lstat` must report a **regular file**, or a symlink whose `stat` reports one. A
+  directory named `*.md`, a broken symlink, and a symlink to a directory are all
+  `not-a-file`. A symlink whose target lies outside the checkout is still judged by its
+  lexical path, because that is the path the editor will open.
 - The extension must be `.md`.
-- Its parent directory must be exactly the `specs` or `plans` doc root of the repo
+- Its parent directory must be exactly the `specs` or `plans` doc root of the checkout
   containing it, as `loadDocRoots` (`src/core/doc-roots.ts:56`) reports them — which is
   what admits both the `docs/design/{specs,plans}` layout and the pre-1.0.0
   `docs/superpowers/{specs,plans}` transition alias without hardcoding either.
 - Direct children only. `docs/design/specs/archive/x.md` is rejected: an archived artifact
   is history, not a review surface.
-- The repo whose doc roots are consulted is the one containing the *artifact*, found by
-  resolving `git rev-parse --git-common-dir` from the artifact's directory — never the
-  repo containing cwd. A path outside any repo is rejected as a usage error.
+- The checkout whose doc roots are consulted is found with
+  **`git rev-parse --show-toplevel` from the artifact's directory** — never
+  `--git-common-dir`, and never the repo containing cwd. A path in no repository is
+  rejected.
 
-Consulting the artifact's own repo is what makes a path merely *ending* in the same
+The `--show-toplevel` choice is load-bearing and is where the first draft was fatally
+wrong. `--git-common-dir` names the **main** checkout even when run from inside a worktree
+(verified: from `.worktrees/<slug>/docs/design/specs/` it prints `<main>/.git`), so
+`loadDocRoots` would have returned `<main>/docs/design/specs` and the parent-equals-doc-root
+test would have failed for *every* `specs-only-*` and `full-*` artifact — rejecting the
+primary case the feature exists for. `--show-toplevel` returns the worktree root from a
+worktree and the repo root from `main` (both verified), which is the checkout whose doc
+roots actually contain the file. `--git-common-dir` survives nowhere in this design;
+U0 rung 3 uses `--show-toplevel` too.
+
+Consulting the artifact's own checkout is what makes a path merely *ending* in the same
 segments — an unrelated tree with a `docs/design/specs/` in it — a rejection rather than
 an accident.
 
 **Editor launch reuses `openInEditor` from `src/design/pen-bridge-cli.ts:48`** rather than
 re-spawning `code`. That function already encodes the two decisions worth keeping: `code`
 is the one scriptable editor, and a launch failure is an expected result (`OpenResult`)
-rather than a throw. It gains a bounded timeout (see Error handling); everything else about
-it is unchanged, and the import is one hop within `src/design/`.
+rather than a throw. It gains an explicit `timeout` (see Error handling); everything else
+about it is unchanged, and the import is one hop within `src/design/`.
 
 `code <abs-path>` — not `--reuse-window`, not `--goto` — is deliberate. When the path sits
 inside an already-open workspace folder, VS Code opens it as a tab in that window, which
 is exactly the ask.
 
-**The shared unit both entry points call:**
+**The shared contract both entry points call:**
 
 ```ts
-export interface OpenArtifactRequest {
+export interface ResolveArtifactRequest {
   readonly path: string;
   readonly cwd: string;
+  /** U0 rung 1. Must be absolute and an existing directory, else `bad-workspace-root`. */
   readonly workspaceRoot?: string;
-  readonly launch?: (absPath: string, cwd: string) => OpenResult; // default: openInEditor
+  /** Injected in tests; default probes real git with GIT_TIMEOUT_MS. */
+  readonly git?: (args: readonly string[], cwd: string) => string | undefined;
 }
 
-export type OpenArtifactResult =
-  | { readonly kind: 'opened'; readonly absPath: string; readonly linkPath: string }
-  | { readonly kind: 'not-launched'; readonly absPath: string; readonly linkPath: string;
-      readonly warning: string }
-  | { readonly kind: 'rejected'; readonly reason: 'not-a-file' | 'not-an-artifact' | 'no-repo';
-      readonly message: string };
+export type ResolveArtifactResult =
+  | { readonly kind: 'artifact'; readonly absPath: string; readonly linkPath: string }
+  | {
+      readonly kind: 'rejected';
+      readonly reason: 'no-path' | 'not-a-file' | 'not-an-artifact' | 'no-repo' | 'bad-workspace-root';
+      readonly message: string;
+    };
+
+export type LaunchOutcome =
+  | { readonly kind: 'launched' }
+  | { readonly kind: 'not-launched'; readonly warning: string };
+
+/** Never throws: a throwing or timing-out launcher becomes `not-launched`. */
+export function launchArtifact(
+  absPath: string,
+  cwd: string,
+  launch?: (absPath: string, cwd: string) => OpenResult,
+): LaunchOutcome;
 ```
 
-The unit resolves, decides, and launches; it never writes to stdout, assigns an exit code,
-or reads the environment. Both callers own their own output: U1 maps `opened` and
-`not-launched` to a printed `linkPath` and exit 0 (`not-launched` also writing `warning` to
-stderr) and `rejected` to `message` on stderr and exit 2; U2 maps every member to exit 0.
-Keeping the printing out of the unit is what lets U2 emit JSON where U1 emits a bare line.
+Two functions, because the ordering demands two: `resolveArtifact` is decision-only (a
+bounded git probe and filesystem stats, no spawn of an editor, no stdout, no exit code, no
+environment reads beyond what its caller passes), and `launchArtifact` is best-effort and
+**cannot throw** — a launcher that throws, times out, or reports failure all become
+`not-launched` with a `warning`. There is no unexpected-I/O result member because there is
+no unexpected-I/O outcome: a failed stat is `not-a-file`, a failed or timed-out git probe
+means that rung did not answer, and every launch failure is `not-launched`.
+
+Both callers own their own output. U1: print `linkPath`, call `launchArtifact`, write any
+`warning` to stderr, exit 0; on `rejected` write `message` to stderr and exit 2. U2: the
+same sequence, but every outcome — `rejected` included — exits 0, and the report goes out as
+JSON rather than a bare line. Keeping printing out of the unit is what lets the two entry
+points differ in format while agreeing on the decision.
 
 ### U2 — `noldor hooks open-artifact`: the Claude wiring
 
@@ -190,13 +237,19 @@ this adds the first `PostToolUse` entry, registered in the `hooks` group of
 `src/cli/manifest.ts:312` beside it.
 
 **The hook is how the agent learns the link.** A `PostToolUse` hook's plain stdout is
-transcript-only and never reaches the model, so on `opened` and `not-launched` the hook
-writes the JSON form instead:
+transcript-only and never reaches the model, so the hook writes the JSON form instead — for
+**every** `artifact` resolution, whether or not the editor launched, because the path is the
+deliverable and withholding it when `code` is absent would contradict the fail-open goal:
 
 ```json
 { "hookSpecificOutput": { "hookEventName": "PostToolUse",
-    "additionalContext": "Artifact opened. Report this path in markdown links: <linkPath>" } }
+    "additionalContext": "Design artifact written. Report this path in markdown links: <linkPath>" } }
 ```
+
+The message names the *writing*, not the opening, so the one string is honest in both
+cases; when the launch failed, the `warning` is appended to it so the agent can tell the
+operator no tab appeared. A `rejected` resolution emits no `additionalContext` at all —
+there is nothing to report and every `Write` to a source file takes that branch.
 
 That is what closes the loop without a second launch: the Claude renderings of
 `/noldor-spec`, `/noldor-plan` and `/noldor-gate` do **not** call `design open` — they
@@ -219,33 +272,46 @@ cwd's.
 **The hook exits 0 unconditionally**, and three guards make that true rather than aspirational:
 a `process.stdin.isTTY` early exit (a bare `readFileSync(0)` on an interactive terminal
 blocks forever — the same reason `noldor-pre-edit-guard.ts:96` has it), a `try/catch` around
-the parse, and bounded subprocess timeouts so a hung `git` or `code` cannot wedge a gate
-step. Every rejection, warning and thrown error is exit 0.
+the parse, and the pinned subprocess timeouts below, so a hung `git` or `code` cannot wedge a
+gate step. Every rejection, warning and thrown error is exit 0.
+
+**The accepted payload** is `{ cwd?: string, tool_input?: { file_path?, notebook_path?, path? } }`
+— the shape `noldor-pre-edit-guard.ts:69-77` already declares, read through its exported
+`filePathFromPayload`. Unknown fields are ignored, a missing `tool_input` resolves to no
+path (`rejected: no-path`, exit 0), and a relative `file_path` is resolved against
+`payload.cwd ?? process.cwd()`.
 
 ### U3 — reporting a path that resolves
 
 The prose that tells an agent to report a clickable link is corrected to tell it to report
 **the path it was given** — from the hook's `additionalContext` on Claude, from
-`design open`'s stdout elsewhere — rather than a repo-relative path it derived. Four
-renderings say this today and all four move together, or the rule holds for one runner:
+`design open`'s stdout elsewhere — rather than a repo-relative path it derived. Every
+rendering of the reporting rule moves together, or the rule holds for one runner only:
 
-| Runner | File | Change |
+| Runner | Files (each with its `templates/` twin) | Change |
 | --- | --- | --- |
-| Claude | `.claude/skills/noldor-spec/SKILL.md` steps 5, 8; `.claude/skills/noldor-plan/SKILL.md` artifact-report step; `.claude/skills/noldor-gate/SKILL.md` Step 2.5 | report the hook-supplied path; do not call `design open` |
-| codex | `AGENTS.md` § Skills (`spec` / `plan` bullets) | call `pnpm noldor design open <path>` and report its stdout |
-| opencode | `.opencode/command/noldor-spec.md`, `.opencode/command/noldor-plan.md` | same as codex |
+| Claude | `.claude/skills/noldor-spec/SKILL.md` steps 5 + 8; `.claude/skills/noldor-plan/SKILL.md` artifact-report step; `.claude/skills/noldor-gate/SKILL.md` Step 2.5 artifact-surfacing sentence and its Input-localization note | report the hook-supplied path; do **not** call `design open` |
+| codex | `AGENTS.md` § Skills — the `spec`, `plan` and `gate` bullets | call `pnpm noldor design open <path>` and report its stdout verbatim |
+| opencode | `.opencode/command/noldor-spec.md`, `.opencode/command/noldor-plan.md`, `.opencode/command/noldor-gate.md` | same as codex |
 
-Every one of those files has a `templates/` twin that must move in the same commit —
-`pnpm noldor checks template-sync` refuses a templated file that drifts from its
-`templates/` copy.
+The gate rendering is included for all three runners deliberately: gate Step 2.5 surfaces
+the artifact path in its own sentence, so a fix that covered only the spec and plan skills
+would leave the gate's own report dead. Every listed file has a `templates/` twin that must
+move in the same commit — `pnpm noldor checks template-sync` refuses a templated file that
+drifts from its `templates/` copy.
 
 **The link format** is pinned so "clickable" is not left to taste. Stdout is exactly one
-line: the workspace-root-relative path with POSIX `/` separators and no quoting, no
-trailing whitespace. Agents wrap it as `[<basename>](<path>)`, and wrap the target in
-angle brackets — `[<basename>](<path with spaces>)` → `[…](<…>)` — when the path contains a
-space, `(`, `)` or `#`, which is the only construction VS Code's markdown resolver accepts
-for those characters. Artifact filenames are date-and-slug generated, so the escaping
-branch is defensive rather than routine.
+line: the workspace-root-relative path with POSIX `/` separators, no quoting and no
+trailing whitespace. Agents construct `[<label>](<destination>)` where:
+
+- the **destination** percent-encodes the characters that break a markdown target — space
+  as `%20`, and `#` `%` `(` `)` `<` `>` `?` as their `%XX` forms — encoding `%` first so an
+  already-encoded sequence is not double-read;
+- the **label** is the basename with `[` and `]` backslash-escaped.
+
+Artifact filenames are date-and-slug generated, so both branches are defensive rather than
+routine — but the predicate accepts any `.md` direct child of a doc root, so it cannot
+promise the generated shape and the encoding rule is stated instead of assumed.
 
 Making the correct string *available* is what keeps this from being a rule agents forget:
 the failure being fixed is an agent deriving a path, so the fix is to stop asking it to
@@ -256,23 +322,32 @@ present, already producing dead links.
 
 Four failure classes, four postures.
 
-A **usage error** — no path, not a live artifact, no such file, no owning repo — is exit 2
-from U1 with the reason named, and exit 0 from U2. Opening a missing file yields an empty
-buffer that reads as a successful open, which is the hazard
-`src/design/pen-bridge-cli.ts:78-85` already guards for `--pen`.
+A **usage error** — `no-path`, `not-a-file`, `not-an-artifact`, `no-repo`,
+`bad-workspace-root` — is exit 2 from U1 with the reason named, and exit 0 from U2.
+Opening a missing file yields an empty buffer that reads as a successful open, which is the
+hazard `src/design/pen-bridge-cli.ts:78-85` already guards for `--pen`. An explicit
+`--workspace-root` that is relative, absent from disk, or not a directory is
+`bad-workspace-root` rather than a fallthrough to rung 2: an operator who names a root has
+stated an intent, and silently substituting a different one would print a path they did not
+ask for.
 
 A **missing editor** prints the link, warns on stderr with the remediation line
 `pen-bridge-cli.ts:100-104` already carries (install the shell command from the Command
 Palette), and exits **0**. The path is the deliverable; the tab is the convenience.
 
-A **hung subprocess** is bounded, not waited on: both the `git rev-parse` probe and the
-`code` spawn carry an explicit timeout, and expiry is treated as "that rung did not answer"
-and "the editor did not launch" respectively. `concurrency-write-discipline` requires it —
-an untimed wait inside a hook is a hang, and a hang reads to the operator as a broken tool.
+A **hung subprocess** is bounded, not waited on. Both waits carry a pinned deadline —
+`GIT_TIMEOUT_MS = 2_000` on each `git rev-parse` probe and `EDITOR_TIMEOUT_MS = 5_000` on
+the `code` spawn, passed as `execFileSync`'s `timeout` option — so the whole hook is bounded
+by one git probe plus one editor spawn, under 8 s including Node startup even in the worst
+case. Expiry is treated as "that rung did not answer" and "the editor did not launch"
+respectively, never as a throw. `concurrency-write-discipline` requires the deadline: an
+untimed wait inside a hook is a hang, and a hang reads to the operator as a broken tool.
+The constants are module-level and not configurable — a knob here would be a second way to
+produce a hang.
 
 A **git failure or an unresolvable workspace root** degrades rather than fails: the ladder
 falls through to `process.cwd()`, and the containment rule falls back to the artifact's own
-repo root. The worst case is the path the prose produces today.
+checkout root. The worst case is the path the prose produces today.
 
 ### Testing
 
@@ -286,17 +361,27 @@ the given root (expect the containment fallback). Real git repos with a real
 assert the mock, and the whole point is that the real output differs in shape between the
 two checkouts.
 
-The predicate is a pure function over a path and is tested as a table: specs and plans in
-both doc-root layouts, and the negatives that carry the design — an `archive/` child, a
-non-`.md` file, a feature MD, a source file, a path outside any repo, and an unrelated tree
-whose directories merely end in the same segments.
+The predicate is tested as a table against real temp trees, because its `--show-toplevel`
+leg is exactly what the first draft got wrong: a spec **inside a real
+`git worktree add`ed checkout** must resolve as an artifact, which is the regression test
+for that defect. The negatives that carry the design ride the same table — an `archive/`
+child, a non-`.md` file, a directory named `*.md`, a broken symlink, a symlink to a
+directory, a feature MD, a source file, a path in no repository, and an unrelated tree whose
+directories merely end in the same segments.
 
 The process boundary is the one seam that gets mocked, and only there: the injected
-`launch` reaches the missing-editor and timeout branches without depending on the runner's
-machine. The hook's fail-open contract is asserted the same way — a TTY stdin, malformed
-stdin, an absent `file_path`, a relative `file_path`, a non-artifact path and a throwing
-launcher all exit 0 — and the `additionalContext` payload is asserted as parseable JSON
-carrying the same `linkPath` the CLI prints.
+`launch` reaches the missing-editor, throwing-launcher and timeout branches without
+depending on the runner's machine, and the injected `git` reaches the probe-failed and
+probe-timed-out rungs. The hook's fail-open contract is asserted the same way — a TTY
+stdin, malformed stdin, an absent `tool_input`, an absent `file_path`, a relative
+`file_path`, a non-artifact path, a throwing launcher and a timed-out probe all exit 0 — and
+the `additionalContext` payload is asserted as parseable JSON carrying the same `linkPath`
+the CLI prints, present on a failed launch and absent on a `rejected` resolution.
+
+Link construction is a pure function and is tested on the characters that break a markdown
+target: a space, `#`, `%`, parentheses and angle brackets in both the destination and the
+label, including a path already containing a `%XX` sequence (asserting the `%`-first
+ordering does not double-encode it).
 
 Not tested: that VS Code actually shows a tab. That is the runner's behaviour, and the
 Deletion Test says so — deleting such a test would change no signal, because nothing in
@@ -310,39 +395,65 @@ the suite could distinguish a real tab from a successful `execFileSync`.
    `.worktrees/<slug>/` prefix; with `--workspace-root` at the worktree itself it is the
    bare repo-relative path.
 3. The workspace root resolves by the U0 ladder — explicit flag, hook payload `cwd`,
-   `VSCODE_CWD`, resolved `--git-common-dir` parent, `process.cwd()` — and an artifact
-   outside the resolved root falls back to its own repo root.
-4. The command launches the VS Code CLI on the artifact's **absolute** path.
-5. It still prints the path and exits 0 when the editor cannot be launched, writing a
-   remediation warning naming the VS Code shell-command install to stderr.
-6. It exits 2 without launching anything when the path names no file, is not a `.md` direct
-   child of a specs or plans doc root, or lies outside any git repository — including a
-   path under `docs/design/specs/archive/`.
-7. The predicate accepts both the `docs/design/{specs,plans}` and
-   `docs/superpowers/{specs,plans}` layouts, resolved from the repo containing the
-   artifact rather than the repo containing cwd.
-8. Writing a new file under a specs or plans doc root in a Claude session results in
+   `git rev-parse --show-toplevel` from the artifact's directory, `process.cwd()` — and an
+   artifact outside the resolved root falls back to its own checkout root. `VSCODE_CWD` is
+   never consulted.
+4. The path reaches stdout before any editor spawn is attempted, and the command launches
+   the VS Code CLI on the artifact's **absolute** path.
+5. It still prints the path and exits 0 when the editor cannot be launched — absent `code`,
+   a throwing launcher, or a spawn that exceeds its timeout — writing a remediation warning
+   naming the VS Code shell-command install to stderr.
+6. It exits 2 without launching anything when the path names no file, is not a `.md`
+   regular-file direct child of a specs or plans doc root, or lies in no git repository —
+   including a path under `docs/design/specs/archive/`, a directory named `*.md`, a broken
+   symlink, and a symlink to a directory.
+7. A spec inside a `git worktree add`ed checkout resolves as an artifact: the predicate
+   consults `git rev-parse --show-toplevel` from the artifact's directory, never
+   `--git-common-dir`, and accepts both the `docs/design/{specs,plans}` and
+   `docs/superpowers/{specs,plans}` layouts.
+8. An explicit `--workspace-root` that is relative, absent from disk, or not a directory
+   exits 2 rather than falling through to another rung.
+9. Writing a new file under a specs or plans doc root in a Claude session results in
    exactly one editor launch for that file; editing an existing artifact results in none.
-9. `pnpm noldor hooks open-artifact` exits 0 for every input — TTY stdin, malformed stdin,
-   absent `file_path`, relative `file_path`, non-artifact path, failing launcher, and a
-   subprocess that exceeds its timeout.
-10. On a successful open the hook emits parseable JSON carrying
-    `hookSpecificOutput.additionalContext` with the same workspace-root-relative path the
-    CLI prints.
-11. Both the `git` probe and the editor spawn carry an explicit timeout, and expiry is
-    handled as a non-answer rather than a throw or a hang.
-12. Every runner rendering names the reporting rule: the Claude skill files report the
-    hook-supplied path without calling `design open`, while `AGENTS.md` and the
-    `.opencode/command/` shims call it and report its stdout.
-13. `pnpm noldor checks template-sync` passes, and `pnpm noldor --help` lists `design open`
+10. `pnpm noldor hooks open-artifact` exits 0 for every input — TTY stdin, malformed stdin,
+    absent `tool_input`, absent `file_path`, relative `file_path`, non-artifact path,
+    failing or throwing launcher, and a subprocess that exceeds its timeout.
+11. The hook emits parseable JSON carrying `hookSpecificOutput.additionalContext` with the
+    same workspace-root-relative path the CLI prints, on every `artifact` resolution
+    including one whose launch failed, and emits no `additionalContext` on a `rejected`
+    resolution.
+12. Both the `git` probe and the editor spawn carry a pinned timeout (2 s and 5 s), and
+    expiry is handled as a non-answer rather than a throw or a hang.
+13. Markdown link construction percent-encodes space, `#`, `%`, `(`, `)`, `<`, `>` and `?`
+    in the destination and backslash-escapes `[` / `]` in the label, without
+    double-encoding an existing `%XX` sequence.
+14. Every runner rendering named in the U3 table carries the reporting rule, gate rendering
+    included: the Claude skill files report the hook-supplied path without calling
+    `design open`, while `AGENTS.md` and the `.opencode/command/` shims call it and report
+    its stdout.
+15. `pnpm noldor checks template-sync` passes, and `pnpm noldor --help` lists `design open`
     and `hooks open-artifact`.
 
 ## Risks / trade-offs
 
-**Multi-root VS Code workspaces are not supported.** With several folders open, no signal
-available here says which one a markdown link resolves against, so the ladder picks the
-session's `cwd` and may be wrong. Stated as a limitation rather than papered over; the
-escape hatch is `--workspace-root`.
+**The workspace root is a best guess, and two layouts defeat it.** This is the feature's
+honest ceiling, not an oversight.
+
+*Multi-root workspaces.* With several folders open, no signal available here says which one
+a markdown link resolves against, so the ladder picks the session's `cwd` and may be wrong.
+
+*A session whose cwd is not the workspace folder.* Rung 2 holds when the extension launched
+the session in the folder it opened, which is the ordinary case. It does not hold for a
+session started elsewhere and moved — notably a native-worktree session, where `cwd` becomes
+`.worktrees/<slug>` while the editor still shows the main checkout. The hook then prints the
+bare repo-relative path: a dead link, the exact bug being fixed, in that one mode. Preferring
+the parent checkout whenever `cwd` sits inside a `.worktrees/` of it was considered and
+rejected — it would break the operator who genuinely opened the worktree as their window,
+trading one silent wrong answer for another.
+
+The escape hatch for both is `--workspace-root <abs-path>`, and the reason it is worth
+shipping anyway is that the common case — extension-launched session, one workspace folder,
+gate worktree underneath it — is the case that is broken today and is fixed here.
 
 **Focus stealing is the behaviour, not a bug, and it is unavoidable.** `code <path>` brings
 the window forward and VS Code's CLI has no background-tab flag. Firing on `Write` only
@@ -427,13 +538,23 @@ pnpm noldor hooks open-artifact
    prose also calling `design open` — fires `code` twice per artifact and breaks the
    one-launch guarantee.
 
-6. *Is the VS Code workspace root derivable from git?*
-   -> No; it is an input. (D6) `--git-common-dir` names the main checkout, which is simply a
-   different thing from the folder the editor opened — an operator who opens
-   `.worktrees/<slug>/` directly would get the inverse of the bug. The hook payload's `cwd`
-   is the authoritative signal and `src/hooks/noldor-pre-edit-guard.ts:91` already consumes
-   it that way; git is rung 4 of a fallback ladder, with `path.resolve` applied because the
-   raw output is cwd-relative on `main`.
+6. *Is the VS Code workspace root derivable from git or the environment?*
+   -> Neither; it is a supplied input with a fallback ladder. (D6) `--git-common-dir` names
+   the main checkout, a different thing from the folder the editor opened, and `VSCODE_CWD`
+   is the cwd the VS Code application was launched from — on this machine `/`, which is
+   absolute and contains every path, so it would answer the ladder and defeat the
+   containment check simultaneously. The hook payload's `cwd` is the best available signal
+   and `src/hooks/noldor-pre-edit-guard.ts:91` already consumes it that way, with
+   `--show-toplevel` as rung 3 and the residual failure modes named under Risks rather than
+   claimed away.
+
+6b. *Which git probe does the artifact predicate use to find the doc roots?*
+   -> `--show-toplevel`, never `--git-common-dir`. (D6b) From inside a worktree
+   `--git-common-dir` names the **main** checkout, so `loadDocRoots` would return
+   `<main>/docs/design/specs` and the parent-equals-doc-root test would reject every
+   `specs-only-*` and `full-*` artifact — the primary case. `--show-toplevel` returns the
+   worktree root from a worktree and the repo root from `main`, both verified against the
+   real command.
 
 7. *Should a missing editor be a non-zero exit?*
    -> No. (D7) Other runners' prose is required to call this command, so a non-zero exit on
