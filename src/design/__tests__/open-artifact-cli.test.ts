@@ -31,6 +31,7 @@ function setupRepo(): { root: string; spec: string } {
   execSync('git config user.email t@t.t', { cwd: root });
   execSync('git config user.name t', { cwd: root });
   mkdirSync(join(root, 'docs', 'design', 'specs'), { recursive: true });
+  mkdirSync(join(root, '.noldor'), { recursive: true });
   const spec = join(root, 'docs', 'design', 'specs', '2026-01-01-x-design.md');
   writeFileSync(spec, '# X\n');
   execSync('git add -A', { cwd: root });
@@ -62,6 +63,64 @@ describe('design open', () => {
   // The bug this test exists for: a hand-rolled positional scan excluded
   // `indexOf('--workspace-root') + 1`, which is index 0 when the flag is absent —
   // so the bare form silently reported "no file path given".
+  it('reports the link but launches nothing while autoOpen is off', () => {
+    const { root, spec } = setupRepo();
+    let launches = 0;
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = runOpenArtifact([spec], {
+      cwd: root,
+      env: {},
+      out: (l) => out.push(l),
+      err: (l) => err.push(l),
+      launch: () => {
+        launches += 1;
+        return { ok: true };
+      },
+    });
+    expect(code).toBe(0);
+    expect(out[0]).toBe('docs/design/specs/2026-01-01-x-design.md');
+    expect(launches).toBe(0);
+    // Announced, never silent: a command named `open` that opens nothing must say why.
+    expect(err.join('\n')).toContain('design.autoOpen is off');
+  });
+
+  it('launches when --open is typed, config off', () => {
+    const { root, spec } = setupRepo();
+    let launches = 0;
+    runOpenArtifact([spec, '--open'], {
+      cwd: root,
+      env: {},
+      out: () => {},
+      err: () => {},
+      launch: () => {
+        launches += 1;
+        return { ok: true };
+      },
+    });
+    expect(launches).toBe(1);
+  });
+
+  it('launches when design.autoOpen is opted into', () => {
+    const { root, spec } = setupRepo();
+    writeFileSync(
+      join(root, '.noldor', 'config.json'),
+      JSON.stringify({ design: { autoOpen: true } }),
+    );
+    let launches = 0;
+    runOpenArtifact([spec], {
+      cwd: root,
+      env: {},
+      out: () => {},
+      err: () => {},
+      launch: () => {
+        launches += 1;
+        return { ok: true };
+      },
+    });
+    expect(launches).toBe(1);
+  });
+
   it('accepts the bare positional form with no flags', () => {
     const { root, spec } = setupRepo();
     const r = run([spec], root);

@@ -1,13 +1,16 @@
 // @fd: auto-open-design-artifacts
-// `noldor design open <path> [--workspace-root <abs-path>]` — the runner-neutral
-// half of auto-open. Prints the path the operator's editor resolves a markdown
-// link against, THEN opens the artifact. Codex and opencode prose call this;
-// Claude reaches the same unit through `noldor hooks open-artifact`.
+// `noldor design open <path> [--workspace-root <abs-path>] [--open]` — the runner-neutral
+// half of auto-open. Always prints the path the operator's editor resolves a
+// markdown link against; opens a tab only when `design.autoOpen` is on or
+// `--open` is typed, because a launch can raise a different editor window and
+// interrupt parallel work. Codex and opencode prose call this; Claude reaches the
+// same unit through `noldor hooks open-artifact`.
 
 import { readValueFlags, runIfDirect } from '../core/cli-entry.js';
 
 import {
   WORKSPACE_ROOT_ENV,
+  autoOpenEnabled,
   buildArtifactLink,
   isExistingDir,
   launchArtifact,
@@ -37,7 +40,15 @@ export function runOpenArtifact(argv: readonly string[], deps: OpenArtifactCliDe
   // value, and reports an unknown `--flag` instead of ignoring it. A hand-rolled
   // `argv.find` here skipped index 0 whenever `--workspace-root` was absent,
   // because `indexOf` returns -1 and `-1 + 1` is the path's own slot.
-  const read = readValueFlags(argv, ['--workspace-root'], 'design open');
+  // `--open` is stripped BEFORE `readValueFlags`, which reports any leftover
+  // `--flag` as unknown and would reject it — a boolean flag has to be consumed
+  // ahead of that check, not read back out of the positionals afterwards.
+  const forceOpen = argv.includes('--open');
+  const read = readValueFlags(
+    argv.filter((a) => a !== '--open'),
+    ['--workspace-root'],
+    'design open',
+  );
   if (!read.ok) {
     deps.err(read.error);
     return 2;
@@ -74,6 +85,16 @@ export function runOpenArtifact(argv: readonly string[], deps: OpenArtifactCliDe
   deps.out(resolved.linkPath);
   deps.out(`link: ${buildArtifactLink(resolved.linkPath)}`);
   if (resolved.warning !== undefined) deps.err(`design open: ${resolved.warning}`);
+
+  // The link is unconditional; the tab is opt-in via `design.autoOpen` or a typed
+  // `--open`. Suppression is ANNOUNCED rather than silent — a command named
+  // `open` that opens nothing has to say why, or it reads as broken.
+  if (!forceOpen && !autoOpenEnabled(resolved.checkoutRoot)) {
+    deps.err(
+      'design open: link reported, editor not launched — design.autoOpen is off in .noldor/config.json. Pass --open to open it now.',
+    );
+    return 0;
+  }
 
   const launched = launchArtifact(resolved.absPath, deps.cwd, deps.launch);
   if (launched.kind === 'not-launched') deps.err(`design open: ${launched.warning}`);

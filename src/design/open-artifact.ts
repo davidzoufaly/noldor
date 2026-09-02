@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { lstatSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
+import { loadConfigSync } from '../core/config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { toPosixRelative } from '../core/repo-paths.js';
 
@@ -27,6 +28,28 @@ export const GIT_TIMEOUT_MS = 2_000;
 
 /** Env var carrying the workspace root, for the hook — which takes no flags. */
 export const WORKSPACE_ROOT_ENV = 'NOLDOR_WORKSPACE_ROOT';
+
+/**
+ * Is launching an editor opted into for the repo at `checkoutRoot`? Default
+ * `false` — see `designConfigSchema.autoOpen` for why the tab, unlike the
+ * reported link, cannot be made non-disruptive.
+ *
+ * `loadConfigSync` inside a `try`/`catch`, which is the house pattern for a hook
+ * that must not throw (`src/hooks/noldor-pre-commit.ts` reads its TTL the same
+ * way): the caller is a `PostToolUse` hook, so it must stay synchronous — ruling
+ * out the async `loadConfig` — and an absent, unreadable or malformed config has
+ * to mean "not opted in" rather than an exception. Going through the schema keeps
+ * {@link designConfigSchema} the single definition of what the knob means; a
+ * hand-rolled `readFileSync` + cast here would be a second one.
+ */
+export function autoOpenEnabled(checkoutRoot: string): boolean {
+  try {
+    return loadConfigSync(join(checkoutRoot, '.noldor', 'config.json'))?.design?.autoOpen ?? false;
+  } catch {
+    // Malformed config, or unreadable for any reason but absence: default stands.
+    return false;
+  }
+}
 
 /** Runs a git subcommand for its stdout, or `undefined` if it cannot answer. */
 export type GitProbe = (args: readonly string[], cwd: string) => string | undefined;
@@ -64,6 +87,12 @@ export type ResolveArtifactResult =
       readonly kind: 'artifact';
       readonly absPath: string;
       readonly linkPath: string;
+      /**
+       * The artifact's own checkout root, already probed to find its doc roots.
+       * Handed back so a caller can read that repo's config (notably
+       * {@link autoOpenEnabled}) without paying a second git probe.
+       */
+      readonly checkoutRoot: string;
       /** Set when a NAMED root was discarded for not containing the artifact. */
       readonly warning?: string;
     }
@@ -289,9 +318,10 @@ export function resolveArtifact(req: ResolveArtifactRequest): ResolveArtifactRes
   const linkPath = under(root, absPath)
     ? toPosixRelative(root, absPath)
     : toPosixRelative(canonical(root), canonicalDir(absPath));
+  const checkoutRoot = verdict.toplevel;
   return warning === undefined
-    ? { kind: 'artifact', absPath, linkPath }
-    : { kind: 'artifact', absPath, linkPath, warning };
+    ? { kind: 'artifact', absPath, linkPath, checkoutRoot }
+    : { kind: 'artifact', absPath, linkPath, checkoutRoot, warning };
 }
 
 /**

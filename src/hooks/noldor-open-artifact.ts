@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 
 import {
   WORKSPACE_ROOT_ENV,
+  autoOpenEnabled,
   buildArtifactLink,
   launchArtifact,
   resolveArtifact,
@@ -84,16 +85,23 @@ export function openArtifactForPayload(
       : undefined;
   }
 
+  // The LINK is unconditional; the TAB is opt-in. Reporting a resolvable path is
+  // the whole fix for an unclickable link and costs nothing, while a launch can
+  // raise a different editor window and interrupt parallel work — see
+  // `designConfigSchema.autoOpen` for why that cannot be prevented from out here.
+  //
   // Launch BEFORE emitting, inverting the CLI's order deliberately: a hook's
   // stdout is read only after the process exits, so printing first buys nothing
   // here, while launching first lets one JSON object carry the launch warning.
   // EDITOR_TIMEOUT_MS is what makes that safe — the wait is bounded.
-  const launched = launchArtifact(resolved.absPath, cwd, launch);
+  const launched = autoOpenEnabled(resolved.checkoutRoot)
+    ? launchArtifact(resolved.absPath, cwd, launch)
+    : undefined;
   const parts = [
     `Design artifact written. Report it with this exact markdown link: ${buildArtifactLink(resolved.linkPath)}`,
   ];
   if (resolved.warning !== undefined) parts.push(resolved.warning);
-  if (launched.kind === 'not-launched') parts.push(`No editor tab opened — ${launched.warning}`);
+  if (launched?.kind === 'not-launched') parts.push(`No editor tab opened — ${launched.warning}`);
 
   return {
     hookSpecificOutput: {
