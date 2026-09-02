@@ -14,7 +14,7 @@ user_invocable: true
 
 ## Steps
 
-1. **Run** `pnpm --silent garden:detect`. Parse JSON. (The `--silent` flag suppresses pnpm's banner lines so stdout is pure JSON.) If **every** finding array is empty, report "Garden is tidy" and stop. Check every key the payload carries, not a fixed count — `structuralContextStubs` is a finding like any other, and a gate that enumerates a subset silently swallows whichever key it predates.
+1. **Run** `pnpm --silent noldor garden detect`. Parse JSON. (The `--silent` flag suppresses pnpm's banner lines so stdout is pure JSON.) If **every** finding array is empty, report "Garden is tidy" and stop. Check every key the payload carries, not a fixed count — `structuralContextStubs` is a finding like any other, and a gate that enumerates a subset silently swallows whichever key it predates.
 2. **For each `contradictions` entry**, read both `pair[0]` and `pair[1]`, then:
    - Find the pattern match (or its absence) and the surrounding ~50 lines.
    - Decide: is the rule actually divergent, or are the two docs consistent in context?
