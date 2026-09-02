@@ -136,10 +136,13 @@ launch from stealing focus, matching PR #417's posture for `.md`.
 
 **The outcome is `dispatched`, never `opened`.** A cold start from a non-GUI
 context exits 0 with empty stderr and no app — measured this session — so a
-success claim here would be exactly the false wake the goals forbid. The name,
-and every message derived from it, says only that the file was handed to macOS.
-Whether a canvas actually came up is answerable only by pencil MCP, in-session,
-by retrying a call — which is what the recipe tells the reader to do.
+success claim here would be exactly the false wake the goals forbid.
+
+The wording has to carry that too, and "handed to the app" does not: it names a
+recipient that may never have started. Every message derived from this outcome
+says the open was **requested of macOS**, and pairs that with the retry
+instruction. Whether a canvas came up is answerable only by pencil MCP,
+in-session, by retrying a call.
 
 Failure is classified, not merely detected. Anything on stderr, or a non-zero
 exit, or a spawn error is a failure; among those, stderr containing
@@ -165,11 +168,16 @@ edited.
 launcher would break three shipped PRs.
 
 **2a — the path contract.** `main()` already validates `--pen`: it must end in
-`.pen` and exist on disk (`pen-bridge-cli.ts:171-179`). That validation stays and
-gains one step — resolve to an absolute path against `cwd` before handing it on,
-so `openPenFile`'s precondition is established at the one place a caller-supplied
-path enters. Ranked candidates from `trackedPenFiles` are repo-relative and get
-the same `join(cwd, …)` treatment.
+`.pen` and exist on disk (`pen-bridge-cli.ts:171-179`). That validation stays.
+
+Absolute-path resolution happens **once, on `plan.path`, after `planPenBridge`
+has chosen** — never on the candidate list going in. `rankPenCandidates`
+(`pen-bridge.ts:41-50`) ranks by the repo-relative prefix `docs/design/ui/`, so
+absolutising the candidates first would score every one of them 2 (the
+worst rank) and collapse the ordering the ranking exists to produce. One
+`isAbsolute(p) ? p : join(cwd, p)` on the winner is the whole change, and it
+establishes `openPenFile`'s precondition at the single point a path leaves the
+planner.
 
 Repo-containment is deliberately **not** enforced. `--pen` is an operator-typed
 argument and the bridge's whole job is to wake on whatever `.pen` is reachable;
@@ -179,14 +187,36 @@ and passed through unresolved, matching `open-artifact.ts`'s rule that the leaf
 stays lexical. `bootstrap` creates no directory: nothing writes a `.pen` from
 Node, so a directory made here would be an empty promise.
 
+**2b — CLI exit codes.** `main()` keeps its existing two (`1` bootstrap, `2`
+usage error on a bad `--pen`) and maps the launch outcomes so a script can tell
+the remedies apart:
+
+| outcome | exit | why it differs |
+| --- | --- | --- |
+| `dispatched` | 0 | request accepted; liveness is MCP's to answer |
+| `not-installed` | 3 | install the app |
+| `unsupported-platform` | 4 | open the printed path by hand; nothing to install |
+| `failed` | 2 | joins the existing launch-failure code |
+
+`3` and `4` are new rather than folded into `2` because "install Pen.app", "open
+it yourself on Linux" and "you typed a bad path" are three different actions, and
+`2` already means the last of them.
+
 ### Unit 3 — the recipe and the bootstrap instruction
 
-`PENCIL_EDITOR_DEFAULT` becomes `'desktop'` and its type narrows to that single
-literal — after this change there is one `.pen` route and no switch, so a union
-type would advertise a choice no code can make. `PENCIL_EXTENSION_ID` is deleted
-along with the comment paragraph that justified the VS Code default on grounds
-now known to be false. A new exported `PENCIL_BUNDLE_ID = 'dev.pencil.desktop'`
-gives the launcher and the prose one definition.
+`PENCIL_EDITOR_DEFAULT` and `PENCIL_EXTENSION_ID` are both **deleted**, along
+with the comment paragraph that justified the VS Code default on grounds now
+known to be false.
+
+Deleting the editor constant rather than repointing it is the change the earlier
+draft got wrong. It has no consumer in `src/` today, and once unit 4 stops
+deriving anything from it there is no route it could select — one `.pen` editor,
+chosen unconditionally. A constant declaring a default that nothing reads is a
+claim of configurability the code does not honour, which is exactly what sent the
+first draft's check chasing a `'vscode'` branch no flag can produce.
+
+A new exported `PENCIL_BUNDLE_ID = 'dev.pencil.desktop'` replaces both and gives
+the launcher, the check and the prose one definition.
 
 `penBridgeRecipe` is rewritten. It must carry three things the old text did not:
 that the wake command is `pnpm noldor design pen-bridge --pen <path>`; that a
@@ -238,32 +268,69 @@ is no editor→app map and no derivation: `openPenFile` opens the desktop app
 unconditionally, so a `visual_studio_code` pin genuinely is a mismatch and saying
 otherwise would describe a configurability this design removed.
 
-Discovery reads two sources in order and **stops at the first that yields a
-pencil entry**: `<cwd>/.mcp.json`, then `<home>/.claude.json`. A server entry is
-"the pencil entry" when its key under `mcpServers` is `pencil`; key match only,
-because a command-path heuristic would misfire on a renamed binary. In
-`~/.claude.json` the `mcpServers` object may be nested per-project, so every
-`mcpServers` object in the document is searched and a `pencil` key at any depth
-qualifies — matching how the file is actually written.
+**Discovery follows Claude Code's own scope precedence**, highest first, and
+stops at the first scope that yields a pencil entry:
 
-The `--app` value is read from the entry's `args` array in either accepted form:
-`["--app", "desktop"]` or `["--app=desktop"]`. First occurrence wins if repeated.
-Every other shape is `mcp-indeterminate` with the reason named — absent `args`,
-`--app` present with no following value, unparseable JSON, an unreadable file, no
-pencil entry in either source. **Indeterminate is never a mismatch**: the check's
-value is naming a specific misconfiguration, and inventing one from an absent or
-unfamiliar file would be worse than silence, especially for a consumer on another
-harness.
+1. **local** — `<home>/.claude.json` → `projects[<cwd>].mcpServers.pencil`
+2. **project** — `<cwd>/.mcp.json` → `mcpServers.pencil`, but only when `pencil`
+   appears in that same file's `projects[<cwd>].enabledMcpjsonServers`; an
+   unapproved `.mcp.json` server is not in force, so reporting it would name a
+   pin that is not the one being used
+3. **user** — `<home>/.claude.json` → top-level `mcpServers.pencil`
 
-`source` carries the file that supplied the effective entry, and every mismatch
-message names that file as the one to edit. Without it the diagnostic can send an
-operator to `~/.claude.json` while a higher-priority project `.mcp.json` holds
-the real pin, and the prescribed fix does nothing.
+A "any `mcpServers` at any depth, first hit wins" traversal — the earlier
+draft's rule — is wrong on both legs. Verified on this machine: `~/.claude.json`
+carries a top-level `mcpServers` **and** 23 `projects` entries, three of which
+declare their own `mcpServers`. An arbitrary traversal can therefore return a
+*different project's* server, whose `--app` says nothing about this repo, and it
+shadows a local-scope pin behind `.mcp.json` in the wrong direction. Only
+`projects[<cwd>]` is ever consulted; other projects' blocks are invisible.
+
+A server is "the pencil entry" when its key is `pencil` — key match only, because
+a command-path heuristic would misfire on a renamed binary.
+
+The `--app` value is read from the entry's `args` array in either accepted form,
+`["--app", "desktop"]` or `["--app=desktop"]`, first occurrence winning if
+repeated. A value present and not equal to `desktop` is a **mismatch**, whatever
+the value is — the point is that this pin is not the one the launcher needs, and
+an unrecognised app name is no less wrong than a recognised one. Only these are
+`mcp-indeterminate`, each with its reason named: absent or non-array `args`,
+`--app` absent from an otherwise valid `args`, `--app` with no following value,
+unparseable JSON, an unreadable file, and no pencil entry in any scope.
+
+A malformed or unreadable source **stops the search** rather than falling through
+to a lower scope. Falling through would report a lower-precedence pin as
+effective while a higher one may have existed but could not be read — the same
+class of wrong answer the precedence order exists to prevent.
+
+**Indeterminate is never a mismatch.** Inventing a finding from an absent or
+unfamiliar file would be worse than silence, especially for a consumer on
+another harness.
+
+`source` carries the **scope and file** that supplied the entry — `local
+(~/.claude.json)`, `project (.mcp.json)`, `user (~/.claude.json)` — because file
+alone is ambiguous: two of the three scopes live in the same file, and an
+operator told to "edit `~/.claude.json`" without being told which block will
+change the wrong one.
 
 **Row 2 — the app.** `probeBundle` resolves `PENCIL_BUNDLE_ID`; its three states
 map to `app-ok`, `app-missing` (with the install hint) and `app-indeterminate`.
 It is a dependency rather than inline code precisely because it is not a
 filesystem read, which keeps the rest of the function deterministic under test.
+
+The default implementation runs
+`mdfind "kMDItemCFBundleIdentifier == 'dev.pencil.desktop'"` under
+`EDITOR_TIMEOUT_MS`: non-empty stdout is `ok`, empty stdout on a zero exit is
+`missing`, and a non-zero exit or spawn error — Spotlight disabled, `mdfind`
+absent — is `indeterminate`. Measured this session: it returns
+`/Applications/Pen.app` at exit 0, and an unknown bundle id returns empty at exit
+0.
+
+It must not be `open -b`. That is the launcher's mechanism and it would **start
+the app** — a side effect on a read-only diagnostic, and one that would make
+`doctor` raise a design tool every time it ran. The install-versus-launch
+distinction inside unit 1 still comes from `open`'s stderr marker; this probe
+exists so the *check* can answer the same question without launching anything.
 
 There is **no socket row**. `~/.pencil/socket/pencil-desktop.sock` may be a
 leftover symlink from the hand workaround, but the desktop app replaces it with a
@@ -300,33 +367,41 @@ facts are present, so criterion 11 pins the content directly.
    `LSCopyApplicationURLsForBundleIdentifier`, `failed` on any other non-zero
    exit, stderr or spawn error, and `dispatched` only on exit 0 with empty
    stderr.
-3. No success path of `pen-bridge` claims the file was opened; the rendered text
-   says the file was handed to the app and directs the reader to retry the
-   pencil MCP call.
-4. `pen-bridge` resolves `--pen` and ranked candidates to absolute paths before
-   launching, still rejects a non-`.pen` or non-existent `--pen` with exit 2, and
-   accepts a path outside the repo.
+3. No success path of `pen-bridge` claims the file was opened or delivered to the
+   app; the rendered text says the open was requested of macOS and directs the
+   reader to retry the pencil MCP call. `pen-bridge` exits 0 on `dispatched`, 3
+   on `not-installed`, 4 on `unsupported-platform` and 2 on `failed`.
+4. `pen-bridge` absolutises only the chosen `plan.path`, after `planPenBridge`;
+   `rankPenCandidates` still receives repo-relative paths and its ordering is
+   unchanged. A non-`.pen` or non-existent `--pen` still exits 2, and a path
+   outside the repo is accepted.
 5. `pnpm noldor design pen-bridge --pen <existing .pen>` routes through
    `openPenFile`; `openInEditor` still spawns `code` for a `.md` path and
    `launchArtifact`'s behaviour for spec and plan artifacts is unchanged.
-6. `PENCIL_EDITOR_DEFAULT` is `'desktop'`, `PENCIL_BUNDLE_ID` is exported, and no
-   symbol named `PENCIL_EXTENSION_ID` is exported from `src/design/pen-bridge.ts`.
+6. `PENCIL_BUNDLE_ID` is exported from `src/design/pen-bridge.ts`, and neither
+   `PENCIL_EDITOR_DEFAULT` nor `PENCIL_EXTENSION_ID` is exported from it.
 7. `penBridgeRecipe`'s output contains no `code <path>` instruction, states that
    an agent cannot start the app, and is rendered by both
    `ui-review-dispatch.ts` and `render-export-dispatch.ts`.
 8. `renderPlan`'s bootstrap output names `docs/design/ui/bridge-scratch.pen` and
    instructs a save into the repo.
-9. `checkPenBridge` returns `mcp-app-mismatch` for `--app visual_studio_code` and
-   `mcp-app-ok` for `desktop`, in both `["--app","desktop"]` and
-   `["--app=desktop"]` forms, from `.mcp.json` in preference to `~/.claude.json`,
-   with `source` naming the file that supplied the entry.
-10. `checkPenBridge` returns an indeterminate row — never a mismatch, never a
-    throw — for unparseable JSON, an unreadable file, a missing pencil entry, an
-    absent `args`, and `--app` with no value; and a single `not-applicable` row
-    off `darwin`.
-11. `checks pen-bridge` exits 1 on mismatch or missing app and 0 otherwise;
+9. `checkPenBridge` resolves the pencil entry in scope order local → approved
+   project → user, ignores other projects' `mcpServers` blocks and an unapproved
+   `.mcp.json` server, and reports `source` as the winning scope plus its file.
+10. `checkPenBridge` returns `mcp-app-ok` for `desktop` and `mcp-app-mismatch`
+    for any other present value, in both `["--app","desktop"]` and
+    `["--app=desktop"]` forms.
+11. `checkPenBridge` returns an indeterminate row — never a mismatch, never a
+    throw — for unparseable JSON, an unreadable file, a missing pencil entry, a
+    missing or non-array `args`, and `--app` with no value; a malformed source
+    stops the search rather than falling through; and off `darwin` it returns a
+    single `not-applicable` row having probed nothing.
+12. The default `probeBundle` never launches the app, and maps non-empty stdout
+    to `ok`, empty stdout to `missing`, and a non-zero exit or spawn error to
+    `indeterminate`.
+13. `checks pen-bridge` exits 1 on mismatch or missing app and 0 otherwise;
     `doctor` prints the rows without its exit code changing.
-12. `docs/noldor/gotchas.md` states the bundle id, the `pencil-<app>.sock`
+14. `docs/noldor/gotchas.md` states the bundle id, the `pencil-<app>.sock`
     derivation, the restart requirement, and that an agent cannot cold-start the
     app; no `code <file>.pen` instruction survives in the FD, gotchas, either
     skill, or their `templates/` mirrors; `checks template-sync` passes.
@@ -363,16 +438,19 @@ tells me which file to fix instead of looking like a closed editor.
 ## Usage
 
 - Open a `.pen`: `pnpm noldor design pen-bridge --pen docs/design/ui/<file>.pen`.
-  A bare `pnpm noldor design pen-bridge` picks a tracked `.pen` by ranking. The
-  command reports that the file was handed to the app — retry the pencil MCP call
-  to confirm the bridge is live, and start the app yourself if it is not running.
+  A bare `pnpm noldor design pen-bridge` picks a tracked `.pen` by ranking. Exit
+  0 means the open was requested of macOS, not that a canvas came up — retry the
+  pencil MCP call to find out, and start the app yourself if it is not running.
+  Exit 3 means Pen.app is not installed, 4 that this platform has no scriptable
+  open (the printed path is still correct), 2 a bad `--pen` or a failed launch.
 - First `.pen` in a repo: run the command, follow the bootstrap instruction —
   open the app, create a document, Save As to `docs/design/ui/bridge-scratch.pen`
   inside the repo, then retry the failing pencil MCP call.
 - Check the wiring: `pnpm noldor checks pen-bridge`, or `pnpm noldor doctor`
-  which includes it. A mismatch row names the configuration file holding the
-  pencil entry; set its `--app` to `desktop` in **that** file and restart Claude
-  Code.
+  which includes it. A mismatch row names the **scope and file** holding the
+  effective pencil entry — `local (~/.claude.json)` means
+  `projects[<this repo>].mcpServers`, `user (~/.claude.json)` means the top-level
+  block. Set `--app` to `desktop` in that block and restart Claude Code.
 
 ## Open questions (resolved)
 
@@ -411,3 +489,24 @@ tells me which file to fix instead of looking like a closed editor.
    -> No; the row is dropped. (D6) The desktop app overwrites the symlink with a
    real socket on startup, so the finding is visible only while the app is down —
    which the design already treats as normal, not as misconfiguration.
+
+7. *How does the check resolve a pencil entry when several scopes declare one?*
+   -> Claude Code's own precedence — local `projects[<cwd>].mcpServers`, then an
+   approved `.mcp.json`, then top-level `mcpServers` — first hit wins, other
+   projects' blocks ignored, a malformed source stopping the search. (D7) A
+   depth-first "any `mcpServers`" traversal can return another project's server
+   entirely; the measured shape of `~/.claude.json` here (top-level block plus 23
+   `projects`, three with their own servers) makes that a live hazard rather than
+   a theoretical one.
+
+8. *What resolves the bundle for the check, given `open -b` would launch the app?*
+   -> `mdfind "kMDItemCFBundleIdentifier == '<id>'"`, behind the injected
+   `probeBundle`. (D8) A diagnostic must not have the side effect of starting a
+   GUI app — `doctor` would raise a canvas on every run — and Spotlight answers
+   the same question for free. Unit 1's stderr marker still serves the launcher,
+   where the app is being started deliberately.
+
+9. *Should `PENCIL_EDITOR_DEFAULT` be repointed or removed?*
+   -> Removed. (D9) It has no consumer in `src/`, and once the check stops
+   deriving from it nothing can select a route with it. Keeping a default that
+   nothing reads is what produced the first draft's phantom `'vscode'` branch.
