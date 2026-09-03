@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### PR Body Lists Only One Plan Part
-
-- id: Q-0205
-- area: tooling
-- type: fix
-- since: 2026-09-02
-- size: XS
-- impact: med
-- confidence: high
-- parent: framework-pr-flow-agent-auto-merge
-
-A PR opened for a split feature links exactly one plan, so every part but the last is invisible from the PR. Observed on PR #411, which listed part 2 and nothing else. The cause is a single-value contract end to end: `pickMostRecentByDatePrefix` in [`src/core/pr-flow-cli.ts:314`](../src/core/pr-flow-cli.ts) selects one file out of the plan directory, `PrFlowInput.planPath` is typed `string | null` ([`src/core/pr-flow.ts:58`](../src/core/pr-flow.ts)), and the body renderer emits one `- Plan:` line from it ([`src/core/pr-flow.ts:147-148`](../src/core/pr-flow.ts)). Since `/noldor-plan` splits write sibling part files under the same date prefix, most-recent-wins silently drops the rest — the reviewer sees the tail of a plan whose earlier parts set its contract. Wanted: collect every plan belonging to the task and render all of them, so widening the field to a list rather than adding a second lookup at the call site. Deletion test: a PR opened on a feature with three plan parts links all three. (found 2026-09-02 reviewing PR #411)
-
 ### Auto-Open Link Resolves Against the Worktree, Not the Editor's Workspace
 
 - id: Q-0207
