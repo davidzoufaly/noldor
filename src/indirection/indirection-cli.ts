@@ -185,7 +185,14 @@ export async function runIndirection(argv: string[], cwd: string = process.cwd()
         ? `${JSON.stringify({ verdict: 'could-not-look', reason: 'unresolved-imports', unresolvedInScope: measured.unresolvedInScope })}\n`
         : `indirection ${args.sub}: ${measured.unresolvedInScope.length} unresolved in-scope ` +
             `import(s) — the measured graph is incomplete\n` +
-            measured.unresolvedInScope.map((u) => `  ${u}\n`).join(''),
+            measured.unresolvedInScope.map((u) => `  ${u}\n`).join('') +
+            // tsconfig `paths` are followed now, so a surviving ALIASED import
+            // means the declaration itself cannot be used. Naming the causes
+            // turns "the graph is incomplete" into something to go and fix.
+            `  a relative specifier names a file that does not exist; an aliased one means its ` +
+            `tsconfig 'paths' target directory is missing, its value is not an array of strings, ` +
+            `or two tsconfigs claim that prefix for different directories — which resolves to ` +
+            `neither, the alias map being repo-wide\n`,
     );
     return 3;
   }

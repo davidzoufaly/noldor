@@ -10,7 +10,7 @@
  */
 import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
-import { isAbsolute, join, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 
 import { allExtensions, cruise } from 'dependency-cruiser';
 
@@ -108,12 +108,21 @@ function percentile(sorted: readonly number[], p: number): number {
  * consumer repos that are perfectly fine.
  *
  * `aliasPrefixes` widens that by exactly the declared alias namespace and no
- * further. dependency-cruiser reads tsconfig `paths` through the `typescript`
- * package it accepts only at `>=2 <6`, while this repo is on 7 (the same
- * constraint behind the parser guard), so an aliased import comes back
- * `couldNotResolve` — verified against `dependency-cruiser@16.10.4`, with and
- * without `tsConfig` passed. Dropping that edge would understate the ratchet,
- * so a specifier matching a declared prefix is reported and the run refuses.
+ * further. Most aliased imports never reach here any more — `declaredAliases`
+ * hands cruise an `enhancedResolveOptions.alias` map built from the same
+ * tsconfig `paths`, and enhanced-resolve follows it. What still reaches here is
+ * an alias with no usable target: a prefix two tsconfigs claim for different
+ * directories, a malformed `paths` value, or a target directory that does not
+ * exist. Dropping such an edge would understate the ratchet, so a specifier
+ * matching a declared prefix is reported and the run refuses.
+ *
+ * The alias map is what makes that rare. dependency-cruiser's own tsconfig
+ * route reads `paths` through the `typescript` package it accepts only at
+ * `>=2 <6`, while this repo is on 7 (the same constraint behind the parser
+ * guard) — so on TS 7 an aliased import came back `couldNotResolve` whether or
+ * not `tsConfig` was passed, verified against `dependency-cruiser@16.10.4`.
+ * enhanced-resolve is a direct dependency of the cruiser and consults no
+ * `typescript` install, so it is unaffected by that ceiling.
  *
  * Matching on the prefix rather than on "a tsconfig declares any paths" is the
  * whole point: the broader test made an uninstalled optional peer fatal in every
@@ -188,7 +197,8 @@ function findTsconfigFiles(base: string, roots: readonly string[]): string[] {
 }
 
 /**
- * Alias namespaces declared by any tsconfig under the scan roots.
+ * The alias namespaces declared by any tsconfig under the scan roots, and the
+ * absolute directories each one points at.
  *
  * Parsed, not pattern-matched. An earlier version scanned the `paths` block with
  * a lazy regex and was formatting-dependent in both directions: a single-line
@@ -199,9 +209,59 @@ function findTsconfigFiles(base: string, roots: readonly string[]): string[] {
  * baseline principles say to avoid regex for exactly this reason. `stripJsonc`
  * is the repo's existing comment- and trailing-comma-tolerant reader, so the
  * commented tsconfig that `tsc --init` emits parses here too.
+ *
+ * `targets` follows TypeScript's own rule: a `paths` entry resolves against
+ * `baseUrl` when one is declared, and against the tsconfig's own directory when
+ * one is not (the TS 4.1+ default). Getting that backwards would point the
+ * alias at a directory that does not exist and reintroduce the unresolved edge
+ * this map exists to remove.
+ *
+ * A prefix declared by two tsconfigs with DIFFERENT targets is dropped from
+ * `targets` and kept in `prefixes`, so it stays reported rather than guessed at.
+ * `enhancedResolveOptions.alias` is one global map with no notion of which
+ * package a specifier came from, and its array form resolves first-hit-wins —
+ * so a monorepo where two packages each declare `@/*` for their own `src` would
+ * silently attribute one package's import to the other package's file. A wrong
+ * edge is worse than a missing one: the ratchet would move for a reason no
+ * reader could reconstruct. Reporting it keeps that repo exactly where it is
+ * today, which is honest, and the message names the prefix.
  */
-function declaredAliasPrefixes(base: string, roots: readonly string[]): string[] {
+interface DeclaredAliases {
+  /** Every declared namespace, whether or not it could be given a target. */
+  readonly prefixes: readonly string[];
+  /** `enhancedResolveOptions.alias`: prefix -> absolute directories, in order. */
+  readonly targets: Readonly<Record<string, readonly string[]>>;
+  /** Prefixes two tsconfigs claim for different directories; left unresolved. */
+  readonly conflicts: readonly string[];
+}
+
+type CruiseResolveOptions = NonNullable<
+  NonNullable<Parameters<typeof cruise>[1]>['enhancedResolveOptions']
+>;
+
+/**
+ * The alias map as cruise's `enhancedResolveOptions`.
+ *
+ * `alias` is missing from dependency-cruiser's published `IResolveOptions`
+ * type, but it is forwarded verbatim rather than dropped: its
+ * `main/resolve-options/normalize.mjs` spreads the caller's resolve options
+ * into what it hands enhanced-resolve, and the cruiser then classifies the
+ * resulting edge as `aliased-webpack`. So the cast asserts a runtime contract
+ * the types under-describe, not one they contradict — verified against
+ * `dependency-cruiser@16.10.4`.
+ *
+ * The alias fixture tests are what keep that assertion honest: a release that
+ * stopped forwarding `alias` turns those red with unresolved edges, rather than
+ * silently under-measuring the ratchet.
+ */
+function aliasResolveOptions(alias: DeclaredAliases['targets']): CruiseResolveOptions {
+  return { alias } as unknown as CruiseResolveOptions;
+}
+
+function declaredAliases(base: string, roots: readonly string[]): DeclaredAliases {
   const prefixes = new Set<string>();
+  const targets = new Map<string, string[]>();
+  const conflicts = new Set<string>();
   for (const file of findTsconfigFiles(base, roots)) {
     let raw: string;
     try {
@@ -222,12 +282,30 @@ function declaredAliasPrefixes(base: string, roots: readonly string[]): string[]
     if (typeof compilerOptions !== 'object' || compilerOptions === null) continue;
     const paths = (compilerOptions as { paths?: unknown }).paths;
     if (typeof paths !== 'object' || paths === null) continue;
-    for (const key of Object.keys(paths)) {
+    const baseUrl = (compilerOptions as { baseUrl?: unknown }).baseUrl;
+    const from = resolve(dirname(file), typeof baseUrl === 'string' ? baseUrl : '.');
+    for (const [key, value] of Object.entries(paths as Record<string, unknown>)) {
       if (key.startsWith('.')) continue;
-      prefixes.add(key.endsWith('/*') ? key.slice(0, -2) : key);
+      const prefix = key.endsWith('/*') ? key.slice(0, -2) : key;
+      prefixes.add(prefix);
+      // A malformed entry contributes a prefix but no target: the specifier
+      // stays reported, which is the same fail-safe as a conflict.
+      if (!Array.isArray(value)) continue;
+      const dirs = value
+        .filter((v): v is string => typeof v === 'string')
+        .map((v) => resolve(from, v.endsWith('/*') ? v.slice(0, -2) : v));
+      if (dirs.length === 0) continue;
+      const prior = targets.get(prefix);
+      if (prior === undefined) targets.set(prefix, dirs);
+      else if (prior.join('\0') !== dirs.join('\0')) conflicts.add(prefix);
     }
   }
-  return [...prefixes];
+  for (const prefix of conflicts) targets.delete(prefix);
+  return {
+    prefixes: [...prefixes],
+    targets: Object.fromEntries(targets),
+    conflicts: [...conflicts],
+  };
 }
 
 /**
@@ -365,9 +443,10 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
     };
   }
 
-  // Aliases cannot be resolved in this toolchain (see `isInScopeSpecifier`), so
-  // collect the declared namespaces and report only specifiers inside them.
-  const aliasPrefixes = declaredAliasPrefixes(base, roots);
+  // Read the declared `paths` twice over: as an alias map enhanced-resolve can
+  // follow, and as the namespace list that decides which leftover unresolved
+  // specifier is ours to report (see `isInScopeSpecifier`).
+  const aliases = declaredAliases(base, roots);
 
   let raw: readonly CruiseModule[];
   try {
@@ -375,6 +454,11 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
       baseDir: base,
       validate: false,
       doNotFollow: { path: 'node_modules' },
+      // Resolve tsconfig `paths` through enhanced-resolve, which
+      // dependency-cruiser depends on directly and which needs no `typescript`
+      // install at all — so it works on the TS version this repo is actually on
+      // (see `isInScopeSpecifier` for why the built-in tsconfig route cannot).
+      enhancedResolveOptions: aliasResolveOptions(aliases.targets),
       // Derived from `WALK_EXCLUDED_DIRS` and anchored to path segments, so the
       // two corpus rules have one source. `walkCodeFiles` excludes on an EXACT
       // directory name, so an unanchored substring made a directory merely
@@ -428,7 +512,7 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   const unresolvedInScope: string[] = [];
   for (const m of measured) {
     for (const d of m.dependencies) {
-      if (d.couldNotResolve === true && isInScopeSpecifier(d.module, aliasPrefixes)) {
+      if (d.couldNotResolve === true && isInScopeSpecifier(d.module, aliases.prefixes)) {
         unresolvedInScope.push(`${m.source} -> ${d.module ?? d.resolved}`);
       }
     }
