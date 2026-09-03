@@ -224,15 +224,14 @@ function findTsconfigFiles(base: string, roots: readonly string[]): string[] {
  * silently attribute one package's import to the other package's file. A wrong
  * edge is worse than a missing one: the ratchet would move for a reason no
  * reader could reconstruct. Reporting it keeps that repo exactly where it is
- * today, which is honest, and the message names the prefix.
+ * today, which is honest — and the reported specifier carries the prefix, so
+ * the operator sees which namespace to go and reconcile.
  */
 interface DeclaredAliases {
   /** Every declared namespace, whether or not it could be given a target. */
   readonly prefixes: readonly string[];
   /** `enhancedResolveOptions.alias`: prefix -> absolute directories, in order. */
   readonly targets: Readonly<Record<string, readonly string[]>>;
-  /** Prefixes two tsconfigs claim for different directories; left unresolved. */
-  readonly conflicts: readonly string[];
 }
 
 type CruiseResolveOptions = NonNullable<
@@ -300,12 +299,10 @@ function declaredAliases(base: string, roots: readonly string[]): DeclaredAliase
       else if (prior.join('\0') !== dirs.join('\0')) conflicts.add(prefix);
     }
   }
+  // Deleted after the whole scan, not on first disagreement: a third tsconfig
+  // agreeing with either side must not re-add a prefix already known to clash.
   for (const prefix of conflicts) targets.delete(prefix);
-  return {
-    prefixes: [...prefixes],
-    targets: Object.fromEntries(targets),
-    conflicts: [...conflicts],
-  };
+  return { prefixes: [...prefixes], targets: Object.fromEntries(targets) };
 }
 
 /**
