@@ -269,5 +269,9 @@
   "Q-0205": {
     "slug": "pr-body-lists-only-one-plan-part",
     "retiredAt": "2026-09-03"
+  },
+  "Q-0202": {
+    "slug": "task-id-as-the-first-scope-bullet-in-a-pr-summary",
+    "retiredAt": "2026-09-03"
   }
 }
