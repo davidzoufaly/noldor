@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { runCodex, type Spawn } from '../run-codex.js';
 import { reviewWithCodex } from '../review-with-codex.js';
 import { REV_RE } from '../cli-args.js';
+import { CUT_MARKER_TOKEN } from '../../core/structural-context-contract.js';
 
 const ctx = { diff: 'D', featureMd: 'F', rules: 'R' };
 
@@ -171,6 +172,47 @@ describe('runCodex', () => {
     const call = (spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.stdin).toMatch(/spec/i);
     expect(call.stdin).toContain('SPEC TEXT');
+  });
+});
+
+describe('cut-marker contract in the codex prompt (Q-0170)', () => {
+  /** Capture the prompt the lane actually hands codex on stdin. */
+  function capturingSpawn(): { spawn: Spawn; stdin: () => string } {
+    let seen = '';
+    const spawn: Spawn = vi.fn(async (opts: { stdin: string }) => {
+      seen = opts.stdin;
+      return {
+        stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
+        stderr: '',
+        exitCode: 0,
+        timedOut: false,
+      };
+    }) as unknown as Spawn;
+    return { spawn, stdin: () => seen };
+  }
+
+  it('tells codex a marked cut is a decision on a CODE review', async () => {
+    const { spawn, stdin } = capturingSpawn();
+    await runCodex({ ctx, spawn });
+    expect(stdin()).toContain(CUT_MARKER_TOKEN);
+    expect(stdin()).toContain('a marked cut is a deliberate decision');
+  });
+
+  it('tells codex the same on a SPEC review, where the markers actually live', async () => {
+    // `formatPrompt` early-returns the artifact builder, so an injection inside
+    // the code branch alone would leave spec and plan reviews with no contract —
+    // the stage where cut markers in FDs and structural-context sections sit.
+    const { spawn, stdin } = capturingSpawn();
+    await runCodex({ ctx: { artifact: 'A', kind: 'spec', featureMd: 'F', rules: 'R' }, spawn });
+    expect(stdin()).toContain(CUT_MARKER_TOKEN);
+  });
+
+  it('never lets a marker waive a defect, a race or an accessibility regression', async () => {
+    const { spawn, stdin } = capturingSpawn();
+    await runCodex({ ctx, spawn });
+    for (const carveOut of ['defect', 'race', 'accessibility regression']) {
+      expect(stdin()).toContain(carveOut);
+    }
   });
 });
 

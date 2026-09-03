@@ -4,7 +4,6 @@
 import { execFile } from 'node:child_process';
 
 import { loadConfig } from '../core/config.js';
-import { readSession } from '../core/session.js';
 import { isSha } from '../core/sha.js';
 import { isSlug, type Slug } from '../core/slug.js';
 import { aggregate } from './aggregate.js';
@@ -12,14 +11,18 @@ import type { LaneBlocker } from './aggregate.js';
 import { decide, splitByClass } from './autofix.js';
 import type { NextAction } from './autofix.js';
 import {
-  AUTOFIX_ROUND_CAP,
   LedgerParseError,
+  NoRoundForHeadError,
+  annotateRound,
   fingerprintBlockers,
   ledgerPath,
-  appendRound,
   quarantineLedger,
   readLedger,
+  redRounds,
+  roundLabel,
+  sessionKey,
 } from './autofix-ledger.js';
+import type { AutofixLedger } from './autofix-ledger.js';
 import { artifactKindSchema } from './findings-schema.js';
 import type { ArtifactKind } from './findings-schema.js';
 
@@ -98,16 +101,6 @@ function requireTarget(a: Args): { slug: Slug; kind: ArtifactKind } {
 }
 
 /**
- * `startedAt` of the owning gate session, or `''` when no marker exists. The
- * empty key still resets once a real session starts; rounds do accumulate across
- * unrelated no-session runs, which over-counts (caps early, never late) and is
- * therefore safe.
- */
-function sessionKey(cwd: string): string {
-  return readSession(cwd)?.startedAt ?? '';
-}
-
-/**
  * Collapse a sink-supplied string to ONE line.
  *
  * Load-bearing, not cosmetic: the `M<n>` / `D<n>` lines are the list the
@@ -179,7 +172,7 @@ async function runPlan(cwd: string, a: Args): Promise<never> {
   console.log(`reason: ${r.reason ?? '-'}`);
   console.log(`next: ${r.next}`);
   console.log(`base-sha: ${r.baseSha || '-'}`);
-  console.log(`round: ${r.round}/${AUTOFIX_ROUND_CAP}`);
+  console.log(`round: ${roundLabel(r.round)}`);
   if (agg.unresolved.length > 0) console.log(`in-flight lanes: ${agg.unresolved.join(', ')}`);
   console.log(`mechanical: ${r.mechanical.length}`);
   r.mechanical.forEach((b, i) => printBlocker(`M${i + 1}`, b));
@@ -231,7 +224,14 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
   }
 
   const prior = await readLedger(cwd, slug, kind, key);
-  const baseSha = prior?.rounds.at(-1)?.headSha ?? '';
+  // The round this `record` belongs to is the one whose head `plan` reviewed —
+  // `--since`, the `base-sha:` that same round printed. `cr orchestrate` appended
+  // that entry before the seam ran, so annotating by head match attaches the
+  // counts to the round they describe. Falling back to the last entry would
+  // attach a delayed or retried `record` to the wrong round.
+  const reviewedHead = a.since ?? prior?.rounds.at(-1)?.headSha ?? '';
+  const lastRound = prior?.rounds.at(-1);
+  const baseSha = lastRound?.fixHeadSha ?? lastRound?.headSha ?? '';
   const headSha = await git(['rev-parse', 'HEAD'], cwd);
   // Range ladder, most authoritative first: `--since` (the `base-sha:` this
   // round's `plan` printed — the pre-fix sha, passed back by the caller so no
@@ -246,18 +246,31 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
   const range = a.since ? `${a.since}..HEAD` : isSha(baseSha) ? `${baseSha}..HEAD` : 'HEAD~1..HEAD';
   const diffStat = (await git(['diff', '--shortstat', range], cwd)) || '(unavailable)';
 
-  const ledger = await appendRound(cwd, slug, kind, key, {
-    headSha,
-    fingerprint,
-    applied,
-    deferred: derivedDeferred,
-    diffStat,
-    diffRange: range,
-    ...(a.stopped ? { stopped: a.stopped } : {}),
-  });
-  const round = ledger.rounds.at(-1)!;
+  // The post-fix tip lands in `fixHeadSha`, which is what `resolveBaseSha`'s
+  // ledger rung and this function's own `diffRange` rung 2 read on the next
+  // round. `headSha` stays the head this round reviewed, so it keeps working as
+  // the entry's identity.
+  let ledger: AutofixLedger;
+  try {
+    ledger = await annotateRound(cwd, slug, kind, key, reviewedHead, {
+      fixHeadSha: headSha,
+      applied,
+      deferred: derivedDeferred,
+      diffStat,
+      diffRange: range,
+      ...(a.stopped ? { stopped: a.stopped } : {}),
+    });
+  } catch (err) {
+    if (err instanceof NoRoundForHeadError) {
+      // Not a silent no-op: the applied/deferred counts feed `prior-deferred`,
+      // and a guard resting on a count that was never written never fires.
+      console.error(`cr autofix record: ${err.message}`);
+      process.exit(EXIT.error);
+    }
+    throw err;
+  }
   console.log(
-    `round ${round.round}/${AUTOFIX_ROUND_CAP} recorded (fingerprint ${fingerprint.slice(0, 8)}, applied ${applied}, deferred ${derivedDeferred})`,
+    `round ${roundLabel(redRounds(ledger.rounds))} recorded (fingerprint ${fingerprint.slice(0, 8)}, applied ${applied}, deferred ${derivedDeferred})`,
   );
   console.log(`diff: ${diffStat} (${range})`);
   process.exit(EXIT.ok);

@@ -5,6 +5,20 @@ import { copyFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
 import { writeExpectedLanes } from './expected-lanes.js';
+import { aggregate } from './aggregate.js';
+import {
+  AUTOFIX_ROUND_CAP,
+  appendRound,
+  fingerprintBlockers,
+  hasClosingRound,
+  headMatches,
+  readLedger,
+  roundLabel,
+  redRounds,
+  roundVerdict,
+  sessionKey,
+} from './autofix-ledger.js';
+import type { AutofixLedger } from './autofix-ledger.js';
 import {
   DEFAULT_CR_LANES,
   loadConfig,
@@ -296,6 +310,75 @@ export interface RunResult {
   exitCode: number;
 }
 
+/** Orchestrate refused to dispatch because the round budget is spent. */
+export const EXIT_ROUND_CAP = 3;
+
+/**
+ * Whether this dispatch is refused, and whether it is the one closing round.
+ *
+ * Under the cap, everything dispatches. Past it, in order:
+ *
+ * 1. A spent RED closing round refuses everything, permanently for the series.
+ * 2. Otherwise, a GREEN last round dispatches — the pair is re-minting a
+ *    receipt a later commit stripped, not arbitrating, and refusing there would
+ *    forbid retrying a failed mint at the same head.
+ * 3. Otherwise the last round was red, so an unchanged `HEAD` refuses (nothing
+ *    was fixed) and a changed one IS the closing round: the receipt shape on
+ *    record — red final round, fix, one dispatch that finds nothing — needs
+ *    exactly one more pass or the session is wedged with no receipt and no way
+ *    to earn one.
+ *
+ * The bound this leaves is narrower than "every dispatch needs a commit": a
+ * green round can be retried at the same head. What it does bound is
+ * arbitration — the run that comes back red past the cap is marked, and after
+ * that nothing dispatches at all.
+ */
+export function capVerdict(
+  ledger: AutofixLedger | null,
+  sessionStartedAt: string,
+  headSha: string,
+): { refuse: boolean; closingRound: boolean } {
+  const rounds = ledger?.rounds ?? [];
+  if (redRounds(rounds) <= AUTOFIX_ROUND_CAP) return { refuse: false, closingRound: false };
+  // A SPENT closing round is terminal, and that is checked before anything else.
+  // It is a property of the series, not of its last entry: two overlapping runs
+  // can both dispatch before either appends, and if the red one records the
+  // sentinel while the green one lands after it, a last-entry test would read
+  // green and reopen a session the contract says is closed.
+  if (hasClosingRound(ledger, sessionStartedAt)) return { refuse: true, closingRound: false };
+  const last = rounds.at(-1);
+  // A green last round means the pair is not mid-arbitration: it is re-minting a
+  // receipt that a later commit stripped. Refusing there would forbid retrying a
+  // failed mint at the same head — the very thing "green rounds are free" is for
+  // — so the head test below engages only while the last round was RED.
+  if (last && roundVerdict(last) === 'green') return { refuse: false, closingRound: false };
+  // `headMatches`, not `===`: the ledger's own identity is prefix-aware, so an
+  // exact comparison here would read an abbreviated form of an unchanged head as
+  // a change and grant a closing round nobody earned.
+  if (headMatches(last?.headSha ?? '', headSha)) return { refuse: true, closingRound: false };
+  return { refuse: false, closingRound: true };
+}
+
+/** The refusal banner: what was spent, and the two ways out. */
+export function renderCapRefusal(
+  ledger: AutofixLedger | null,
+  slug: string,
+  kind: ArtifactKind,
+): string {
+  const rows = (ledger?.rounds ?? []).map(
+    (r) =>
+      `  ${r.round}  ${roundVerdict(r).padEnd(5)}  ${r.applied} applied, ${r.deferred} deferred  ${r.headSha.slice(0, 7) || '(no sha)'}`,
+  );
+  return [
+    `red rounds ${roundLabel(redRounds(ledger?.rounds ?? []))} for ${slug} (${kind}) — cap reached`,
+    ...rows,
+    'HEAD is unchanged since the last round, or the closing round is spent, so no',
+    'further round will be dispatched. To close: commit the remaining fixes and',
+    're-review — that earns one closing round — or record the arbitration:',
+    '  git commit --amend --no-edit --trailer "Noldor-Path-Override: <why>"',
+  ].join('\n');
+}
+
 export async function run(opts: RunOpts): Promise<RunResult> {
   const cwd = opts.cwd ?? process.cwd();
   const cfg = await loadConfig(join(cwd, '.noldor', 'config.json')).catch(() => null);
@@ -355,16 +438,6 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   }
   await mkdir(join(cwd, '.noldor', 'cr'), { recursive: true });
 
-  // Record the resolved lane set BEFORE dispatch so `aggregate` can report a
-  // lane that never wrote its sink as `unresolved` (Q-0100). `requested`, not
-  // the post-guard `effective`: a keep-and-skip lane still has its prior sink,
-  // and a synthetic-OK lane writes one — only a lane killed mid-run leaves the
-  // expectation unmet. Empty set = interactive-mode "prompt the operator"
-  // sentinel, not a resolved round — nothing to record.
-  if (requested.length > 0) {
-    await writeExpectedLanes(cwd, opts.args.slug, opts.args.kind, requested);
-  }
-
   // `artifactSha` is the SHA of the artifact's tip commit (HEAD by default).
   // CRITICAL: do NOT default it to `baseSha` — that would make every delta
   // run trivially empty-diff and short-circuit regardless of actual changes.
@@ -375,6 +448,46 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     (await execAsync('git', ['rev-parse', 'HEAD'], { cwd })
       .then((r) => r.stdout.trim())
       .catch(() => ''));
+  // ROUND BUDGET, checked before anything is dispatched — and BEFORE
+  // `writeExpectedLanes` below. A refused run dispatches nothing, so recording
+  // its lane set would leave `aggregate` reporting a never-dispatched lane as
+  // unresolved: the pair would read red permanently, including for the closing
+  // round meant to rescue the session. The ledger read fails
+  // OPEN in every direction: an unreadable or malformed file leaves the cap
+  // inert for this round rather than refusing a round the operator needs, since
+  // a missed cap costs one dispatch while a false cap costs the ship.
+  const roundKey = sessionKey(cwd);
+  let ledger: AutofixLedger | null = null;
+  try {
+    ledger = await readLedger(cwd, opts.args.slug, opts.args.kind, roundKey);
+  } catch (err) {
+    console.error(
+      `round ledger unreadable — cap not enforced this round: ${(err as Error).message}`,
+    );
+  }
+  // noldor:cut check-then-act, one mutating process per (slug, kind) — the gate runs
+  // orchestrate and `cr autofix record` in sequence and parallel drain gives each
+  // child its own slug, so concurrent runs on one pair are unsupported rather than
+  // impossible. `capVerdict` is defensive about the ledger ORDER such an overlap
+  // would produce (a green entry landing after a red closing round), which costs
+  // nothing; bounding the overlap itself is the upgrade path — a lock around the
+  // read-through-append span, so one commit cannot earn two closing dispatches.
+  const cap = capVerdict(ledger, roundKey, headSha);
+  if (cap.refuse) {
+    console.error(renderCapRefusal(ledger, opts.args.slug, opts.args.kind));
+    return { lanesRun: [], syntheticOks: [], exitCode: EXIT_ROUND_CAP };
+  }
+
+  // Record the resolved lane set BEFORE dispatch so `aggregate` can report a
+  // lane that never wrote its sink as `unresolved` (Q-0100). `requested`, not
+  // the post-guard `effective`: a keep-and-skip lane still has its prior sink,
+  // and a synthetic-OK lane writes one — only a lane killed mid-run leaves the
+  // expectation unmet. Empty set = interactive-mode "prompt the operator"
+  // sentinel, not a resolved round — nothing to record.
+  if (requested.length > 0) {
+    await writeExpectedLanes(cwd, opts.args.slug, opts.args.kind, requested);
+  }
+
   const input: LaneInput = {
     slug: opts.args.slug,
     artifact: opts.args.artifact,
@@ -539,6 +652,80 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     }
   }
 
+  // Record the round LAST, and for a closing round only after the receipt amend
+  // above has succeeded: marking the closing round first would let a crash — or
+  // a failed amend — leave a session with neither a receipt nor a permitted
+  // retry, which is the wedge the closing round exists to prevent.
+  //
+  // `verdict` follows this round's aggregate rather than `exitCode`, because the
+  // exit code also carries a failed receipt amend, which is not a review finding.
+  // A dispatch that throws before here appends nothing and stays retryable, and
+  // a failed append is logged without touching the round's own result: the cap
+  // then under-counts, the safe direction.
+  // A dispatched round always counts. What varies is its verdict, and that comes
+  // from what was FILED rather than from `agg.ok`, which is also false when an
+  // expected lane merely failed to resolve.
+  //
+  // Three rules, each closing a hole the others opened:
+  //
+  //  - A lane that crashed files nothing, so a clean reviewer beside a crashed
+  //    codex is GREEN. Reading `agg.ok` there would spend budget on a review
+  //    that did not happen and, on a closing round, mark the pair terminal over
+  //    a spawn failure.
+  //  - A round in which NO lane wrote a sink is RED, not green. Nothing was
+  //    reviewed, and green means "reviewed, found nothing" — a no-verdict green
+  //    would disarm the cap through the green-last-round exemption and allow
+  //    unlimited same-head retries. Recording it red also keeps a chronically
+  //    crashing lane from leaving the counter at zero forever.
+  //  - An INTEGRITY blocker says the verdict cannot be trusted, so it reds the
+  //    round but must never mark it terminal: a single corrupt sink would
+  //    otherwise wedge the pair permanently behind the override.
+  try {
+    const agg = await aggregate(opts.args.slug, opts.args.kind, { cwd });
+    if (effective.length > 0) {
+      // Findings from THIS round's lanes only. Sinks are never deleted between
+      // rounds — they are copied to `archive/` — so a lane that crashes on round
+      // two or later leaves its previous round's sink on disk, complete with
+      // `finishedAt`, and `aggregate` parses it as a current result. Attributing
+      // those stale blockers to this round decides it by a review that did not
+      // happen, and on a closing round that wedges the pair permanently.
+      const fresh = agg.blockers.filter((b) => lanesRun.includes(b.lane));
+      const integrity = fresh.filter((b) => b.integrity === true);
+      const filed = fresh.filter((b) => b.integrity !== true);
+      // "Did any lane actually write a readable sink?" — `summaries` carries one
+      // entry per sink `aggregate` parsed, so it is the only honest signal.
+      // Comparing unresolved against `lanesRun` does not work: a round where the
+      // reviewer resolved and one other lane crashed has one of each.
+      const nothingResolved = lanesRun.length === 0 || Object.keys(agg.summaries).length === 0;
+      const red = filed.length > 0 || integrity.length > 0 || nothingResolved;
+      if (agg.unresolved.length > 0) {
+        console.error(
+          `round counted from the lanes that resolved — ${agg.unresolved.join(', ')} did not`,
+        );
+      }
+      await appendRound(cwd, opts.args.slug, opts.args.kind, roundKey, {
+        headSha,
+        fingerprint: fingerprintBlockers(agg.blockers),
+        verdict: red ? 'red' : 'green',
+        applied: 0,
+        deferred: 0,
+        diffStat: '',
+        // Terminal only on a round that actually produced a trusted red verdict.
+        // A green closing round leaves the pair open so the `HEAD^{tree}`-bound
+        // receipt can still be re-minted; an integrity red or a nothing-resolved
+        // red is an infra problem for a human, not an arbitration to lock in.
+        // The integrity clause holds even when a real finding rides alongside —
+        // one corrupt sink means this round's verdict is not trustworthy, and a
+        // untrustworthy round must not be the one that closes the pair.
+        ...(cap.closingRound && filed.length > 0 && integrity.length === 0
+          ? { closingRound: true }
+          : {}),
+      });
+    }
+  } catch (err) {
+    console.error(`round not recorded — cap will under-count: ${(err as Error).message}`);
+  }
+
   return { lanesRun, syntheticOks, exitCode };
 }
 
@@ -547,8 +734,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const { parseArgs } = await import('./orchestrate-args.js');
   const args = parseArgs(process.argv);
   const r = await run({ args });
-  console.log(`lanes run: ${r.lanesRun.join(', ')}`);
-  if (r.syntheticOks.length)
-    console.log(`synthetic OK (empty delta): ${r.syntheticOks.join(', ')}`);
+  // A cap refusal dispatched nothing and has already printed the round history,
+  // so an empty `lanes run:` line under it is noise.
+  if (r.exitCode !== EXIT_ROUND_CAP) {
+    console.log(`lanes run: ${r.lanesRun.join(', ')}`);
+    if (r.syntheticOks.length)
+      console.log(`synthetic OK (empty delta): ${r.syntheticOks.join(', ')}`);
+  }
   process.exit(r.exitCode);
 }

@@ -277,5 +277,9 @@
   "Q-0207": {
     "slug": "auto-open-link-resolves-against-the-worktree-not-the-editors-workspace",
     "retiredAt": "2026-09-03"
+  },
+  "Q-0170": {
+    "slug": "cr-re-round-cap-enforcement-and-oscillation-detector",
+    "retiredAt": "2026-09-03"
   }
 }

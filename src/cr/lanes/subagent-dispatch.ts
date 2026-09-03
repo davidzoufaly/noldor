@@ -79,21 +79,12 @@ const CUT_MARKER_DIMENSIONS: ReadonlySet<ReviewDimension> = new Set([
   'altitude',
 ]);
 
-// Single source of the marker grammar. The author half lives as prose in
-// `.noldor/rules/lazy-decision-ladder.md` (+ its templates twin); the
-// subagent-dispatch test asserts the rule file contains this exact token, so
-// renaming or reshaping it in either place fails the suite instead of letting
-// reviewers silently enforce a stale grammar.
-export const CUT_MARKER_TOKEN = 'noldor:cut <ceiling> — <upgrade path>';
-
-// Both halves are phrased without naming dimensions: the prompt promises
-// "these dimensions only", so any dimension name here would either invite
-// findings against an out-of-scope dimension or read as scoping the waiver
-// (the fast-track test pins this by asserting `altitude` absent). The
-// never-exempt sentence mirrors the rule file's five never-cut carve-outs
-// semantically — defect, vulnerability, race, unintended state change,
-// accessibility, explicitly-requested behaviour.
-const CUT_MARKER_GUIDE = `\nRespect \`${CUT_MARKER_TOKEN}\` markers: a marked cut is a deliberate decision. When a finding argues the code should be simpler, leaner, faster, placed at a different layer, or reuse something existing, do not flag the marked cut itself — flag only a wrong ceiling or a real cut left unmarked. A marker never waives a finding about a defect, a vulnerability, a race, an unintended state change, an accessibility regression, or explicitly-requested behaviour that was cut.\n`;
+// The grammar and the guide live in `src/core/structural-context-contract.ts`
+// beside the bare `CUT_MARKER` token, so the contract has one definition rather
+// than one per consumer. Re-exported because this module's test and the
+// fast-track profile test both pin the reviewer half against the rule store.
+import { CUT_MARKER_GUIDE } from '../../core/structural-context-contract.js';
+export { CUT_MARKER_TOKEN } from '../../core/structural-context-contract.js';
 
 /** Most prior blockers a prompt renders; the rest collapse to a count line. */
 const PRIOR_BLOCKER_CAP = 20;

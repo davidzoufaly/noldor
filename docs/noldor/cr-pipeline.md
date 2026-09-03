@@ -550,6 +550,9 @@ More sink/receipt traps:
   4th dispatch that found nothing, purely to mint a receipt on the new tip.
   This is not a cap violation — the cap and the receipt count different things
   — but it is invisible when planning the round budget. (2026-08-24, Q-0158)
+  Since Q-0170 the cap accounts for it rather than leaving it to arithmetic: a
+  green round does not count, and past the cap a commit that changes `HEAD`
+  earns one closing round. That dispatch is the receipt re-earn.
 
 Two traps in how a round's result is read:
 
@@ -571,6 +574,64 @@ Two traps in how a round's result is read:
   Acceptance-style verification confirms the happy path does what the feature
   claims; it does not probe adversarial or edge-state cases. Shipping on a green
   verify alone would have shipped every one of those defects.
+
+## Round budget
+
+`cr orchestrate` appends one entry per resolved dispatch to
+`.noldor/cr/autofix/<slug>-<kind>.json` and refuses to dispatch once the budget
+is spent, exiting **3** with the round history and the way out. `cr autofix
+record` no longer appends — it annotates the round it reviewed, matched by head
+— so the seam and the operator draw from one budget rather than two counts that
+could not see each other.
+
+Only **red** rounds count, against `AUTOFIX_ROUND_CAP + 1` (three: the initial
+pass plus two re-rounds). A green dispatch arbitrates nothing and is free,
+however many run, which is what keeps receipt re-earns from spending budget.
+
+A dispatched round always counts; what varies is its verdict, and that comes
+from the findings **filed**, not from the aggregate's `ok` — which is also false
+when an expected lane merely failed to resolve. Three rules follow, each closing
+a hole the others open:
+
+- A crashed lane files nothing, so a clean reviewer beside a crashed codex is
+  **green**. Reading `ok` there would spend budget on a review that did not
+  happen and, on a closing round, mark the pair terminal over a spawn failure.
+  Findings are attributed to the lanes that ran THIS round: sinks are archived
+  rather than deleted, so a lane crashing on a later round leaves its previous
+  sink on disk and would otherwise decide the round by a review that did not
+  happen.
+- A round in which **no lane wrote a sink** is red, not green. Nothing was
+  reviewed, and green means "reviewed, found nothing" — a no-verdict green would
+  disarm the cap through the green-last-round exemption and allow unlimited
+  same-head retries. It also keeps a chronically crashing lane from leaving the
+  counter at zero forever.
+- An **integrity** blocker says the verdict cannot be trusted, so it reds the
+  round but never marks it terminal. One corrupt sink must not wedge the pair
+  behind the override permanently.
+
+Only a red round whose findings were actually filed, and which carries no
+integrity blocker, can be the terminal closing round. A round in which every
+lane crashed is still recorded red — leaving it uncounted would let repeated
+crashes disarm the cap completely.
+
+The refusal engages only while the last round was **red**. After a green one
+the pair is re-minting rather than arbitrating, so a same-head retry is allowed
+— otherwise a failed receipt mint could not be re-run.
+
+Past the cap the refusal lifts when `HEAD` differs from the last recorded
+round's, because the operator committed a fix. Heads compare by prefix, the
+same way the ledger resolves a round's identity. That earns one closing round. A
+**red** closing round is terminal: it is marked, and every dispatch after it is
+refused, leaving the arbitration override as the only exit. A **green** one
+mints the receipt and is not marked, so the pair stays open to further green
+re-mints — the receipt is `HEAD^{tree}`-bound and any later commit strips it,
+so locking there would forbid exactly the re-mint this design keeps free.
+
+Everything about the count fails **open**: an unreadable or malformed ledger
+leaves the cap inert for that round, and a failed append under-counts. A missed
+cap costs one dispatch; a false cap costs the ship. A series with no session
+marker never records the closing-round sentinel, since one sessionless run
+would otherwise lock out every future sessionless dispatch for the pair.
 
 Sink-file mechanics (stale sink after amend, archive-to-subdir, headless
 overwrite crash) live in [`gotchas.md`](gotchas.md#cr-sinks).

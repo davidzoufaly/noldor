@@ -1,4 +1,5 @@
 import { CODEX_BIN } from '../core/agent-runner/runners/codex.js';
+import { CUT_MARKER_GUIDE } from '../core/structural-context-contract.js';
 import { describeCodexFailure, probeCodexVersion } from './codex-failure.js';
 import { extractJsonObject } from './extract-json.js';
 import { CrRecordSchema, type CrRecord } from './sidecar.js';
@@ -91,8 +92,23 @@ export async function runCodex(input: RunCodexInput): Promise<CrRecord> {
 const JSON_ONLY_DIRECTIVE =
   'Respond ONLY with a JSON object matching the provided output schema. Do not call tools, do not read additional files, do not run shell commands.';
 
+/**
+ * Both builders carry the cut guide, and the injection sits ABOVE the branch on
+ * purpose. `formatPrompt` early-returns `formatArtifactPrompt` for every
+ * artifact review, so injecting inside the code branch alone would leave spec-
+ * and plan-stage codex reviews with no cut contract — the stage where markers in
+ * FDs and structural-context sections actually live.
+ *
+ * Unconditional, where the reviewer lane gates its own injection on the profile
+ * carrying a ladder dimension. A conditional gate needs a condition to read, and
+ * codex has neither a review profile nor a dimension list.
+ */
 function formatPrompt(ctx: ReviewCtx): string {
-  if ('artifact' in ctx) return formatArtifactPrompt(ctx);
+  const body = 'artifact' in ctx ? formatArtifactPrompt(ctx) : formatCodePrompt(ctx);
+  return `${body}\n${CUT_MARKER_GUIDE}`;
+}
+
+function formatCodePrompt(ctx: CodeReviewCtx): string {
   return [
     JSON_ONLY_DIRECTIVE,
     '',

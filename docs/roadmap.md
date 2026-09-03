@@ -16,20 +16,24 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### CR Re-Round Cap Enforcement and Oscillation Detector
+### CR Oscillation Detector and Arbitration Receipt
 
-- id: Q-0170
+- id: Q-0209
 - area: tooling
 - type: feat
-- since: 2026-08-23
-- size: M
+- since: 2026-09-03
+- size: L
 - impact: high
 - confidence: med
-- parent: specs-cr-gate-multi-reviewer
+- parent: cr-re-round-cap-enforcement-and-oscillation-detector
+- split-from: Q-0170
+- blocked-by: Q-0170
 
-Q-0130's re-round cap (2, controller prose) has no tooling enforcement and no oscillation detection — the Q-0146 code CR ran 12 rounds: the reviewer found one new med per round on a ~700-line lane indefinitely, and codex OSCILLATED against itself (round 4 demanded persist-failures downgrade the verdict; round 12 flagged that exact downgrade as a precedence violation) and re-flagged documented `noldor:cut` sites 5x (boot kill fire-and-forget) and 5x (zero-raster evidence retention, which the round-8 REVIEWER had mandated). Wanted: an orchestrate-level round counter that hard-stops re-rounds at the cap with an explicit arbitration sink, and a re-flag detector that compares a round's blockers against `noldor:cut` markers + prior-round fixes so contradictory or repeated findings are surfaced as such instead of consuming another full round. Q-0146 shipped via `Noldor-Path-Override` with the arbitration recorded in the trailer. (found 2026-08-22 shipping Q-0146, PR #366)
+The second half of Q-0170, carved during its spec dialogue because six units with a `Finding` schema change, a new scanner and a receipt path is L work under an M label. Q-0170 ships the round counter and the codex cut-marker contract; this entry ships the detector and the receipt answer on top of it.
 
-- Code-stage CR does not converge on a large diff at all: ~18 `cr orchestrate --kind code` rounds on charuy's `liquid-glass-ui`, each returning exactly one NEW finding, never green — so the `Noldor-Reviewed-Subagent` receipt is never earned and `pr-flow` cannot push without an override. The findings were real (a typecheck break, three shipped sub-AA regressions, several fail-open holes in a guard), so this is not reviewer noise: the loop simply has no fixed point, because each fix is fresh surface. This is the arithmetic the cap does not close — the bounded re-round rule caps operator *arbitration* rounds at 2, while the receipt still has to be earned by a green reviewer run over the final tree, so obeying the cap means never shipping. The cap enforcement this entry asks for must therefore also say what earns a receipt when review is genuinely unbounded. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
+Four units. (1) **Locatable findings** — `src/cr/lanes/subagent.ts` sets `file` to the artifact string for every finding and never sets `line`, so `fingerprintBlockers` collapses to `severity|message` for the reviewer lane and nothing can be compared against a code location. `Finding` gains an optional `locations` array and the reviewer prompt asks each Critical/Important bullet to name its file and line; the existing `file` field keeps its meaning so old sinks still parse. This is the precondition for the rest. (2) **A `noldor:cut` scanner for the TypeScript comment form** — `markdown-section-scan.ts` parses only markdown sections, so the ~15 `// noldor:cut <ceiling> — <upgrade path>` comments in `src/**` are read today by humans and by `/noldor-refactor`'s grep alone. Reuse the `CUT_MARKER` constant from `src/core/structural-context-contract.ts` rather than minting a third spelling. (3) **The re-flag detector** — a pure module beside the ledger in graph community c5, shaped after `src/core/split-suggestion.ts` (exported thresholds, rule/value/message signals, no I/O): `R1` repeat (fingerprint matches a prior round), `R2` cut-site (blocker located inside a documented cut marker's scope), `R3` contradiction (blocker on a line a prior round's fix introduced). Signals never suppress a finding and never move the aggregate exit code. (4) **The arbitration record** — `.noldor/cr/<slug>-<kind>-arbitration.json` carrying the round history, unresolved blockers, per-round signals and a required operator disposition per unresolved blocker, blob-bound to the tree it arbitrated, so the cap terminates in a machine-readable record instead of the free-text `Noldor-Path-Override` that 23 of this repo's 41 unique overrides already are. Open at carve time: whether that record earns the receipt through a new trailer or through a structured reason inside the existing override (the receipt hook and the release gate both already accept the latter, so it costs zero gate changes).
+
+Touches: src/cr/findings-schema.ts, src/cr/lanes/subagent.ts, src/cr/lanes/subagent-dispatch.ts, src/cr/autofix-ledger.ts, src/cr/orchestrate.ts, src/core/structural-context-contract.ts
 
 ### Toolchain Floor Reads Root tsconfigs Only
 
