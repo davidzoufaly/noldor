@@ -50,6 +50,29 @@ The **Test Plan** section is chosen the same way — from the branch's own diff 
 
 Practical consequence: **on a fast-track branch, the implementation commit's message is the PR summary.** Write it accordingly.
 
+## Where the Task ID comes from
+
+The Scope section leads with the stable queue-entry ID (`Q-NNNN`) the PR shipped, so a merged PR traces back to the entry that motivated it without reading the branch name, the FD or the commit trailers:
+
+```
+## Scope
+
+- Task ID: `Q-0202`
+- Gate path: `fast-track`
+...
+```
+
+`resolveTaskId` in [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts) fills it — nobody types it. Two sources, in order:
+
+1. **The `Q-NNNN` keys this branch added to `.noldor/retired-entry-ids.json`** (a key delta against `origin/main`, not a slug lookup). `roadmap remove-block` writes that map on every path where an entry leaves the queue, so this covers `fast-track` *and* the attach paths — where the FD being extended carries the **parent's** ID, which is not what shipped.
+2. **The FD's `entry-id:` frontmatter** (frontmatter block only, so a body line cannot outrank the field), where `/noldor-promote` parks the ID on the `*-new` paths.
+
+A branch that retired several entries names them all, comma-joined: an entry that shipped must not go unnamed because a sibling shipped with it.
+
+**Nothing about the bullet can block a delivery.** Both sources are files a person can edit — a JSON map and FD frontmatter — so `resolveTaskId` filters each as it reads it, and anything that is not a `Q-NNNN` (or a map too corrupt to parse) degrades to "no ID" with a warning on stderr. An empty result then renders `none — no queue entry`, which is also the honest answer for a change that never was a queue entry: an ad-hoc fast-track, or an FD promoted before stable IDs existed.
+
+That is deliberate, and it is why `validatePrSummary` does **not** re-check the value. Refusing delivery here would stop work that already passed review, over a fact no commit amend could fix, and would fail a whole drain iteration under `autonomous.onFailure: 'abort'`. One input, one place that decides — filtered where it enters.
+
 ## One-time operator setup
 
 1. **Install `gh`.** macOS: `brew install gh`. Other platforms: see [cli.github.com](https://cli.github.com/).
