@@ -324,6 +324,18 @@ describe('alias namespace, not any-unresolved', () => {
     expect(r.modules.find((m) => m.source === 'packages/a/src/root.ts')?.closure).toBe(0);
   });
 
+  it('drops a shorter prefix over ANY untargeted one, not only a conflicted one', async () => {
+    // `@/lib` here is untargeted because its value is a string rather than an
+    // array — the same hole is reachable from a fully valid tsconfig whose
+    // `extends` cannot be followed. Every no-target exit has to reach the drop,
+    // or `@` swallows `@/lib/x` into src/lib and nothing reports it.
+    const r = await measureIndirection(tree('alias-nested-untargeted'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@/lib/x');
+    expect(r.modules.find((m) => m.source === 'src/root.ts')?.closure).toBe(0);
+  });
+
   it('reports an alias whose target directory does not exist', async () => {
     // The map is built from the declaration, not from the filesystem, so a
     // `paths` entry pointing at a directory nobody created still yields an

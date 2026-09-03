@@ -111,8 +111,10 @@ function percentile(sorted: readonly number[], p: number): number {
  * further. Most aliased imports never reach here any more — `declaredAliases`
  * hands cruise an `enhancedResolveOptions.alias` map built from the same
  * tsconfig `paths`, and enhanced-resolve follows it. What still reaches here is
- * an alias with no usable target: a prefix two tsconfigs claim for different
- * directories, a malformed `paths` value, or a target directory that does not
+ * a namespace that map deliberately declines: a prefix two tsconfigs claim for
+ * different directories, a malformed `paths` value, an `extends` chain whose
+ * `baseUrl` could not be determined, a wildcard pattern the map cannot express,
+ * a prefix sitting above any of those, or a target directory that does not
  * exist. Dropping such an edge would understate the ratchet, so a specifier
  * matching a declared prefix is reported and the run refuses.
  *
@@ -357,7 +359,11 @@ function pathsBaseDir(file: string, config: Record<string, unknown>): string | u
 function declaredAliases(base: string, roots: readonly string[]): DeclaredAliases {
   const prefixes = new Set<string>();
   const targets = new Map<string, string[]>();
-  const conflicts = new Set<string>();
+  // Every prefix that ends up with no usable target, for whatever reason. One
+  // set rather than a special case per exit: each of them means "this namespace
+  // must stay reported", and the drop pass below has to see all of them, since
+  // a prefix left in the map swallows the specifiers of any prefix beneath it.
+  const untargeted = new Set<string>();
   for (const file of findTsconfigFiles(base, roots)) {
     const parsed = readTsconfig(file);
     if (parsed === undefined) continue;
@@ -371,9 +377,11 @@ function declaredAliases(base: string, roots: readonly string[]): DeclaredAliase
       const prefix = key.endsWith('/*') ? key.slice(0, -2) : key;
       prefixes.add(prefix);
       // A malformed entry, or an `extends` chain whose baseUrl could not be
-      // determined, contributes a prefix but no target: the specifier stays
-      // reported, which is the same fail-safe as a conflict.
-      if (from === undefined || !Array.isArray(value)) continue;
+      // determined: no target, so the specifier stays reported.
+      if (from === undefined || !Array.isArray(value)) {
+        untargeted.add(prefix);
+        continue;
+      }
       const stripped = value
         .filter((v): v is string => typeof v === 'string')
         .map((v) => (v.endsWith('/*') ? v.slice(0, -2) : v));
@@ -385,26 +393,30 @@ function declaredAliases(base: string, roots: readonly string[]): DeclaredAliase
       // matches EVERY request — relative ones included — and its `shouldStop`
       // then forbids the raw request. Real edges vanish and healthy relative
       // imports get reported. The same holds for an interior `*` in a target.
-      if (prefix.includes('*') || stripped.some((v) => v.includes('*'))) continue;
+      if (stripped.length === 0 || prefix.includes('*') || stripped.some((v) => v.includes('*'))) {
+        untargeted.add(prefix);
+        continue;
+      }
       const dirs = stripped.map((v) => resolve(from, v));
-      if (dirs.length === 0) continue;
       const prior = targets.get(prefix);
       if (prior === undefined) targets.set(prefix, dirs);
-      else if (prior.join('\0') !== dirs.join('\0')) conflicts.add(prefix);
+      else if (prior.join('\0') !== dirs.join('\0')) untargeted.add(prefix);
     }
   }
-  // Deleted after the whole scan, not on first disagreement: a third tsconfig
-  // agreeing with either side must not re-add a prefix already known to clash.
+  // Run after the whole scan, not at the moment a prefix goes untargeted: a
+  // third tsconfig agreeing with either side of a clash must not re-add a
+  // prefix already known to be unusable.
   //
-  // A SHORTER prefix the conflicted one sits under goes too, because dropping
-  // only the exact key does not stop the specifier from resolving. With `@`
-  // agreed repo-wide and `@/lib` claimed by two configs for different
-  // directories, deleting `@/lib` alone leaves `@/lib/x` to resolve through `@`
-  // — a wrong edge wherever that file happens to exist, which is the outcome
-  // this drop is here to prevent, not a milder version of it.
+  // A prefix is dropped when an untargeted one is IT or sits under it, because
+  // deleting only the exact key does not stop those specifiers from resolving.
+  // With `@` agreed repo-wide and `@/lib` unusable — clashing, or malformed, or
+  // in a config whose `extends` could not be followed — dropping `@/lib` alone
+  // leaves `@/lib/x` to resolve through `@`: a wrong edge wherever that file
+  // happens to exist, which is the outcome this drop exists to prevent rather
+  // than a milder version of it.
   const shadowed = targets
     .keys()
-    .filter((kept) => conflicts.values().some((c) => c === kept || c.startsWith(`${kept}/`)))
+    .filter((kept) => untargeted.values().some((u) => u === kept || u.startsWith(`${kept}/`)))
     .toArray();
   for (const key of shadowed) targets.delete(key);
   // Longest prefix first, because the two matchers disagree on nesting.
