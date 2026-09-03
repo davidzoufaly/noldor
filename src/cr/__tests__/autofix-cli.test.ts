@@ -495,6 +495,20 @@ describe('cr autofix — the loop', () => {
     expect(field(r.stdout, 'reason')).toBe('round-cap');
   });
 
+  it('clamps the counter when no entry carries the current head', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    // A `plan` run AFTER the fix commit sees a HEAD no entry carries, so nothing
+    // is excluded and every red round counts. Hit for real while shipping this
+    // feature: the counter read 4/3.
+    seedRounds([
+      { headSha: 'aaaaaaa', verdict: 'red' },
+      { headSha: 'bbbbbbb', verdict: 'red' },
+      { headSha: 'ccccccc', verdict: 'red' },
+    ]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(field(r.stdout, 'round')).toBe('3/3');
+  });
+
   it('does not count green rounds toward the cap', () => {
     writeSink('reviewer', 'spec', [MECH]);
     // Two red rounds would be the cap; four greens between them change nothing,
