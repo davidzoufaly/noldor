@@ -25,10 +25,6 @@ import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 import { ensureRolloutMarker } from '../../core/rollout-marker.js';
 import { ensureGitignoreBlock } from '../../core/init-gitignore.js';
 import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
-import {
-  BASELINE_FILE as INDIRECTION_BASELINE_FILE,
-  seedBaselineIfAbsent,
-} from '../../indirection/baseline.js';
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
@@ -132,6 +128,14 @@ try {
   // fresh scaffold ever runs — `init` stamps the anchor as current, so
   // `upgrade` reports "nothing to do" there and would never fire.
   // Advisory: a corpus dependency-cruiser cannot parse must not fail `init`.
+  // Both imports are deferred to keep `init` cheap — the nested one especially,
+  // so a repo that already has a baseline never loads dependency-cruiser at
+  // all. It does NOT buy back the closure: dependency-cruiser counts a dynamic
+  // edge like a static one, so this seam costs `init.ts` 6 units of indirection
+  // either way and the repo baseline is re-recorded alongside it. Reaching the
+  // ratchet's own module is what arming it means; spawning a subprocess to dodge
+  // the number would be worse code for a smaller integer.
+  const { BASELINE_FILE, seedBaselineIfAbsent } = await import('../../indirection/baseline.js');
   const seed = await seedBaselineIfAbsent(consumer, async (cwd) => {
     const { runIndirection } = await import('../../indirection/indirection-cli.js');
     return runIndirection(['baseline'], cwd);
@@ -142,7 +146,7 @@ try {
         ? `unreadable — ${seed.message}`
         : `recording failed (exit ${seed.code})`;
     console.log(
-      `warn       ${INDIRECTION_BASELINE_FILE}: ${detail}; the indirection ratchet stays green until you run 'noldor indirection baseline'`,
+      `warn       ${BASELINE_FILE}: ${detail}; the indirection ratchet stays green until you run 'noldor indirection baseline'`,
     );
   }
   // Stamp the framework version ONLY on a fresh scaffold — a tree with no
