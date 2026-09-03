@@ -464,6 +464,11 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       `round ledger unreadable — cap not enforced this round: ${(err as Error).message}`,
     );
   }
+  // noldor:cut check-then-act, single mutating process per (slug, kind) — the gate
+  // runs orchestrate and `cr autofix record` in sequence and parallel drain gives
+  // each child its own slug, so two runs never share a ledger. Upgrade path: take
+  // a lock file around the read-through-append span, so a closing round cannot be
+  // granted twice by two runs that both read before either appended.
   const cap = capVerdict(ledger, roundKey, headSha);
   if (cap.refuse) {
     console.error(renderCapRefusal(ledger, opts.args.slug, opts.args.kind));
@@ -654,19 +659,29 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // A dispatch that throws before here appends nothing and stays retryable, and
   // a failed append is logged without touching the round's own result: the cap
   // then under-counts, the safe direction.
-  // A round counts only when EVERY expected lane resolved. `lanesRun` alone is
-  // not enough: `crLanes.code` is commonly reviewer + verifier plus the mandated
-  // codex, so one lane throwing while another resolves is the ordinary partial
-  // failure. A thrown lane writes no sink, `writeExpectedLanes` already listed
-  // it, and `aggregate` then reds on `unresolved` alone — stamping `red` on a
-  // review that did not happen. Budget is the smaller cost: on a closing round
-  // that red verdict also sets the sentinel, so a single codex spawn crash would
-  // wedge the pair permanently behind the very override this feature exists to
-  // reduce. An unresolved lane means "no verdict", and no verdict is not a round.
+  // A round counts when a lane actually produced a verdict, and the verdict is
+  // taken from the blockers that were FILED — never from `agg.ok`, which is also
+  // false when an expected lane merely failed to resolve.
+  //
+  // The distinction is load-bearing in both directions. Reading `agg.ok` would
+  // stamp `red` on a round whose reviewer came back clean and whose codex lane
+  // crashed, spending budget on a review that did not happen and — on a closing
+  // round — marking the pair terminal over a spawn failure. But refusing to
+  // count such a round is worse: codex is force-unioned onto code and spec at
+  // M/L/XL and has a recorded history of crashing (maxBuffer, API caps), so one
+  // chronically-rejecting lane would append no entry ever, leave `redRounds` at
+  // zero, and disarm the cap completely — unbounded rounds, the exact failure
+  // this feature exists to bound. A crashed lane leaves the round uncounted only
+  // when EVERY lane crashed, and then there is genuinely no verdict.
   try {
     const agg = await aggregate(opts.args.slug, opts.args.kind, { cwd });
-    if (lanesRun.length > 0 && agg.unresolved.length === 0) {
-      const red = !agg.ok;
+    if (lanesRun.length > 0) {
+      const red = agg.blockers.length > 0;
+      if (agg.unresolved.length > 0) {
+        console.error(
+          `round counted from the lanes that resolved — ${agg.unresolved.join(', ')} did not`,
+        );
+      }
       await appendRound(cwd, opts.args.slug, opts.args.kind, roundKey, {
         headSha,
         fingerprint: fingerprintBlockers(agg.blockers),
@@ -678,14 +693,10 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         // must NOT set it: the receipt is `HEAD^{tree}`-bound, so any later
         // commit strips it, and locking the pair would make the green re-mint
         // this whole design keeps free impossible — leaving the override as the
-        // only exit. Independent of `exitCode`, which also carries a failed
-        // receipt amend.
+        // only exit. Independent of `exitCode`, which also carries an unresolved
+        // lane and a failed receipt amend.
         ...(cap.closingRound && red ? { closingRound: true } : {}),
       });
-    } else if (lanesRun.length > 0) {
-      console.error(
-        `round not counted — ${agg.unresolved.join(', ')} did not resolve, so this round has no verdict`,
-      );
     }
   } catch (err) {
     console.error(`round not recorded — cap will under-count: ${(err as Error).message}`);

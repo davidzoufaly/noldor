@@ -586,13 +586,17 @@ could not see each other.
 
 Only **red** rounds count, against `AUTOFIX_ROUND_CAP + 1` (three: the initial
 pass plus two re-rounds). A green dispatch arbitrates nothing and is free,
-however many run, which is what keeps receipt re-earns from spending budget. A
-round counts only when **every expected lane resolved**: an unresolved lane
-means no verdict, and no verdict is not a round. That covers the interactive
-lane sentinel, a `keep-and-skip` that emptied the set, and the ordinary partial
-failure where one lane throws while another resolves — the last one matters
-most, because a red verdict for a review that never happened would spend budget
-and, on a closing round, mark it terminal.
+however many run, which is what keeps receipt re-earns from spending budget.
+
+A round's verdict comes from the blockers that were **filed**, not from the
+aggregate's `ok` — which is also false when an expected lane simply failed to
+resolve. So a round whose reviewer came back clean and whose codex lane crashed
+is green: it spends no budget and cannot mark a closing round terminal. The
+round is still counted, because a lane that crashes every time would otherwise
+leave the counter at zero forever and disarm the cap entirely. Only a round
+where every lane crashed goes uncounted — there is genuinely no verdict then,
+and the same predicate covers the interactive lane sentinel and a
+`keep-and-skip` that emptied the set.
 
 The refusal engages only while the last round was **red**. After a green one
 the pair is re-minting rather than arbitrating, so a same-head retry is allowed

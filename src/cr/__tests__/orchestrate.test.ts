@@ -1043,18 +1043,45 @@ describe('round budget (Q-0170)', () => {
     spy.mockRestore();
   });
 
-  it('does not count a round where one lane resolved and another never did', async () => {
+  it('counts a partial round GREEN when the lane that resolved filed nothing', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    // The ordinary partial failure: reviewer resolves, manual throws. The thrown
-    // lane wrote no sink but expected-lanes listed it, so the aggregate reds on
-    // `unresolved` alone — a red verdict for a review that did not happen.
+    // The ordinary partial failure: reviewer resolves clean, manual throws. The
+    // thrown lane wrote no sink but expected-lanes listed it, so `agg.ok` is
+    // false on `unresolved` alone. Reading that as red would stamp a review that
+    // did not happen — and on a closing round, mark the pair terminal over a
+    // spawn failure.
+    await writeReviewerSink([]);
     vi.mocked(manualLane).mockRejectedValueOnce(new Error('spawn failed'));
     const r = await run({
-      args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha: 'aaaaaaa' },
+      args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha: 'aaaaaaa', autonomous: true },
       cwd: root,
     });
     expect(r.lanesRun).toEqual(['reviewer']);
-    await expect(readFile(ledgerPath(root, 'x' as never, 'spec'), 'utf8')).rejects.toThrow();
+    expect((await ledgerRounds()).at(-1)).toMatchObject({ verdict: 'green' });
+    spy.mockRestore();
+  });
+
+  it('still counts the round when a lane crashes every time, so the cap stays armed', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // codex is force-unioned onto code and spec at M/L/XL and has a recorded
+    // history of crashing. If a chronically-rejecting lane stopped rounds being
+    // counted, `redRounds` would stay at zero forever and the cap would never
+    // refuse — unbounded rounds, the failure this feature exists to bound.
+    await writeReviewerSink([BLOCKER]);
+    vi.mocked(manualLane).mockRejectedValue(new Error('spawn failed'));
+    for (const headSha of ['aaaaaaa', 'bbbbbbb', 'ccccccc']) {
+      await run({
+        args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha, autonomous: true },
+        cwd: root,
+      });
+    }
+    expect((await ledgerRounds()).filter((r) => r.verdict === 'red')).toHaveLength(3);
+    const refused = await run({
+      args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha: 'ccccccc', autonomous: true },
+      cwd: root,
+    });
+    expect(refused.exitCode).toBe(3);
+    vi.mocked(manualLane).mockReset();
     spy.mockRestore();
   });
 
