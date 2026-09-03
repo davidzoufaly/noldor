@@ -862,6 +862,28 @@ describe('round budget (Q-0170)', () => {
     spy.mockRestore();
   });
 
+  it('never prints a red-round count above its own budget', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // A spent closing round is a FOURTH red entry against a budget of three.
+    await seedRounds(
+      [
+        { headSha: 'aaaaaaa' },
+        { headSha: 'bbbbbbb' },
+        { headSha: 'ccccccc' },
+        { headSha: 'ddddddd', closingRound: true },
+      ],
+      'S1',
+    );
+    writeFileSync(
+      join(root, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'fast-track', startedAt: 'S1' }),
+      'utf8',
+    );
+    await run({ args: { ...ARGS, headSha: 'eeeeeee' }, cwd: root });
+    expect(spy.mock.calls.flat().join('\n')).toContain('red rounds 3/3');
+    spy.mockRestore();
+  });
+
   it('green rounds never advance the budget, however many run', async () => {
     await seedRounds([
       { headSha: 'aaaaaaa', verdict: 'red' },

@@ -369,7 +369,10 @@ export function renderCapRefusal(
       `  ${r.round}  ${roundVerdict(r).padEnd(5)}  ${r.applied} applied, ${r.deferred} deferred  ${r.headSha.slice(0, 7) || '(no sha)'}`,
   );
   return [
-    `red rounds ${redRounds(ledger?.rounds ?? [])}/${AUTOFIX_ROUND_CAP + 1} for ${slug} (${kind}) — cap reached`,
+    // Clamped, like the seam's counter: the closing round is a fourth red entry
+    // against a budget of three, and a numerator above its own denominator reads
+    // as a bug rather than as the intended one-past-the-cap dispatch.
+    `red rounds ${Math.min(redRounds(ledger?.rounds ?? []), AUTOFIX_ROUND_CAP + 1)}/${AUTOFIX_ROUND_CAP + 1} for ${slug} (${kind}) — cap reached`,
     ...rows,
     'HEAD is unchanged since the last round, or the closing round is spent, so no',
     'further round will be dispatched. To close: commit the remaining fixes and',
@@ -710,8 +713,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const { parseArgs } = await import('./orchestrate-args.js');
   const args = parseArgs(process.argv);
   const r = await run({ args });
-  console.log(`lanes run: ${r.lanesRun.join(', ')}`);
-  if (r.syntheticOks.length)
-    console.log(`synthetic OK (empty delta): ${r.syntheticOks.join(', ')}`);
+  // A cap refusal dispatched nothing and has already printed the round history,
+  // so an empty `lanes run:` line under it is noise.
+  if (r.exitCode !== EXIT_ROUND_CAP) {
+    console.log(`lanes run: ${r.lanesRun.join(', ')}`);
+    if (r.syntheticOks.length)
+      console.log(`synthetic OK (empty delta): ${r.syntheticOks.join(', ')}`);
+  }
   process.exit(r.exitCode);
 }
