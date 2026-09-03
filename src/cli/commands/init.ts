@@ -127,7 +127,10 @@ try {
   // has no `noldor-indirection` job at all), and it is also the only command a
   // fresh scaffold ever runs — `init` stamps the anchor as current, so
   // `upgrade` reports "nothing to do" there and would never fire.
-  // Advisory: a corpus dependency-cruiser cannot parse must not fail `init`.
+  // Advisory: neither a corpus dependency-cruiser cannot parse nor an
+  // unwritable `.noldor/` may fail `init` — `seedBaselineIfAbsent` converts both
+  // into an outcome rather than a throw, so the scaffold always reaches the
+  // framework-anchor stamp below.
   // Both imports are deferred to keep `init` cheap — the nested one especially,
   // so a repo that already has a baseline never loads dependency-cruiser at
   // all. It does NOT buy back the closure: dependency-cruiser counts a dynamic
@@ -150,7 +153,7 @@ try {
     const detail =
       seed.kind === 'unreadable'
         ? `unreadable — ${seed.message}`
-        : `recording failed (exit ${seed.code})`;
+        : `recording failed — ${seed.detail}`;
     console.log(
       `warn       ${BASELINE_FILE}: ${detail}; the indirection ratchet stays green until you run 'noldor indirection baseline'`,
     );

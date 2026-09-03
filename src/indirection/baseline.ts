@@ -125,7 +125,7 @@ export type SeedOutcome =
   | { readonly kind: 'already-recorded' }
   | { readonly kind: 'recorded' }
   | { readonly kind: 'unreadable'; readonly message: string }
-  | { readonly kind: 'could-not-record'; readonly code: number };
+  | { readonly kind: 'could-not-record'; readonly detail: string };
 
 /**
  * Record a baseline on a repo that has never recorded one — the seam that arms
@@ -146,6 +146,10 @@ export type SeedOutcome =
  * Never overwrites. A present-but-unreadable baseline is left alone for `check`
  * to report as exit 3: replacing it here would silently re-record the ceiling a
  * red was about to be measured against.
+ *
+ * Never throws either, which is the load-bearing half of the contract: callers
+ * arm the ratchet as one step of a longer command, and a repo whose baseline
+ * could not be written must still finish that command.
  */
 export async function seedBaselineIfAbsent(
   cwd: string,
@@ -154,8 +158,20 @@ export async function seedBaselineIfAbsent(
   const prior = readBaseline(join(cwd, BASELINE_FILE));
   if (prior.kind === 'ok') return { kind: 'already-recorded' };
   if (prior.kind === 'unreadable') return { kind: 'unreadable', message: prior.message };
-  const code = await record(cwd);
-  return code === 0 ? { kind: 'recorded' } : { kind: 'could-not-record', code };
+  let code: number;
+  try {
+    code = await record(cwd);
+  } catch (e) {
+    // The recorder is a filesystem boundary as well as a parser one: recording
+    // ends in `writeBaseline`, which does `mkdirSync` + an atomic rename, so
+    // EACCES or ENOSPC on `.noldor/` throws instead of returning an exit code.
+    // Converting it here is what keeps the no-throw guarantee above true — for
+    // `init` a propagated throw aborts the scaffold part-way, before the
+    // framework anchor is stamped, and the consumer is then told it has a
+    // version skew it does not have.
+    return { kind: 'could-not-record', detail: e instanceof Error ? e.message : String(e) };
+  }
+  return code === 0 ? { kind: 'recorded' } : { kind: 'could-not-record', detail: `exit ${code}` };
 }
 
 export type RatchetVerdict =

@@ -173,7 +173,20 @@ describe('seedBaselineIfAbsent', () => {
   it('reports the recorder’s exit code when it could not measure', async () => {
     await inTmpAsync(async (dir) => {
       const outcome = await seedBaselineIfAbsent(dir, async () => 3);
-      expect(outcome).toEqual({ kind: 'could-not-record', code: 3 });
+      expect(outcome).toEqual({ kind: 'could-not-record', detail: 'exit 3' });
+      expect(readBaseline(join(dir, BASELINE_FILE)).kind).toBe('absent');
+    });
+  });
+
+  it('converts a throwing recorder into an outcome instead of propagating', async () => {
+    await inTmpAsync(async (dir) => {
+      const outcome = await seedBaselineIfAbsent(dir, () => {
+        throw new Error("EACCES: permission denied, mkdir '.noldor'");
+      });
+      expect(outcome).toEqual({
+        kind: 'could-not-record',
+        detail: "EACCES: permission denied, mkdir '.noldor'",
+      });
       expect(readBaseline(join(dir, BASELINE_FILE)).kind).toBe('absent');
     });
   });
