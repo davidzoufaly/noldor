@@ -18,7 +18,7 @@ Underneath sits an arithmetic gap that any cap has to answer, and it is the reas
 
 ## Goals
 
-- Count every re-round for a `(slug, kind)` pair at the orchestrate layer, auto-fix and operator alike, so the cap is code rather than prose.
+- Count every round for a `(slug, kind)` pair at the orchestrate layer, and bound the budget on the rounds that found blockers, so the cap is code rather than prose.
 - Refuse to dispatch past the cap, and terminate in a printed round history that names the remedy rather than in silence.
 - Never wedge a session that has fixed its last blockers and needs one dispatch to re-mint its receipt.
 - Close the codex cut-marker gap.
@@ -50,7 +50,9 @@ Unit 1 touches `run-codex.ts`, which the digest places in the codex-lane neighbo
 
 The cut-marker guide moves to a shared module and both lanes read it from there. Today `CUT_MARKER_TOKEN` in `subagent-dispatch.ts` and `CUT_MARKER` in [`src/core/structural-context-contract.ts`](../../../src/core/structural-context-contract.ts) are two independent literals for one contract, tied together only by a test assertion against the rule store; this unit must collapse that to one definition rather than adding a third.
 
-`formatPrompt` in `run-codex.ts` then injects that guide, with its carve-outs unchanged: a marker never waives a finding about a defect, a vulnerability, a race, an unintended state change, an accessibility regression, or explicitly-requested behaviour that was cut.
+`run-codex.ts` then injects that guide, with its carve-outs unchanged: a marker never waives a finding about a defect, a vulnerability, a race, an unintended state change, an accessibility regression, or explicitly-requested behaviour that was cut.
+
+The injection sits **above** `formatPrompt`'s branch, so both prompt builders carry it. `formatPrompt` early-returns `formatArtifactPrompt` for every artifact review, and that builder composes its own text — injecting inside the code branch alone would leave spec- and plan-stage codex reviews with no cut contract, which is the stage where markers in FDs and structural-context sections actually live.
 
 The reviewer injects the guide conditionally, gated on the profile carrying one of the four ladder dimensions. Codex has no profile and no dimension list, so its injection is unconditional. The asymmetry is deliberate and belongs in a comment: a conditional gate needs a condition to read, and codex has none.
 
@@ -58,30 +60,29 @@ Authority is unambiguous after this change. `.noldor/rules/lazy-decision-ladder.
 
 This unit is independently shippable and nothing else here depends on it.
 
-### Unit 2 — the ledger counts every re-round
+### Unit 2 — the ledger counts red rounds, and orchestrate owns it
 
-The ledger at `.noldor/cr/autofix/<slug>-<kind>.json` widens from auto-fix rounds to all re-rounds, and orchestrate becomes its second writer.
+The ledger at `.noldor/cr/autofix/<slug>-<kind>.json` becomes a record of rounds rather than of auto-fix applications, and it gets exactly one writer.
 
-**A recorded round is a re-round, never the initial pass.** This is what keeps one number in play. `cr autofix record` today writes only after a fix, so every entry it has ever written is already a re-round, and `decide`'s `priorRounds.length >= AUTOFIX_ROUND_CAP` already means "two re-rounds spent". Orchestrate adopts the same rule: a dispatch with no prior round for the pair is the initial pass and records nothing. `AUTOFIX_ROUND_CAP` stays at 2, the budget stays at two re-rounds plus the initial pass, and the printed counter reads `n/3` in dispatch terms only because the initial pass is the unrecorded first — the ledger itself never holds more than 2.
+**Orchestrate writes every resolved round, including the first.** Excluding the initial pass cannot bootstrap the counter: with no prior entry the next dispatch is also an initial pass, and the ledger stays empty forever. So every dispatch that resolves appends an entry carrying its `verdict` — `green` when the round's `aggregate` for the pair reports `ok`, `red` otherwise. That is a definition the multi-lane case already has: `ok` is false when any lane blocks or any expected lane is unresolved, which covers a skipped lane, a timeout and a malformed sink alike. A dispatch that crashes before resolving writes nothing and stays retryable.
 
-**The closing round is what prevents the wedge.** The receipt case on record is *red final round → operator fixes → one dispatch that finds nothing*. A rule that exempted a dispatch after a **green** round would not fire there at all, because the prior round was red. So the exemption is not about greenness: **once the cap is reached, exactly one further dispatch is permitted, and it is terminal.** It is recorded with `stopped: 'closing-round'`. Green, and orchestrate amends the receipt as it always does and the session ships. Red, and no further dispatch is offered — the override is the only remaining exit. One closing round is enough because the operator has already fixed everything they intend to fix; a second would be a new arbitration, which is precisely what the cap refuses.
+**`cr autofix record` stops appending and starts annotating.** It runs after the seam has applied a fix, and the round whose blockers it fixed is the ledger's last entry — so it writes `applied`, `deferred` and `diffStat` onto that entry instead of creating a new one. This is what makes round identity unambiguous. Two writers appending needed a deduplication key, and the only key available did not work: `record` hashes the blockers it just *fixed* while orchestrate hashes the *next* round's blockers, so a `(headSha, fingerprint)` pair matches only in the no-progress case. One writer removes the question, and it removes the `origin` field with it — nothing needs to know which command wrote an entry when only one does.
 
-**Write ownership is exclusive, decided by which command ran.** `cr autofix record` keeps writing the auto-fix round it applies, tagged `origin: 'autofix'`. Orchestrate writes only for a round the seam did not record — it appends `origin: 'operator'` after the round resolves, and skips the append when the ledger's last entry already names this round's `headSha` and fingerprint. That is the deduplication rule, and it makes an auto-fix round followed by its orchestrate re-run one entry rather than two, which is what "one auto-fix round and one operator round reports two rounds" requires.
+**The cap counts red rounds.** `redRounds` is the number of entries whose verdict is `red`; orchestrate refuses to dispatch when `redRounds > AUTOFIX_ROUND_CAP`. With the cap at 2 that is three red rounds — the initial pass plus two re-rounds, the budget the gate prose already describes — and one denominator, `n/3`, printed everywhere. `decide`'s cap rule reads the same count so the seam and the operator share one budget, and the seam's own printed counter moves to the same denominator rather than showing `3/2` for one cap.
 
-**Fields.** `origin` is optional in the schema with a default of `'autofix'`, so every ledger written before this change parses unchanged and no existing series is quarantined or reset. `applied`, `deferred` and `diffStat` become optional too, because orchestrate applies nothing and cannot know what an operator applied — it omits them rather than writing a zero that would falsify a guard.
+Counting red rounds rather than dispatches is also what makes the FD's promise true: a round counts only when it arbitrates unresolved blockers. A green dispatch is free, however many there are. That matters more than it first appears, because the `HEAD^{tree}`-bound receipt is stripped by every fix commit, so a code-stage session routinely runs several green, finding-nothing dispatches purely to re-mint. None of them may cost budget.
 
-**`decide` reads the ledger by rule, not wholesale.** Only the cap rule counts every entry; that shared budget is the whole point. The other two ledger-reading rules filter to `origin: 'autofix'`, and both filters are load-bearing:
+**The closing round handles the one case greenness cannot.** The receipt shape on record is *red final round → operator fixes → one dispatch that finds nothing*. At the cap that dispatch is refused, and the session is wedged. So the refusal carries a discriminator: orchestrate refuses when `redRounds > AUTOFIX_ROUND_CAP` **and** either `HEAD` equals the last recorded round's head, or a `stopped: 'closing-round'` entry already exists. A changed head means the operator committed a fix since the cap was hit, and that earns exactly one further dispatch, recorded with `stopped: 'closing-round'`. Green mints the receipt and the session ships; red refuses everything after, because the second condition now holds regardless of how many further fixes are committed. Both acceptance criteria then describe the same state machine rather than contradicting each other, and repeated invocations at an unchanged head are refused rather than looping.
 
-- `prior-deferred` fires on a non-zero `deferred`. An operator entry carries none, so without the filter the rule would read `undefined` and the seam's guard would rest on an absent field.
-- `no-progress` compares this round's blocker fingerprint against prior entries. `runPlan` in [`src/cr/autofix-cli.ts`](../../../src/cr/autofix-cli.ts) recomputes that fingerprint over the *same sinks* orchestrate just hashed, so an unfiltered rule would match orchestrate's own entry on the very first round and decline `no-progress` every time — the seam would never run again. The filter is not a refinement; without it this feature disables the auto-fix path entirely.
+**Field compatibility.** `verdict` is optional and absent reads as `red`, which is the fail-safe direction and also the truth about historical entries — every one of them was written by the seam after a fix, so its round had blockers. `applied`, `deferred` and `diffStat` stay **required**: orchestrate writes zeros and an empty stat when it creates an entry, and `record` overwrites them when it annotates. Making them optional would have let `decide`'s `prior-deferred` rule evaluate `undefined > 0` and silently never fire, disarming the guard the code documents as its defence against laundering an unapplied blocker into a green. A round the seam never touched carries `deferred: 0` and does not trip that guard, which is right: the operator disposed of those blockers, and the seam has no business inferring otherwise.
 
-**Reading "was the prior round red" needs a real read.** `priorSinkIsGreen` in `orchestrate.ts` is a per-lane predicate reached only inside the empty-diff branch, so it cannot answer a question about the round as a whole. Orchestrate instead records each round's verdict on the ledger entry as it writes it, and reads that back. State it once, at the point that already knows it.
+**`no-progress` must skip the current round's own entry.** `runPlan` in [`src/cr/autofix-cli.ts`](../../../src/cr/autofix-cli.ts) recomputes `fingerprintBlockers` over the *same sinks* orchestrate just hashed, so a rule comparing against every entry would match the one orchestrate wrote moments earlier and decline `no-progress` on every single round — the seam would never run again. It compares against every entry *before the last*. This is not a refinement; without it the feature disables the auto-fix path entirely.
 
-**Session scoping.** `readLedger` returns `null` for a different session and `appendRound` then replaces the series, which is correct and stays. Orchestrate must key on the same value the seam does. That expression is `sessionKey` in `autofix-cli.ts`, a private helper today; it moves beside `isSameSeries` in the ledger module and both callers import it, rather than being re-derived inline. Its `?? ''` fallback is not carried over: a run with no session marker has no gate session to bound, so the cap is **inert** for it rather than sharing one global empty-key bucket across every sessionless invocation forever.
+**Session scoping is unchanged.** `readLedger` returns `null` for a different session and `appendRound` then replaces the series, which is correct and stays. Orchestrate keys on the same value the seam does: `sessionKey` moves from `autofix-cli.ts` beside `isSameSeries` and both callers import it rather than re-deriving the expression — the drift `isSameSeries` exists to prevent. Its `?? ''` fallback is **kept**, because the seam's docblock already reasons about it: rounds accumulate across unrelated sessionless runs, which over-counts and therefore caps early, never late. Dropping it would have made the cap inert for sessionless `cr autofix record` runs too — a fail-open reset for the one writer that enforces anything today.
 
-**Concurrency.** The cap is checked before dispatch and the entry appended after, so two concurrent orchestrates on the same pair could both see budget. In practice they do not exist: parallel drain assigns each child a distinct slug and the ledger is keyed per `(slug, kind)`. Recorded as `noldor:cut single writer per (slug, kind) — parallel drain gives each child its own slug; revisit if two agents ever review one pair concurrently, at which point the RMW needs a lock rather than a tighter check`.
+**Concurrency.** The cap is checked before dispatch and the entry appended after, so two concurrent orchestrates on one pair could both see budget. In practice they do not exist: parallel drain assigns each child a distinct slug and the ledger is keyed per `(slug, kind)`. Recorded as `noldor:cut single writer per (slug, kind) — parallel drain gives each child its own slug; revisit if two agents ever review one pair concurrently, at which point the read-modify-write needs a lock rather than a tighter check`.
 
-Everything else about the file is unchanged: same directory (deliberately a subdirectory so `aggregate`'s sink scan cannot mistake a ledger for a lane sink), same `writeJsonAtomic`, same `.bad` quarantine on a parse failure, same `slugPath` guarding.
+Everything else about the file is unchanged: same directory (deliberately a subdirectory so `aggregate`'s sink scan cannot mistake a ledger for a lane sink), same `writeJsonAtomic`, same `.bad` quarantine on a parse failure, same `slugPath` guarding. The series is no longer bounded in length, since green rounds accumulate without counting.
 
 ### Unit 3 — the prose this replaces
 
@@ -107,32 +108,34 @@ Deletion Test throughout: each unit's test fails if the unit is deleted.
 
 Unit 1 asserts the codex prompt carries the cut-marker contract, that the contract text has exactly one definition, and that the existing rule-store pin still compares two independently maintained artifacts.
 
-Unit 2 covers the initial pass recording nothing; a re-round dispatched by orchestrate landing in the ledger with no seam involvement; an auto-fix round plus an operator round counting as two; a re-run over an unchanged head not double-appending; the refusal at the cap with its exit code and printed history; the closing round being permitted once and only once, from a **red** prior round, with a green closing round minting the receipt and a red one refusing further dispatch; a ledger with no `origin` field parsing as `autofix` and not resetting; the seam still running normally after orchestrate has appended an entry, which is the `no-progress` regression; a sessionless run leaving the cap inert; and a corrupt ledger leaving dispatch, aggregate and receipt behaviour unchanged.
+Unit 2 covers the first dispatch appending an entry, which is what makes the counter bootstrap at all; a round's verdict following its aggregate across a blocking lane, an unresolved lane and a clean run; `record` annotating the last entry rather than appending, so an auto-fix cycle reports two rounds and not three; a run of green rounds never advancing the cap; the refusal at the cap with its exit code and printed history; the refusal holding at an unchanged head and lifting exactly once at a changed one, with a green closing round minting the receipt and every later dispatch refused; both counters printing one denominator; the seam still reaching `auto-fix` after orchestrate appended this round's entry, which is the `no-progress` regression; `prior-deferred` still firing on a real deferred count; and a pre-change ledger parsing, keeping its series and reading as red.
 
 ## Acceptance criteria
 
-1. The codex lane's prompt carries the cut-marker contract, and that contract text has a single definition shared with the reviewer lane.
-2. A dispatch with no prior ledger round for the pair records nothing.
-3. A re-round dispatched by `cr orchestrate` is recorded for its `(slug, kind)` pair whether or not the auto-fix seam ran, and a session with one auto-fix round and one operator round reports two.
-4. Orchestrate does not append when the ledger's last entry already names this round's head and fingerprint.
-5. Once the ledger holds `AUTOFIX_ROUND_CAP` re-rounds, `cr orchestrate` refuses to dispatch, exits 3, and prints the round history and the `Noldor-Path-Override` remedy.
-6. From a red round at the cap, exactly one further dispatch is permitted; a green one amends the receipt, and a red one refuses any further dispatch.
-7. The auto-fix seam still reaches `auto-fix` on a round following an orchestrate-written entry, rather than declining `no-progress`.
-8. `decide`'s `prior-deferred` rule ignores operator-origin entries.
-9. A ledger entry written before this change, carrying no `origin`, parses as `autofix` and does not reset the series.
-10. A run with no session marker leaves the cap inert.
+1. Both codex prompt builders carry the cut-marker contract, and that contract text has a single definition shared with the reviewer lane.
+2. Every resolved `cr orchestrate` dispatch appends one ledger entry for its `(slug, kind)` pair, the first included, carrying a verdict of `green` when the round's aggregate reports `ok` and `red` otherwise. A dispatch that crashes before resolving appends nothing.
+3. `cr autofix record` annotates the ledger's last entry with `applied`, `deferred` and `diffStat` instead of appending a round, so an auto-fix cycle and its re-review report two rounds rather than three.
+4. Green rounds never count toward the cap, however many run.
+5. `cr orchestrate` refuses to dispatch when red rounds exceed `AUTOFIX_ROUND_CAP` and either `HEAD` matches the last recorded round's head or a closing round has already run; it exits 3 and prints the round history and the `Noldor-Path-Override` remedy.
+6. At the cap with a changed `HEAD` and no prior closing round, exactly one further dispatch runs and is recorded as the closing round; a green one amends the receipt, and every dispatch after it is refused.
+7. Orchestrate and the auto-fix seam print the same denominator for the same cap.
+8. The auto-fix seam still reaches `auto-fix` on a round following an orchestrate-written entry, rather than declining `no-progress` against that round's own entry.
+9. `decide`'s `prior-deferred` rule reads a present `deferred` on every entry, and a round the seam never annotated does not trip it.
+10. A ledger written before this change parses, keeps its series, and its entries read as red.
 11. A corrupt, unreadable or absent ledger, and a failed append, leave dispatch, aggregate and receipt behaviour exactly as today.
 12. The gate skill, `cr-pipeline.md` and `script-catalog.md` no longer assert the replaced behaviour, and their `templates/` twins match.
 
 ## Risks / trade-offs
 
-**The shared budget changes existing auto-fix behaviour.** A session that runs an operator round first will find the seam declining `round-cap` sooner than it does today. That is intended, but it is a live behaviour change for anyone relying on the seam's current budget and belongs in the release notes rather than being discovered.
+**The shared budget changes existing auto-fix behaviour.** The seam's cap now counts rounds it did not run, so a session that reviews before it auto-fixes will find `round-cap` declining sooner than today. That is intended — it is the combined bound the gate prose describes — but it is a live behaviour change for anyone relying on the seam's current budget, and it belongs in the release notes rather than being discovered.
 
-**The closing round is a hole of exactly one dispatch.** An operator who fixes nothing and re-runs still gets it. That is accepted: the alternative is proving intent, which the framework cannot do, and one wasted dispatch is far cheaper than the wedge it prevents.
+**The closing round is a hole of exactly one dispatch.** Any commit changes `HEAD`, so an operator who commits something unrelated and re-runs still spends it. Proving intent is not something the framework can do, and one dispatch is far cheaper than the wedge it prevents.
+
+**Counting red rounds means a stuck-but-green loop is unbounded.** A session that dispatches green repeatedly — re-minting a receipt that keeps being stripped — never advances the cap. That is deliberate: those rounds arbitrate nothing, and bounding them would re-create the wedge. The cost is real dispatches that no counter stops, which is the honest trade for never blocking a ship that has already passed review.
 
 **A cap that refuses is a new failure mode in a hot path.** Every mitigation here is fail-open, but fail-open on a *counter* means the cap silently does nothing when the ledger is unreadable. That is the deliberate trade: an unenforced cap is today's status quo, while a falsely-enforced one is a locked door.
 
-**Two writers to one file.** Exclusivity rests on a deduplication check rather than on a lock. The concurrency cut above records why that is sufficient today and what would invalidate it.
+**A single writer moves work into orchestrate.** `cr autofix record` becomes an annotator, so a ledger entry now depends on orchestrate having written one first. A `record` invoked with no preceding round has nothing to annotate and must say so rather than silently no-op.
 
 **Unifying the cut-marker guide touches the reviewer prompt.** Moving the string to a shared home changes a file whose exact text is pinned by a test against the rule store. The move must keep that assertion comparing two artifacts rather than making it assert against itself.
 
@@ -148,16 +151,20 @@ Nothing new to invoke. `cr orchestrate` is called exactly as before and behaves 
 pnpm noldor cr orchestrate --slug <slug> --artifact . --kind code --base-sha origin/main
 ```
 
-At the cap it refuses instead of dispatching, exits 3, and prints:
+Once red rounds exceed the cap and `HEAD` still matches the last recorded round, it refuses instead of dispatching, exits 3, and prints:
 
 ```
-round 3/3 for <slug> (code) — cap reached
-  1  autofix   3 applied, 1 deferred  <sha>   red
-  2  operator  —                      <sha>   red
-To close: fix the remaining blockers and re-review — one closing round is
-still allowed — or record the arbitration:
+red rounds 3/3 for <slug> (code) — cap reached
+  1  red    3 applied, 1 deferred  <sha>
+  2  red    2 applied, 0 deferred  <sha>
+  3  red    0 applied, 0 deferred  <sha>
+HEAD is unchanged since round 3, so no further round will be dispatched.
+To close: commit the remaining fixes and re-review — that earns one closing
+round — or record the arbitration:
   git commit --amend --no-edit --trailer "Noldor-Path-Override: <why>"
 ```
+
+Committing a fix and re-running then spends the closing round. A green one mints the receipt and the session ships; a red one is the last, and the override is the only exit after it.
 
 ## Open questions (resolved)
 
@@ -168,16 +175,16 @@ still allowed — or record the arbitration:
    -> **Refuse, print the round history, and name the existing `Noldor-Path-Override` remedy.** (D2) It is already the de-facto exit in 23 of 41 commits, so pointing at it adds enforcement without a new gate surface, and the printed history makes the override informed rather than blind.
 
 3. *What counts as a round, given a capped session still needs a dispatch to re-earn its receipt?*
-   -> **A recorded round is a re-round; the initial pass records nothing; and the cap admits exactly one terminal closing round.** (D3, revised) The first draft exempted a dispatch after a *green* round, which review showed does not fire on the case it was written for — the receipt re-earn on record follows a **red** final round and a fix commit. The closing round targets that shape directly and keeps `AUTOFIX_ROUND_CAP` meaning what it already means to the seam.
+   -> **Only a red round counts, and the cap admits one closing round discriminated by a changed `HEAD`.** (D3) Exempting a dispatch that follows a *green* round would not fire on the case this exists for: the receipt re-earn on record follows a **red** final round and a fix commit. A closing round alone is not enough either, because orchestrate needs some way to tell a refusal from a closing round in the same ledger state. Counting red rounds makes every green re-mint free, and the changed-head discriminator makes the state machine determinate.
 
 4. *When does orchestrate write the round entry?*
-   -> **After the round resolves, with the real fingerprint, skipping the append when the seam already recorded that head.** (D4) The fingerprint hashes blockers that do not exist at dispatch time; a placeholder would poison the seam's no-progress rule, which reads the same field. A crashed round writes nothing and stays retryable.
+   -> **After every round resolves, the first included.** (D4) Excluding the initial pass cannot bootstrap: with no prior entry the next dispatch is also an initial pass, so the ledger stays empty forever. A crashed round writes nothing and stays retryable.
 
-5. *Should `decide` see operator rounds?*
-   -> **The cap rule yes, the other two no.** (D5, revised) One shared budget is the point, but `no-progress` hashes the same sinks orchestrate just hashed and would decline on orchestrate's own entry every time, and `prior-deferred` would read a field operator entries do not carry.
+5. *Two writers or one?*
+   -> **One.** (D5) Two appending writers would need a deduplication key, and the only available key does not work — `record` hashes the blockers it fixed while orchestrate hashes the next round's, so they match only in the no-progress case, and an auto-fix cycle would burn the whole budget in two dispatches. `record` now annotates the last entry instead, which also retires the `origin` field.
 
-6. *Is `AUTOFIX_ROUND_CAP = 2` still the right budget once operator rounds share it?*
-   -> **Keep 2, and revisit only with evidence.** (D6) Two recorded re-rounds plus the initial pass is three dispatches, which the gate prose already calls the span that caught every real design flaw on record. The constant is pinned by a test, so a change is a visible one-line diff rather than silent drift.
+6. *Is `AUTOFIX_ROUND_CAP = 2` still the right budget once every round shares it?*
+   -> **Keep 2, and revisit only with evidence.** (D6) Two re-rounds plus the initial pass is three red rounds, which the gate prose already calls the span that caught every real design flaw on record. The constant is pinned by a test, so a change is a visible one-line diff rather than silent drift.
 
 7. *Does the codex lane's rules source change too?*
    -> **No — out of scope, recorded as a follow-up.** (D7) `readRules` falls back to `AGENTS.md` for codex-only consumer trees with no `.claude/`, so routing it through the `.noldor/rules/` cascade would have to add rather than replace, and that compatibility question deserves its own decision. The cut-marker contract reaches codex as prompt text, which is what the entry actually needs.
