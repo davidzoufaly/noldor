@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.8.0 — 2026-09-03
+
+### Features
+
+- feat(pr-flow): lead the PR Scope section with the queue entry's task ID (#427) ([5dd6350](https://github.com/davidzoufaly/noldor/commit/5dd63508c2993fdd4b83de46692867a8e6cf4949)) ([#427](https://github.com/davidzoufaly/noldor/pull/427))
+
+### Fixes
+
+- fix(design): report artifact links against the main checkout, not the worktree (#428) ([e8ee82e](https://github.com/davidzoufaly/noldor/commit/e8ee82e7043f9efa1b306f48492caaa7b6b11424)) ([#428](https://github.com/davidzoufaly/noldor/pull/428))
+- fix(pr-flow): link every plan part in the PR body (#426) ([45e0542](https://github.com/davidzoufaly/noldor/commit/45e0542b4e937f76e476cdf09212f689483272e7)) ([#426](https://github.com/davidzoufaly/noldor/pull/426))
+- fix(indirection): resolve tsconfig path aliases via enhanced-resolve (#425) ([8f9327c](https://github.com/davidzoufaly/noldor/commit/8f9327cbf09989370f82e517c9cdf96736a31f09)) ([#425](https://github.com/davidzoufaly/noldor/pull/425))
+- fix(indirection): seed the ratchet baseline on consumer install (#424) ([a41bc49](https://github.com/davidzoufaly/noldor/commit/a41bc49c56694d1b5d607855e7db3ff57bdcb048)) ([#424](https://github.com/davidzoufaly/noldor/pull/424))
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift (#430) ([2a1e75d](https://github.com/davidzoufaly/noldor/commit/2a1e75d55969f8cb1056026edecfdff1650f766b)) ([#430](https://github.com/davidzoufaly/noldor/pull/430))
+- docs(triage): reorder roadmap priorities, capture 6 lessons, widen drain-log ignore (#429) ([2b9ec5f](https://github.com/davidzoufaly/noldor/commit/2b9ec5f356fc8d35bff18496ea7f72cc2306b426)) ([#429](https://github.com/davidzoufaly/noldor/pull/429))
+- docs: capture six lessons from the v1.7.0 release sweep (#423) ([0370326](https://github.com/davidzoufaly/noldor/commit/037032679c639712147dab60b7513288bf87492e)) ([#423](https://github.com/davidzoufaly/noldor/pull/423))
+
 ## v1.7.0 — 2026-09-02
 
 ### Features
