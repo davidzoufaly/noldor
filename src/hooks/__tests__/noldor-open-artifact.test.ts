@@ -68,19 +68,25 @@ describe('hooks open-artifact', () => {
     expect(ctx).toContain('[2026-01-01-x-design.md](docs/design/specs/2026-01-01-x-design.md)');
   });
 
-  it('resolves the link against payload.cwd, not the artifact checkout', () => {
+  // Q-0207. `payload.cwd` is the AGENT's cwd, and every gate session inside
+  // `.worktrees/<slug>/` sets it to the worktree — so it is not evidence about
+  // which folder the EDITOR opened, and must not decide the reported root. An
+  // earlier revision let it, and reported a bare `docs/design/specs/…` path that
+  // does not exist in the window the operator is looking at. Both cwds therefore
+  // report the same link; the operator's real answer to the workspace question is
+  // NOLDOR_WORKSPACE_ROOT, which the next case holds.
+  it('reports the main-checkout-relative link whichever cwd the payload carries', () => {
     const { root } = setupRepo();
     const tree = join(root, '.worktrees', 'wt');
     execSync(`git worktree add -q -b feat/wt ${tree}`, { cwd: root });
     const treeSpec = join(tree, 'docs', 'design', 'specs', '2026-01-01-x-design.md');
-    // The common Claude case: the editor has the MAIN checkout open while the
-    // gate session writes into the worktree beneath it.
+    // The editor has the MAIN checkout open while the session writes beneath it.
     expect(contextFor({ cwd: root, tool_input: { file_path: treeSpec } })).toContain(
       '(.worktrees/wt/docs/design/specs/2026-01-01-x-design.md)',
     );
-    // The inverse layout: the operator opened the worktree as its own window.
+    // The shape the hook actually sees in that same session.
     expect(contextFor({ cwd: tree, tool_input: { file_path: treeSpec } })).toContain(
-      '(docs/design/specs/2026-01-01-x-design.md)',
+      '(.worktrees/wt/docs/design/specs/2026-01-01-x-design.md)',
     );
   });
 
@@ -98,13 +104,19 @@ describe('hooks open-artifact', () => {
     const tree = join(root, '.worktrees', 'wt');
     execSync(`git worktree add -q -b feat/wt ${tree}`, { cwd: root });
     const treeSpec = join(tree, 'docs', 'design', 'specs', '2026-01-01-x-design.md');
-    const ctx = contextFor(
-      { cwd: tree, tool_input: { file_path: treeSpec } },
-      {
-        [WORKSPACE_ROOT_ENV]: root,
-      },
-    );
-    expect(ctx).toContain('(.worktrees/wt/docs/design/specs/2026-01-01-x-design.md)');
+    const named = (workspaceRoot: string): string =>
+      contextFor(
+        { cwd: tree, tool_input: { file_path: treeSpec } },
+        {
+          [WORKSPACE_ROOT_ENV]: workspaceRoot,
+        },
+      );
+    expect(named(root)).toContain('(.worktrees/wt/docs/design/specs/2026-01-01-x-design.md)');
+    // The load-bearing half: naming the WORKTREE beats the main-checkout steer,
+    // which is what makes the env var the escape hatch for an operator who really
+    // did open the worktree as its own window. Asserting only the `root` row
+    // above cannot see this — the steer produces that same link unaided.
+    expect(named(tree)).toContain('(docs/design/specs/2026-01-01-x-design.md)');
   });
 
   it('reports the path AND says no tab opened when the editor is missing', () => {

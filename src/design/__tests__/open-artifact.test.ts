@@ -166,9 +166,25 @@ describe('resolveArtifact — the artifact predicate', () => {
     };
     const r = resolveArtifact({ path: spec, cwd: root, git: counting });
     expect(r.kind).toBe('artifact');
-    // classify owns the one probe and hands its result to the ladder; an earlier
-    // version re-ran the identical command twice more.
-    expect(calls).toEqual([['rev-parse', '--show-toplevel']]);
+    // classify owns the one probe and hands its results to the ladder; an earlier
+    // version re-ran the identical command twice more. The worktree legs ride the
+    // SAME rev-parse rather than earning a probe of their own.
+    expect(calls).toEqual([['rev-parse', '--show-toplevel', '--git-common-dir', '--git-dir']]);
+  });
+
+  it('probes git exactly once from inside a worktree too', () => {
+    const { root } = setupRepo();
+    const { tree, spec } = addWorktree(root, 'wt');
+    const calls: string[][] = [];
+    const counting: GitProbe = (args, cwd) => {
+      calls.push([...args]);
+      return execSync(`git ${args.join(' ')}`, { cwd, encoding: 'utf8' }).trim();
+    };
+    const r = resolveArtifact({ path: spec, cwd: tree, git: counting });
+    expect(r.kind === 'artifact' && r.linkPath).toBe(
+      '.worktrees/wt/docs/design/specs/2026-01-01-x-design.md',
+    );
+    expect(calls).toHaveLength(1);
   });
 
   it.each([
@@ -261,11 +277,79 @@ describe('resolveArtifact — the workspace-root ladder', () => {
     );
   });
 
-  it('falls back to the checkout root when a soft hint is malformed', () => {
+  it('falls back past a malformed soft hint to a printable root, never a rejection', () => {
     const { root } = setupRepo();
     const { tree, spec } = addWorktree(root, 'wt');
     const r = resolveArtifact({ path: spec, cwd: tree, hintRoot: join(root, 'no-such-dir') });
-    // Rung 4: the artifact's OWN checkout, so the bare path — never a rejection.
+    // The rung-3 fallback is the artifact's own worktree checkout, which the
+    // main-checkout preference then steers off — but a bad soft hint is still
+    // never a rejection, which is what this row is here to hold.
+    expect(r.kind === 'artifact' && r.linkPath).toBe(
+      '.worktrees/wt/docs/design/specs/2026-01-01-x-design.md',
+    );
+  });
+
+  // Q-0207. The whole reason three skills tell an operator to paste the reported
+  // link verbatim: in a worktree session both inferred rungs used to answer with
+  // the worktree, and the editor is open on the main checkout, where a bare
+  // `docs/design/specs/…` path does not exist.
+  it('steers a worktree cwd hint onto the main checkout', () => {
+    const { root } = setupRepo();
+    const { tree, spec } = addWorktree(root, 'wt');
+    // Exactly the hook's shape: hintRoot is the AGENT's cwd, i.e. the worktree.
+    const r = resolveArtifact({ path: spec, cwd: tree, hintRoot: tree });
+    expect(r.kind === 'artifact' && r.linkPath).toBe(
+      '.worktrees/wt/docs/design/specs/2026-01-01-x-design.md',
+    );
+    if (r.kind === 'artifact') {
+      // A steer is the intended answer, not a recoverable mistake.
+      expect(r.warning).toBeUndefined();
+      // The checkout root still names the artifact's OWN repo — that is what a
+      // caller reads `design.autoOpen` out of, and the worktree owns that config.
+      expect(r.checkoutRoot).toBe(tree);
+    }
+  });
+
+  it('leaves a main-checkout resolution alone', () => {
+    const { root, spec } = setupRepo();
+    const r = resolveArtifact({ path: spec, cwd: root, hintRoot: root });
+    expect(r.kind === 'artifact' && r.linkPath).toBe('docs/design/specs/2026-01-01-x-design.md');
+  });
+
+  // The shape the derivation actually runs in: `classify` probes from the
+  // artifact's PARENT directory, never the repo root, and from a subdirectory of
+  // a main checkout git answers `--git-common-dir` relative and `--git-dir`
+  // absolute — so the two are unequal as strings there. Resolving both against
+  // the probe cwd is what keeps the comparison meaningful; this row pins the
+  // outcome, so a derivation that starts reading a main checkout as a worktree
+  // cannot do it silently.
+  it('leaves a main-checkout resolution alone when the cwd is a subdirectory', () => {
+    const { root, spec } = setupRepo();
+    const r = resolveArtifact({
+      path: spec,
+      cwd: join(root, 'docs', 'design', 'specs'),
+      hintRoot: root,
+    });
+    expect(r.kind === 'artifact' && r.linkPath).toBe('docs/design/specs/2026-01-01-x-design.md');
+  });
+
+  it('keeps the bare path for a worktree that lives outside its main checkout', () => {
+    const { root } = setupRepo();
+    const outside = join(tempDir('qoa-outside-'), 'wt');
+    execSync(`git worktree add -q -b feat/outside ${outside}`, { cwd: root });
+    const spec = join(outside, 'docs', 'design', 'specs', '2026-01-01-x-design.md');
+    const r = resolveArtifact({ path: spec, cwd: outside, hintRoot: outside });
+    // The main checkout cannot express this path, so steering onto it would print
+    // a `../` hop out of the workspace folder — worse than the bare path.
+    expect(r.kind === 'artifact' && r.linkPath).toBe('docs/design/specs/2026-01-01-x-design.md');
+  });
+
+  it('honours a named worktree root over the main-checkout preference', () => {
+    const { root } = setupRepo();
+    const { tree, spec } = addWorktree(root, 'wt');
+    // Same shape as the steered case above, plus an explicit operator answer —
+    // which is also the documented manual escape from the preference.
+    const r = resolveArtifact({ path: spec, cwd: tree, hintRoot: tree, workspaceRoot: tree });
     expect(r.kind === 'artifact' && r.linkPath).toBe('docs/design/specs/2026-01-01-x-design.md');
   });
 
