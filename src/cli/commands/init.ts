@@ -135,6 +135,12 @@ try {
   // either way and the repo baseline is re-recorded alongside it. Reaching the
   // ratchet's own module is what arming it means; spawning a subprocess to dodge
   // the number would be worse code for a smaller integer.
+  // The clones ratchet has the identical hole and is deliberately NOT seeded
+  // here: `clones check` also reports green on an absent baseline, but arming a
+  // duplication ceiling in every consumer is a behaviour change beyond seeding
+  // and wants its own decision rather than a silent ride-along on this one.
+  // Captured in `ideas.md`; a third ratchet is where these two call sites earn
+  // a shared seam.
   const { BASELINE_FILE, seedBaselineIfAbsent } = await import('../../indirection/baseline.js');
   const seed = await seedBaselineIfAbsent(consumer, async (cwd) => {
     const { runIndirection } = await import('../../indirection/indirection-cli.js');
