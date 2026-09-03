@@ -16,6 +16,34 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### CR Re-Round Cap Enforcement and Oscillation Detector
+
+- id: Q-0170
+- area: tooling
+- type: feat
+- since: 2026-08-23
+- size: M
+- impact: high
+- confidence: med
+- parent: specs-cr-gate-multi-reviewer
+
+Q-0130's re-round cap (2, controller prose) has no tooling enforcement and no oscillation detection — the Q-0146 code CR ran 12 rounds: the reviewer found one new med per round on a ~700-line lane indefinitely, and codex OSCILLATED against itself (round 4 demanded persist-failures downgrade the verdict; round 12 flagged that exact downgrade as a precedence violation) and re-flagged documented `noldor:cut` sites 5x (boot kill fire-and-forget) and 5x (zero-raster evidence retention, which the round-8 REVIEWER had mandated). Wanted: an orchestrate-level round counter that hard-stops re-rounds at the cap with an explicit arbitration sink, and a re-flag detector that compares a round's blockers against `noldor:cut` markers + prior-round fixes so contradictory or repeated findings are surfaced as such instead of consuming another full round. Q-0146 shipped via `Noldor-Path-Override` with the arbitration recorded in the trailer. (found 2026-08-22 shipping Q-0146, PR #366)
+
+- Code-stage CR does not converge on a large diff at all: ~18 `cr orchestrate --kind code` rounds on charuy's `liquid-glass-ui`, each returning exactly one NEW finding, never green — so the `Noldor-Reviewed-Subagent` receipt is never earned and `pr-flow` cannot push without an override. The findings were real (a typecheck break, three shipped sub-AA regressions, several fail-open holes in a guard), so this is not reviewer noise: the loop simply has no fixed point, because each fix is fresh surface. This is the arithmetic the cap does not close — the bounded re-round rule caps operator *arbitration* rounds at 2, while the receipt still has to be earned by a green reviewer run over the final tree, so obeying the cap means never shipping. The cap enforcement this entry asks for must therefore also say what earns a receipt when review is genuinely unbounded. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
+
+### Toolchain Floor Reads Root tsconfigs Only
+
+- id: Q-0208
+- area: tooling
+- type: fix
+- since: 2026-09-02
+- size: S
+- impact: med
+- confidence: high
+- parent: architecture-invariants
+
+`toolchain-floor` checks the root tsconfigs and nothing else — `TSCONFIG_CANDIDATES` is `['tsconfig.base.json', 'tsconfig.json']` in [`src/invariants/toolchain-floor.ts`](../src/invariants/toolchain-floor.ts) — so a nested config sitting below the lib floor passes unseen. Found live in this repo: `src/dashboard/static/tsconfig.json` sat at `lib: ["ES2023", "DOM"]` while the `platform-over-dependency` and `deterministic-cleanup` rules both bind `**/*.ts` (which covers `drag.ts` and `agents.ts`) and mandate `Set.prototype.union` and `Symbol.dispose` — each a TS2550 under that lib. So two *enforced* rules were directing agents to write code a real config in the same repo rejects, and no gate said a word. The `lib-inherited` guard cannot cover this: it stays quiet because the root config does declare a `lib`, and it is decided repo-wide by design. Two candidate fixes: walk every tsconfig the workspace scan already finds (the manifest walk is right there), or assert that a nested config either declares no `lib` at all — inheriting the base — or meets the floor itself. Worth carrying forward that `lib` **replaces** rather than merges across `extends`, so putting the floor in a base config protects only those children that omit `lib` entirely — which is why the second option is the stronger invariant. Deletion test: a nested tsconfig whose `lib` sits below the floor reds the invariant. (found 2026-08-26, CR on the tsconfig-shared-base refactor; absorbed from a lesson)
+
 ### Milestone-Queue Linking
 
 - id: Q-0083
@@ -56,34 +84,6 @@ Milestones (`docs/milestones/<slug>.md`) currently live independent of the queue
 - parent: state-file-fail-open-hardening
 
 `src/core/state-file.ts` owns the read half of JSON state (`readJsonState<T>`) and not the write half, so ten modules hand-roll the same two lines — `mkdirSync(dirname(p), { recursive: true })` then `atomicWriteFileSync(p, JSON.stringify(v, null, 2) + '\n')`. The sites: `src/design/ledger.ts`, `src/clones/baseline.ts`, `src/core/rollout-marker.ts`, `src/core/receipt-store.ts`, `src/core/session.ts`, `src/indirection/baseline.ts`, `src/autonomous/watch-state.ts`, `src/autonomous/escalations.ts`, `src/milestones/lib.ts`, and `atomic-write.ts` itself. The asymmetry is the whole bug: the module that exists to own this pattern owns one direction of it. Ten instances is far past rule-of-3, and the extraction costs no indirection — every one of those modules already imports from `src/core/`, so the closure count does not move; `indirection check` held at 882 across the abstraction-cost-ratchet branch. Deletion test: after the extraction, `grep -l atomicWriteFileSync src | xargs grep -l mkdirSync` returns only `state-file.ts`. Surfaced while judging the clone-ratchet rebaseline on the abstraction-cost-ratchet branch, where two of six new clone groups were real and four were façades. (found 2026-08-31)
-
-### Toolchain Floor Reads Root tsconfigs Only
-
-- id: Q-0208
-- area: tooling
-- type: fix
-- since: 2026-09-02
-- size: S
-- impact: med
-- confidence: high
-- parent: architecture-invariants
-
-`toolchain-floor` checks the root tsconfigs and nothing else — `TSCONFIG_CANDIDATES` is `['tsconfig.base.json', 'tsconfig.json']` in [`src/invariants/toolchain-floor.ts`](../src/invariants/toolchain-floor.ts) — so a nested config sitting below the lib floor passes unseen. Found live in this repo: `src/dashboard/static/tsconfig.json` sat at `lib: ["ES2023", "DOM"]` while the `platform-over-dependency` and `deterministic-cleanup` rules both bind `**/*.ts` (which covers `drag.ts` and `agents.ts`) and mandate `Set.prototype.union` and `Symbol.dispose` — each a TS2550 under that lib. So two *enforced* rules were directing agents to write code a real config in the same repo rejects, and no gate said a word. The `lib-inherited` guard cannot cover this: it stays quiet because the root config does declare a `lib`, and it is decided repo-wide by design. Two candidate fixes: walk every tsconfig the workspace scan already finds (the manifest walk is right there), or assert that a nested config either declares no `lib` at all — inheriting the base — or meets the floor itself. Worth carrying forward that `lib` **replaces** rather than merges across `extends`, so putting the floor in a base config protects only those children that omit `lib` entirely — which is why the second option is the stronger invariant. Deletion test: a nested tsconfig whose `lib` sits below the floor reds the invariant. (found 2026-08-26, CR on the tsconfig-shared-base refactor; absorbed from a lesson)
-
-### CR Re-Round Cap Enforcement and Oscillation Detector
-
-- id: Q-0170
-- area: tooling
-- type: feat
-- since: 2026-08-23
-- size: M
-- impact: high
-- confidence: med
-- parent: specs-cr-gate-multi-reviewer
-
-Q-0130's re-round cap (2, controller prose) has no tooling enforcement and no oscillation detection — the Q-0146 code CR ran 12 rounds: the reviewer found one new med per round on a ~700-line lane indefinitely, and codex OSCILLATED against itself (round 4 demanded persist-failures downgrade the verdict; round 12 flagged that exact downgrade as a precedence violation) and re-flagged documented `noldor:cut` sites 5x (boot kill fire-and-forget) and 5x (zero-raster evidence retention, which the round-8 REVIEWER had mandated). Wanted: an orchestrate-level round counter that hard-stops re-rounds at the cap with an explicit arbitration sink, and a re-flag detector that compares a round's blockers against `noldor:cut` markers + prior-round fixes so contradictory or repeated findings are surfaced as such instead of consuming another full round. Q-0146 shipped via `Noldor-Path-Override` with the arbitration recorded in the trailer. (found 2026-08-22 shipping Q-0146, PR #366)
-
-- Code-stage CR does not converge on a large diff at all: ~18 `cr orchestrate --kind code` rounds on charuy's `liquid-glass-ui`, each returning exactly one NEW finding, never green — so the `Noldor-Reviewed-Subagent` receipt is never earned and `pr-flow` cannot push without an override. The findings were real (a typecheck break, three shipped sub-AA regressions, several fail-open holes in a guard), so this is not reviewer noise: the loop simply has no fixed point, because each fix is fresh surface. This is the arithmetic the cap does not close — the bounded re-round rule caps operator *arbitration* rounds at 2, while the receipt still has to be earned by a green reviewer run over the final tree, so obeying the cap means never shipping. The cap enforcement this entry asks for must therefore also say what earns a receipt when review is genuinely unbounded. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
 
 ### pr-flow Cannot Reuse an Existing Open PR
 
