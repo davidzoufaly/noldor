@@ -590,8 +590,13 @@ however many run, which is what keeps receipt re-earns from spending budget. A
 run that dispatched nothing — the interactive lane sentinel, or a
 `keep-and-skip` that emptied the set — records no round at all.
 
+The refusal engages only while the last round was **red**. After a green one
+the pair is re-minting rather than arbitrating, so a same-head retry is allowed
+— otherwise a failed receipt mint could not be re-run.
+
 Past the cap the refusal lifts when `HEAD` differs from the last recorded
-round's, because the operator committed a fix. That earns one closing round. A
+round's, because the operator committed a fix. Heads compare by prefix, the
+same way the ledger resolves a round's identity. That earns one closing round. A
 **red** closing round is terminal: it is marked, and every dispatch after it is
 refused, leaving the arbitration override as the only exit. A **green** one
 mints the receipt and is not marked, so the pair stays open to further green

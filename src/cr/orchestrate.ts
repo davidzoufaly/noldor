@@ -11,6 +11,7 @@ import {
   appendRound,
   fingerprintBlockers,
   hasClosingRound,
+  headMatches,
   readLedger,
   redRounds,
   roundVerdict,
@@ -333,10 +334,18 @@ export function capVerdict(
   sessionStartedAt: string,
   headSha: string,
 ): { refuse: boolean; closingRound: boolean } {
-  if (redRounds(ledger?.rounds ?? []) <= AUTOFIX_ROUND_CAP)
-    return { refuse: false, closingRound: false };
-  const lastHead = ledger?.rounds.at(-1)?.headSha ?? '';
-  const headUnchanged = headSha !== '' && headSha === lastHead;
+  const rounds = ledger?.rounds ?? [];
+  if (redRounds(rounds) <= AUTOFIX_ROUND_CAP) return { refuse: false, closingRound: false };
+  const last = rounds.at(-1);
+  // A green last round means the pair is not mid-arbitration: it is re-minting a
+  // receipt that a later commit stripped. Refusing there would forbid retrying a
+  // failed mint at the same head — the very thing "green rounds are free" is for
+  // — so the refusal engages only while the last round was RED.
+  if (last && roundVerdict(last) === 'green') return { refuse: false, closingRound: false };
+  // `headMatches`, not `===`: the ledger's own identity is prefix-aware, so an
+  // exact comparison here would read an abbreviated form of an unchanged head as
+  // a change and grant a closing round nobody earned.
+  const headUnchanged = headMatches(last?.headSha ?? '', headSha);
   if (headUnchanged || hasClosingRound(ledger, sessionStartedAt)) {
     return { refuse: true, closingRound: false };
   }
@@ -639,12 +648,14 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // A dispatch that throws before here appends nothing and stays retryable, and
   // a failed append is logged without touching the round's own result: the cap
   // then under-counts, the safe direction.
-  // Only a round that actually dispatched something is a round. An interactive
-  // run with the empty lane sentinel, and a non-autonomous `keep-and-skip` that
-  // empties `effective`, both reach here having reviewed nothing — and re-running
-  // orchestrate to inspect a kept sink is a documented move, so recording it
-  // would burn budget for a review that never happened.
-  const dispatched = effective.length > 0 || syntheticOks.length > 0;
+  // Only a round in which a lane actually RESOLVED is a round. `lanesRun` holds
+  // the fulfilled lanes plus the synthetic OKs, which is the signal that matches
+  // the intent — `effective.length` would also count a round where every lane
+  // threw. A lane that throws writes no sink, `writeExpectedLanes` already
+  // recorded it as expected, so `aggregate` reds on `unresolved` alone: three
+  // infra crashes would spend the whole budget on reviews that never happened
+  // and wedge the pair behind the very override this feature exists to reduce.
+  const dispatched = lanesRun.length > 0;
   if (dispatched) {
     try {
       const agg = await aggregate(opts.args.slug, opts.args.kind, { cwd });

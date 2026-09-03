@@ -20,6 +20,7 @@ vi.mock('../lanes/render-compare.js', () => ({
 import { resolveLanes, run } from '../orchestrate.js';
 import { ledgerDir, ledgerPath } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';
+import { runSubagent as subagentLane } from '../lanes/subagent.js';
 import { setSmokeRunner } from '../lanes/verify.js';
 import { setVerifyDispatcher } from '../lanes/verify-dispatch.js';
 
@@ -967,6 +968,43 @@ describe('round budget (Q-0170)', () => {
     // `aggregate` reporting a never-dispatched lane unresolved — red forever,
     // including for the closing round meant to rescue the session.
     expect(await readdir(join(root, '.noldor', 'cr'))).not.toContain('x-spec-expected-lanes.json');
+    spy.mockRestore();
+  });
+
+  it('allows a same-HEAD retry after a green round, so a failed mint can re-run', async () => {
+    await seedRounds([
+      { headSha: 'aaaaaaa', verdict: 'red' },
+      { headSha: 'bbbbbbb', verdict: 'red' },
+      { headSha: 'ccccccc', verdict: 'red' },
+      { headSha: 'ddddddd', verdict: 'green' },
+    ]);
+    // Same head as the last round. Refusing here would forbid retrying a receipt
+    // mint that failed, which is what "green rounds are free" exists to allow.
+    const r = await run({ args: { ...ARGS, headSha: 'ddddddd' }, cwd: root });
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('reads an abbreviated form of the last head as unchanged', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await seedRounds([
+      { headSha: 'aaaaaaa' },
+      { headSha: 'bbbbbbb' },
+      { headSha: 'abc1234def5678' },
+    ]);
+    // Exact comparison would call this a changed head and hand out a closing
+    // round nobody earned.
+    const r = await run({ args: { ...ARGS, headSha: 'abc1234' }, cwd: root });
+    expect(r.exitCode).toBe(3);
+    spy.mockRestore();
+  });
+
+  it('records nothing when every lane rejected, so infra crashes cost no budget', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(subagentLane).mockRejectedValueOnce(new Error('spawn failed'));
+    const r = await run({ args: { ...ARGS, headSha: 'aaaaaaa' }, cwd: root });
+    expect(r.lanesRun).toEqual([]);
+    expect(r.exitCode).toBe(1);
+    await expect(readFile(ledgerPath(root, 'x' as never, 'spec'), 'utf8')).rejects.toThrow();
     spy.mockRestore();
   });
 

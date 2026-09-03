@@ -207,25 +207,28 @@ export function hasClosingRound(ledger: AutofixLedger | null, sessionStartedAt: 
 }
 
 /**
+ * Whether `entryHead` is the round `headSha` names.
+ *
+ * PREFIX match in either direction, because an abbreviated sha is legal
+ * everywhere else in this subsystem: `--since` is validated as 4-40 hex and the
+ * usage string advertises that, so exact equality would hard-fail `record` on a
+ * `--since abc1234` that used to work. Exported so the cap's own head
+ * comparison uses one predicate — comparing exactly there while matching by
+ * prefix here would read an abbreviated form of an unchanged head as a change,
+ * and hand out a closing round nobody earned.
+ */
+export function headMatches(entryHead: string, headSha: string): boolean {
+  if (entryHead === '' || headSha === '') return false;
+  return entryHead.startsWith(headSha) || headSha.startsWith(entryHead);
+}
+
+/**
  * The entry for `headSha`, or `null`. Identity, never position: `cr autofix
  * record` annotates the round it actually reviewed rather than "the last one",
  * so a delayed or retried run cannot attach its counts to a later round, and
  * the seam's ledger rules can exclude the round being decided without assuming
  * it sits at the end (`plan` may run over sinks no dispatch produced).
  */
-/**
- * Whether `entryHead` is the round `headSha` names.
- *
- * PREFIX match in either direction, because an abbreviated sha is legal
- * everywhere else in this subsystem: `--since` is validated as 4-40 hex and the
- * usage string advertises that, so exact equality would hard-fail `record` on a
- * `--since abc1234` that used to work.
- */
-function headMatches(entryHead: string, headSha: string): boolean {
-  if (entryHead === '' || headSha === '') return false;
-  return entryHead.startsWith(headSha) || headSha.startsWith(entryHead);
-}
-
 export function roundForHead(ledger: AutofixLedger | null, headSha: string): AutofixRound | null {
   const rounds = ledger?.rounds ?? [];
   // No sha means git was unreachable, so identity is simply unavailable and
