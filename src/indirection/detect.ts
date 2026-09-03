@@ -257,39 +257,96 @@ function aliasResolveOptions(alias: DeclaredAliases['targets']): CruiseResolveOp
   return { alias } as unknown as CruiseResolveOptions;
 }
 
+/** A tsconfig's own object, or `undefined` when it cannot be read or parsed. */
+function readTsconfig(file: string): Record<string, unknown> | undefined {
+  let raw: string;
+  try {
+    raw = readFileSync(file, 'utf8');
+  } catch {
+    return undefined;
+  }
+  const scan = stripJsonc(raw);
+  if (!scan.ok) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(scan.text);
+  } catch {
+    return undefined;
+  }
+  return typeof parsed === 'object' && parsed !== null
+    ? (parsed as Record<string, unknown>)
+    : undefined;
+}
+
+/** Bounds the `extends` walk; no real config nests anywhere near this deep. */
+const TSCONFIG_EXTENDS_MAX_DEPTH = 8;
+
+/**
+ * The directory a tsconfig's `paths` targets resolve against, or `undefined`
+ * when that cannot be determined — in which case the caller records the prefix
+ * but no target, so the specifier stays reported rather than mis-resolved.
+ *
+ * TypeScript's rule has two halves and BOTH matter here. `paths` resolves
+ * against `baseUrl` when one is in effect, and a `baseUrl` is itself relative
+ * to the config that DECLARED it — so an inherited one points at the base
+ * config's directory, not the extending one's. With no `baseUrl` anywhere in
+ * the chain, `paths` resolves against the config declaring `paths` (the TS 4.1+
+ * default). Reading only the `paths`-declaring file conflates the two: the
+ * common monorepo shape — a root `tsconfig.base.json` with `baseUrl` and a
+ * per-package config that extends it and declares `paths` — would resolve
+ * against the package directory, and where both directories exist cruise would
+ * follow the wrong file. A wrong edge moves the ratchet for something that is
+ * not there, which is worse than the missing edge this whole change removes.
+ *
+ * An `extends` this cannot follow — a bare package specifier like
+ * `@tsconfig/strictest`, an array (TS 5.0+ multiple inheritance, whose
+ * later-wins merge is not modelled here), a missing or unparseable file — is
+ * `undefined` rather than a guess: any of them may declare the `baseUrl` that
+ * decides the answer.
+ */
+function pathsBaseDir(file: string, config: Record<string, unknown>): string | undefined {
+  const seen = new Set<string>();
+  let current: { file: string; config: Record<string, unknown> } | undefined = { file, config };
+  for (let depth = 0; depth <= TSCONFIG_EXTENDS_MAX_DEPTH; depth += 1) {
+    if (current === undefined || seen.has(current.file)) return undefined;
+    seen.add(current.file);
+    const options = current.config.compilerOptions;
+    if (typeof options === 'object' && options !== null) {
+      const baseUrl = (options as { baseUrl?: unknown }).baseUrl;
+      if (typeof baseUrl === 'string') return resolve(dirname(current.file), baseUrl);
+    }
+    const parent = current.config.extends;
+    // Nothing left to inherit from: the TS 4.1+ no-baseUrl default applies, and
+    // it anchors on the file that declared `paths`, not on this last ancestor.
+    if (parent === undefined) return dirname(file);
+    if (typeof parent !== 'string' || !parent.startsWith('.')) return undefined;
+    const parentFile = resolve(dirname(current.file), parent);
+    const parentConfig = readTsconfig(parentFile);
+    current = parentConfig === undefined ? undefined : { file: parentFile, config: parentConfig };
+  }
+  return undefined;
+}
+
 function declaredAliases(base: string, roots: readonly string[]): DeclaredAliases {
   const prefixes = new Set<string>();
   const targets = new Map<string, string[]>();
   const conflicts = new Set<string>();
   for (const file of findTsconfigFiles(base, roots)) {
-    let raw: string;
-    try {
-      raw = readFileSync(file, 'utf8');
-    } catch {
-      continue;
-    }
-    const scan = stripJsonc(raw);
-    if (!scan.ok) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(scan.text);
-    } catch {
-      continue;
-    }
-    if (typeof parsed !== 'object' || parsed === null) continue;
-    const compilerOptions = (parsed as { compilerOptions?: unknown }).compilerOptions;
+    const parsed = readTsconfig(file);
+    if (parsed === undefined) continue;
+    const compilerOptions = parsed.compilerOptions;
     if (typeof compilerOptions !== 'object' || compilerOptions === null) continue;
     const paths = (compilerOptions as { paths?: unknown }).paths;
     if (typeof paths !== 'object' || paths === null) continue;
-    const baseUrl = (compilerOptions as { baseUrl?: unknown }).baseUrl;
-    const from = resolve(dirname(file), typeof baseUrl === 'string' ? baseUrl : '.');
+    const from = pathsBaseDir(file, parsed);
     for (const [key, value] of Object.entries(paths as Record<string, unknown>)) {
       if (key.startsWith('.')) continue;
       const prefix = key.endsWith('/*') ? key.slice(0, -2) : key;
       prefixes.add(prefix);
-      // A malformed entry contributes a prefix but no target: the specifier
-      // stays reported, which is the same fail-safe as a conflict.
-      if (!Array.isArray(value)) continue;
+      // A malformed entry, or an `extends` chain whose baseUrl could not be
+      // determined, contributes a prefix but no target: the specifier stays
+      // reported, which is the same fail-safe as a conflict.
+      if (from === undefined || !Array.isArray(value)) continue;
       const dirs = value
         .filter((v): v is string => typeof v === 'string')
         .map((v) => resolve(from, v.endsWith('/*') ? v.slice(0, -2) : v));

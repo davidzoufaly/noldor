@@ -241,6 +241,43 @@ describe('alias namespace, not any-unresolved', () => {
     expect(r.modules.find((m) => m.source === 'packages/a/src/root.ts')?.closure).toBe(0);
   });
 
+  it('resolves paths against a baseUrl inherited through extends, not the local dir', async () => {
+    // The common monorepo shape: a root tsconfig.base.json declares
+    // `baseUrl: "."` and packages/a extends it and declares `@/* -> src/*`.
+    // TypeScript anchors that on the DECLARING config, so `@/thing` is the
+    // repo-root `src/thing.ts` — and the tree contains a `packages/a/src/thing.ts`
+    // too, so reading baseUrl only from the paths-declaring file would follow it.
+    // That wrong hop is visible in the number: the package twin owns a further
+    // import, so it would make root.ts's closure 2 instead of 1.
+    const r = await measureIndirection(tree('alias-extends-baseurl'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+    expect(r.modules.find((m) => m.source === 'packages/a/src/root.ts')?.closure).toBe(1);
+  });
+
+  it('anchors on the paths-declaring config when no baseUrl exists up the chain', async () => {
+    // The shape that motivated this change: a Vite/shadcn app whose
+    // tsconfig.app.json extends a root base config and declares `@/* -> ./src/*`,
+    // with no `baseUrl` declared anywhere. TypeScript's 4.1+ default anchors that
+    // on the file declaring `paths`, so it must land on apps/web/src — not on the
+    // repo root, and not fail-safe to unresolved just because `extends` is present.
+    const r = await measureIndirection(tree('alias-extends-no-baseurl'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+    expect(r.modules.find((m) => m.source === 'apps/web/src/root.ts')?.closure).toBe(1);
+  });
+
+  it('reports rather than guesses when the extends chain cannot be followed', async () => {
+    // A bare package specifier may itself declare the baseUrl that decides where
+    // the targets land, and this walk does not resolve one. Guessing the local
+    // directory would be the same wrong-edge hazard as above, so the prefix is
+    // recorded with no target and its specifier stays reported.
+    const r = await measureIndirection(tree('alias-extends-unfollowable'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@/thing');
+  });
+
   it('reports an alias whose target directory does not exist', async () => {
     // The map is built from the declaration, not from the filesystem, so a
     // `paths` entry pointing at a directory nobody created still yields an
