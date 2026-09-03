@@ -374,9 +374,19 @@ function declaredAliases(base: string, roots: readonly string[]): DeclaredAliase
       // determined, contributes a prefix but no target: the specifier stays
       // reported, which is the same fail-safe as a conflict.
       if (from === undefined || !Array.isArray(value)) continue;
-      const dirs = value
+      const stripped = value
         .filter((v): v is string => typeof v === 'string')
-        .map((v) => resolve(from, v.endsWith('/*') ? v.slice(0, -2) : v));
+        .map((v) => (v.endsWith('/*') ? v.slice(0, -2) : v));
+      // A `*` surviving the trailing-`/*` strip is a pattern this map cannot
+      // express, and handing it over is far worse than dropping it:
+      // enhanced-resolve reads any alias name containing a `*` as a wildcard
+      // matched on prefix AND suffix, so TypeScript's documented catch-all
+      // `"*": ["types/*", "node_modules/*"]` becomes an empty prefix that
+      // matches EVERY request — relative ones included — and its `shouldStop`
+      // then forbids the raw request. Real edges vanish and healthy relative
+      // imports get reported. The same holds for an interior `*` in a target.
+      if (prefix.includes('*') || stripped.some((v) => v.includes('*'))) continue;
+      const dirs = stripped.map((v) => resolve(from, v));
       if (dirs.length === 0) continue;
       const prior = targets.get(prefix);
       if (prior === undefined) targets.set(prefix, dirs);
@@ -385,7 +395,18 @@ function declaredAliases(base: string, roots: readonly string[]): DeclaredAliase
   }
   // Deleted after the whole scan, not on first disagreement: a third tsconfig
   // agreeing with either side must not re-add a prefix already known to clash.
-  for (const prefix of conflicts) targets.delete(prefix);
+  //
+  // A SHORTER prefix the conflicted one sits under goes too, because dropping
+  // only the exact key does not stop the specifier from resolving. With `@`
+  // agreed repo-wide and `@/lib` claimed by two configs for different
+  // directories, deleting `@/lib` alone leaves `@/lib/x` to resolve through `@`
+  // — a wrong edge wherever that file happens to exist, which is the outcome
+  // this drop is here to prevent, not a milder version of it.
+  const shadowed = targets
+    .keys()
+    .filter((kept) => conflicts.values().some((c) => c === kept || c.startsWith(`${kept}/`)))
+    .toArray();
+  for (const key of shadowed) targets.delete(key);
   // Longest prefix first, because the two matchers disagree on nesting.
   // TypeScript picks the longest matching `paths` pattern; enhanced-resolve
   // walks the alias entries in order and STOPS at the first whose prefix

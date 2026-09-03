@@ -301,6 +301,29 @@ describe('alias namespace, not any-unresolved', () => {
     expect(r.unresolvedInScope[0]).toContain('@/thing');
   });
 
+  it('ignores a catch-all "*" paths key instead of hijacking every import', async () => {
+    // TypeScript documents `"*": ["types/*", "node_modules/*"]`, but
+    // enhanced-resolve reads an alias name containing `*` as a wildcard matched
+    // on prefix and suffix — here an EMPTY prefix, so it matches every request
+    // including `./b.js`, and its shouldStop then forbids the raw request. The
+    // whole graph would collapse and healthy relative imports would be reported.
+    const r = await measureIndirection(tree('alias-star-catchall'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+    expect(r.modules.find((m) => m.source === 'src/a.ts')?.closure).toBe(1);
+  });
+
+  it('drops a shorter prefix that a conflicted one sits under, not just the exact key', async () => {
+    // `@` agrees across both packages while `@/lib` does not. Deleting only
+    // `@/lib` leaves `@/lib/x` to resolve through `@` into the shared directory
+    // — a wrong edge that exists on disk, so nothing would report it.
+    const r = await measureIndirection(tree('alias-conflict-nested'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@/lib/x');
+    expect(r.modules.find((m) => m.source === 'packages/a/src/root.ts')?.closure).toBe(0);
+  });
+
   it('reports an alias whose target directory does not exist', async () => {
     // The map is built from the declaration, not from the filesystem, so a
     // `paths` entry pointing at a directory nobody created still yields an
