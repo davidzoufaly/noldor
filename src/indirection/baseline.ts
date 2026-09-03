@@ -121,11 +121,27 @@ export function writeBaseline(path: string, baseline: IndirectionBaseline): void
   atomicWriteFileSync(path, `${JSON.stringify(baseline, null, 2)}\n`);
 }
 
+/**
+ * The four failure shapes are kept apart because each leaves the consumer's
+ * NEXT `indirection check` in a different state, and a caller's warning is only
+ * useful if it names the right one:
+ *
+ * - `unreadable` — the file is there and unparseable. `check` reports
+ *   `could-not-look` and exits 3; the next push hard-fails until it is
+ *   re-recorded or deleted.
+ * - `recorder-refused` — recording ran and declined (always exit 3 today), and
+ *   every cause it declines for is evaluated before the subcommand split: usage,
+ *   unresolvable scan roots, no parser, unresolved in-scope imports. So `check`
+ *   hits the same branch and also exits 3, for the same reason.
+ * - `recorder-threw` — nothing was written, so the baseline stays absent and
+ *   `check` takes the fail-open branch: green, ratchet inert.
+ */
 export type SeedOutcome =
   | { readonly kind: 'already-recorded' }
   | { readonly kind: 'recorded' }
   | { readonly kind: 'unreadable'; readonly message: string }
-  | { readonly kind: 'could-not-record'; readonly detail: string };
+  | { readonly kind: 'recorder-refused'; readonly code: number }
+  | { readonly kind: 'recorder-threw'; readonly message: string };
 
 /**
  * Record a baseline on a repo that has never recorded one — the seam that arms
@@ -169,9 +185,9 @@ export async function seedBaselineIfAbsent(
     // `init` a propagated throw aborts the scaffold part-way, before the
     // framework anchor is stamped, and the consumer is then told it has a
     // version skew it does not have.
-    return { kind: 'could-not-record', detail: e instanceof Error ? e.message : String(e) };
+    return { kind: 'recorder-threw', message: e instanceof Error ? e.message : String(e) };
   }
-  return code === 0 ? { kind: 'recorded' } : { kind: 'could-not-record', detail: `exit ${code}` };
+  return code === 0 ? { kind: 'recorded' } : { kind: 'recorder-refused', code };
 }
 
 export type RatchetVerdict =

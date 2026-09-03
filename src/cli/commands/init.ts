@@ -149,17 +149,18 @@ try {
     const { runIndirection } = await import('../../indirection/indirection-cli.js');
     return runIndirection(['baseline'], cwd);
   });
-  // The two branches leave the consumer in opposite states, so they must not
-  // share a tail: an ABSENT baseline is the fail-open — `check` prints
-  // `no-baseline` and exits 0 — while an UNREADABLE one is a could-not-look and
-  // exits 3, so the next push hard-fails until the file is repaired.
-  if (seed.kind === 'unreadable' || seed.kind === 'could-not-record') {
-    const detail =
-      seed.kind === 'unreadable'
-        ? `unreadable — ${seed.message}; 'noldor indirection check' will FAIL with exit 3 until you re-record it with 'noldor indirection baseline' (or delete the file)`
-        : `recording failed — ${seed.detail}; the indirection ratchet stays green until you run 'noldor indirection baseline'`;
-    console.log(`warn       ${BASELINE_FILE}: ${detail}`);
-  }
+  // One tail per outcome: only the throw path leaves the ratchet green. The
+  // other two make the consumer's next `indirection check` exit 3, so telling
+  // them "stays green" would send them to the wrong repair. See `SeedOutcome`.
+  const seedWarning =
+    seed.kind === 'unreadable'
+      ? `unreadable — ${seed.message}; 'noldor indirection check' will FAIL with exit 3 until you re-record it with 'noldor indirection baseline' (or delete the file)`
+      : seed.kind === 'recorder-refused'
+        ? `could not measure the corpus (exit ${seed.code}); 'noldor indirection check' will FAIL with exit 3 for the same reason — run 'noldor indirection report' to see it`
+        : seed.kind === 'recorder-threw'
+          ? `not written — ${seed.message}; the indirection ratchet stays green (no baseline) until you run 'noldor indirection baseline'`
+          : null;
+  if (seedWarning !== null) console.log(`warn       ${BASELINE_FILE}: ${seedWarning}`);
   // Stamp the framework version ONLY on a fresh scaffold — a tree with no
   // existing anchor, scaffolded (not `--update`). A fresh scaffold is by
   // definition current, so it owes no migrations. `init --update` (re-pull on
