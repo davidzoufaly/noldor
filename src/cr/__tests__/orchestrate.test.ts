@@ -895,6 +895,81 @@ describe('round budget (Q-0170)', () => {
     spy.mockRestore();
   });
 
+  it('marks a RED closing round terminal, whatever the exit code says', async () => {
+    // The mocked lanes write no sinks, so the aggregate is red while `run` exits
+    // 0. Gating the sentinel on the exit code would leave a red closing round
+    // unmarked and hand out another one after the next commit.
+    await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
+    const r = await run({ args: { ...ARGS, headSha: 'ddddddd' }, cwd: root });
+    expect(r.exitCode).toBe(0);
+    expect((await ledgerRounds()).at(-1)).toMatchObject({
+      verdict: 'red',
+      closingRound: true,
+    });
+  });
+
+  it('leaves the pair open after a GREEN closing round, so re-mints stay free', async () => {
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [],
+        suggestions: [],
+        summary: 'approve',
+        startedAt: '2026-09-03T00:00:00.000Z',
+        finishedAt: '2026-09-03T00:00:01.000Z',
+      }),
+      'utf8',
+    );
+    await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
+    const green = await run({
+      args: { ...ARGS, headSha: 'ddddddd', autonomous: true },
+      cwd: root,
+    });
+    expect(green.exitCode).toBe(0);
+    expect((await ledgerRounds()).at(-1)).toMatchObject({ verdict: 'green' });
+    expect((await ledgerRounds()).at(-1)!.closingRound).toBeUndefined();
+    // The receipt is HEAD^{tree}-bound, so the next commit strips it. That
+    // re-mint must still be dispatchable.
+    const remint = await run({
+      args: { ...ARGS, headSha: 'eeeeeee', autonomous: true },
+      cwd: root,
+    });
+    expect(remint.exitCode).toBe(0);
+  });
+
+  it('records nothing for a run that dispatched no lane', async () => {
+    // The empty lane set is the interactive "prompt the operator" sentinel — no
+    // review happened, so no budget may be spent.
+    const r = await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind: 'code',
+        fullReview: false,
+        autonomous: false,
+      },
+      cwd: root,
+    });
+    expect(r.lanesRun).toEqual([]);
+    await expect(readFile(ledgerPath(root, 'x' as never, 'code'), 'utf8')).rejects.toThrow();
+  });
+
+  it('does not record expected lanes for a refused dispatch', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
+    const r = await run({ args: { ...ARGS, headSha: 'ccccccc' }, cwd: root });
+    expect(r.exitCode).toBe(3);
+    // A refused run dispatches nothing, so writing its lane set would leave
+    // `aggregate` reporting a never-dispatched lane unresolved — red forever,
+    // including for the closing round meant to rescue the session.
+    expect(await readdir(join(root, '.noldor', 'cr'))).not.toContain('x-spec-expected-lanes.json');
+    spy.mockRestore();
+  });
+
   it('leaves the cap inert when the ledger cannot be parsed', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await mkdir(ledgerDir(root), { recursive: true });

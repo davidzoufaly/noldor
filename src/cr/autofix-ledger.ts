@@ -179,9 +179,15 @@ export function roundVerdict(round: AutofixRound): RoundVerdict {
   return round.verdict ?? 'red';
 }
 
-/** Rounds that found something — the only ones the cap counts. */
-export function redRounds(ledger: AutofixLedger | null): number {
-  return (ledger?.rounds ?? []).filter((r) => roundVerdict(r) === 'red').length;
+/**
+ * Rounds that found something — the only ones the cap counts.
+ *
+ * Takes the rounds rather than the ledger so a caller can count a SUBSET: the
+ * seam counts among rounds excluding the one being decided, while the cap counts
+ * the whole series.
+ */
+export function redRounds(rounds: readonly AutofixRound[]): number {
+  return rounds.filter((r) => roundVerdict(r) === 'red').length;
 }
 
 /**
@@ -207,6 +213,19 @@ export function hasClosingRound(ledger: AutofixLedger | null, sessionStartedAt: 
  * the seam's ledger rules can exclude the round being decided without assuming
  * it sits at the end (`plan` may run over sinks no dispatch produced).
  */
+/**
+ * Whether `entryHead` is the round `headSha` names.
+ *
+ * PREFIX match in either direction, because an abbreviated sha is legal
+ * everywhere else in this subsystem: `--since` is validated as 4-40 hex and the
+ * usage string advertises that, so exact equality would hard-fail `record` on a
+ * `--since abc1234` that used to work.
+ */
+function headMatches(entryHead: string, headSha: string): boolean {
+  if (entryHead === '' || headSha === '') return false;
+  return entryHead.startsWith(headSha) || headSha.startsWith(entryHead);
+}
+
 export function roundForHead(ledger: AutofixLedger | null, headSha: string): AutofixRound | null {
   const rounds = ledger?.rounds ?? [];
   // No sha means git was unreachable, so identity is simply unavailable and
@@ -214,7 +233,12 @@ export function roundForHead(ledger: AutofixLedger | null, headSha: string): Aut
   // the counts would disarm `prior-deferred` — so it takes the last entry, which
   // is the round orchestrate just wrote.
   if (headSha === '') return rounds.at(-1) ?? null;
-  return rounds.find((r) => r.headSha === headSha) ?? null;
+  // The LAST match, not the first. A head repeats whenever a dispatch runs twice
+  // without a commit between — a crashed lane re-run, an uncommitted fix — and
+  // the round being annotated is always the most recent one at that head.
+  // Taking the first would land `record`'s counts on an older round, leaving the
+  // current one's placeholder `deferred: 0` in place and disarming that guard.
+  return rounds.findLast((r) => headMatches(r.headSha, headSha)) ?? null;
 }
 
 /** Every round except the one for `headSha` — what both seam ledger rules compare against. */
@@ -222,12 +246,19 @@ export function roundsExcludingHead(
   ledger: AutofixLedger | null,
   headSha: string,
 ): readonly AutofixRound[] {
+  const rounds = ledger?.rounds ?? [];
   // With no sha the current round cannot be identified, so every entry is
   // compared. That is the conservative direction here in a way it is not for
   // {@link roundForHead}: these rules are STOPS, and comparing against more
   // history can only make the seam decline sooner.
-  if (headSha === '') return ledger?.rounds ?? [];
-  return (ledger?.rounds ?? []).filter((r) => r.headSha !== headSha);
+  if (headSha === '') return rounds;
+  // Exclude exactly ONE entry — the same one {@link roundForHead} resolves.
+  // Filtering every entry at that head would blind the rules to an earlier round
+  // that ran at the same sha, which is precisely the repeat `no-progress` exists
+  // to catch.
+  const current = rounds.findLast((r) => headMatches(r.headSha, headSha));
+  if (!current) return rounds;
+  return rounds.filter((r) => r !== current);
 }
 
 /**

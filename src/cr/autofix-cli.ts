@@ -270,7 +270,7 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
     throw err;
   }
   console.log(
-    `round ${redRounds(ledger)}/${AUTOFIX_ROUND_CAP + 1} recorded (fingerprint ${fingerprint.slice(0, 8)}, applied ${applied}, deferred ${derivedDeferred})`,
+    `round ${redRounds(ledger.rounds)}/${AUTOFIX_ROUND_CAP + 1} recorded (fingerprint ${fingerprint.slice(0, 8)}, applied ${applied}, deferred ${derivedDeferred})`,
   );
   console.log(`diff: ${diffStat} (${range})`);
   process.exit(EXIT.ok);

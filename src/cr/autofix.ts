@@ -146,12 +146,13 @@ export function decide(input: DecideInput): DecideResult {
   // — `plan` can run over sinks no dispatch produced, and there the last entry
   // belongs to an earlier round whose blockers must still be compared.
   const priorRounds = roundsExcludingHead(input.ledger, input.headSha);
-  // The CAP counts every entry, red only — that shared budget is the point of
-  // orchestrate writing rounds at all. `round` is the printed counter, so it
-  // reports red rounds too: counting entries here while orchestrate counts red
-  // ones would print a numerator above its own denominator as soon as a green
-  // re-mint round landed.
-  const redSoFar = redRounds(input.ledger);
+  // Red rounds among the PRIOR ones — `priorRounds` already excludes the entry
+  // for the round being decided, which orchestrate appended moments ago.
+  // Counting the whole ledger here would include that entry and then add one for
+  // it again: the seam would print `2/3` on the first fix and `4/3` on the
+  // third, a numerator above its own denominator, and the cap would fire a round
+  // earlier than `capVerdict` does for the same series.
+  const redSoFar = redRounds(priorRounds);
   const round = redSoFar + 1;
 
   const base = { mechanical, design, baseSha, fingerprint, round } as const;

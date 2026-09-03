@@ -470,6 +470,31 @@ describe('cr autofix — the loop', () => {
     expect(field(r.stdout, 'reason')).toBe('-');
   });
 
+  it('numbers the round being decided, not the entry orchestrate just wrote', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    // The real shape: orchestrate appends this round's red entry, THEN the seam
+    // runs. Counting that entry in the budget and adding one for it again
+    // printed `2/3` on the very first fix.
+    seedRounds([{ headSha: head(), verdict: 'red' }]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(0);
+    expect(field(r.stdout, 'round')).toBe('1/3');
+  });
+
+  it('never prints a numerator above its own denominator', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    // Three red dispatches, the last of them this round's own entry. The budget
+    // is spent, so the seam declines — and the counter reads 3/3, not 4/3.
+    seedRounds([
+      { headSha: 'aaaaaaa', verdict: 'red' },
+      { headSha: 'bbbbbbb', verdict: 'red' },
+      { headSha: head(), verdict: 'red' },
+    ]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(field(r.stdout, 'round')).toBe('3/3');
+    expect(field(r.stdout, 'reason')).toBe('round-cap');
+  });
+
   it('does not count green rounds toward the cap', () => {
     writeSink('reviewer', 'spec', [MECH]);
     // Two red rounds would be the cap; four greens between them change nothing,

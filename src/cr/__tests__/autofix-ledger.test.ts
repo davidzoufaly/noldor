@@ -19,6 +19,7 @@ import {
   hasClosingRound,
   readLedger,
   redRounds,
+  roundForHead,
   roundVerdict,
   roundsExcludingHead,
 } from '../autofix-ledger.js';
@@ -252,7 +253,7 @@ describe('round verdicts and the red-round count', () => {
     await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, verdict: 'green' });
     const led = await readLedger(cwd, 'slug', 'spec', SESSION);
     expect(led!.rounds).toHaveLength(3);
-    expect(redRounds(led)).toBe(1);
+    expect(redRounds(led!.rounds)).toBe(1);
   });
 
   it('reads a pre-change entry, which carries no verdict, as red', async () => {
@@ -267,7 +268,7 @@ describe('round verdicts and the red-round count', () => {
     const led = await readLedger(cwd, 'slug', 'spec', SESSION);
     expect(led!.rounds[0].verdict).toBeUndefined();
     expect(roundVerdict(led!.rounds[0])).toBe('red');
-    expect(redRounds(led)).toBe(1);
+    expect(redRounds(led!.rounds)).toBe(1);
   });
 });
 
@@ -335,5 +336,56 @@ describe('hasClosingRound', () => {
     // Sessionless runs share one empty key, so honouring the sentinel here would
     // let one run refuse every future sessionless dispatch for the pair forever.
     expect(hasClosingRound(await readLedger(cwd, 'slug', 'spec', ''), '')).toBe(false);
+  });
+});
+
+describe('round identity when a head repeats', () => {
+  it('resolves the LAST round at a repeated head, not the first', async () => {
+    // A head repeats whenever a dispatch runs twice with no commit between — a
+    // crashed lane re-run, an uncommitted fix. Annotating the first would leave
+    // the current round's placeholder deferred in place and disarm that guard.
+    await appendRound(cwd, 'slug', 'spec', SESSION, {
+      ...ROUND,
+      headSha: 'aaaaaaa',
+      fingerprint: 'first',
+    });
+    await appendRound(cwd, 'slug', 'spec', SESSION, {
+      ...ROUND,
+      headSha: 'aaaaaaa',
+      fingerprint: 'second',
+    });
+    const led = await readLedger(cwd, 'slug', 'spec', SESSION);
+    expect(roundForHead(led, 'aaaaaaa')!.fingerprint).toBe('second');
+  });
+
+  it('excludes exactly one round at a repeated head, keeping the earlier one comparable', async () => {
+    await appendRound(cwd, 'slug', 'spec', SESSION, {
+      ...ROUND,
+      headSha: 'aaaaaaa',
+      fingerprint: 'first',
+    });
+    await appendRound(cwd, 'slug', 'spec', SESSION, {
+      ...ROUND,
+      headSha: 'aaaaaaa',
+      fingerprint: 'second',
+    });
+    const led = await readLedger(cwd, 'slug', 'spec', SESSION);
+    // Dropping both would blind `no-progress` to the earlier round at that head,
+    // which is exactly the repeat the rule exists to catch.
+    expect(roundsExcludingHead(led, 'aaaaaaa').map((r) => r.fingerprint)).toEqual(['first']);
+  });
+
+  it('matches an abbreviated sha, which --since is validated to allow', async () => {
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, headSha: 'abc1234def5678' });
+    const led = await readLedger(cwd, 'slug', 'spec', SESSION);
+    expect(roundForHead(led, 'abc1234')).not.toBeNull();
+  });
+
+  it('counts red rounds over any subset it is handed', async () => {
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, verdict: 'red' });
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, verdict: 'green' });
+    const led = await readLedger(cwd, 'slug', 'spec', SESSION);
+    expect(redRounds(led!.rounds)).toBe(1);
+    expect(redRounds([])).toBe(0);
   });
 });

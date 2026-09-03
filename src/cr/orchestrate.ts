@@ -316,17 +316,25 @@ export const EXIT_ROUND_CAP = 3;
  *
  * Refuse when red rounds exceed the cap AND either `HEAD` matches the last
  * recorded round's head (nothing was fixed since the cap was hit) or the series
- * already spent its closing round. Otherwise a changed head past the cap IS the
- * closing round: the operator committed a fix, and the receipt shape on record
- * — red final round, fix, one dispatch that finds nothing — needs exactly one
- * more pass or the session is wedged with no receipt and no way to earn one.
+ * already spent a RED closing round. Otherwise a changed head past the cap IS
+ * the closing round: the operator committed a fix, and the receipt shape on
+ * record — red final round, fix, one dispatch that finds nothing — needs
+ * exactly one more pass or the session is wedged with no receipt and no way to
+ * earn one.
+ *
+ * Only a red closing round sets the sentinel, so a green one leaves the pair
+ * open. That is not leniency: the receipt is `HEAD^{tree}`-bound and any later
+ * commit strips it, so locking after a green round would forbid exactly the
+ * re-mint this design keeps free everywhere else. The bound still holds — every
+ * further dispatch needs its own fix commit, and the first red one ends it.
  */
 export function capVerdict(
   ledger: AutofixLedger | null,
   sessionStartedAt: string,
   headSha: string,
 ): { refuse: boolean; closingRound: boolean } {
-  if (redRounds(ledger) <= AUTOFIX_ROUND_CAP) return { refuse: false, closingRound: false };
+  if (redRounds(ledger?.rounds ?? []) <= AUTOFIX_ROUND_CAP)
+    return { refuse: false, closingRound: false };
   const lastHead = ledger?.rounds.at(-1)?.headSha ?? '';
   const headUnchanged = headSha !== '' && headSha === lastHead;
   if (headUnchanged || hasClosingRound(ledger, sessionStartedAt)) {
@@ -346,7 +354,7 @@ export function renderCapRefusal(
       `  ${r.round}  ${roundVerdict(r).padEnd(5)}  ${r.applied} applied, ${r.deferred} deferred  ${r.headSha.slice(0, 7) || '(no sha)'}`,
   );
   return [
-    `red rounds ${redRounds(ledger)}/${AUTOFIX_ROUND_CAP + 1} for ${slug} (${kind}) — cap reached`,
+    `red rounds ${redRounds(ledger?.rounds ?? [])}/${AUTOFIX_ROUND_CAP + 1} for ${slug} (${kind}) — cap reached`,
     ...rows,
     'HEAD is unchanged since the last round, or the closing round is spent, so no',
     'further round will be dispatched. To close: commit the remaining fixes and',
@@ -414,16 +422,6 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   }
   await mkdir(join(cwd, '.noldor', 'cr'), { recursive: true });
 
-  // Record the resolved lane set BEFORE dispatch so `aggregate` can report a
-  // lane that never wrote its sink as `unresolved` (Q-0100). `requested`, not
-  // the post-guard `effective`: a keep-and-skip lane still has its prior sink,
-  // and a synthetic-OK lane writes one — only a lane killed mid-run leaves the
-  // expectation unmet. Empty set = interactive-mode "prompt the operator"
-  // sentinel, not a resolved round — nothing to record.
-  if (requested.length > 0) {
-    await writeExpectedLanes(cwd, opts.args.slug, opts.args.kind, requested);
-  }
-
   // `artifactSha` is the SHA of the artifact's tip commit (HEAD by default).
   // CRITICAL: do NOT default it to `baseSha` — that would make every delta
   // run trivially empty-diff and short-circuit regardless of actual changes.
@@ -434,7 +432,11 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     (await execAsync('git', ['rev-parse', 'HEAD'], { cwd })
       .then((r) => r.stdout.trim())
       .catch(() => ''));
-  // ROUND BUDGET, checked before anything is dispatched. The ledger read fails
+  // ROUND BUDGET, checked before anything is dispatched — and BEFORE
+  // `writeExpectedLanes` below. A refused run dispatches nothing, so recording
+  // its lane set would leave `aggregate` reporting a never-dispatched lane as
+  // unresolved: the pair would read red permanently, including for the closing
+  // round meant to rescue the session. The ledger read fails
   // OPEN in every direction: an unreadable or malformed file leaves the cap
   // inert for this round rather than refusing a round the operator needs, since
   // a missed cap costs one dispatch while a false cap costs the ship.
@@ -451,6 +453,16 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   if (cap.refuse) {
     console.error(renderCapRefusal(ledger, opts.args.slug, opts.args.kind));
     return { lanesRun: [], syntheticOks: [], exitCode: EXIT_ROUND_CAP };
+  }
+
+  // Record the resolved lane set BEFORE dispatch so `aggregate` can report a
+  // lane that never wrote its sink as `unresolved` (Q-0100). `requested`, not
+  // the post-guard `effective`: a keep-and-skip lane still has its prior sink,
+  // and a synthetic-OK lane writes one — only a lane killed mid-run leaves the
+  // expectation unmet. Empty set = interactive-mode "prompt the operator"
+  // sentinel, not a resolved round — nothing to record.
+  if (requested.length > 0) {
+    await writeExpectedLanes(cwd, opts.args.slug, opts.args.kind, requested);
   }
 
   const input: LaneInput = {
@@ -627,19 +639,34 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // A dispatch that throws before here appends nothing and stays retryable, and
   // a failed append is logged without touching the round's own result: the cap
   // then under-counts, the safe direction.
-  try {
-    const agg = await aggregate(opts.args.slug, opts.args.kind, { cwd });
-    await appendRound(cwd, opts.args.slug, opts.args.kind, roundKey, {
-      headSha,
-      fingerprint: fingerprintBlockers(agg.blockers),
-      verdict: agg.ok ? 'green' : 'red',
-      applied: 0,
-      deferred: 0,
-      diffStat: '',
-      ...(cap.closingRound && exitCode === 0 ? { closingRound: true } : {}),
-    });
-  } catch (err) {
-    console.error(`round not recorded — cap will under-count: ${(err as Error).message}`);
+  // Only a round that actually dispatched something is a round. An interactive
+  // run with the empty lane sentinel, and a non-autonomous `keep-and-skip` that
+  // empties `effective`, both reach here having reviewed nothing — and re-running
+  // orchestrate to inspect a kept sink is a documented move, so recording it
+  // would burn budget for a review that never happened.
+  const dispatched = effective.length > 0 || syntheticOks.length > 0;
+  if (dispatched) {
+    try {
+      const agg = await aggregate(opts.args.slug, opts.args.kind, { cwd });
+      const red = !agg.ok;
+      await appendRound(cwd, opts.args.slug, opts.args.kind, roundKey, {
+        headSha,
+        fingerprint: fingerprintBlockers(agg.blockers),
+        verdict: red ? 'red' : 'green',
+        applied: 0,
+        deferred: 0,
+        diffStat: '',
+        // The sentinel marks a RED closing round, which is terminal. A green one
+        // must NOT set it: the receipt is `HEAD^{tree}`-bound, so any later
+        // commit strips it, and locking the pair would make the green re-mint
+        // this whole design keeps free impossible — leaving the override as the
+        // only exit, which is what the feature exists to reduce. Independent of
+        // `exitCode`, which also carries a failed receipt amend.
+        ...(cap.closingRound && red ? { closingRound: true } : {}),
+      });
+    } catch (err) {
+      console.error(`round not recorded — cap will under-count: ${(err as Error).message}`);
+    }
   }
 
   return { lanesRun, syntheticOks, exitCode };
