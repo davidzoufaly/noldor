@@ -596,6 +596,10 @@ a hole the others open:
 - A crashed lane files nothing, so a clean reviewer beside a crashed codex is
   **green**. Reading `ok` there would spend budget on a review that did not
   happen and, on a closing round, mark the pair terminal over a spawn failure.
+  Findings are attributed to the lanes that ran THIS round: sinks are archived
+  rather than deleted, so a lane crashing on a later round leaves its previous
+  sink on disk and would otherwise decide the round by a review that did not
+  happen.
 - A round in which **no lane wrote a sink** is red, not green. Nothing was
   reviewed, and green means "reviewed, found nothing" — a no-verdict green would
   disarm the cap through the green-last-round exemption and allow unlimited
@@ -605,8 +609,10 @@ a hole the others open:
   round but never marks it terminal. One corrupt sink must not wedge the pair
   behind the override permanently.
 
-Only a red round whose findings were actually filed can be the terminal closing
-round.
+Only a red round whose findings were actually filed, and which carries no
+integrity blocker, can be the terminal closing round. A round in which every
+lane crashed is still recorded red — leaving it uncounted would let repeated
+crashes disarm the cap completely.
 
 The refusal engages only while the last round was **red**. After a green one
 the pair is re-minting rather than arbitrating, so a same-head retry is allowed

@@ -465,11 +465,13 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       `round ledger unreadable — cap not enforced this round: ${(err as Error).message}`,
     );
   }
-  // noldor:cut check-then-act, single mutating process per (slug, kind) — the gate
-  // runs orchestrate and `cr autofix record` in sequence and parallel drain gives
-  // each child its own slug, so two runs never share a ledger. Upgrade path: take
-  // a lock file around the read-through-append span, so a closing round cannot be
-  // granted twice by two runs that both read before either appended.
+  // noldor:cut check-then-act, one mutating process per (slug, kind) — the gate runs
+  // orchestrate and `cr autofix record` in sequence and parallel drain gives each
+  // child its own slug, so concurrent runs on one pair are unsupported rather than
+  // impossible. `capVerdict` is defensive about the ledger ORDER such an overlap
+  // would produce (a green entry landing after a red closing round), which costs
+  // nothing; bounding the overlap itself is the upgrade path — a lock around the
+  // read-through-append span, so one commit cannot earn two closing dispatches.
   const cap = capVerdict(ledger, roundKey, headSha);
   if (cap.refuse) {
     console.error(renderCapRefusal(ledger, opts.args.slug, opts.args.kind));
@@ -680,14 +682,21 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   //    otherwise wedge the pair permanently behind the override.
   try {
     const agg = await aggregate(opts.args.slug, opts.args.kind, { cwd });
-    if (lanesRun.length > 0) {
-      const integrity = agg.blockers.filter((b) => b.integrity === true);
-      const filed = agg.blockers.filter((b) => b.integrity !== true);
+    if (effective.length > 0) {
+      // Findings from THIS round's lanes only. Sinks are never deleted between
+      // rounds — they are copied to `archive/` — so a lane that crashes on round
+      // two or later leaves its previous round's sink on disk, complete with
+      // `finishedAt`, and `aggregate` parses it as a current result. Attributing
+      // those stale blockers to this round decides it by a review that did not
+      // happen, and on a closing round that wedges the pair permanently.
+      const fresh = agg.blockers.filter((b) => lanesRun.includes(b.lane));
+      const integrity = fresh.filter((b) => b.integrity === true);
+      const filed = fresh.filter((b) => b.integrity !== true);
       // "Did any lane actually write a readable sink?" — `summaries` carries one
       // entry per sink `aggregate` parsed, so it is the only honest signal.
       // Comparing unresolved against `lanesRun` does not work: a round where the
       // reviewer resolved and one other lane crashed has one of each.
-      const nothingResolved = Object.keys(agg.summaries).length === 0;
+      const nothingResolved = lanesRun.length === 0 || Object.keys(agg.summaries).length === 0;
       const red = filed.length > 0 || integrity.length > 0 || nothingResolved;
       if (agg.unresolved.length > 0) {
         console.error(
@@ -701,12 +710,16 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         applied: 0,
         deferred: 0,
         diffStat: '',
-        // Terminal only on a round that actually produced a distrusted-free red
-        // verdict. A green closing round leaves the pair open so the
-        // `HEAD^{tree}`-bound receipt can still be re-minted; an integrity red or
-        // a nothing-resolved red is an infra problem for a human, not an
-        // arbitration to lock in.
-        ...(cap.closingRound && filed.length > 0 ? { closingRound: true } : {}),
+        // Terminal only on a round that actually produced a trusted red verdict.
+        // A green closing round leaves the pair open so the `HEAD^{tree}`-bound
+        // receipt can still be re-minted; an integrity red or a nothing-resolved
+        // red is an infra problem for a human, not an arbitration to lock in.
+        // The integrity clause holds even when a real finding rides alongside —
+        // one corrupt sink means this round's verdict is not trustworthy, and a
+        // untrustworthy round must not be the one that closes the pair.
+        ...(cap.closingRound && filed.length > 0 && integrity.length === 0
+          ? { closingRound: true }
+          : {}),
       });
     }
   } catch (err) {

@@ -799,7 +799,7 @@ describe('round budget (Q-0170)', () => {
     );
   }
 
-  /** A resolved reviewer sink — without one the lane reads unresolved and the round does not count. */
+  /** A resolved reviewer sink. Without one the lane reads unresolved and the round records `red`. */
   async function writeReviewerSink(blockers: Array<Record<string, unknown>> = []): Promise<void> {
     await writeFile(
       join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
@@ -1031,16 +1031,6 @@ describe('round budget (Q-0170)', () => {
     spy.mockRestore();
   });
 
-  it('records nothing when every lane rejected, so infra crashes cost no budget', async () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.mocked(subagentLane).mockRejectedValueOnce(new Error('spawn failed'));
-    const r = await run({ args: { ...ARGS, headSha: 'aaaaaaa' }, cwd: root });
-    expect(r.lanesRun).toEqual([]);
-    expect(r.exitCode).toBe(1);
-    await expect(readFile(ledgerPath(root, 'x' as never, 'spec'), 'utf8')).rejects.toThrow();
-    spy.mockRestore();
-  });
-
   it('keeps a spent closing round terminal even when a green entry lands after it', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     // Two overlapping runs can both dispatch before either appends. If the red
@@ -1136,6 +1126,73 @@ describe('round budget (Q-0170)', () => {
     // would wedge it permanently on one unreadable file.
     await writeFile(join(root, '.noldor', 'cr', 'x-spec-reviewer.json'), '{ not json', 'utf8');
     await run({ args: { ...ARGS, headSha: 'ddddddd', autonomous: true }, cwd: root });
+    const last = (await ledgerRounds()).at(-1)!;
+    expect(last).toMatchObject({ verdict: 'red' });
+    expect(last.closingRound).toBeUndefined();
+    spy.mockRestore();
+  });
+
+  it('ignores a stale sink from a lane that crashed this round', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // Sinks are archived, never deleted, so a lane that crashes on round two or
+    // later leaves its previous sink on disk with `finishedAt` set. Counting it
+    // would decide this round by a review that did not happen — and on a closing
+    // round, wedge the pair permanently.
+    await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
+    await writeReviewerSink([]);
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-manual.json'),
+      JSON.stringify({
+        lane: 'manual',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [BLOCKER],
+        suggestions: [],
+        summary: 'stale blockers from an earlier round',
+        startedAt: '2026-09-03T00:00:00.000Z',
+        finishedAt: '2026-09-03T00:00:01.000Z',
+      }),
+      'utf8',
+    );
+    vi.mocked(manualLane).mockRejectedValueOnce(new Error('spawn failed'));
+    try {
+      await run({
+        args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha: 'ddddddd', autonomous: true },
+        cwd: root,
+      });
+      const last = (await ledgerRounds()).at(-1)!;
+      expect(last).toMatchObject({ headSha: 'ddddddd', verdict: 'green' });
+      expect(last.closingRound).toBeUndefined();
+    } finally {
+      vi.mocked(manualLane).mockReset();
+      spy.mockRestore();
+    }
+  });
+
+  it('records a red round even when every dispatched lane crashed', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // `lanesRun` is empty when every lane rejects. Skipping the append there
+    // leaves the counter unmoved however many times it happens, so repeated
+    // crashes would disarm the cap entirely.
+    vi.mocked(subagentLane).mockRejectedValueOnce(new Error('spawn failed'));
+    const r = await run({ args: { ...ARGS, headSha: 'aaaaaaa' }, cwd: root });
+    expect(r.lanesRun).toEqual([]);
+    expect((await ledgerRounds()).at(-1)).toMatchObject({ verdict: 'red' });
+    spy.mockRestore();
+  });
+
+  it('does not close the pair on a round that also carries an integrity blocker', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
+    // A real finding beside a corrupt sink. The round is red, but its verdict is
+    // not trustworthy, so it must not be the one that closes the pair.
+    await writeReviewerSink([BLOCKER]);
+    await writeFile(join(root, '.noldor', 'cr', 'x-spec-manual.json'), '{ not json', 'utf8');
+    await run({
+      args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha: 'ddddddd', autonomous: true },
+      cwd: root,
+    });
     const last = (await ledgerRounds()).at(-1)!;
     expect(last).toMatchObject({ verdict: 'red' });
     expect(last.closingRound).toBeUndefined();
