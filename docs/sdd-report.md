@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-09-02 by `pnpm sdd:report`.
+Generated: 2026-09-03 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
@@ -13,11 +13,11 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 - Total features: 85
 - Untriaged ideas: 0
 - Backlog entries: 27
-- Gap categories with issues: 4 / 15
+- Gap categories with issues: 3 / 15
 
 ## Code clones
 
-- 291 clone group(s), 9.09% duplicated tokens across 409 file(s)
+- 293 clone group(s), 9.04% duplicated tokens across 409 file(s)
 - src/dashboard/views.ts:818-873 and src/dashboard/views.ts:896-1000 (323 tokens)
 - src/features/phase-flip-done-cli.ts:4-45 and src/features/phase-revert-cli.ts:4-45 (277 tokens)
 - src/dashboard/views.ts:737-746 and src/dashboard/views.ts:1005-1014 (252 tokens)
@@ -33,37 +33,11 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Override usage (last 30 days)
 
-- `86ed29a` — operator-waived review receipt at the CR re-round cap after 3 rounds and 23 fixed findings; all mechanical gates green
-- `c601952` — reviewer approve + codex clean at round 7; verify lane red is infra-only (own transcript reports success, then a dispatch timeout) — receipt could not be amended on a red aggregate
-- `4d506ad` — eight code-stage CR rounds without convergence; remaining findings carved to Q-0197; mechanical gates green at this tip
-- `f311816` — code-stage CR closed after 7 rounds — verifier green throughout, reviewer approve at round 5, rounds 5-7 self-fed on symlink hardening of an advisory heuristic; all findings reproduced and fixed, sinks in .noldor/cr
-- `366cb50` — cr-non-convergence after 8 rounds; rounds 7/8 mutually contradictory on skipIf(root) and the chmod fixture; all security findings through round 7 fixed and probe-verified; residue recorded in the FD Changelog
-- `5a1b323` — review-loop-converged-on-prose
-- `58e9539` — micro-chore lane omits `.noldor/config.json`, and the CR-gate exemption this release needs can only live there. Diff is README + ideas + one config entry; zero source files.
-- `57134eb` — micro-chore lane rejects `.noldor/id-counter.json` — `MICRO_CHORE_GLOBS` omits the counter that `triage mint-id` bumps, so the framework bookkeeping this commit carries cannot land through its own lane (precedent: #346, #335). Diff is docs + queue bookkeeping only, zero source files.
-- `c488b25` — code CR arbitrated after 12 rounds — verifier green, all 12 reviewer findings fixed (final one in this commit), codex mandate ran 12x with ~17 findings fixed and its last 3 blockers oscillating against its own round-4 demands; full sink record in .noldor/cr and rationale at each noldor:cut site
-- `51ac63d` — codex-tail-at-cap — reviewer and verifier lanes green on rounds 1+2; codex regenerated finer-grain findings each round (legit subset applied, remainder declined with rationale in session); operator-approved override
-- `fd05534` — eight CR rounds, never green; rounds 5-8 only found defects in prior rounds fixes, past the documented 2-re-round cap. Operator accepted at the cap.
-- `6549d4e` — five code-stage CR rounds; the residual build-lock window is irreducible on POSIX (no conditional unlink) and is declared in code with a noldor:cut plus its upgrade path. The concurrency path is evidenced by a four-builder stress run (one build, three refusals) rather than by reviewer assent. Every other gate is green: 4157 tests under NOLDOR\_RUNTIME unset/dist/source, contract fixture, template-sync, clones, summary-body.
-- `9461457` — CR round ran reviewer + verifier; verifier verdict pass (it stripped and re-added the entry to prove the offender count moves 2 -> 1), reviewer verdict approve with one med design blocker arguing the waiver treats the symptom rather than the allowlist gap. Operator accepted the blocker and filed it to ideas.md rather than widening this release into a gate refactor. No unaddressed correctness finding stands.
-- `46994e9` — roadmap triage on main, no gate session — the entries
-- `985dcb8` — queue-document triage with no gate session — parking two backlog entries touches only docs/backlog.md and the ID counter, the same shape as the preceding triage commit
-- `fd2ce3b` — verify lane hit Q-0137 — reviewer approved, codex found no blocking issue, and the verifier's own payload reports "Verified feature at tip 421f7a6 ... exercised whole promised surface through real CLI", so the red is that lane's known serialization failure rather than a finding. Q-0137 documents this exact case: a green verification must never block a ship on a formatting failure.
-- `5dba1c7` — code CR ran four rounds; every finding was applied. Rounds 1-2 caught real defects (no-sink error paths, a contradictory child payload parsing as a pass, mutate-then-timeout escaping the integrity check). Rounds 3-4 found only defects in the previous round's fixes, each smaller than the last, which is the self-feeding tail the round cap exists to stop. Round 4's remaining blockers are applied in this commit, so the tree carries no known unaddressed finding; the verifier lane returned pass. Operator accepted the red rather than dispatching a fifth round.
-- `2221d4c` — codex code-lane red after 7 non-converging rounds; reviewer+verifier green on full range; operator escalate decision 2026-08-20
-- `0be9ffe` — bookkeeping-only diff — framework runbooks, their templates twins and ideas.md, zero code. Same posture as the preceding triage commit: the verify lane fail-closes on a change with no behaviour to verify (Q-0137), so a code-stage round cannot go green on it.
-- `04c9799` — bookkeeping-only diff — four queue documents and the ID counter, zero code. The verify lane fail-closes on a change with no behaviour to verify (Q-0137, filed in this very commit), so a review round could not go green on it.
-- `5c35053` — code-stage CR ran 7 dispatches; verifier green on behaviour, reviewer findings since round 2 were documentation-consistency only, each fixed. Operator elected override rather than a further dispatch per prose fix.
-- `5acbe68` — cr-red adjudicated — 2 design blockers accepted per spec Risks (operator override via cr escalate)
-- `fac641f` — cr-red round 2, operator-approved — sole remaining blocker asks to restore two ideas.md bullets the operator deliberately dropped as shipped by PR #321; both mechanical findings from round 1 and the parent-link suggestion were applied.
-- `93f1ba4` — cr-red after 10 code-CR rounds; operator-approved. Every finding was fixed and the verifier verified; the reviewer lane never returned fully clean, so no receipt was stamped. Open items in .noldor/cr/pr-summary-body-enforcement-escalation-context.md
-- `aa0b7f7` — lessons-inbox append, no FD and no code — ideas.md prose only
-- `aecbca4` — queue-document split prescribed by the drain's own Step 0 oversize guard; no FD, no code, roadmap prose only
-- `b151dcd` — operator override after CR round 16 — sole med blocker fixed in this commit, residual suggestions filed to ideas.md
+No overrides in the last 30 days.
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 138
+Gated commits missing `Noldor-Reviewed` trailer: 0
 
 ## Metrics
 
@@ -79,7 +53,7 @@ Gated commits missing `Noldor-Reviewed` trailer: 138
     "specs-only-new": 25.8
   },
   "excluded": {
-    "noIntake": 30,
+    "noIntake": 32,
     "noTag": 5
   }
 }
@@ -130,8 +104,8 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
 ```json
 {
   "lastRun": {
-    "shipped": 4,
-    "skipped": 12,
+    "shipped": 2,
+    "skipped": 1,
     "retried": 0
   },
   "history": {
@@ -149,7 +123,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "spec-lint-prior-art-requirement": 1,
       "mandatory-codex-review-round": 1
     },
-    "meanDurationMs": 846103
+    "meanDurationMs": 835955
   }
 }
 ```
@@ -202,7 +176,9 @@ blind spots: Only trailer-carrying overrides count; env-var bypasses (the releas
   "fd-command-rot-needs-an-ignore-marker": 102520,
   "architecture-module-advisory-fires-on-generated-trees": 50209,
   "kind-less-cr-aggregate-re-reds-on-a-stale-addressed-spec-sink": 81078,
-  "size-aware-iteration-timeout-for-the-drain-runner": 21561
+  "size-aware-iteration-timeout-for-the-drain-runner": 21561,
+  "pr-body-lists-only-one-plan-part": 31301,
+  "task-id-as-the-first-scope-bullet-in-a-pr-summary": 189201
 }
 ```
 
@@ -211,20 +187,15 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ## Gap details
 
-### Done features missing introduced
-
-- `abstraction-cost-ratchet` — Abstraction-Cost Ratchet is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `auto-open-design-artifacts` — Auto-Open Design Artifacts is phase=done but introduced is unset (release script should fill on next pnpm release)
-
 ### Stale backlog entries (>90 days)
 
-- `Real-Codex Integration Smoke Test` — Real-Codex Integration Smoke Test (tooling) has been in backlog for 115 days since 2026-05-10
+- `Real-Codex Integration Smoke Test` — Real-Codex Integration Smoke Test (tooling) has been in backlog for 116 days since 2026-05-10
 
 ### Code files not referenced by any feature
 
-- `src/checks/check-install-freshness.ts` — src/checks/check-install-freshness.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, noldor
+- `src/checks/check-install-freshness.ts` — src/checks/check-install-freshness.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, pendev-ui-design-phase
 - `src/checks/check-push-gates.ts` — src/checks/check-push-gates.ts is not referenced by any feature MD links.code
-- `src/core/blob-id.ts` — src/core/blob-id.ts is not referenced by any feature MD links.code — probable owner: ui-design-review-lane, acceptance-verify-lane, de-superpowers-vendor-spec-plan-and-worktree-flows
+- `src/core/blob-id.ts` — src/core/blob-id.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, parallel-worktree-workflow, pendev-ui-design-phase
 - `src/core/receipt-store.ts` — src/core/receipt-store.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, pendev-ui-design-phase
 - `src/core/structural-context-contract.ts` — src/core/structural-context-contract.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, consumer-architecture-doc-surface, graphify-plan-of-edges-nodes-for-plans-specs
 - `src/graphify/enrich-doc-nodes.ts` — src/graphify/enrich-doc-nodes.ts is not referenced by any feature MD links.code
