@@ -315,19 +315,22 @@ export const EXIT_ROUND_CAP = 3;
 /**
  * Whether this dispatch is refused, and whether it is the one closing round.
  *
- * Refuse when red rounds exceed the cap AND either `HEAD` matches the last
- * recorded round's head (nothing was fixed since the cap was hit) or the series
- * already spent a RED closing round. Otherwise a changed head past the cap IS
- * the closing round: the operator committed a fix, and the receipt shape on
- * record — red final round, fix, one dispatch that finds nothing — needs
- * exactly one more pass or the session is wedged with no receipt and no way to
- * earn one.
+ * Under the cap, everything dispatches. Past it, in order:
  *
- * Only a red closing round sets the sentinel, so a green one leaves the pair
- * open. That is not leniency: the receipt is `HEAD^{tree}`-bound and any later
- * commit strips it, so locking after a green round would forbid exactly the
- * re-mint this design keeps free everywhere else. The bound still holds — every
- * further dispatch needs its own fix commit, and the first red one ends it.
+ * 1. A spent RED closing round refuses everything, permanently for the series.
+ * 2. Otherwise, a GREEN last round dispatches — the pair is re-minting a
+ *    receipt a later commit stripped, not arbitrating, and refusing there would
+ *    forbid retrying a failed mint at the same head.
+ * 3. Otherwise the last round was red, so an unchanged `HEAD` refuses (nothing
+ *    was fixed) and a changed one IS the closing round: the receipt shape on
+ *    record — red final round, fix, one dispatch that finds nothing — needs
+ *    exactly one more pass or the session is wedged with no receipt and no way
+ *    to earn one.
+ *
+ * The bound this leaves is narrower than "every dispatch needs a commit": a
+ * green round can be retried at the same head. What it does bound is
+ * arbitration — the run that comes back red past the cap is marked, and after
+ * that nothing dispatches at all.
  */
 export function capVerdict(
   ledger: AutofixLedger | null,
@@ -336,19 +339,22 @@ export function capVerdict(
 ): { refuse: boolean; closingRound: boolean } {
   const rounds = ledger?.rounds ?? [];
   if (redRounds(rounds) <= AUTOFIX_ROUND_CAP) return { refuse: false, closingRound: false };
+  // A SPENT closing round is terminal, and that is checked before anything else.
+  // It is a property of the series, not of its last entry: two overlapping runs
+  // can both dispatch before either appends, and if the red one records the
+  // sentinel while the green one lands after it, a last-entry test would read
+  // green and reopen a session the contract says is closed.
+  if (hasClosingRound(ledger, sessionStartedAt)) return { refuse: true, closingRound: false };
   const last = rounds.at(-1);
   // A green last round means the pair is not mid-arbitration: it is re-minting a
   // receipt that a later commit stripped. Refusing there would forbid retrying a
   // failed mint at the same head — the very thing "green rounds are free" is for
-  // — so the refusal engages only while the last round was RED.
+  // — so the head test below engages only while the last round was RED.
   if (last && roundVerdict(last) === 'green') return { refuse: false, closingRound: false };
   // `headMatches`, not `===`: the ledger's own identity is prefix-aware, so an
   // exact comparison here would read an abbreviated form of an unchanged head as
   // a change and grant a closing round nobody earned.
-  const headUnchanged = headMatches(last?.headSha ?? '', headSha);
-  if (headUnchanged || hasClosingRound(ledger, sessionStartedAt)) {
-    return { refuse: true, closingRound: false };
-  }
+  if (headMatches(last?.headSha ?? '', headSha)) return { refuse: true, closingRound: false };
   return { refuse: false, closingRound: true };
 }
 
@@ -648,17 +654,18 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // A dispatch that throws before here appends nothing and stays retryable, and
   // a failed append is logged without touching the round's own result: the cap
   // then under-counts, the safe direction.
-  // Only a round in which a lane actually RESOLVED is a round. `lanesRun` holds
-  // the fulfilled lanes plus the synthetic OKs, which is the signal that matches
-  // the intent — `effective.length` would also count a round where every lane
-  // threw. A lane that throws writes no sink, `writeExpectedLanes` already
-  // recorded it as expected, so `aggregate` reds on `unresolved` alone: three
-  // infra crashes would spend the whole budget on reviews that never happened
-  // and wedge the pair behind the very override this feature exists to reduce.
-  const dispatched = lanesRun.length > 0;
-  if (dispatched) {
-    try {
-      const agg = await aggregate(opts.args.slug, opts.args.kind, { cwd });
+  // A round counts only when EVERY expected lane resolved. `lanesRun` alone is
+  // not enough: `crLanes.code` is commonly reviewer + verifier plus the mandated
+  // codex, so one lane throwing while another resolves is the ordinary partial
+  // failure. A thrown lane writes no sink, `writeExpectedLanes` already listed
+  // it, and `aggregate` then reds on `unresolved` alone — stamping `red` on a
+  // review that did not happen. Budget is the smaller cost: on a closing round
+  // that red verdict also sets the sentinel, so a single codex spawn crash would
+  // wedge the pair permanently behind the very override this feature exists to
+  // reduce. An unresolved lane means "no verdict", and no verdict is not a round.
+  try {
+    const agg = await aggregate(opts.args.slug, opts.args.kind, { cwd });
+    if (lanesRun.length > 0 && agg.unresolved.length === 0) {
       const red = !agg.ok;
       await appendRound(cwd, opts.args.slug, opts.args.kind, roundKey, {
         headSha,
@@ -671,13 +678,17 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         // must NOT set it: the receipt is `HEAD^{tree}`-bound, so any later
         // commit strips it, and locking the pair would make the green re-mint
         // this whole design keeps free impossible — leaving the override as the
-        // only exit, which is what the feature exists to reduce. Independent of
-        // `exitCode`, which also carries a failed receipt amend.
+        // only exit. Independent of `exitCode`, which also carries a failed
+        // receipt amend.
         ...(cap.closingRound && red ? { closingRound: true } : {}),
       });
-    } catch (err) {
-      console.error(`round not recorded — cap will under-count: ${(err as Error).message}`);
+    } else if (lanesRun.length > 0) {
+      console.error(
+        `round not counted — ${agg.unresolved.join(', ')} did not resolve, so this round has no verdict`,
+      );
     }
+  } catch (err) {
+    console.error(`round not recorded — cap will under-count: ${(err as Error).message}`);
   }
 
   return { lanesRun, syntheticOks, exitCode };

@@ -21,6 +21,7 @@ import { resolveLanes, run } from '../orchestrate.js';
 import { ledgerDir, ledgerPath } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';
 import { runSubagent as subagentLane } from '../lanes/subagent.js';
+import { runManual as manualLane } from '../lanes/manual.js';
 import { setSmokeRunner } from '../lanes/verify.js';
 import { setVerifyDispatcher } from '../lanes/verify-dispatch.js';
 
@@ -798,28 +799,8 @@ describe('round budget (Q-0170)', () => {
     );
   }
 
-  async function ledgerRounds(): Promise<Array<Record<string, unknown>>> {
-    return JSON.parse(await readFile(ledgerPath(root, 'x' as never, 'spec'), 'utf8')).rounds;
-  }
-
-  it('records the FIRST dispatch, which is what makes the counter bootstrap', async () => {
-    const r = await run({ args: { ...ARGS, headSha: 'aaaaaaa' }, cwd: root });
-    expect(r.exitCode).toBe(0);
-    const rounds = await ledgerRounds();
-    expect(rounds).toHaveLength(1);
-    expect(rounds[0]).toMatchObject({ headSha: 'aaaaaaa', round: 1 });
-  });
-
-  it('takes the verdict from the round aggregate, not from the exit code', async () => {
-    // The mocked reviewer lane resolves ok but writes no sink, so `aggregate`
-    // reports it unresolved and the round is red even though `run` exits 0.
-    // That split is the point: the exit code also carries a failed receipt
-    // amend, which is not a review finding.
-    const red = await run({ args: { ...ARGS, headSha: 'aaaaaaa' }, cwd: root });
-    expect(red.exitCode).toBe(0);
-    expect((await ledgerRounds())[0]).toMatchObject({ verdict: 'red' });
-
-    // A resolved sink with no blockers is what green actually means.
+  /** A resolved reviewer sink — without one the lane reads unresolved and the round does not count. */
+  async function writeReviewerSink(blockers: Array<Record<string, unknown>> = []): Promise<void> {
     await writeFile(
       join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
       JSON.stringify({
@@ -827,14 +808,41 @@ describe('round budget (Q-0170)', () => {
         artifact: 'docs/x.md',
         kind: 'spec',
         slug: 'x',
-        blockers: [],
+        blockers,
         suggestions: [],
-        summary: 'approve',
+        summary: blockers.length ? 'blockers found' : 'approve',
         startedAt: '2026-09-03T00:00:00.000Z',
         finishedAt: '2026-09-03T00:00:01.000Z',
       }),
       'utf8',
     );
+  }
+
+  const BLOCKER = { file: 'a.ts', severity: 'high', message: 'boom' };
+
+  async function ledgerRounds(): Promise<Array<Record<string, unknown>>> {
+    return JSON.parse(await readFile(ledgerPath(root, 'x' as never, 'spec'), 'utf8')).rounds;
+  }
+
+  it('records the FIRST dispatch, which is what makes the counter bootstrap', async () => {
+    await writeReviewerSink();
+    const r = await run({ args: { ...ARGS, headSha: 'aaaaaaa', autonomous: true }, cwd: root });
+    expect(r.exitCode).toBe(0);
+    const rounds = await ledgerRounds();
+    expect(rounds).toHaveLength(1);
+    expect(rounds[0]).toMatchObject({ headSha: 'aaaaaaa', round: 1 });
+  });
+
+  it('takes the verdict from the round aggregate, not from the exit code', async () => {
+    // A resolved sink carrying blockers is what red means. The mocked lane
+    // returns ok, so `run` exits 0 — that split is the point: the exit code also
+    // carries a failed receipt amend, which is not a review finding.
+    await writeReviewerSink([BLOCKER]);
+    const red = await run({ args: { ...ARGS, headSha: 'aaaaaaa', autonomous: true }, cwd: root });
+    expect(red.exitCode).toBe(0);
+    expect((await ledgerRounds())[0]).toMatchObject({ verdict: 'red' });
+
+    await writeReviewerSink([]);
     await run({ args: { ...ARGS, headSha: 'bbbbbbb', autonomous: true }, cwd: root });
     expect((await ledgerRounds()).at(-1)).toMatchObject({
       headSha: 'bbbbbbb',
@@ -867,7 +875,8 @@ describe('round budget (Q-0170)', () => {
 
   it('spends one closing round when a fix changed HEAD past the cap', async () => {
     await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
-    const r = await run({ args: { ...ARGS, headSha: 'ddddddd' }, cwd: root });
+    await writeReviewerSink([BLOCKER]);
+    const r = await run({ args: { ...ARGS, headSha: 'ddddddd', autonomous: true }, cwd: root });
     expect(r.exitCode).toBe(0);
     expect((await ledgerRounds()).at(-1)).toMatchObject({
       headSha: 'ddddddd',
@@ -897,11 +906,13 @@ describe('round budget (Q-0170)', () => {
   });
 
   it('marks a RED closing round terminal, whatever the exit code says', async () => {
-    // The mocked lanes write no sinks, so the aggregate is red while `run` exits
-    // 0. Gating the sentinel on the exit code would leave a red closing round
-    // unmarked and hand out another one after the next commit.
+    // The sink carries a blocker so the round is red, while the mocked lane
+    // returns ok so `run` exits 0. Gating the sentinel on the exit code would
+    // leave a red closing round unmarked and hand out another after the next
+    // commit.
+    await writeReviewerSink([BLOCKER]);
     await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
-    const r = await run({ args: { ...ARGS, headSha: 'ddddddd' }, cwd: root });
+    const r = await run({ args: { ...ARGS, headSha: 'ddddddd', autonomous: true }, cwd: root });
     expect(r.exitCode).toBe(0);
     expect((await ledgerRounds()).at(-1)).toMatchObject({
       verdict: 'red',
@@ -1004,6 +1015,45 @@ describe('round budget (Q-0170)', () => {
     const r = await run({ args: { ...ARGS, headSha: 'aaaaaaa' }, cwd: root });
     expect(r.lanesRun).toEqual([]);
     expect(r.exitCode).toBe(1);
+    await expect(readFile(ledgerPath(root, 'x' as never, 'spec'), 'utf8')).rejects.toThrow();
+    spy.mockRestore();
+  });
+
+  it('keeps a spent closing round terminal even when a green entry lands after it', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // Two overlapping runs can both dispatch before either appends. If the red
+    // one records the sentinel and the green one lands after, a last-entry test
+    // would read green and reopen a session the contract says is closed.
+    await seedRounds(
+      [
+        { headSha: 'aaaaaaa', verdict: 'red' },
+        { headSha: 'bbbbbbb', verdict: 'red' },
+        { headSha: 'ccccccc', verdict: 'red', closingRound: true },
+        { headSha: 'ddddddd', verdict: 'green' },
+      ],
+      'S1',
+    );
+    writeFileSync(
+      join(root, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'fast-track', startedAt: 'S1' }),
+      'utf8',
+    );
+    const r = await run({ args: { ...ARGS, headSha: 'eeeeeee' }, cwd: root });
+    expect(r.exitCode).toBe(3);
+    spy.mockRestore();
+  });
+
+  it('does not count a round where one lane resolved and another never did', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // The ordinary partial failure: reviewer resolves, manual throws. The thrown
+    // lane wrote no sink but expected-lanes listed it, so the aggregate reds on
+    // `unresolved` alone — a red verdict for a review that did not happen.
+    vi.mocked(manualLane).mockRejectedValueOnce(new Error('spawn failed'));
+    const r = await run({
+      args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha: 'aaaaaaa' },
+      cwd: root,
+    });
+    expect(r.lanesRun).toEqual(['reviewer']);
     await expect(readFile(ledgerPath(root, 'x' as never, 'spec'), 'utf8')).rejects.toThrow();
     spy.mockRestore();
   });
