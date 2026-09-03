@@ -1091,19 +1091,54 @@ describe('round budget (Q-0170)', () => {
     // refuse — unbounded rounds, the failure this feature exists to bound.
     await writeReviewerSink([BLOCKER]);
     vi.mocked(manualLane).mockRejectedValue(new Error('spawn failed'));
-    for (const headSha of ['aaaaaaa', 'bbbbbbb', 'ccccccc']) {
-      await run({
-        args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha, autonomous: true },
+    try {
+      for (const headSha of ['aaaaaaa', 'bbbbbbb', 'ccccccc']) {
+        await run({
+          args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha, autonomous: true },
+          cwd: root,
+        });
+      }
+      expect((await ledgerRounds()).filter((r) => r.verdict === 'red')).toHaveLength(3);
+      const refused = await run({
+        args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha: 'ccccccc', autonomous: true },
         cwd: root,
       });
+      expect(refused.exitCode).toBe(3);
+    } finally {
+      // A persistent override, so it must be released even when an assertion
+      // throws — otherwise every later test in the file runs with a rejecting
+      // manual lane.
+      vi.mocked(manualLane).mockReset();
+      spy.mockRestore();
     }
-    expect((await ledgerRounds()).filter((r) => r.verdict === 'red')).toHaveLength(3);
-    const refused = await run({
-      args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha: 'ccccccc', autonomous: true },
-      cwd: root,
-    });
-    expect(refused.exitCode).toBe(3);
-    vi.mocked(manualLane).mockReset();
+  });
+
+  it('records a round where nothing resolved as RED, so it cannot disarm the cap', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // The reviewer lane fulfils but writes no sink. Green would mean "reviewed,
+    // found nothing" — and via the green-last exemption it would then permit
+    // unlimited same-head retries past the cap.
+    await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
+    const r = await run({ args: { ...ARGS, headSha: 'ddddddd' }, cwd: root });
+    expect(r.exitCode).toBe(0);
+    const last = (await ledgerRounds()).at(-1)!;
+    expect(last).toMatchObject({ headSha: 'ddddddd', verdict: 'red' });
+    // Red, but an infra red — nothing was reviewed, so it must not lock the pair.
+    expect(last.closingRound).toBeUndefined();
+    spy.mockRestore();
+  });
+
+  it('reds an integrity blocker without marking the closing round terminal', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
+    // A corrupt sink files no finding but raises one integrity blocker, which
+    // says the verdict cannot be trusted. Letting that mark the pair terminal
+    // would wedge it permanently on one unreadable file.
+    await writeFile(join(root, '.noldor', 'cr', 'x-spec-reviewer.json'), '{ not json', 'utf8');
+    await run({ args: { ...ARGS, headSha: 'ddddddd', autonomous: true }, cwd: root });
+    const last = (await ledgerRounds()).at(-1)!;
+    expect(last).toMatchObject({ verdict: 'red' });
+    expect(last.closingRound).toBeUndefined();
     spy.mockRestore();
   });
 

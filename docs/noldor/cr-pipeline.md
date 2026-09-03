@@ -588,15 +588,25 @@ Only **red** rounds count, against `AUTOFIX_ROUND_CAP + 1` (three: the initial
 pass plus two re-rounds). A green dispatch arbitrates nothing and is free,
 however many run, which is what keeps receipt re-earns from spending budget.
 
-A round's verdict comes from the blockers that were **filed**, not from the
-aggregate's `ok` — which is also false when an expected lane simply failed to
-resolve. So a round whose reviewer came back clean and whose codex lane crashed
-is green: it spends no budget and cannot mark a closing round terminal. The
-round is still counted, because a lane that crashes every time would otherwise
-leave the counter at zero forever and disarm the cap entirely. Only a round
-where every lane crashed goes uncounted — there is genuinely no verdict then,
-and the same predicate covers the interactive lane sentinel and a
-`keep-and-skip` that emptied the set.
+A dispatched round always counts; what varies is its verdict, and that comes
+from the findings **filed**, not from the aggregate's `ok` — which is also false
+when an expected lane merely failed to resolve. Three rules follow, each closing
+a hole the others open:
+
+- A crashed lane files nothing, so a clean reviewer beside a crashed codex is
+  **green**. Reading `ok` there would spend budget on a review that did not
+  happen and, on a closing round, mark the pair terminal over a spawn failure.
+- A round in which **no lane wrote a sink** is red, not green. Nothing was
+  reviewed, and green means "reviewed, found nothing" — a no-verdict green would
+  disarm the cap through the green-last-round exemption and allow unlimited
+  same-head retries. It also keeps a chronically crashing lane from leaving the
+  counter at zero forever.
+- An **integrity** blocker says the verdict cannot be trusted, so it reds the
+  round but never marks it terminal. One corrupt sink must not wedge the pair
+  behind the override permanently.
+
+Only a red round whose findings were actually filed can be the terminal closing
+round.
 
 The refusal engages only while the last round was **red**. After a green one
 the pair is re-minting rather than arbitrating, so a same-head retry is allowed

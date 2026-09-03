@@ -49,9 +49,11 @@ export const autofixRoundSchema = z.object({
   fixHeadSha: z.string().optional(),
   fingerprint: z.string().min(1),
   /**
-   * Whether the round found anything. `green` iff the round's `aggregate` for
-   * the pair reported `ok` — which already folds in a blocking lane, an
-   * unresolved expected lane and a malformed sink.
+   * Whether the round found anything. `green` only when at least one lane wrote
+   * a sink and none of those filed a real finding. An unresolved lane no longer
+   * makes a round red on its own — the verdict comes from what was FILED — but a
+   * round in which nothing resolved is red rather than green, because nothing
+   * was reviewed and "green" must mean "reviewed, found nothing".
    *
    * OPTIONAL, and absent reads as `red` ({@link roundVerdict}). Every entry
    * written before this field existed came from `cr autofix record`, which only
@@ -172,6 +174,20 @@ export function isSameSeries(ledger: AutofixLedger, sessionStartedAt: string): b
  */
 export function sessionKey(cwd: string): string {
   return readSession(cwd)?.startedAt ?? '';
+}
+
+/**
+ * The `<red rounds>/<budget>` label, clamped.
+ *
+ * Shared by all three printers — `plan`, `record` and orchestrate's refusal
+ * banner — because they had drifted: two clamped and one did not, so a spent
+ * closing round printed `round 4/3` from `record` beside `red rounds 3/3` from
+ * orchestrate for one series. The closing round is a fourth red entry against a
+ * budget of three by design, and a numerator above its own denominator reads as
+ * a bug rather than as the intended one-past-the-cap dispatch.
+ */
+export function roundLabel(redCount: number): string {
+  return `${Math.min(redCount, AUTOFIX_ROUND_CAP + 1)}/${AUTOFIX_ROUND_CAP + 1}`;
 }
 
 /** Verdict of a recorded round; an entry written before the field existed reads `red`. */

@@ -153,11 +153,11 @@ export function decide(input: DecideInput): DecideResult {
   // third, a numerator above its own denominator, and the cap would fire a round
   // earlier than `capVerdict` does for the same series.
   const redSoFar = redRounds(priorRounds);
-  // Clamped at the denominator. `redSoFar + 1` alone exceeds it whenever the
-  // budget is already spent — which happens for real, not just in theory: a
-  // `plan` run after the fix commit sees a HEAD no ledger entry carries, so
-  // nothing is excluded and every red round counts. There is no round past the
-  // cap to number, because the seam declines `round-cap` instead of running one.
+  // `redSoFar + 1` alone exceeds the denominator whenever the budget is already
+  // spent — real, not theoretical: a `plan` run after the fix commit sees a HEAD
+  // no ledger entry carries, so nothing is excluded and every red round counts.
+  // There is no round past the cap to number, because the seam declines
+  // `round-cap` instead of running one.
   const round = Math.min(redSoFar + 1, AUTOFIX_ROUND_CAP + 1);
 
   const base = { mechanical, design, baseSha, fingerprint, round } as const;

@@ -13,6 +13,7 @@ import {
   hasClosingRound,
   headMatches,
   readLedger,
+  roundLabel,
   redRounds,
   roundVerdict,
   sessionKey,
@@ -369,10 +370,7 @@ export function renderCapRefusal(
       `  ${r.round}  ${roundVerdict(r).padEnd(5)}  ${r.applied} applied, ${r.deferred} deferred  ${r.headSha.slice(0, 7) || '(no sha)'}`,
   );
   return [
-    // Clamped, like the seam's counter: the closing round is a fourth red entry
-    // against a budget of three, and a numerator above its own denominator reads
-    // as a bug rather than as the intended one-past-the-cap dispatch.
-    `red rounds ${Math.min(redRounds(ledger?.rounds ?? []), AUTOFIX_ROUND_CAP + 1)}/${AUTOFIX_ROUND_CAP + 1} for ${slug} (${kind}) — cap reached`,
+    `red rounds ${roundLabel(redRounds(ledger?.rounds ?? []))} for ${slug} (${kind}) — cap reached`,
     ...rows,
     'HEAD is unchanged since the last round, or the closing round is spent, so no',
     'further round will be dispatched. To close: commit the remaining fixes and',
@@ -662,24 +660,35 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // A dispatch that throws before here appends nothing and stays retryable, and
   // a failed append is logged without touching the round's own result: the cap
   // then under-counts, the safe direction.
-  // A round counts when a lane actually produced a verdict, and the verdict is
-  // taken from the blockers that were FILED — never from `agg.ok`, which is also
-  // false when an expected lane merely failed to resolve.
+  // A dispatched round always counts. What varies is its verdict, and that comes
+  // from what was FILED rather than from `agg.ok`, which is also false when an
+  // expected lane merely failed to resolve.
   //
-  // The distinction is load-bearing in both directions. Reading `agg.ok` would
-  // stamp `red` on a round whose reviewer came back clean and whose codex lane
-  // crashed, spending budget on a review that did not happen and — on a closing
-  // round — marking the pair terminal over a spawn failure. But refusing to
-  // count such a round is worse: codex is force-unioned onto code and spec at
-  // M/L/XL and has a recorded history of crashing (maxBuffer, API caps), so one
-  // chronically-rejecting lane would append no entry ever, leave `redRounds` at
-  // zero, and disarm the cap completely — unbounded rounds, the exact failure
-  // this feature exists to bound. A crashed lane leaves the round uncounted only
-  // when EVERY lane crashed, and then there is genuinely no verdict.
+  // Three rules, each closing a hole the others opened:
+  //
+  //  - A lane that crashed files nothing, so a clean reviewer beside a crashed
+  //    codex is GREEN. Reading `agg.ok` there would spend budget on a review
+  //    that did not happen and, on a closing round, mark the pair terminal over
+  //    a spawn failure.
+  //  - A round in which NO lane wrote a sink is RED, not green. Nothing was
+  //    reviewed, and green means "reviewed, found nothing" — a no-verdict green
+  //    would disarm the cap through the green-last-round exemption and allow
+  //    unlimited same-head retries. Recording it red also keeps a chronically
+  //    crashing lane from leaving the counter at zero forever.
+  //  - An INTEGRITY blocker says the verdict cannot be trusted, so it reds the
+  //    round but must never mark it terminal: a single corrupt sink would
+  //    otherwise wedge the pair permanently behind the override.
   try {
     const agg = await aggregate(opts.args.slug, opts.args.kind, { cwd });
     if (lanesRun.length > 0) {
-      const red = agg.blockers.length > 0;
+      const integrity = agg.blockers.filter((b) => b.integrity === true);
+      const filed = agg.blockers.filter((b) => b.integrity !== true);
+      // "Did any lane actually write a readable sink?" — `summaries` carries one
+      // entry per sink `aggregate` parsed, so it is the only honest signal.
+      // Comparing unresolved against `lanesRun` does not work: a round where the
+      // reviewer resolved and one other lane crashed has one of each.
+      const nothingResolved = Object.keys(agg.summaries).length === 0;
+      const red = filed.length > 0 || integrity.length > 0 || nothingResolved;
       if (agg.unresolved.length > 0) {
         console.error(
           `round counted from the lanes that resolved — ${agg.unresolved.join(', ')} did not`,
@@ -692,13 +701,12 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         applied: 0,
         deferred: 0,
         diffStat: '',
-        // The sentinel marks a RED closing round, which is terminal. A green one
-        // must NOT set it: the receipt is `HEAD^{tree}`-bound, so any later
-        // commit strips it, and locking the pair would make the green re-mint
-        // this whole design keeps free impossible — leaving the override as the
-        // only exit. Independent of `exitCode`, which also carries an unresolved
-        // lane and a failed receipt amend.
-        ...(cap.closingRound && red ? { closingRound: true } : {}),
+        // Terminal only on a round that actually produced a distrusted-free red
+        // verdict. A green closing round leaves the pair open so the
+        // `HEAD^{tree}`-bound receipt can still be re-minted; an integrity red or
+        // a nothing-resolved red is an infra problem for a human, not an
+        // arbitration to lock in.
+        ...(cap.closingRound && filed.length > 0 ? { closingRound: true } : {}),
       });
     }
   } catch (err) {

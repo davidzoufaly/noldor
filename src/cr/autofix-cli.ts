@@ -11,7 +11,6 @@ import type { LaneBlocker } from './aggregate.js';
 import { decide, splitByClass } from './autofix.js';
 import type { NextAction } from './autofix.js';
 import {
-  AUTOFIX_ROUND_CAP,
   LedgerParseError,
   NoRoundForHeadError,
   annotateRound,
@@ -20,6 +19,7 @@ import {
   quarantineLedger,
   readLedger,
   redRounds,
+  roundLabel,
   sessionKey,
 } from './autofix-ledger.js';
 import type { AutofixLedger } from './autofix-ledger.js';
@@ -172,7 +172,7 @@ async function runPlan(cwd: string, a: Args): Promise<never> {
   console.log(`reason: ${r.reason ?? '-'}`);
   console.log(`next: ${r.next}`);
   console.log(`base-sha: ${r.baseSha || '-'}`);
-  console.log(`round: ${r.round}/${AUTOFIX_ROUND_CAP + 1}`);
+  console.log(`round: ${roundLabel(r.round)}`);
   if (agg.unresolved.length > 0) console.log(`in-flight lanes: ${agg.unresolved.join(', ')}`);
   console.log(`mechanical: ${r.mechanical.length}`);
   r.mechanical.forEach((b, i) => printBlocker(`M${i + 1}`, b));
@@ -270,7 +270,7 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
     throw err;
   }
   console.log(
-    `round ${redRounds(ledger.rounds)}/${AUTOFIX_ROUND_CAP + 1} recorded (fingerprint ${fingerprint.slice(0, 8)}, applied ${applied}, deferred ${derivedDeferred})`,
+    `round ${roundLabel(redRounds(ledger.rounds))} recorded (fingerprint ${fingerprint.slice(0, 8)}, applied ${applied}, deferred ${derivedDeferred})`,
   );
   console.log(`diff: ${diffStat} (${range})`);
   process.exit(EXIT.ok);
