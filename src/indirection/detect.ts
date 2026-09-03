@@ -282,6 +282,35 @@ function readTsconfig(file: string): Record<string, unknown> | undefined {
 const TSCONFIG_EXTENDS_MAX_DEPTH = 8;
 
 /**
+ * The config an `extends` specifier names, resolved the way TypeScript resolves
+ * it: the literal path when it already ends in `.json`, otherwise `<path>.json`
+ * and then `<path>/tsconfig.json`.
+ *
+ * Reading the literal path alone would make `"extends": "../tsconfig.base"` —
+ * valid TS, with `tsconfig.base.json` sitting right there — unreadable, and an
+ * unreadable ancestor is treated as "baseUrl unknown". That turns a repo whose
+ * config is perfectly fine into `indirection check` exit 3.
+ *
+ * Candidates are tried by parsing rather than by stat: `readTsconfig` already
+ * returns `undefined` for anything it cannot read, a directory included, so one
+ * mechanism covers "missing", "is a directory" and "not JSON" alike.
+ */
+function resolveExtends(
+  fromDir: string,
+  spec: string,
+): { file: string; config: Record<string, unknown> } | undefined {
+  const path = resolve(fromDir, spec);
+  const candidates = spec.endsWith('.json')
+    ? [path]
+    : [`${path}.json`, join(path, 'tsconfig.json'), path];
+  for (const file of candidates) {
+    const config = readTsconfig(file);
+    if (config !== undefined) return { file, config };
+  }
+  return undefined;
+}
+
+/**
  * The directory a tsconfig's `paths` targets resolve against, or `undefined`
  * when that cannot be determined — in which case the caller records the prefix
  * but no target, so the specifier stays reported rather than mis-resolved.
@@ -320,9 +349,7 @@ function pathsBaseDir(file: string, config: Record<string, unknown>): string | u
     // it anchors on the file that declared `paths`, not on this last ancestor.
     if (parent === undefined) return dirname(file);
     if (typeof parent !== 'string' || !parent.startsWith('.')) return undefined;
-    const parentFile = resolve(dirname(current.file), parent);
-    const parentConfig = readTsconfig(parentFile);
-    current = parentConfig === undefined ? undefined : { file: parentFile, config: parentConfig };
+    current = resolveExtends(dirname(current.file), parent);
   }
   return undefined;
 }
@@ -359,7 +386,16 @@ function declaredAliases(base: string, roots: readonly string[]): DeclaredAliase
   // Deleted after the whole scan, not on first disagreement: a third tsconfig
   // agreeing with either side must not re-add a prefix already known to clash.
   for (const prefix of conflicts) targets.delete(prefix);
-  return { prefixes: [...prefixes], targets: Object.fromEntries(targets) };
+  // Longest prefix first, because the two matchers disagree on nesting.
+  // TypeScript picks the longest matching `paths` pattern; enhanced-resolve
+  // walks the alias entries in order and STOPS at the first whose prefix
+  // matches — its `stoppingCallback` explicitly forbids further aliasing — so a
+  // failed match never falls through to a later, more specific key. Left in
+  // tsconfig order, `{"@/*": ["src/*"], "@/lib/*": ["vendor/lib/*"]}` would send
+  // `@/lib/x` to `src/lib/x`: a spurious unresolved report when that file is
+  // absent, and a wrong edge when it happens to exist.
+  const byLongestPrefix = [...targets].toSorted(([a], [b]) => b.length - a.length);
+  return { prefixes: [...prefixes], targets: Object.fromEntries(byLongestPrefix) };
 }
 
 /**

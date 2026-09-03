@@ -267,6 +267,29 @@ describe('alias namespace, not any-unresolved', () => {
     expect(r.modules.find((m) => m.source === 'apps/web/src/root.ts')?.closure).toBe(1);
   });
 
+  it('follows an extends specifier that omits the .json extension', async () => {
+    // TypeScript appends `.json` when the specifier has none, so
+    // `"extends": "./tsconfig.base"` is valid and its baseUrl still applies.
+    // Reading only the literal path would make that ancestor unreadable, and an
+    // unreadable ancestor reads as "baseUrl unknown" — exit 3 on a fine repo.
+    const r = await measureIndirection(tree('alias-extends-extensionless'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+    expect(r.modules.find((m) => m.source === 'src/a.ts')?.closure).toBe(1);
+  });
+
+  it('matches the longest alias prefix, not the first one declared', async () => {
+    // enhanced-resolve stops at the first alias entry whose prefix matches, so
+    // in tsconfig order `@/*` would swallow `@/lib/x` and send it to src/lib.
+    // TypeScript picks the longest pattern: vendor/lib. The two land on
+    // different files, and the vendor twin owns a further import, so the wrong
+    // one shows up as closure 1 instead of 2.
+    const r = await measureIndirection(tree('alias-nested-prefix'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+    expect(r.modules.find((m) => m.source === 'src/root.ts')?.closure).toBe(2);
+  });
+
   it('reports rather than guesses when the extends chain cannot be followed', async () => {
     // A bare package specifier may itself declare the baseUrl that decides where
     // the targets land, and this walk does not resolve one. Guessing the local
