@@ -273,5 +273,9 @@
   "Q-0202": {
     "slug": "task-id-as-the-first-scope-bullet-in-a-pr-summary",
     "retiredAt": "2026-09-03"
+  },
+  "Q-0207": {
+    "slug": "auto-open-link-resolves-against-the-worktree-not-the-editors-workspace",
+    "retiredAt": "2026-09-03"
   }
 }
