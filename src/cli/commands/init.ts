@@ -149,14 +149,16 @@ try {
     const { runIndirection } = await import('../../indirection/indirection-cli.js');
     return runIndirection(['baseline'], cwd);
   });
+  // The two branches leave the consumer in opposite states, so they must not
+  // share a tail: an ABSENT baseline is the fail-open — `check` prints
+  // `no-baseline` and exits 0 — while an UNREADABLE one is a could-not-look and
+  // exits 3, so the next push hard-fails until the file is repaired.
   if (seed.kind === 'unreadable' || seed.kind === 'could-not-record') {
     const detail =
       seed.kind === 'unreadable'
-        ? `unreadable — ${seed.message}`
-        : `recording failed — ${seed.detail}`;
-    console.log(
-      `warn       ${BASELINE_FILE}: ${detail}; the indirection ratchet stays green until you run 'noldor indirection baseline'`,
-    );
+        ? `unreadable — ${seed.message}; 'noldor indirection check' will FAIL with exit 3 until you re-record it with 'noldor indirection baseline' (or delete the file)`
+        : `recording failed — ${seed.detail}; the indirection ratchet stays green until you run 'noldor indirection baseline'`;
+    console.log(`warn       ${BASELINE_FILE}: ${detail}`);
   }
   // Stamp the framework version ONLY on a fresh scaffold — a tree with no
   // existing anchor, scaffolded (not `--update`). A fresh scaffold is by

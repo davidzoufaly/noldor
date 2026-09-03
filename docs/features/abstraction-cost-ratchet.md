@@ -10,6 +10,7 @@ links:
     - src/indirection/indirection-cli.ts
     - src/cli/manifest.ts
   tests:
+    - src/cli/__tests__/init-arms-indirection.test.ts
     - src/indirection/__tests__/baseline.test.ts
     - src/indirection/__tests__/detect.test.ts
     - src/indirection/__tests__/indirection-cli.test.ts
