@@ -10,7 +10,7 @@
  */
 import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
-import { isAbsolute, join, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 
 import { allExtensions, cruise } from 'dependency-cruiser';
 
@@ -108,12 +108,23 @@ function percentile(sorted: readonly number[], p: number): number {
  * consumer repos that are perfectly fine.
  *
  * `aliasPrefixes` widens that by exactly the declared alias namespace and no
- * further. dependency-cruiser reads tsconfig `paths` through the `typescript`
- * package it accepts only at `>=2 <6`, while this repo is on 7 (the same
- * constraint behind the parser guard), so an aliased import comes back
- * `couldNotResolve` — verified against `dependency-cruiser@16.10.4`, with and
- * without `tsConfig` passed. Dropping that edge would understate the ratchet,
- * so a specifier matching a declared prefix is reported and the run refuses.
+ * further. Most aliased imports never reach here any more — `declaredAliases`
+ * hands cruise an `enhancedResolveOptions.alias` map built from the same
+ * tsconfig `paths`, and enhanced-resolve follows it. What still reaches here is
+ * a namespace that map deliberately declines: a prefix two tsconfigs claim for
+ * different directories, a malformed `paths` value, an `extends` chain whose
+ * `baseUrl` could not be determined, a wildcard pattern the map cannot express,
+ * a prefix sitting above any of those, or a target directory that does not
+ * exist. Dropping such an edge would understate the ratchet, so a specifier
+ * matching a declared prefix is reported and the run refuses.
+ *
+ * The alias map is what makes that rare. dependency-cruiser's own tsconfig
+ * route reads `paths` through the `typescript` package it accepts only at
+ * `>=2 <6`, while this repo is on 7 (the same constraint behind the parser
+ * guard) — so on TS 7 an aliased import came back `couldNotResolve` whether or
+ * not `tsConfig` was passed, verified against `dependency-cruiser@16.10.4`.
+ * enhanced-resolve is a direct dependency of the cruiser and consults no
+ * `typescript` install, so it is unaffected by that ceiling.
  *
  * Matching on the prefix rather than on "a tsconfig declares any paths" is the
  * whole point: the broader test made an uninstalled optional peer fatal in every
@@ -188,7 +199,8 @@ function findTsconfigFiles(base: string, roots: readonly string[]): string[] {
 }
 
 /**
- * Alias namespaces declared by any tsconfig under the scan roots.
+ * The alias namespaces declared by any tsconfig under the scan roots, and the
+ * absolute directories each one points at.
  *
  * Parsed, not pattern-matched. An earlier version scanned the `paths` block with
  * a lazy regex and was formatting-dependent in both directions: a single-line
@@ -199,35 +211,224 @@ function findTsconfigFiles(base: string, roots: readonly string[]): string[] {
  * baseline principles say to avoid regex for exactly this reason. `stripJsonc`
  * is the repo's existing comment- and trailing-comma-tolerant reader, so the
  * commented tsconfig that `tsc --init` emits parses here too.
+ *
+ * `targets` follows TypeScript's own rule: a `paths` entry resolves against
+ * `baseUrl` when one is declared, and against the tsconfig's own directory when
+ * one is not (the TS 4.1+ default). Getting that backwards would point the
+ * alias at a directory that does not exist and reintroduce the unresolved edge
+ * this map exists to remove.
+ *
+ * A prefix declared by two tsconfigs with DIFFERENT targets is dropped from
+ * `targets` and kept in `prefixes`, so it stays reported rather than guessed at.
+ * `enhancedResolveOptions.alias` is one global map with no notion of which
+ * package a specifier came from, and its array form resolves first-hit-wins —
+ * so a monorepo where two packages each declare `@/*` for their own `src` would
+ * silently attribute one package's import to the other package's file. A wrong
+ * edge is worse than a missing one: the ratchet would move for a reason no
+ * reader could reconstruct. Reporting it keeps that repo exactly where it is
+ * today, which is honest — and the reported specifier carries the prefix, so
+ * the operator sees which namespace to go and reconcile.
  */
-function declaredAliasPrefixes(base: string, roots: readonly string[]): string[] {
+interface DeclaredAliases {
+  /** Every declared namespace, whether or not it could be given a target. */
+  readonly prefixes: readonly string[];
+  /** `enhancedResolveOptions.alias`: prefix -> absolute directories, in order. */
+  readonly targets: Readonly<Record<string, readonly string[]>>;
+}
+
+type CruiseResolveOptions = NonNullable<
+  NonNullable<Parameters<typeof cruise>[1]>['enhancedResolveOptions']
+>;
+
+/**
+ * The alias map as cruise's `enhancedResolveOptions`.
+ *
+ * `alias` is missing from dependency-cruiser's published `IResolveOptions`
+ * type, but it is forwarded verbatim rather than dropped: its
+ * `main/resolve-options/normalize.mjs` spreads the caller's resolve options
+ * into what it hands enhanced-resolve, and the cruiser then classifies the
+ * resulting edge as `aliased-webpack`. So the cast asserts a runtime contract
+ * the types under-describe, not one they contradict — verified against
+ * `dependency-cruiser@16.10.4`.
+ *
+ * The alias fixture tests are what keep that assertion honest: a release that
+ * stopped forwarding `alias` turns those red with unresolved edges, rather than
+ * silently under-measuring the ratchet.
+ */
+function aliasResolveOptions(alias: DeclaredAliases['targets']): CruiseResolveOptions {
+  return { alias } as unknown as CruiseResolveOptions;
+}
+
+/** A tsconfig's own object, or `undefined` when it cannot be read or parsed. */
+function readTsconfig(file: string): Record<string, unknown> | undefined {
+  let raw: string;
+  try {
+    raw = readFileSync(file, 'utf8');
+  } catch {
+    return undefined;
+  }
+  const scan = stripJsonc(raw);
+  if (!scan.ok) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(scan.text);
+  } catch {
+    return undefined;
+  }
+  return typeof parsed === 'object' && parsed !== null
+    ? (parsed as Record<string, unknown>)
+    : undefined;
+}
+
+/** Bounds the `extends` walk; no real config nests anywhere near this deep. */
+const TSCONFIG_EXTENDS_MAX_DEPTH = 8;
+
+/**
+ * The config an `extends` specifier names, resolved the way TypeScript resolves
+ * it: the literal path when it already ends in `.json`, otherwise `<path>.json`
+ * and then `<path>/tsconfig.json`.
+ *
+ * Reading the literal path alone would make `"extends": "../tsconfig.base"` —
+ * valid TS, with `tsconfig.base.json` sitting right there — unreadable, and an
+ * unreadable ancestor is treated as "baseUrl unknown". That turns a repo whose
+ * config is perfectly fine into `indirection check` exit 3.
+ *
+ * Candidates are tried by parsing rather than by stat: `readTsconfig` already
+ * returns `undefined` for anything it cannot read, a directory included, so one
+ * mechanism covers "missing", "is a directory" and "not JSON" alike.
+ */
+function resolveExtends(
+  fromDir: string,
+  spec: string,
+): { file: string; config: Record<string, unknown> } | undefined {
+  const path = resolve(fromDir, spec);
+  const candidates = spec.endsWith('.json')
+    ? [path]
+    : [`${path}.json`, join(path, 'tsconfig.json'), path];
+  for (const file of candidates) {
+    const config = readTsconfig(file);
+    if (config !== undefined) return { file, config };
+  }
+  return undefined;
+}
+
+/**
+ * The directory a tsconfig's `paths` targets resolve against, or `undefined`
+ * when that cannot be determined — in which case the caller records the prefix
+ * but no target, so the specifier stays reported rather than mis-resolved.
+ *
+ * TypeScript's rule has two halves and BOTH matter here. `paths` resolves
+ * against `baseUrl` when one is in effect, and a `baseUrl` is itself relative
+ * to the config that DECLARED it — so an inherited one points at the base
+ * config's directory, not the extending one's. With no `baseUrl` anywhere in
+ * the chain, `paths` resolves against the config declaring `paths` (the TS 4.1+
+ * default). Reading only the `paths`-declaring file conflates the two: the
+ * common monorepo shape — a root `tsconfig.base.json` with `baseUrl` and a
+ * per-package config that extends it and declares `paths` — would resolve
+ * against the package directory, and where both directories exist cruise would
+ * follow the wrong file. A wrong edge moves the ratchet for something that is
+ * not there, which is worse than the missing edge this whole change removes.
+ *
+ * An `extends` this cannot follow — a bare package specifier like
+ * `@tsconfig/strictest`, an array (TS 5.0+ multiple inheritance, whose
+ * later-wins merge is not modelled here), a missing or unparseable file — is
+ * `undefined` rather than a guess: any of them may declare the `baseUrl` that
+ * decides the answer.
+ */
+function pathsBaseDir(file: string, config: Record<string, unknown>): string | undefined {
+  const seen = new Set<string>();
+  let current: { file: string; config: Record<string, unknown> } | undefined = { file, config };
+  for (let depth = 0; depth <= TSCONFIG_EXTENDS_MAX_DEPTH; depth += 1) {
+    if (current === undefined || seen.has(current.file)) return undefined;
+    seen.add(current.file);
+    const options = current.config.compilerOptions;
+    if (typeof options === 'object' && options !== null) {
+      const baseUrl = (options as { baseUrl?: unknown }).baseUrl;
+      if (typeof baseUrl === 'string') return resolve(dirname(current.file), baseUrl);
+    }
+    const parent = current.config.extends;
+    // Nothing left to inherit from: the TS 4.1+ no-baseUrl default applies, and
+    // it anchors on the file that declared `paths`, not on this last ancestor.
+    if (parent === undefined) return dirname(file);
+    if (typeof parent !== 'string' || !parent.startsWith('.')) return undefined;
+    current = resolveExtends(dirname(current.file), parent);
+  }
+  return undefined;
+}
+
+function declaredAliases(base: string, roots: readonly string[]): DeclaredAliases {
   const prefixes = new Set<string>();
+  const targets = new Map<string, string[]>();
+  // Every prefix that ends up with no usable target, for whatever reason. One
+  // set rather than a special case per exit: each of them means "this namespace
+  // must stay reported", and the drop pass below has to see all of them, since
+  // a prefix left in the map swallows the specifiers of any prefix beneath it.
+  const untargeted = new Set<string>();
   for (const file of findTsconfigFiles(base, roots)) {
-    let raw: string;
-    try {
-      raw = readFileSync(file, 'utf8');
-    } catch {
-      continue;
-    }
-    const scan = stripJsonc(raw);
-    if (!scan.ok) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(scan.text);
-    } catch {
-      continue;
-    }
-    if (typeof parsed !== 'object' || parsed === null) continue;
-    const compilerOptions = (parsed as { compilerOptions?: unknown }).compilerOptions;
+    const parsed = readTsconfig(file);
+    if (parsed === undefined) continue;
+    const compilerOptions = parsed.compilerOptions;
     if (typeof compilerOptions !== 'object' || compilerOptions === null) continue;
     const paths = (compilerOptions as { paths?: unknown }).paths;
     if (typeof paths !== 'object' || paths === null) continue;
-    for (const key of Object.keys(paths)) {
+    const from = pathsBaseDir(file, parsed);
+    for (const [key, value] of Object.entries(paths as Record<string, unknown>)) {
       if (key.startsWith('.')) continue;
-      prefixes.add(key.endsWith('/*') ? key.slice(0, -2) : key);
+      const prefix = key.endsWith('/*') ? key.slice(0, -2) : key;
+      prefixes.add(prefix);
+      // A malformed entry, or an `extends` chain whose baseUrl could not be
+      // determined: no target, so the specifier stays reported.
+      if (from === undefined || !Array.isArray(value)) {
+        untargeted.add(prefix);
+        continue;
+      }
+      const stripped = value
+        .filter((v): v is string => typeof v === 'string')
+        .map((v) => (v.endsWith('/*') ? v.slice(0, -2) : v));
+      // A `*` surviving the trailing-`/*` strip is a pattern this map cannot
+      // express, and handing it over is far worse than dropping it:
+      // enhanced-resolve reads any alias name containing a `*` as a wildcard
+      // matched on prefix AND suffix, so TypeScript's documented catch-all
+      // `"*": ["types/*", "node_modules/*"]` becomes an empty prefix that
+      // matches EVERY request — relative ones included — and its `shouldStop`
+      // then forbids the raw request. Real edges vanish and healthy relative
+      // imports get reported. The same holds for an interior `*` in a target.
+      if (stripped.length === 0 || prefix.includes('*') || stripped.some((v) => v.includes('*'))) {
+        untargeted.add(prefix);
+        continue;
+      }
+      const dirs = stripped.map((v) => resolve(from, v));
+      const prior = targets.get(prefix);
+      if (prior === undefined) targets.set(prefix, dirs);
+      else if (prior.join('\0') !== dirs.join('\0')) untargeted.add(prefix);
     }
   }
-  return [...prefixes];
+  // Run after the whole scan, not at the moment a prefix goes untargeted: a
+  // third tsconfig agreeing with either side of a clash must not re-add a
+  // prefix already known to be unusable.
+  //
+  // A prefix is dropped when an untargeted one is IT or sits under it, because
+  // deleting only the exact key does not stop those specifiers from resolving.
+  // With `@` agreed repo-wide and `@/lib` unusable — clashing, or malformed, or
+  // in a config whose `extends` could not be followed — dropping `@/lib` alone
+  // leaves `@/lib/x` to resolve through `@`: a wrong edge wherever that file
+  // happens to exist, which is the outcome this drop exists to prevent rather
+  // than a milder version of it.
+  const shadowed = targets
+    .keys()
+    .filter((kept) => untargeted.values().some((u) => u === kept || u.startsWith(`${kept}/`)))
+    .toArray();
+  for (const key of shadowed) targets.delete(key);
+  // Longest prefix first, because the two matchers disagree on nesting.
+  // TypeScript picks the longest matching `paths` pattern; enhanced-resolve
+  // walks the alias entries in order and STOPS at the first whose prefix
+  // matches — its `stoppingCallback` explicitly forbids further aliasing — so a
+  // failed match never falls through to a later, more specific key. Left in
+  // tsconfig order, `{"@/*": ["src/*"], "@/lib/*": ["vendor/lib/*"]}` would send
+  // `@/lib/x` to `src/lib/x`: a spurious unresolved report when that file is
+  // absent, and a wrong edge when it happens to exist.
+  const byLongestPrefix = [...targets].toSorted(([a], [b]) => b.length - a.length);
+  return { prefixes: [...prefixes], targets: Object.fromEntries(byLongestPrefix) };
 }
 
 /**
@@ -365,9 +566,10 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
     };
   }
 
-  // Aliases cannot be resolved in this toolchain (see `isInScopeSpecifier`), so
-  // collect the declared namespaces and report only specifiers inside them.
-  const aliasPrefixes = declaredAliasPrefixes(base, roots);
+  // Read the declared `paths` twice over: as an alias map enhanced-resolve can
+  // follow, and as the namespace list that decides which leftover unresolved
+  // specifier is ours to report (see `isInScopeSpecifier`).
+  const aliases = declaredAliases(base, roots);
 
   let raw: readonly CruiseModule[];
   try {
@@ -375,6 +577,11 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
       baseDir: base,
       validate: false,
       doNotFollow: { path: 'node_modules' },
+      // Resolve tsconfig `paths` through enhanced-resolve, which
+      // dependency-cruiser depends on directly and which needs no `typescript`
+      // install at all — so it works on the TS version this repo is actually on
+      // (see `isInScopeSpecifier` for why the built-in tsconfig route cannot).
+      enhancedResolveOptions: aliasResolveOptions(aliases.targets),
       // Derived from `WALK_EXCLUDED_DIRS` and anchored to path segments, so the
       // two corpus rules have one source. `walkCodeFiles` excludes on an EXACT
       // directory name, so an unanchored substring made a directory merely
@@ -428,7 +635,7 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   const unresolvedInScope: string[] = [];
   for (const m of measured) {
     for (const d of m.dependencies) {
-      if (d.couldNotResolve === true && isInScopeSpecifier(d.module, aliasPrefixes)) {
+      if (d.couldNotResolve === true && isInScopeSpecifier(d.module, aliases.prefixes)) {
         unresolvedInScope.push(`${m.source} -> ${d.module ?? d.resolved}`);
       }
     }

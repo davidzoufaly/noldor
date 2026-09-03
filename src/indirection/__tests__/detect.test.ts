@@ -178,16 +178,17 @@ describe('scan-root robustness', () => {
     expect(r.modules).toHaveLength(4);
   });
 
-  it('reports an unresolvable tsconfig alias instead of silently dropping the edge', async () => {
-    // dependency-cruiser reads tsconfig `paths` through the `typescript`
-    // package it accepts only at >=2 <6; this repo is on 7, so aliases cannot
-    // be resolved and passing tsConfig does not help. Dropping the edge would
-    // understate the ratchet, so the run reports it and check refuses.
+  it('follows a tsconfig alias into the closure rather than reporting it unresolved', async () => {
+    // The `typescript` package dependency-cruiser reads `paths` through is
+    // capped at >=2 <6 and this repo is on 7, so its own tsconfig route leaves
+    // the edge unresolved whether or not tsConfig is passed. The alias is fed
+    // to enhanced-resolve instead, which consults no typescript install.
     const r = await measureIndirection(tree('alias'));
     expect(r.kind).toBe('measured');
     if (r.kind !== 'measured') return;
-    expect(r.unresolvedInScope).toHaveLength(1);
-    expect(r.unresolvedInScope[0]).toContain('@lib/thing');
+    expect(r.unresolvedInScope).toEqual([]);
+    // Resolved is not enough — the point of resolving is that the edge counts.
+    expect(r.modules.find((m) => m.source === 'root.ts')?.closure).toBe(1);
   });
 
   it('still ignores an unresolved bare package when no aliases are declared', async () => {
@@ -201,15 +202,16 @@ describe('scan-root robustness', () => {
 });
 
 describe('alias namespace, not any-unresolved', () => {
-  it('reports an unresolved alias but never an unresolved bare package', async () => {
+  it('resolves the alias and still never reports an unresolved bare package', async () => {
     // The earlier widening made "any tsconfig declares paths" enough, so an
     // uninstalled optional peer became fatal in every alias-using repo — the
-    // exact hazard isInScopeSpecifier's contract rules out.
+    // exact hazard isInScopeSpecifier's contract rules out. That contract still
+    // holds now that the alias itself resolves: the peer is the only unresolved
+    // edge left in this tree, and it stays out of scope.
     const r = await measureIndirection(tree('alias-and-peer'));
     if (r.kind !== 'measured') throw new Error(r.kind);
-    expect(r.unresolvedInScope).toHaveLength(1);
-    expect(r.unresolvedInScope[0]).toContain('@lib/thing');
-    expect(r.unresolvedInScope.join()).not.toContain('some-optional-peer');
+    expect(r.unresolvedInScope).toEqual([]);
+    expect(r.modules.find((m) => m.source === 'root.ts')?.closure).toBe(1);
   });
 
   it('reports nothing when the only unresolved import is a bare package', async () => {
@@ -221,8 +223,127 @@ describe('alias namespace, not any-unresolved', () => {
   it('finds paths declared per package, not only at the base', async () => {
     const r = await measureIndirection(tree('monorepo'));
     if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+    // A per-package `paths` block resolves against that package, not the base.
+    expect(r.modules.find((m) => m.source === 'packages/pkg/src/root.ts')?.closure).toBe(1);
+  });
+
+  it('reports a prefix two packages claim differently rather than picking one', async () => {
+    // `enhancedResolveOptions.alias` is one global map with no notion of which
+    // package a specifier came from, and its array form is first-hit-wins — so
+    // resolving this would attribute package a's import to whichever `thing.ts`
+    // sorted first. A wrong edge moves the ratchet for a reason no reader can
+    // reconstruct, so the prefix is dropped from the map and stays reported.
+    const r = await measureIndirection(tree('alias-conflict'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
     expect(r.unresolvedInScope).toHaveLength(1);
-    expect(r.unresolvedInScope[0]).toContain('@pkg/thing');
+    expect(r.unresolvedInScope[0]).toContain('@/thing');
+    expect(r.modules.find((m) => m.source === 'packages/a/src/root.ts')?.closure).toBe(0);
+  });
+
+  it('resolves paths against a baseUrl inherited through extends, not the local dir', async () => {
+    // The common monorepo shape: a root tsconfig.base.json declares
+    // `baseUrl: "."` and packages/a extends it and declares `@/* -> src/*`.
+    // TypeScript anchors that on the DECLARING config, so `@/thing` is the
+    // repo-root `src/thing.ts` — and the tree contains a `packages/a/src/thing.ts`
+    // too, so reading baseUrl only from the paths-declaring file would follow it.
+    // That wrong hop is visible in the number: the package twin owns a further
+    // import, so it would make root.ts's closure 2 instead of 1.
+    const r = await measureIndirection(tree('alias-extends-baseurl'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+    expect(r.modules.find((m) => m.source === 'packages/a/src/root.ts')?.closure).toBe(1);
+  });
+
+  it('anchors on the paths-declaring config when no baseUrl exists up the chain', async () => {
+    // The shape that motivated this change: a Vite/shadcn app whose
+    // tsconfig.app.json extends a root base config and declares `@/* -> ./src/*`,
+    // with no `baseUrl` declared anywhere. TypeScript's 4.1+ default anchors that
+    // on the file declaring `paths`, so it must land on apps/web/src — not on the
+    // repo root, and not fail-safe to unresolved just because `extends` is present.
+    const r = await measureIndirection(tree('alias-extends-no-baseurl'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+    expect(r.modules.find((m) => m.source === 'apps/web/src/root.ts')?.closure).toBe(1);
+  });
+
+  it('follows an extends specifier that omits the .json extension', async () => {
+    // TypeScript appends `.json` when the specifier has none, so
+    // `"extends": "./tsconfig.base"` is valid and its baseUrl still applies.
+    // Reading only the literal path would make that ancestor unreadable, and an
+    // unreadable ancestor reads as "baseUrl unknown" — exit 3 on a fine repo.
+    const r = await measureIndirection(tree('alias-extends-extensionless'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+    expect(r.modules.find((m) => m.source === 'src/a.ts')?.closure).toBe(1);
+  });
+
+  it('matches the longest alias prefix, not the first one declared', async () => {
+    // enhanced-resolve stops at the first alias entry whose prefix matches, so
+    // in tsconfig order `@/*` would swallow `@/lib/x` and send it to src/lib.
+    // TypeScript picks the longest pattern: vendor/lib. The two land on
+    // different files, and the vendor twin owns a further import, so the wrong
+    // one shows up as closure 1 instead of 2.
+    const r = await measureIndirection(tree('alias-nested-prefix'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+    expect(r.modules.find((m) => m.source === 'src/root.ts')?.closure).toBe(2);
+  });
+
+  it('reports rather than guesses when the extends chain cannot be followed', async () => {
+    // A bare package specifier may itself declare the baseUrl that decides where
+    // the targets land, and this walk does not resolve one. Guessing the local
+    // directory would be the same wrong-edge hazard as above, so the prefix is
+    // recorded with no target and its specifier stays reported.
+    const r = await measureIndirection(tree('alias-extends-unfollowable'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@/thing');
+  });
+
+  it('ignores a catch-all "*" paths key instead of hijacking every import', async () => {
+    // TypeScript documents `"*": ["types/*", "node_modules/*"]`, but
+    // enhanced-resolve reads an alias name containing `*` as a wildcard matched
+    // on prefix and suffix — here an EMPTY prefix, so it matches every request
+    // including `./b.js`, and its shouldStop then forbids the raw request. The
+    // whole graph would collapse and healthy relative imports would be reported.
+    const r = await measureIndirection(tree('alias-star-catchall'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toEqual([]);
+    expect(r.modules.find((m) => m.source === 'src/a.ts')?.closure).toBe(1);
+  });
+
+  it('drops a shorter prefix that a conflicted one sits under, not just the exact key', async () => {
+    // `@` agrees across both packages while `@/lib` does not. Deleting only
+    // `@/lib` leaves `@/lib/x` to resolve through `@` into the shared directory
+    // — a wrong edge that exists on disk, so nothing would report it.
+    const r = await measureIndirection(tree('alias-conflict-nested'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@/lib/x');
+    expect(r.modules.find((m) => m.source === 'packages/a/src/root.ts')?.closure).toBe(0);
+  });
+
+  it('drops a shorter prefix over ANY untargeted one, not only a conflicted one', async () => {
+    // `@/lib` here is untargeted because its value is a string rather than an
+    // array — the same hole is reachable from a fully valid tsconfig whose
+    // `extends` cannot be followed. Every no-target exit has to reach the drop,
+    // or `@` swallows `@/lib/x` into src/lib and nothing reports it.
+    const r = await measureIndirection(tree('alias-nested-untargeted'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@/lib/x');
+    expect(r.modules.find((m) => m.source === 'src/root.ts')?.closure).toBe(0);
+  });
+
+  it('reports an alias whose target directory does not exist', async () => {
+    // The map is built from the declaration, not from the filesystem, so a
+    // `paths` entry pointing at a directory nobody created still yields an
+    // alias — and the edge under it must stay reported rather than vanish.
+    const r = await measureIndirection(tree('alias-missing-target'));
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.unresolvedInScope).toHaveLength(1);
+    expect(r.unresolvedInScope[0]).toContain('@gone/thing');
   });
 });
 
@@ -256,8 +377,10 @@ describe('tsconfig is parsed, not pattern-matched', () => {
     // dropped the alias edge silently.
     const r = await measureIndirection(tree('tsc-oneline'));
     if (r.kind !== 'measured') throw new Error(r.kind);
-    expect(r.unresolvedInScope).toHaveLength(1);
-    expect(r.unresolvedInScope[0]).toContain('@/thing.js');
+    expect(r.unresolvedInScope).toEqual([]);
+    // The specifier is `@/thing.js` against a `thing.ts` on disk, so this also
+    // pins that the alias hop keeps the cruiser's .js -> .ts extension mapping.
+    expect(r.modules.find((m) => m.source === 'src/a.ts')?.closure).toBe(1);
   });
 
   it('does not mistake a sibling compilerOption for an alias prefix', async () => {
@@ -271,8 +394,10 @@ describe('tsconfig is parsed, not pattern-matched', () => {
   it('reads a tsconfig carrying comments and a trailing comma', async () => {
     const r = await measureIndirection(tree('tsc-commented'));
     if (r.kind !== 'measured') throw new Error(r.kind);
-    expect(r.unresolvedInScope).toHaveLength(1);
-    expect(r.unresolvedInScope[0]).toContain('@x/thing');
+    expect(r.unresolvedInScope).toEqual([]);
+    // This tsconfig declares no `baseUrl`, so the target resolves against the
+    // tsconfig's own directory — TypeScript's own 4.1+ rule.
+    expect(r.modules.find((m) => m.source === 'a.ts')?.closure).toBe(1);
   });
 });
 
