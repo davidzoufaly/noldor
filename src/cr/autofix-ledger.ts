@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileNoFollowAsync, slugPath } from '../core/slug-paths.js';
+import { readSession } from '../core/session.js';
 import type { Slug } from '../core/slug.js';
 import { mkdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -24,11 +25,49 @@ import type { ArtifactKind, Finding } from './findings-schema.js';
  */
 export const AUTOFIX_ROUND_CAP = 2;
 
+export const roundVerdictSchema = z.enum(['green', 'red']);
+export type RoundVerdict = z.infer<typeof roundVerdictSchema>;
+
 export const autofixRoundSchema = z.object({
   round: z.number().int().positive(),
-  /** `HEAD` when the round was recorded; the next round's `--base-sha`. May be `''` when git was unavailable. */
+  /**
+   * The head this round REVIEWED, written by `cr orchestrate` and never
+   * rewritten. It is the entry's identity — `record` annotates by matching it,
+   * and both seam ledger rules exclude the round being decided by it — so it
+   * must stay stable. May be `''` when git was unavailable.
+   */
   headSha: z.string(),
+  /**
+   * The tip AFTER this round's fix, written by `cr autofix record`.
+   *
+   * A separate field rather than a rewrite of {@link autofixRoundSchema.shape.headSha},
+   * which is what two readers want (`resolveBaseSha`'s ledger rung and
+   * `record`'s own `diffRange` rung) but which would destroy identity: the next
+   * round's entry carries that same post-fix tip as its own reviewed head, so
+   * both entries would answer to one sha and the seam rules would exclude both.
+   */
+  fixHeadSha: z.string().optional(),
   fingerprint: z.string().min(1),
+  /**
+   * Whether the round found anything. `green` iff the round's `aggregate` for
+   * the pair reported `ok` — which already folds in a blocking lane, an
+   * unresolved expected lane and a malformed sink.
+   *
+   * OPTIONAL, and absent reads as `red` ({@link roundVerdict}). Every entry
+   * written before this field existed came from `cr autofix record`, which only
+   * ever ran after a fix — so its round had blockers, and `red` is both the
+   * truth about those entries and the fail-safe direction for the cap.
+   */
+  verdict: roundVerdictSchema.optional(),
+  /**
+   * The closing round: the single dispatch allowed past the cap once a fix
+   * changed `HEAD`. Its own field rather than a value in {@link
+   * autofixRoundSchema.shape.stopped} because `stopped` is caller-writable free
+   * text (`cr autofix record --stopped <reason>`, a documented public flag), so
+   * a sentinel living there could be forged into a permanent refusal for the
+   * pair. Only `cr orchestrate` writes this.
+   */
+  closingRound: z.boolean().optional(),
   applied: z.number().int().nonnegative(),
   deferred: z.number().int().nonnegative(),
   diffStat: z.string(),
@@ -119,6 +158,79 @@ export function isSameSeries(ledger: AutofixLedger, sessionStartedAt: string): b
 }
 
 /**
+ * The session key both writers scope their series by, resolved from the gate's
+ * session marker. Lives beside {@link isSameSeries} for the same reason that
+ * predicate is shared: reader and writer must key on the same value, and two
+ * hand-written `readSession(cwd)?.startedAt` expressions in different modules
+ * drift apart silently.
+ *
+ * The `''` fallback is deliberate for COUNTING. Rounds then accumulate across
+ * unrelated sessionless runs of one pair, which over-counts — it caps early,
+ * never late, and early is the safe direction for a loop bound. It is NOT safe
+ * for the closing-round sentinel, which is a permanent refusal rather than a
+ * conservative cap: see {@link hasClosingRound}.
+ */
+export function sessionKey(cwd: string): string {
+  return readSession(cwd)?.startedAt ?? '';
+}
+
+/** Verdict of a recorded round; an entry written before the field existed reads `red`. */
+export function roundVerdict(round: AutofixRound): RoundVerdict {
+  return round.verdict ?? 'red';
+}
+
+/** Rounds that found something — the only ones the cap counts. */
+export function redRounds(ledger: AutofixLedger | null): number {
+  return (ledger?.rounds ?? []).filter((r) => roundVerdict(r) === 'red').length;
+}
+
+/**
+ * Whether this series has already spent its closing round.
+ *
+ * Always `false` for a sessionless series. The sentinel refuses every later
+ * dispatch regardless of `HEAD`, so under the shared `''` key of
+ * {@link sessionKey} one sessionless run's closing round would lock out every
+ * future sessionless dispatch for the pair — a permanent wedge, not the
+ * conservative early cap that fallback is justified by. A sessionless series
+ * therefore never records the sentinel and its refusal always lifts on a
+ * changed head.
+ */
+export function hasClosingRound(ledger: AutofixLedger | null, sessionStartedAt: string): boolean {
+  if (sessionStartedAt === '') return false;
+  return (ledger?.rounds ?? []).some((r) => r.closingRound === true);
+}
+
+/**
+ * The entry for `headSha`, or `null`. Identity, never position: `cr autofix
+ * record` annotates the round it actually reviewed rather than "the last one",
+ * so a delayed or retried run cannot attach its counts to a later round, and
+ * the seam's ledger rules can exclude the round being decided without assuming
+ * it sits at the end (`plan` may run over sinks no dispatch produced).
+ */
+export function roundForHead(ledger: AutofixLedger | null, headSha: string): AutofixRound | null {
+  const rounds = ledger?.rounds ?? [];
+  // No sha means git was unreachable, so identity is simply unavailable and
+  // position is all there is. `record` must still annotate something — dropping
+  // the counts would disarm `prior-deferred` — so it takes the last entry, which
+  // is the round orchestrate just wrote.
+  if (headSha === '') return rounds.at(-1) ?? null;
+  return rounds.find((r) => r.headSha === headSha) ?? null;
+}
+
+/** Every round except the one for `headSha` — what both seam ledger rules compare against. */
+export function roundsExcludingHead(
+  ledger: AutofixLedger | null,
+  headSha: string,
+): readonly AutofixRound[] {
+  // With no sha the current round cannot be identified, so every entry is
+  // compared. That is the conservative direction here in a way it is not for
+  // {@link roundForHead}: these rules are STOPS, and comparing against more
+  // history can only make the seam decline sooner.
+  if (headSha === '') return ledger?.rounds ?? [];
+  return (ledger?.rounds ?? []).filter((r) => r.headSha !== headSha);
+}
+
+/**
  * Stable fingerprint of a blocker set, used for the no-progress stop.
  *
  * Sorted before hashing so lane ordering cannot change the value. `line` is
@@ -202,6 +314,59 @@ export async function appendRound(
     kind,
     sessionStartedAt,
     rounds: [...rounds, { ...round, round: rounds.length + 1 }],
+  };
+  await mkdir(ledgerDir(cwd), { recursive: true });
+  await writeJsonAtomic(ledgerPath(cwd, slug, kind), next);
+  return next;
+}
+
+/** Raised when `cr autofix record` has no round to annotate. */
+export class NoRoundForHeadError extends Error {
+  readonly headSha: string;
+
+  constructor(headSha: string) {
+    super(
+      `no recorded round for head ${headSha || '(unknown)'} — ` +
+        `cr orchestrate appends the round entry, so record must follow a dispatch`,
+    );
+    this.name = 'NoRoundForHeadError';
+    this.headSha = headSha;
+  }
+}
+
+/**
+ * Write the seam's counts onto the round it reviewed, identified by `headSha`.
+ *
+ * `cr orchestrate` is the only appender; `record` runs after a fix and annotates.
+ * Two appending writers would have needed a deduplication key, and the only one
+ * available does not work — `record` fingerprints the blockers it just FIXED
+ * while orchestrate fingerprints the NEXT round's, so a `(headSha, fingerprint)`
+ * pair matches only in the no-progress case, and an auto-fix cycle would burn
+ * two entries of a three-entry budget.
+ *
+ * `headSha` is re-pointed to `patch.headSha` (the post-fix tip) because two
+ * readers depend on an entry's head meaning "the tip after this round's fix":
+ * `resolveBaseSha`'s ledger rung and `record`'s own `diffRange` rung.
+ *
+ * Throws {@link NoRoundForHeadError} rather than no-op'ing: a silent miss would
+ * lose the applied/deferred counts that `prior-deferred` reads, and a guard
+ * resting on a count that was never written is a guard that never fires.
+ */
+export async function annotateRound(
+  cwd: string,
+  slug: Slug,
+  kind: ArtifactKind,
+  sessionStartedAt: string,
+  reviewedHead: string,
+  patch: Pick<AutofixRound, 'fixHeadSha' | 'applied' | 'deferred' | 'diffStat'> &
+    Partial<Pick<AutofixRound, 'diffRange' | 'stopped'>>,
+): Promise<AutofixLedger> {
+  const prior = await readLedger(cwd, slug, kind, sessionStartedAt);
+  const target = roundForHead(prior, reviewedHead);
+  if (!prior || !target) throw new NoRoundForHeadError(reviewedHead);
+  const next: AutofixLedger = {
+    ...prior,
+    rounds: prior.rounds.map((r) => (r.round === target.round ? { ...r, ...patch } : r)),
   };
   await mkdir(ledgerDir(cwd), { recursive: true });
   await writeJsonAtomic(ledgerPath(cwd, slug, kind), next);

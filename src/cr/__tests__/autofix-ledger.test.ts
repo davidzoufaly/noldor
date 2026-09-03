@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   AUTOFIX_ROUND_CAP,
   LedgerParseError,
+  NoRoundForHeadError,
+  annotateRound,
   appendRound,
   fingerprintBlockers,
   isSameSeries,
@@ -14,7 +16,11 @@ import {
   ledgerPath,
   quarantineLedger,
   quarantinePath,
+  hasClosingRound,
   readLedger,
+  redRounds,
+  roundVerdict,
+  roundsExcludingHead,
 } from '../autofix-ledger.js';
 import type { AutofixLedger } from '../autofix-ledger.js';
 import { aggregate } from '../aggregate.js';
@@ -236,5 +242,98 @@ describe('quarantineLedger', () => {
 
   it('returns null when there is nothing to rename', async () => {
     expect(await quarantineLedger(cwd, 'absent', 'spec')).toBeNull();
+  });
+});
+
+describe('round verdicts and the red-round count', () => {
+  it('counts only red rounds, so green re-mint dispatches are free', async () => {
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, verdict: 'red' });
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, verdict: 'green' });
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, verdict: 'green' });
+    const led = await readLedger(cwd, 'slug', 'spec', SESSION);
+    expect(led!.rounds).toHaveLength(3);
+    expect(redRounds(led)).toBe(1);
+  });
+
+  it('reads a pre-change entry, which carries no verdict, as red', async () => {
+    writeRaw(
+      JSON.stringify({
+        slug: 'slug',
+        kind: 'spec',
+        sessionStartedAt: SESSION,
+        rounds: [{ ...ROUND, round: 1 }],
+      }),
+    );
+    const led = await readLedger(cwd, 'slug', 'spec', SESSION);
+    expect(led!.rounds[0].verdict).toBeUndefined();
+    expect(roundVerdict(led!.rounds[0])).toBe('red');
+    expect(redRounds(led)).toBe(1);
+  });
+});
+
+describe('round identity', () => {
+  it('excludes the round being decided and keeps every other one', async () => {
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, headSha: 'aaaaaaa' });
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, headSha: 'bbbbbbb' });
+    const led = await readLedger(cwd, 'slug', 'spec', SESSION);
+    expect(roundsExcludingHead(led, 'bbbbbbb').map((r) => r.headSha)).toEqual(['aaaaaaa']);
+    // Identity, not position: excluding the FIRST entry works the same way, which
+    // is what makes the rule safe when the last entry belongs to an older round.
+    expect(roundsExcludingHead(led, 'aaaaaaa').map((r) => r.headSha)).toEqual(['bbbbbbb']);
+  });
+
+  it('compares against every round when no sha identifies the current one', async () => {
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, headSha: 'aaaaaaa' });
+    const led = await readLedger(cwd, 'slug', 'spec', SESSION);
+    expect(roundsExcludingHead(led, '')).toHaveLength(1);
+  });
+});
+
+describe('annotateRound', () => {
+  it('writes the seam counts onto the round with that head, leaving identity alone', async () => {
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, headSha: 'aaaaaaa', applied: 0 });
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, headSha: 'bbbbbbb', applied: 0 });
+    await annotateRound(cwd, 'slug', 'spec', SESSION, 'aaaaaaa', {
+      fixHeadSha: 'ccccccc',
+      applied: 3,
+      deferred: 1,
+      diffStat: '2 files changed',
+    });
+    const led = await readLedger(cwd, 'slug', 'spec', SESSION);
+    expect(led!.rounds).toHaveLength(2);
+    expect(led!.rounds[0]).toMatchObject({
+      headSha: 'aaaaaaa',
+      fixHeadSha: 'ccccccc',
+      applied: 3,
+      deferred: 1,
+    });
+    // The later round is untouched — a delayed record cannot claim it.
+    expect(led!.rounds[1]).toMatchObject({ headSha: 'bbbbbbb', applied: 0, deferred: 0 });
+  });
+
+  it('throws rather than silently dropping counts when no round carries that head', async () => {
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, headSha: 'aaaaaaa' });
+    await expect(
+      annotateRound(cwd, 'slug', 'spec', SESSION, 'zzzzzzz', {
+        fixHeadSha: 'ccccccc',
+        applied: 1,
+        deferred: 0,
+        diffStat: '',
+      }),
+    ).rejects.toBeInstanceOf(NoRoundForHeadError);
+  });
+});
+
+describe('hasClosingRound', () => {
+  it('reports a spent closing round for a real session', async () => {
+    await appendRound(cwd, 'slug', 'spec', SESSION, { ...ROUND, closingRound: true });
+    expect(hasClosingRound(await readLedger(cwd, 'slug', 'spec', SESSION), SESSION)).toBe(true);
+  });
+
+  it('never reports one for a sessionless series, which would be a permanent lockout', async () => {
+    await appendRound(cwd, 'slug', 'spec', '', { ...ROUND, closingRound: true });
+    // Sessionless runs share one empty key, so honouring the sentinel here would
+    // let one run refuse every future sessionless dispatch for the pair forever.
+    expect(hasClosingRound(await readLedger(cwd, 'slug', 'spec', ''), '')).toBe(false);
   });
 });

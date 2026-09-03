@@ -1,4 +1,9 @@
-import { AUTOFIX_ROUND_CAP, fingerprintBlockers } from './autofix-ledger.js';
+import {
+  AUTOFIX_ROUND_CAP,
+  fingerprintBlockers,
+  redRounds,
+  roundsExcludingHead,
+} from './autofix-ledger.js';
 import type { AutofixLedger } from './autofix-ledger.js';
 import type { LaneBlocker } from './aggregate.js';
 import { isSha } from '../core/sha.js';
@@ -108,7 +113,10 @@ function resolveBaseSha(ledger: AutofixLedger | null, headSha: string): string {
   // option-shaped value on either rung would ride straight through. `headSha`
   // normally arrives from `git rev-parse` (a sha or ''), but `decide` is an
   // exported seam and cannot assume its caller.
-  const priorHead = ledger?.rounds.at(-1)?.headSha ?? '';
+  // `fixHeadSha` first: the ledger rung wants the tip AFTER that round's fix,
+  // which is what `record` annotated. `headSha` is the head the round reviewed.
+  const last = ledger?.rounds.at(-1);
+  const priorHead = last?.fixHeadSha ?? last?.headSha ?? '';
   if (isSha(headSha)) return headSha;
   return isSha(priorHead) ? priorHead : '';
 }
@@ -128,8 +136,23 @@ export function decide(input: DecideInput): DecideResult {
   const { mechanical, design } = splitByClass(input.blockers);
   const fingerprint = fingerprintBlockers(input.blockers);
   const baseSha = resolveBaseSha(input.ledger, input.headSha);
-  const priorRounds = input.ledger?.rounds ?? [];
-  const round = priorRounds.length + 1;
+  // EXCLUDE the entry for the head being decided, by identity rather than by
+  // position. `cr orchestrate` appends this round's entry before the seam runs,
+  // so both ledger rules below would otherwise read state the current round
+  // itself wrote: `no-progress` would match the fingerprint orchestrate hashed
+  // moments earlier over the very same sinks and decline on EVERY round, and
+  // `prior-deferred` would read orchestrate's placeholder `deferred: 0` instead
+  // of the preceding annotated round's real count. Position is not a safe proxy
+  // — `plan` can run over sinks no dispatch produced, and there the last entry
+  // belongs to an earlier round whose blockers must still be compared.
+  const priorRounds = roundsExcludingHead(input.ledger, input.headSha);
+  // The CAP counts every entry, red only — that shared budget is the point of
+  // orchestrate writing rounds at all. `round` is the printed counter, so it
+  // reports red rounds too: counting entries here while orchestrate counts red
+  // ones would print a numerator above its own denominator as soon as a green
+  // re-mint round landed.
+  const redSoFar = redRounds(input.ledger);
+  const round = redSoFar + 1;
 
   const base = { mechanical, design, baseSha, fingerprint, round } as const;
   const decline = (reason: DeclineReason): DecideResult => ({
@@ -158,7 +181,11 @@ export function decide(input: DecideInput): DecideResult {
   // clean round 2 must still block round 3, or raising the cap reopens the
   // laundering path above.
   if (priorRounds.some((r) => r.deferred > 0)) return decline('prior-deferred');
-  if (priorRounds.length >= AUTOFIX_ROUND_CAP) return decline('round-cap');
+  // Red rounds, not entries. A green dispatch arbitrates nothing — the
+  // `HEAD^{tree}`-bound receipt is stripped by every fix commit, so a session
+  // routinely runs green finding-nothing rounds purely to re-mint it, and none
+  // of those may cost budget.
+  if (redSoFar >= AUTOFIX_ROUND_CAP) return decline('round-cap');
   // The same blocker set coming back means the previous fix did not take.
   // Checked before `no-mechanical` so a repeat round reports why it is futile
   // rather than merely reporting nothing left to fix. Matched against EVERY prior

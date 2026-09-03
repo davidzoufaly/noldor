@@ -5,6 +5,18 @@ import { copyFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
 import { writeExpectedLanes } from './expected-lanes.js';
+import { aggregate } from './aggregate.js';
+import {
+  AUTOFIX_ROUND_CAP,
+  appendRound,
+  fingerprintBlockers,
+  hasClosingRound,
+  readLedger,
+  redRounds,
+  roundVerdict,
+  sessionKey,
+} from './autofix-ledger.js';
+import type { AutofixLedger } from './autofix-ledger.js';
 import {
   DEFAULT_CR_LANES,
   loadConfig,
@@ -296,6 +308,53 @@ export interface RunResult {
   exitCode: number;
 }
 
+/** Orchestrate refused to dispatch because the round budget is spent. */
+export const EXIT_ROUND_CAP = 3;
+
+/**
+ * Whether this dispatch is refused, and whether it is the one closing round.
+ *
+ * Refuse when red rounds exceed the cap AND either `HEAD` matches the last
+ * recorded round's head (nothing was fixed since the cap was hit) or the series
+ * already spent its closing round. Otherwise a changed head past the cap IS the
+ * closing round: the operator committed a fix, and the receipt shape on record
+ * — red final round, fix, one dispatch that finds nothing — needs exactly one
+ * more pass or the session is wedged with no receipt and no way to earn one.
+ */
+export function capVerdict(
+  ledger: AutofixLedger | null,
+  sessionStartedAt: string,
+  headSha: string,
+): { refuse: boolean; closingRound: boolean } {
+  if (redRounds(ledger) <= AUTOFIX_ROUND_CAP) return { refuse: false, closingRound: false };
+  const lastHead = ledger?.rounds.at(-1)?.headSha ?? '';
+  const headUnchanged = headSha !== '' && headSha === lastHead;
+  if (headUnchanged || hasClosingRound(ledger, sessionStartedAt)) {
+    return { refuse: true, closingRound: false };
+  }
+  return { refuse: false, closingRound: true };
+}
+
+/** The refusal banner: what was spent, and the two ways out. */
+export function renderCapRefusal(
+  ledger: AutofixLedger | null,
+  slug: string,
+  kind: ArtifactKind,
+): string {
+  const rows = (ledger?.rounds ?? []).map(
+    (r) =>
+      `  ${r.round}  ${roundVerdict(r).padEnd(5)}  ${r.applied} applied, ${r.deferred} deferred  ${r.headSha.slice(0, 7) || '(no sha)'}`,
+  );
+  return [
+    `red rounds ${redRounds(ledger)}/${AUTOFIX_ROUND_CAP + 1} for ${slug} (${kind}) — cap reached`,
+    ...rows,
+    'HEAD is unchanged since the last round, or the closing round is spent, so no',
+    'further round will be dispatched. To close: commit the remaining fixes and',
+    're-review — that earns one closing round — or record the arbitration:',
+    '  git commit --amend --no-edit --trailer "Noldor-Path-Override: <why>"',
+  ].join('\n');
+}
+
 export async function run(opts: RunOpts): Promise<RunResult> {
   const cwd = opts.cwd ?? process.cwd();
   const cfg = await loadConfig(join(cwd, '.noldor', 'config.json')).catch(() => null);
@@ -375,6 +434,25 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     (await execAsync('git', ['rev-parse', 'HEAD'], { cwd })
       .then((r) => r.stdout.trim())
       .catch(() => ''));
+  // ROUND BUDGET, checked before anything is dispatched. The ledger read fails
+  // OPEN in every direction: an unreadable or malformed file leaves the cap
+  // inert for this round rather than refusing a round the operator needs, since
+  // a missed cap costs one dispatch while a false cap costs the ship.
+  const roundKey = sessionKey(cwd);
+  let ledger: AutofixLedger | null = null;
+  try {
+    ledger = await readLedger(cwd, opts.args.slug, opts.args.kind, roundKey);
+  } catch (err) {
+    console.error(
+      `round ledger unreadable — cap not enforced this round: ${(err as Error).message}`,
+    );
+  }
+  const cap = capVerdict(ledger, roundKey, headSha);
+  if (cap.refuse) {
+    console.error(renderCapRefusal(ledger, opts.args.slug, opts.args.kind));
+    return { lanesRun: [], syntheticOks: [], exitCode: EXIT_ROUND_CAP };
+  }
+
   const input: LaneInput = {
     slug: opts.args.slug,
     artifact: opts.args.artifact,
@@ -537,6 +615,31 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       console.error(`receipt amend failed: ${(err as Error).message}`);
       exitCode = 1;
     }
+  }
+
+  // Record the round LAST, and for a closing round only after the receipt amend
+  // above has succeeded: marking the closing round first would let a crash — or
+  // a failed amend — leave a session with neither a receipt nor a permitted
+  // retry, which is the wedge the closing round exists to prevent.
+  //
+  // `verdict` follows this round's aggregate rather than `exitCode`, because the
+  // exit code also carries a failed receipt amend, which is not a review finding.
+  // A dispatch that throws before here appends nothing and stays retryable, and
+  // a failed append is logged without touching the round's own result: the cap
+  // then under-counts, the safe direction.
+  try {
+    const agg = await aggregate(opts.args.slug, opts.args.kind, { cwd });
+    await appendRound(cwd, opts.args.slug, opts.args.kind, roundKey, {
+      headSha,
+      fingerprint: fingerprintBlockers(agg.blockers),
+      verdict: agg.ok ? 'green' : 'red',
+      applied: 0,
+      deferred: 0,
+      diffStat: '',
+      ...(cap.closingRound && exitCode === 0 ? { closingRound: true } : {}),
+    });
+  } catch (err) {
+    console.error(`round not recorded — cap will under-count: ${(err as Error).message}`);
   }
 
   return { lanesRun, syntheticOks, exitCode };

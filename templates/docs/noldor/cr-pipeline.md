@@ -514,6 +514,30 @@ More sink/receipt traps:
   (`rm .noldor/cr/<slug>-code-*.json`) and re-run
   `cr orchestrate --kind code --base-sha origin/main` to review the new tree
   and mint a fresh receipt on the tip.
+## Round budget
+
+`cr orchestrate` appends one entry per resolved dispatch to
+`.noldor/cr/autofix/<slug>-<kind>.json` and refuses to dispatch once the budget
+is spent, exiting **3** with the round history and the way out. `cr autofix
+record` no longer appends — it annotates the round it reviewed, matched by head
+— so the seam and the operator draw from one budget rather than two counts that
+could not see each other.
+
+Only **red** rounds count, against `AUTOFIX_ROUND_CAP + 1` (three: the initial
+pass plus two re-rounds). A green dispatch arbitrates nothing and is free,
+however many run, which is what keeps receipt re-earns from spending budget.
+
+Past the cap the refusal lifts exactly once, when `HEAD` differs from the last
+recorded round's — the operator committed a fix. That closing round is
+terminal: green mints the receipt and the session ships, red refuses every
+dispatch after it, and the only remaining exit is the arbitration override.
+
+Everything about the count fails **open**: an unreadable or malformed ledger
+leaves the cap inert for that round, and a failed append under-counts. A missed
+cap costs one dispatch; a false cap costs the ship. A series with no session
+marker never records the closing-round sentinel, since one sessionless run
+would otherwise lock out every future sessionless dispatch for the pair.
+
 - **`cr escalate` `override-with-trailer` stamps nothing.** It prints
   `escalate outcome: override` and exits — the receipt hook exempts only on a
   `Noldor-Path-Override` trailer on the TIP commit
@@ -550,6 +574,9 @@ More sink/receipt traps:
   4th dispatch that found nothing, purely to mint a receipt on the new tip.
   This is not a cap violation — the cap and the receipt count different things
   — but it is invisible when planning the round budget. (2026-08-24, Q-0158)
+  Since Q-0170 the cap accounts for it rather than leaving it to arithmetic: a
+  green round does not count, and past the cap a commit that changes `HEAD`
+  earns one closing round. That dispatch is the receipt re-earn.
 
 Two traps in how a round's result is read:
 

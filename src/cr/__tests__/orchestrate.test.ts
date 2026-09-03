@@ -18,6 +18,7 @@ vi.mock('../lanes/render-compare.js', () => ({
   runRenderCompare: vi.fn(async () => ({ lane: 'render-compare', sinkPath: 'rc', ok: true })),
 }));
 import { resolveLanes, run } from '../orchestrate.js';
+import { ledgerDir, ledgerPath } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';
 import { setSmokeRunner } from '../lanes/verify.js';
 import { setVerifyDispatcher } from '../lanes/verify-dispatch.js';
@@ -756,5 +757,151 @@ describe('render-compare lane wiring', () => {
     });
     expect(vi.mocked(runRenderCompare)).toHaveBeenCalledTimes(1);
     expect(result.lanesRun).toContain('render-compare');
+  });
+});
+
+describe('round budget (Q-0170)', () => {
+  const ARGS = {
+    slug: 'x',
+    artifact: 'docs/x.md',
+    kind: 'spec',
+    lanes: ['reviewer'],
+    fullReview: false,
+    autonomous: false,
+  } as const;
+
+  /** Ledger entries as prior rounds, written the way orchestrate writes them. */
+  async function seedRounds(
+    rounds: Array<{ headSha: string; verdict?: 'green' | 'red'; closingRound?: boolean }>,
+    session = '',
+  ): Promise<void> {
+    await mkdir(ledgerDir(root), { recursive: true });
+    await writeFile(
+      ledgerPath(root, 'x' as never, 'spec'),
+      JSON.stringify({
+        slug: 'x',
+        kind: 'spec',
+        sessionStartedAt: session,
+        rounds: rounds.map((r, i) => ({
+          round: i + 1,
+          headSha: r.headSha,
+          fingerprint: `seed-${i}`,
+          verdict: r.verdict ?? 'red',
+          applied: 0,
+          deferred: 0,
+          diffStat: '',
+          ...(r.closingRound ? { closingRound: true } : {}),
+        })),
+      }),
+      'utf8',
+    );
+  }
+
+  async function ledgerRounds(): Promise<Array<Record<string, unknown>>> {
+    return JSON.parse(await readFile(ledgerPath(root, 'x' as never, 'spec'), 'utf8')).rounds;
+  }
+
+  it('records the FIRST dispatch, which is what makes the counter bootstrap', async () => {
+    const r = await run({ args: { ...ARGS, headSha: 'aaaaaaa' }, cwd: root });
+    expect(r.exitCode).toBe(0);
+    const rounds = await ledgerRounds();
+    expect(rounds).toHaveLength(1);
+    expect(rounds[0]).toMatchObject({ headSha: 'aaaaaaa', round: 1 });
+  });
+
+  it('takes the verdict from the round aggregate, not from the exit code', async () => {
+    // The mocked reviewer lane resolves ok but writes no sink, so `aggregate`
+    // reports it unresolved and the round is red even though `run` exits 0.
+    // That split is the point: the exit code also carries a failed receipt
+    // amend, which is not a review finding.
+    const red = await run({ args: { ...ARGS, headSha: 'aaaaaaa' }, cwd: root });
+    expect(red.exitCode).toBe(0);
+    expect((await ledgerRounds())[0]).toMatchObject({ verdict: 'red' });
+
+    // A resolved sink with no blockers is what green actually means.
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [],
+        suggestions: [],
+        summary: 'approve',
+        startedAt: '2026-09-03T00:00:00.000Z',
+        finishedAt: '2026-09-03T00:00:01.000Z',
+      }),
+      'utf8',
+    );
+    await run({ args: { ...ARGS, headSha: 'bbbbbbb', autonomous: true }, cwd: root });
+    expect((await ledgerRounds()).at(-1)).toMatchObject({
+      headSha: 'bbbbbbb',
+      verdict: 'green',
+    });
+  });
+
+  it('refuses past the cap when HEAD is unchanged, and names the way out', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
+    const r = await run({ args: { ...ARGS, headSha: 'ccccccc' }, cwd: root });
+    expect(r.exitCode).toBe(3);
+    expect(r.lanesRun).toEqual([]);
+    const said = spy.mock.calls.flat().join('\n');
+    expect(said).toContain('cap reached');
+    expect(said).toContain('Noldor-Path-Override');
+    spy.mockRestore();
+  });
+
+  it('green rounds never advance the budget, however many run', async () => {
+    await seedRounds([
+      { headSha: 'aaaaaaa', verdict: 'red' },
+      { headSha: 'bbbbbbb', verdict: 'green' },
+      { headSha: 'ccccccc', verdict: 'green' },
+      { headSha: 'ddddddd', verdict: 'green' },
+    ]);
+    const r = await run({ args: { ...ARGS, headSha: 'ddddddd' }, cwd: root });
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('spends one closing round when a fix changed HEAD past the cap', async () => {
+    await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
+    const r = await run({ args: { ...ARGS, headSha: 'ddddddd' }, cwd: root });
+    expect(r.exitCode).toBe(0);
+    expect((await ledgerRounds()).at(-1)).toMatchObject({
+      headSha: 'ddddddd',
+      closingRound: true,
+    });
+  });
+
+  it('refuses every dispatch after the closing round, even at a new HEAD', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await seedRounds(
+      [
+        { headSha: 'aaaaaaa' },
+        { headSha: 'bbbbbbb' },
+        { headSha: 'ccccccc' },
+        { headSha: 'ddddddd', closingRound: true },
+      ],
+      'S1',
+    );
+    writeFileSync(
+      join(root, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'fast-track', startedAt: 'S1' }),
+      'utf8',
+    );
+    const r = await run({ args: { ...ARGS, headSha: 'eeeeeee' }, cwd: root });
+    expect(r.exitCode).toBe(3);
+    spy.mockRestore();
+  });
+
+  it('leaves the cap inert when the ledger cannot be parsed', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await mkdir(ledgerDir(root), { recursive: true });
+    await writeFile(ledgerPath(root, 'x' as never, 'spec'), '{ not json', 'utf8');
+    // Fail-open: a missed cap costs one dispatch, a false cap costs the ship.
+    const r = await run({ args: { ...ARGS, headSha: 'aaaaaaa' }, cwd: root });
+    expect(r.exitCode).toBe(0);
+    spy.mockRestore();
   });
 });

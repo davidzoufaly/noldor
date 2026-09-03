@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { ledgerDir, ledgerPath, quarantinePath } from '../autofix-ledger.js';
+import { fingerprintBlockers, ledgerDir, ledgerPath, quarantinePath } from '../autofix-ledger.js';
 import type { Finding, Lane } from '../findings-schema.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/noldor.mjs');
@@ -65,6 +65,41 @@ function writeSink(
     }),
     'utf8',
   );
+}
+
+/**
+ * Write the ledger entries `cr orchestrate` would have appended before the seam
+ * runs. `record` annotates an existing round rather than appending one, so a
+ * `record` with no seeded dispatch is an error, not a first round.
+ */
+function seedRounds(
+  rounds: Array<{ headSha: string; verdict?: 'green' | 'red'; fingerprint?: string }>,
+  session: string = SESSION,
+): void {
+  mkdirSync(ledgerDir(cwd), { recursive: true });
+  writeFileSync(
+    ledgerPath(cwd, 'slug' as never, 'spec'),
+    JSON.stringify({
+      slug: 'slug',
+      kind: 'spec',
+      sessionStartedAt: session,
+      rounds: rounds.map((r, i) => ({
+        round: i + 1,
+        headSha: r.headSha,
+        fingerprint: r.fingerprint ?? `seed-${i}`,
+        verdict: r.verdict ?? 'red',
+        applied: 0,
+        deferred: 0,
+        diffStat: '',
+      })),
+    }),
+    'utf8',
+  );
+}
+
+/** `HEAD` in the test repo — the head an orchestrate round would have reviewed. */
+function head(): string {
+  return execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
 }
 
 function setConfig(onBlockers: string | null): void {
@@ -156,7 +191,7 @@ describe('cr autofix plan', () => {
     expect(field(r.stdout, 'verdict')).toBe('auto-fix');
     expect(field(r.stdout, 'reason')).toBe('-');
     expect(field(r.stdout, 'base-sha')).toMatch(/^[0-9a-f]{40}$/);
-    expect(field(r.stdout, 'round')).toBe('1/2');
+    expect(field(r.stdout, 'round')).toBe('1/3');
     expect(field(r.stdout, 'mechanical')).toBe('2');
     expect(r.stdout).toContain('M1 a.md [reviewer] — missing section');
     expect(field(r.stdout, 'design')).toBe('0');
@@ -243,6 +278,7 @@ describe('cr autofix plan', () => {
 
 describe('cr autofix record', () => {
   it('records a round and exits 0', () => {
+    seedRounds([{ headSha: head() }]);
     writeSink('reviewer', 'spec', [MECH]);
     const r = run(
       'record',
@@ -256,7 +292,7 @@ describe('cr autofix record', () => {
       '0',
     );
     expect(r.status).toBe(0);
-    expect(r.stdout).toContain('round 1/2 recorded');
+    expect(r.stdout).toContain('round 1/3 recorded');
     const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
     expect(led.sessionStartedAt).toBe(SESSION);
     expect(led.rounds).toHaveLength(1);
@@ -284,6 +320,7 @@ describe('cr autofix record', () => {
   });
 
   it('records the design remainder as deferred when the counts agree', () => {
+    seedRounds([{ headSha: head() }]);
     writeSink('reviewer', 'spec', [MECH, DESIGN]);
     const r = run(
       'record',
@@ -303,6 +340,7 @@ describe('cr autofix record', () => {
   });
 
   it('counts an unapplied mechanical blocker as deferred', () => {
+    seedRounds([{ headSha: head() }]);
     writeSink('reviewer', 'spec', [MECH, { ...MECH, message: 'second' }]);
     run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '1');
     const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
@@ -332,8 +370,9 @@ describe('cr autofix record', () => {
   });
 
   it('records the diff range it measured, and honours --since over the ladder', () => {
+    const reviewed = head();
+    seedRounds([{ headSha: reviewed }]);
     writeSink('reviewer', 'spec', [MECH]);
-    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
     const r = run(
       'record',
       '--slug',
@@ -345,12 +384,12 @@ describe('cr autofix record', () => {
       '--deferred',
       '0',
       '--since',
-      head,
+      reviewed,
     );
     expect(r.status).toBe(0);
-    expect(r.stdout).toContain(`(${head}..HEAD)`);
+    expect(r.stdout).toContain(`(${reviewed}..HEAD)`);
     const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
-    expect(led.rounds[0].diffRange).toBe(`${head}..HEAD`);
+    expect(led.rounds[0].diffRange).toBe(`${reviewed}..HEAD`);
   });
 
   it('exits 2 on a --since that is not a hex sha, before it reaches git', () => {
@@ -376,6 +415,9 @@ describe('cr autofix record', () => {
   });
 
   it('falls back to HEAD~1..HEAD on round 1 without --since, and says so', () => {
+    // No `fixHeadSha` on the seeded round, and its `headSha` is not a sha, so
+    // both authoritative rungs miss and the lossy last rung is what measures.
+    seedRounds([{ headSha: 'not-a-sha' }]);
     writeSink('reviewer', 'spec', [MECH]);
     run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
     const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
@@ -383,6 +425,7 @@ describe('cr autofix record', () => {
   });
 
   it('carries --stopped through to the ledger', () => {
+    seedRounds([{ headSha: head() }]);
     writeSink('reviewer', 'spec', [MECH]);
     run(
       'record',
@@ -403,21 +446,51 @@ describe('cr autofix record', () => {
 });
 
 describe('cr autofix — the loop', () => {
-  it('declines no-progress on a second plan against unchanged blockers', () => {
+  it('declines no-progress when an EARLIER round already saw this blocker set', () => {
     writeSink('reviewer', 'spec', [MECH]);
-    expect(run('plan', '--slug', 'slug', '--kind', 'spec').status).toBe(0);
-    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
+    // Round 1 reviewed a different head and recorded this fingerprint; round 2's
+    // own entry sits at the current head and is excluded by identity, so the
+    // match has to come from round 1 — which is what the rule is for.
+    // One red round is under the cap, so `round-cap` cannot pre-empt the rule
+    // under test — the ordering in `decide` puts the cap first.
+    seedRounds([{ headSha: 'aaaaaaa', fingerprint: fingerprintBlockers([MECH]) }]);
     const second = run('plan', '--slug', 'slug', '--kind', 'spec');
     expect(second.status).toBe(10);
     expect(field(second.stdout, 'reason')).toBe('no-progress');
   });
 
-  it('declines round-cap after two recorded rounds in the same session', () => {
+  it("does NOT decline no-progress against the current round's own entry", () => {
     writeSink('reviewer', 'spec', [MECH]);
-    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
-    writeSink('reviewer', 'spec', [{ ...MECH, message: 'different' }]);
-    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
+    // `cr orchestrate` appends this round's entry — hashed over the same sinks
+    // `plan` is about to read — before the seam runs. Matching it would decline
+    // every round and the auto-fix path would never run again.
+    seedRounds([{ headSha: head(), fingerprint: fingerprintBlockers([MECH]), verdict: 'red' }]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(0);
+    expect(field(r.stdout, 'reason')).toBe('-');
+  });
+
+  it('does not count green rounds toward the cap', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    // Two red rounds would be the cap; four greens between them change nothing,
+    // because a green dispatch arbitrates nothing — it re-mints a receipt.
+    seedRounds([
+      { headSha: 'aaaaaaa', verdict: 'red' },
+      { headSha: 'bbbbbbb', verdict: 'green' },
+      { headSha: 'ccccccc', verdict: 'green' },
+      { headSha: head(), verdict: 'green' },
+    ]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(0);
+    expect(field(r.stdout, 'round')).toBe('2/3');
+  });
+
+  it('declines round-cap after two RED rounds in the same session', () => {
     writeSink('reviewer', 'spec', [{ ...MECH, message: 'third' }]);
+    seedRounds([
+      { headSha: 'aaaaaaa', verdict: 'red' },
+      { headSha: 'bbbbbbb', verdict: 'red' },
+    ]);
     const r = run('plan', '--slug', 'slug', '--kind', 'spec');
     expect(r.status).toBe(10);
     expect(field(r.stdout, 'reason')).toBe('round-cap');
@@ -436,18 +509,35 @@ describe('cr autofix — the loop', () => {
     );
     const r = run('plan', '--slug', 'slug', '--kind', 'spec');
     expect(r.status).toBe(0);
-    expect(field(r.stdout, 'round')).toBe('1/2');
+    expect(field(r.stdout, 'round')).toBe('1/3');
   });
 
-  it("uses the prior round's headSha as base-sha on round 2", () => {
+  it("falls back to the prior round's fixHeadSha when git gives no HEAD", () => {
     writeSink('reviewer', 'spec', [MECH]);
+    seedRounds([{ headSha: 'aaaaaaa' }]);
     run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
-    const recordedHead = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8')).rounds[0]
-      .headSha;
-    writeSink('reviewer', 'spec', [{ ...MECH, message: 'different' }]);
-    expect(field(run('plan', '--slug', 'slug', '--kind', 'spec').stdout, 'base-sha')).toBe(
-      recordedHead,
+    const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
+    // `record` annotated the seeded round with the post-fix tip and left the
+    // reviewed head — the entry's identity — alone.
+    expect(led.rounds[0].headSha).toBe('aaaaaaa');
+    expect(led.rounds[0].fixHeadSha).toBe(head());
+  });
+
+  it('exits 2 when record has no dispatched round to annotate', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    const r = run(
+      'record',
+      '--slug',
+      'slug',
+      '--kind',
+      'spec',
+      '--applied',
+      '1',
+      '--deferred',
+      '0',
     );
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('no recorded round for head');
   });
 });
 

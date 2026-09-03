@@ -32,3 +32,32 @@ export const MIN_STRUCTURAL_CONTEXT_CHARS = 24;
 
 /** The marker that records a deliberate skip. Same spelling `/noldor-refactor` greps. */
 export const CUT_MARKER = 'noldor:cut';
+
+/**
+ * The marker grammar in full, as an author writes it in code.
+ *
+ * Built from {@link CUT_MARKER} rather than restating it, because the two used
+ * to be independent literals in different modules — this one in
+ * `src/cr/lanes/subagent-dispatch.ts`, the bare token here — for one contract.
+ * The author half lives as prose in `.noldor/rules/lazy-decision-ladder.md` (+
+ * its templates twin), and the subagent-dispatch test asserts the rule file
+ * contains this exact string, so a rename in either place fails the suite
+ * instead of letting review lanes enforce a stale grammar.
+ */
+export const CUT_MARKER_TOKEN = `${CUT_MARKER} <ceiling> — <upgrade path>`;
+
+/**
+ * What a review lane is told about a marked cut. ONE definition, read by both
+ * the reviewer lane (`subagent-dispatch.ts`) and the codex lane
+ * (`run-codex.ts`) — codex carried no cut guide at all until this landed, which
+ * is why it re-flagged documented cut sites five times in a single Q-0146
+ * review while the reviewer left them alone.
+ *
+ * Phrased without naming any dimension. The reviewer prompt promises "these
+ * dimensions only", so a dimension name here would either invite findings
+ * against an out-of-scope dimension or read as scoping the waiver. The
+ * never-exempt sentence mirrors the rule file's five never-cut carve-outs
+ * semantically — defect, vulnerability, race, unintended state change,
+ * accessibility, explicitly-requested behaviour.
+ */
+export const CUT_MARKER_GUIDE = `\nRespect \`${CUT_MARKER_TOKEN}\` markers: a marked cut is a deliberate decision. When a finding argues the code should be simpler, leaner, faster, placed at a different layer, or reuse something existing, do not flag the marked cut itself — flag only a wrong ceiling or a real cut left unmarked. A marker never waives a finding about a defect, a vulnerability, a race, an unintended state change, an accessibility regression, or explicitly-requested behaviour that was cut.\n`;
