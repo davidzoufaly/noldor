@@ -119,6 +119,48 @@ try {
     const label = wiring.advisory ? 'warn' : 'unwired';
     console.log(`${label.padEnd(10)} ${wiring.rootName}: ${wiring.detail}`);
   }
+  // Arm the indirection ratchet. The hook block copied above runs `indirection
+  // check`, which reports green on an absent baseline by design — so without
+  // this the guard is installed and inert in every consumer install, forever.
+  // `init` is the right seam rather than `upgrade`: `upgrade` sends every
+  // consumer here to re-pull the hook block (a pre-1.7 `lefthook/noldor.yml`
+  // has no `noldor-indirection` job at all), and it is also the only command a
+  // fresh scaffold ever runs — `init` stamps the anchor as current, so
+  // `upgrade` reports "nothing to do" there and would never fire.
+  // Advisory: neither a corpus dependency-cruiser cannot parse nor an
+  // unwritable `.noldor/` may fail `init` — `seedBaselineIfAbsent` converts both
+  // into an outcome rather than a throw, so the scaffold always reaches the
+  // framework-anchor stamp below.
+  // Both imports are deferred to keep `init` cheap — the nested one especially,
+  // so a repo that already has a baseline never loads dependency-cruiser at
+  // all. It does NOT buy back the closure: dependency-cruiser counts a dynamic
+  // edge like a static one, so this seam costs `init.ts` 6 units of indirection
+  // either way and the repo baseline is re-recorded alongside it. Reaching the
+  // ratchet's own module is what arming it means; spawning a subprocess to dodge
+  // the number would be worse code for a smaller integer.
+  // The clones ratchet has the identical hole and is deliberately NOT seeded
+  // here: `clones check` also reports green on an absent baseline, but arming a
+  // duplication ceiling in every consumer is a behaviour change beyond seeding
+  // and wants its own decision rather than a silent ride-along on this one.
+  // Captured in `ideas.md`; a third ratchet is where these two call sites earn
+  // a shared seam.
+  const { BASELINE_FILE, seedBaselineIfAbsent } = await import('../../indirection/baseline.js');
+  const seed = await seedBaselineIfAbsent(consumer, async (cwd) => {
+    const { runIndirection } = await import('../../indirection/indirection-cli.js');
+    return runIndirection(['baseline'], cwd);
+  });
+  // One tail per outcome: only the throw path leaves the ratchet green. The
+  // other two make the consumer's next `indirection check` exit 3, so telling
+  // them "stays green" would send them to the wrong repair. See `SeedOutcome`.
+  const seedWarning =
+    seed.kind === 'unreadable'
+      ? `unreadable — ${seed.message}; 'noldor indirection check' will FAIL with exit 3 until you re-record it with 'noldor indirection baseline' (or delete the file)`
+      : seed.kind === 'recorder-refused'
+        ? `could not measure the corpus (exit ${seed.code}); 'noldor indirection check' will FAIL with exit 3 for the same reason — run 'noldor indirection report' to see it`
+        : seed.kind === 'recorder-threw'
+          ? `not written — ${seed.message}; the indirection ratchet stays green (no baseline) until you run 'noldor indirection baseline'`
+          : null;
+  if (seedWarning !== null) console.log(`warn       ${BASELINE_FILE}: ${seedWarning}`);
   // Stamp the framework version ONLY on a fresh scaffold — a tree with no
   // existing anchor, scaffolded (not `--update`). A fresh scaffold is by
   // definition current, so it owes no migrations. `init --update` (re-pull on

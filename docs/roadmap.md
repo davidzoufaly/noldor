@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Consumer Indirection Baseline Is Never Seeded
-
-- id: Q-0203
-- area: tooling
-- type: fix
-- since: 2026-09-02
-- size: S
-- impact: high
-- confidence: high
-- parent: abstraction-cost-ratchet
-
-PR #411 shipped the abstraction-cost guard into the template — `templates/lefthook/noldor.yml` hard-gates `noldor indirection check` pre-push, `templates/.noldor/rules/abstraction-cost.md` syncs the prose rule, dep-cruiser is bundled in the package — and it is inert in every consumer repo for two independent reasons. (1) Existing consumers hold a pre-#411 copy of `lefthook/noldor.yml`; charuy's stops at `noldor-clones` with no `noldor-indirection` line, and nothing re-copies the template until an upgrade does. (2) Even with the hook installed, `check` exits 0 green on an absent baseline (`src/indirection/indirection-cli.ts` exit table, a deliberate fail-open), and no init/upgrade/migration step seeds `.noldor/indirection-baseline.json` — charuy has `clones-baseline.json` but no indirection one, so the ratchet can never red there. Fix = baseline seeding on the consumer upgrade path (run `noldor indirection baseline` when the file is absent), mirroring however `clones-baseline.json` got seeded. Ranked at the top of the file on the vision's standing adoption tie-breaker rather than on score alone: a guard that reports green in 100% of consumer installs is an adoption defect, not internal polish. Deletion test: a fresh consumer upgrade leaves a repo where `noldor indirection check` compares against a recorded baseline, not the no-baseline green branch. (found 2026-08-31)
-
 ### PR Body Lists Only One Plan Part
 
 - id: Q-0205

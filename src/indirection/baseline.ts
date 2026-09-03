@@ -10,7 +10,7 @@
  * framework does not own.
  */
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { z } from 'zod';
 
@@ -119,6 +119,75 @@ export function readBaseline(path: string): BaselineRead {
 export function writeBaseline(path: string, baseline: IndirectionBaseline): void {
   mkdirSync(dirname(path), { recursive: true });
   atomicWriteFileSync(path, `${JSON.stringify(baseline, null, 2)}\n`);
+}
+
+/**
+ * The four failure shapes are kept apart because each leaves the consumer's
+ * NEXT `indirection check` in a different state, and a caller's warning is only
+ * useful if it names the right one:
+ *
+ * - `unreadable` — the file is there and unparseable. `check` reports
+ *   `could-not-look` and exits 3; the next push hard-fails until it is
+ *   re-recorded or deleted.
+ * - `recorder-refused` — recording ran and declined (always exit 3 today), and
+ *   every cause it declines for is evaluated before the subcommand split: usage,
+ *   unresolvable scan roots, no parser, unresolved in-scope imports. So `check`
+ *   hits the same branch and also exits 3, for the same reason.
+ * - `recorder-threw` — nothing was written, so the baseline stays absent and
+ *   `check` takes the fail-open branch: green, ratchet inert.
+ */
+export type SeedOutcome =
+  | { readonly kind: 'already-recorded' }
+  | { readonly kind: 'recorded' }
+  | { readonly kind: 'unreadable'; readonly message: string }
+  | { readonly kind: 'recorder-refused'; readonly code: number }
+  | { readonly kind: 'recorder-threw'; readonly message: string };
+
+/**
+ * Record a baseline on a repo that has never recorded one — the seam that arms
+ * the ratchet on a consumer install.
+ *
+ * `indirection check` reports green on an absent baseline deliberately (a repo
+ * mid-adoption must not be hard-blocked by a file no command has written yet),
+ * and nothing else in the flow ever closes that branch. So a consumer whose
+ * pre-push block runs `check` gets a green verdict on every push forever,
+ * against a ceiling that does not exist — the guard is installed and inert.
+ *
+ * The recorder is a parameter rather than an import for two reasons:
+ * `indirection-cli` imports this module, so importing it back would close a
+ * cycle; and recording means running dependency-cruiser over the whole corpus,
+ * which is the boundary a caller defers (nothing is loaded when the baseline is
+ * already present) and a test fakes.
+ *
+ * Never overwrites. A present-but-unreadable baseline is left alone for `check`
+ * to report as exit 3: replacing it here would silently re-record the ceiling a
+ * red was about to be measured against.
+ *
+ * Never throws either, which is the load-bearing half of the contract: callers
+ * arm the ratchet as one step of a longer command, and a repo whose baseline
+ * could not be written must still finish that command.
+ */
+export async function seedBaselineIfAbsent(
+  cwd: string,
+  record: (cwd: string) => Promise<number>,
+): Promise<SeedOutcome> {
+  const prior = readBaseline(join(cwd, BASELINE_FILE));
+  if (prior.kind === 'ok') return { kind: 'already-recorded' };
+  if (prior.kind === 'unreadable') return { kind: 'unreadable', message: prior.message };
+  let code: number;
+  try {
+    code = await record(cwd);
+  } catch (e) {
+    // The recorder is a filesystem boundary as well as a parser one: recording
+    // ends in `writeBaseline`, which does `mkdirSync` + an atomic rename, so
+    // EACCES or ENOSPC on `.noldor/` throws instead of returning an exit code.
+    // Converting it here is what keeps the no-throw guarantee above true — for
+    // `init` a propagated throw aborts the scaffold part-way, before the
+    // framework anchor is stamped, and the consumer is then told it has a
+    // version skew it does not have.
+    return { kind: 'recorder-threw', message: e instanceof Error ? e.message : String(e) };
+  }
+  return code === 0 ? { kind: 'recorded' } : { kind: 'recorder-refused', code };
 }
 
 export type RatchetVerdict =
