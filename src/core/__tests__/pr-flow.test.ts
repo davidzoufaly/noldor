@@ -37,7 +37,7 @@ const baseInput: PrFlowInput = {
     summary: 'A test feature for unit assertions.',
   },
   specPath: 'docs/design/specs/2026-05-15-test-feature-design.md',
-  planPath: 'docs/design/plans/2026-05-15-test-feature.md',
+  planPaths: ['docs/design/plans/2026-05-15-test-feature.md'],
   crResults: {
     passes: [
       { reviewer: 'claude', tipSha: 'abc123', findings: 0, status: 'clean' },
@@ -61,7 +61,7 @@ describe('composeTitle', () => {
       session: { ...baseInput.session, path: 'micro-chore', slug: undefined },
       fd: null,
       specPath: null,
-      planPath: null,
+      planPaths: [],
       summaryCommit: { subject: 'chore(docs): typo fix', body: '' },
     };
     expect(composeTitle(input)).toBe('chore(docs): typo fix');
@@ -96,7 +96,7 @@ describe('composeBody', () => {
       session: { ...baseInput.session, path: 'micro-chore', slug: undefined },
       fd: null,
       specPath: null,
-      planPath: null,
+      planPaths: [],
       summaryCommit: { subject: 'chore(docs): typo fix', body: '' },
     };
     const body = composeBody(input);
@@ -113,7 +113,7 @@ describe('composeBody', () => {
       session: { ...baseInput.session, path: 'fast-track', slug: undefined },
       fd: null,
       specPath: null,
-      planPath: null,
+      planPaths: [],
       summaryCommit: { subject: 'fix(core): correct pr summary label', body: '' },
     };
     const body = composeBody(input);
@@ -129,7 +129,7 @@ describe('composeBody', () => {
       session: { ...baseInput.session, path: 'fast-track', slug: undefined },
       fd: null,
       specPath: null,
-      planPath: null,
+      planPaths: [],
       summaryCommit: {
         subject: 'fix(dashboard): count zero scripts when scripts/ is absent',
         body: 'The overview route rendered an internal error on a consumer with no scripts/ tree.\n\nRecursive readdir now treats ENOENT as an empty tree; permission errors still surface.',
@@ -149,7 +149,7 @@ describe('composeBody', () => {
       session: { ...baseInput.session, path: 'fast-track', slug: undefined },
       fd: null,
       specPath: null,
-      planPath: null,
+      planPaths: [],
       summaryCommit: { subject: 'chore: bump lockfile', body: '' },
     };
     expect(composeBody(input)).toContain(
@@ -185,7 +185,7 @@ describe('composeBody', () => {
       session: { ...baseInput.session, path: 'fast-track', slug },
       fd: null,
       specPath: null,
-      planPath: null,
+      planPaths: [],
       summaryCommit: { subject, body: '' },
       branchFiles: ['docs/roadmap.md', '.noldor/retired-entry-ids.json'],
     });
@@ -283,7 +283,7 @@ describe('composeBody', () => {
         session: { ...baseInput.session, path: 'fast-track', slug: undefined },
         fd: null,
         specPath: null,
-        planPath: null,
+        planPaths: [],
         summaryCommit: { subject: 'fix(clones): union untracked files', body: 'Why — …' },
         branchFiles: ['src/clones/ranges.ts', 'docs/roadmap.md'],
       });
@@ -300,7 +300,7 @@ describe('composeBody', () => {
         session: { ...baseInput.session, path: 'micro-chore', slug: undefined },
         fd: null,
         specPath: null,
-        planPath: null,
+        planPaths: [],
         summaryCommit: { subject: 'docs(noldor): clarify pr-flow', body: '' },
         branchFiles: ['docs/noldor/pr-flow.md', 'templates/docs/noldor/pr-flow.md'],
       });
@@ -360,7 +360,7 @@ describe('composeBody', () => {
         summary: 'The FD being extended via an attach session.',
       },
       specPath: 'docs/design/specs/2026-05-16-existing-feature-enhancement-design.md',
-      planPath: 'docs/design/plans/2026-05-16-existing-feature-enhancement.md',
+      planPaths: ['docs/design/plans/2026-05-16-existing-feature-enhancement.md'],
     };
     const body = composeBody(input);
     expect(body).toContain('docs/features/existing-feature.md');
@@ -371,6 +371,39 @@ describe('composeBody', () => {
     // Scope block still reports `Slug: —` (no new slug) and `Parent FD: existing-feature`.
     expect(body).toContain('Slug: `—`');
     expect(body).toContain('Parent FD: `existing-feature`');
+  });
+
+  it('links every part of a split plan, in part order', () => {
+    // A split plan writes `-part<N>` siblings under one date prefix. The body
+    // used to link the most recent one alone, which hid every earlier part —
+    // and those parts carry the contract the last one builds on.
+    const input: PrFlowInput = {
+      ...baseInput,
+      planPaths: [
+        'docs/design/plans/2026-05-15-test-feature-part1.md',
+        'docs/design/plans/2026-05-15-test-feature-part2.md',
+        'docs/design/plans/2026-05-15-test-feature-part3.md',
+      ],
+    };
+    const body = composeBody(input);
+    const planLines = body.split('\n').filter((l) => l.startsWith('- Plan: '));
+    expect(planLines).toEqual([
+      '- Plan: [`docs/design/plans/2026-05-15-test-feature-part1.md`](https://github.com/davidzoufaly/acme/blob/abc123/docs/design/plans/2026-05-15-test-feature-part1.md)',
+      '- Plan: [`docs/design/plans/2026-05-15-test-feature-part2.md`](https://github.com/davidzoufaly/acme/blob/abc123/docs/design/plans/2026-05-15-test-feature-part2.md)',
+      '- Plan: [`docs/design/plans/2026-05-15-test-feature-part3.md`](https://github.com/davidzoufaly/acme/blob/abc123/docs/design/plans/2026-05-15-test-feature-part3.md)',
+    ]);
+  });
+
+  it('renders a Links section from plan parts alone when no FD or spec exists', () => {
+    const input: PrFlowInput = {
+      ...baseInput,
+      fd: null,
+      specPath: null,
+      planPaths: ['docs/design/plans/2026-05-15-test-feature-part1.md'],
+    };
+    const body = composeBody(input);
+    expect(body).toContain('## Links');
+    expect(body).toContain('- Plan: [`docs/design/plans/2026-05-15-test-feature-part1.md`]');
   });
 
   it('renders CR retry passes with "addressed" rows', () => {
@@ -465,7 +498,7 @@ describe('composeBody — release-sweep template', () => {
     session: { path: 'release-sweep', startedAt: '2026-05-17T08:00:00.000Z' },
     fd: null,
     specPath: null,
-    planPath: null,
+    planPaths: [],
     crResults: { passes: [], status: 'clean' },
     verify: null,
     headSha: 'abc123',
@@ -483,7 +516,7 @@ describe('composeBody — release-sweep template', () => {
     expect(body).toContain('Gate path: `release-sweep`');
   });
 
-  it('does not render a Links section when fd/specPath/planPath are null', () => {
+  it('does not render a Links section when fd/specPath/planPaths are empty', () => {
     const body = composeBody(sweepInput);
     expect(body).not.toContain('## Links');
   });

@@ -7,6 +7,7 @@ import { join } from 'node:path';
 
 import {
   pickMostRecentByDatePrefix,
+  orderPlanPaths,
   parseCrTrailersFromLog,
   normalizeRepoUrl,
   shouldPromptForPrApproval,
@@ -76,6 +77,44 @@ describe('pickMostRecentByDatePrefix', () => {
   it('falls back to lexical order when no date prefix present', () => {
     const paths = ['docs/design/plans/zeta.md', 'docs/design/plans/alpha.md'];
     expect(pickMostRecentByDatePrefix(paths)).toBe('docs/design/plans/zeta.md');
+  });
+});
+
+describe('orderPlanPaths', () => {
+  it('keeps every part of a split plan and orders them part1 → partN', () => {
+    const paths = [
+      'docs/design/plans/2026-09-02-feature-part2.md',
+      'docs/design/plans/2026-09-02-feature-part10.md',
+      'docs/design/plans/2026-09-02-feature-part1.md',
+    ];
+    expect(orderPlanPaths(paths)).toEqual([
+      'docs/design/plans/2026-09-02-feature-part1.md',
+      'docs/design/plans/2026-09-02-feature-part2.md',
+      'docs/design/plans/2026-09-02-feature-part10.md',
+    ]);
+  });
+
+  it('orders parts written on different days oldest first', () => {
+    const paths = [
+      'docs/design/plans/2026-09-04-feature-part2.md',
+      'docs/design/plans/2026-09-02-feature-part1.md',
+    ];
+    expect(orderPlanPaths(paths)).toEqual([
+      'docs/design/plans/2026-09-02-feature-part1.md',
+      'docs/design/plans/2026-09-04-feature-part2.md',
+    ]);
+  });
+
+  it('keeps an undated filename rather than dropping it', () => {
+    const paths = ['docs/design/plans/zeta.md', 'docs/design/plans/2026-09-02-feature.md'];
+    expect(orderPlanPaths(paths)).toEqual([
+      'docs/design/plans/2026-09-02-feature.md',
+      'docs/design/plans/zeta.md',
+    ]);
+  });
+
+  it('returns an empty list on empty input', () => {
+    expect(orderPlanPaths([])).toEqual([]);
   });
 });
 

@@ -55,7 +55,13 @@ export interface PrFlowInput {
   session: SessionMarker;
   fd: FdSummary | null;
   specPath: string | null;
-  planPath: string | null;
+  /**
+   * Every plan the branch added, in part order. A list rather than a single
+   * path because `/noldor-plan` splits a verbose plan into `-part<N>` siblings
+   * and each part carries scope the next one assumes — linking one leaves the
+   * rest invisible to the reviewer. Empty when the branch added no plan.
+   */
+  planPaths: readonly string[];
   crResults: CrResultSummary;
   verify: VerifySummary | null;
   headSha: string;
@@ -144,8 +150,8 @@ function renderLinksSection(input: PrFlowInput): string {
   if (input.specPath) {
     lines.push(`- Spec: [\`${input.specPath}\`](${blobBase}/${input.specPath})`);
   }
-  if (input.planPath) {
-    lines.push(`- Plan: [\`${input.planPath}\`](${blobBase}/${input.planPath})`);
+  for (const planPath of input.planPaths) {
+    lines.push(`- Plan: [\`${planPath}\`](${blobBase}/${planPath})`);
   }
   if (lines.length === 0) return '';
   return `## Links\n\n${lines.join('\n')}\n\n`;

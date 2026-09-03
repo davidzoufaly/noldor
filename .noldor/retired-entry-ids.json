@@ -265,5 +265,9 @@
   "Q-0203": {
     "slug": "consumer-indirection-baseline-is-never-seeded",
     "retiredAt": "2026-09-03"
+  },
+  "Q-0205": {
+    "slug": "pr-body-lists-only-one-plan-part",
+    "retiredAt": "2026-09-03"
   }
 }
