@@ -4,16 +4,26 @@ category: Tooling
 deps: []
 entry-id: Q-0170
 links:
-  code: []
-  tests: []
+  code:
+    - src/cr/autofix-ledger.ts
+    - src/cr/autofix.ts
+    - src/cr/autofix-cli.ts
+    - src/cr/orchestrate.ts
+    - src/cr/run-codex.ts
+    - src/cr/lanes/subagent-dispatch.ts
+    - src/core/structural-context-contract.ts
+  tests:
+    - src/cr/__tests__/autofix-ledger.test.ts
+    - src/cr/__tests__/autofix-cli.test.ts
+    - src/cr/__tests__/orchestrate.test.ts
+    - src/cr/__tests__/run-codex.test.ts
 name: CR Re-Round Cap Enforcement and Oscillation Detector
 packages:
   - scripts
-phase: in-progress
-since: 2026-08-23
+phase: done
+since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
 ---
-
 ## Summary
 
 Q-0130's re-round cap (2) is enforced in one half of the loop and asserted in the other. `AUTOFIX_ROUND_CAP` is a real bound on the auto-fix seam, but only `cr autofix record` writes the ledger it reads — an operator-driven round writes nothing, `cr orchestrate` has no round counter at all, and the combined bound is prose in a skill file. The cost is measurable: of 41 unique `Noldor-Path-Override` trailers in this repo's history, 23 name a CR round or convergence failure. The Q-0146 code CR ran 12 rounds, the reviewer finding one new med per round indefinitely while codex oscillated against its own round-4 demand and re-flagged documented `noldor:cut` sites five times.
@@ -56,14 +66,16 @@ Once red rounds exceed `AUTOFIX_ROUND_CAP` and `HEAD` is unchanged since the las
 
 ```
 red rounds 3/3 for <slug> (code) — cap reached
-  1  red    3 applied, 1 deferred  <sha>
-  2  red    2 applied, 0 deferred  <sha>
-  3  red    0 applied, 0 deferred  <sha>
-HEAD is unchanged since round 3, so no further round will be dispatched.
-To close: commit the remaining fixes and re-review — that earns one closing
-round — or record the arbitration:
+  1  red    3 applied, 1 deferred  a1b2c3d
+  2  red    2 applied, 0 deferred  e4f5g6h
+  3  red    0 applied, 0 deferred  i7j8k9l
+HEAD is unchanged since the last round, or the closing round is spent, so no
+further round will be dispatched. To close: commit the remaining fixes and
+re-review — that earns one closing round — or record the arbitration:
   git commit --amend --no-edit --trailer "Noldor-Path-Override: <why>"
 ```
+
+Committing a fix and re-running spends the closing round. Green mints the receipt and the session ships; red is the last, and the override is the only exit after it.
 
 ## PRs
 
