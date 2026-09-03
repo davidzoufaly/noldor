@@ -25,6 +25,10 @@ import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 import { ensureRolloutMarker } from '../../core/rollout-marker.js';
 import { ensureGitignoreBlock } from '../../core/init-gitignore.js';
 import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
+import {
+  BASELINE_FILE as INDIRECTION_BASELINE_FILE,
+  seedBaselineIfAbsent,
+} from '../../indirection/baseline.js';
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
@@ -118,6 +122,28 @@ try {
   if (wiring.status !== 'ok') {
     const label = wiring.advisory ? 'warn' : 'unwired';
     console.log(`${label.padEnd(10)} ${wiring.rootName}: ${wiring.detail}`);
+  }
+  // Arm the indirection ratchet. The hook block copied above runs `indirection
+  // check`, which reports green on an absent baseline by design — so without
+  // this the guard is installed and inert in every consumer install, forever.
+  // `init` is the right seam rather than `upgrade`: `upgrade` sends every
+  // consumer here to re-pull the hook block (a pre-1.7 `lefthook/noldor.yml`
+  // has no `noldor-indirection` job at all), and it is also the only command a
+  // fresh scaffold ever runs — `init` stamps the anchor as current, so
+  // `upgrade` reports "nothing to do" there and would never fire.
+  // Advisory: a corpus dependency-cruiser cannot parse must not fail `init`.
+  const seed = await seedBaselineIfAbsent(consumer, async (cwd) => {
+    const { runIndirection } = await import('../../indirection/indirection-cli.js');
+    return runIndirection(['baseline'], cwd);
+  });
+  if (seed.kind === 'unreadable' || seed.kind === 'could-not-record') {
+    const detail =
+      seed.kind === 'unreadable'
+        ? `unreadable — ${seed.message}`
+        : `recording failed (exit ${seed.code})`;
+    console.log(
+      `warn       ${INDIRECTION_BASELINE_FILE}: ${detail}; the indirection ratchet stays green until you run 'noldor indirection baseline'`,
+    );
   }
   // Stamp the framework version ONLY on a fresh scaffold — a tree with no
   // existing anchor, scaffolded (not `--update`). A fresh scaffold is by

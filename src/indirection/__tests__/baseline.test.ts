@@ -1,15 +1,17 @@
 // @tests: abstraction-cost-ratchet
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
 import {
   ALGORITHM_VERSION,
+  BASELINE_FILE,
   buildBaseline,
   compareToBaseline,
   readBaseline,
+  seedBaselineIfAbsent,
   writeBaseline,
 } from '../baseline.js';
 import type { MeasuredIndirection } from '../detect.js';
@@ -107,5 +109,72 @@ describe('compareToBaseline', () => {
   it('is stale when the algorithm version differs', () => {
     const older = { ...base, algorithmVersion: ALGORITHM_VERSION + 1 };
     expect(compareToBaseline(measured(9999), older, opts).kind).toBe('stale');
+  });
+});
+
+describe('seedBaselineIfAbsent', () => {
+  const inTmpAsync = async (fn: (dir: string) => Promise<void>): Promise<void> => {
+    const dir = mkdtempSync(join(tmpdir(), 'indirection-seed-'));
+    try {
+      await fn(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  /** Stands in for `noldor indirection baseline`: the dependency-cruiser edge. */
+  const recorder = (excessSum: number, calls: string[]) => async (cwd: string) => {
+    calls.push(cwd);
+    writeBaseline(join(cwd, BASELINE_FILE), buildBaseline(measured(excessSum), opts, AT));
+    return 0;
+  };
+
+  it('records a baseline when the consumer has none', async () => {
+    await inTmpAsync(async (dir) => {
+      const calls: string[] = [];
+      const outcome = await seedBaselineIfAbsent(dir, recorder(882, calls));
+      expect(outcome.kind).toBe('recorded');
+      expect(calls).toEqual([dir]);
+      const back = readBaseline(join(dir, BASELINE_FILE));
+      expect(back.kind).toBe('ok');
+      if (back.kind !== 'ok') return;
+      expect(back.baseline.excessSum).toBe(882);
+    });
+  });
+
+  it('leaves an existing baseline untouched and never runs the recorder', async () => {
+    await inTmpAsync(async (dir) => {
+      const path = join(dir, BASELINE_FILE);
+      writeBaseline(path, buildBaseline(measured(500), opts, AT));
+      const calls: string[] = [];
+      const outcome = await seedBaselineIfAbsent(dir, recorder(882, calls));
+      expect(outcome.kind).toBe('already-recorded');
+      expect(calls).toEqual([]);
+      const back = readBaseline(path);
+      expect(back.kind).toBe('ok');
+      if (back.kind !== 'ok') return;
+      expect(back.baseline.excessSum).toBe(500);
+    });
+  });
+
+  it('refuses to overwrite an unreadable baseline', async () => {
+    await inTmpAsync(async (dir) => {
+      const path = join(dir, BASELINE_FILE);
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, '{ not json');
+      const calls: string[] = [];
+      const outcome = await seedBaselineIfAbsent(dir, recorder(882, calls));
+      expect(outcome.kind).toBe('unreadable');
+      expect(calls).toEqual([]);
+      expect(readFileSync(path, 'utf8')).toBe('{ not json');
+    });
+  });
+
+  it('reports the recorder’s exit code when it could not measure', async () => {
+    await inTmpAsync(async (dir) => {
+      const outcome = await seedBaselineIfAbsent(dir, async () => 3);
+      expect(outcome).toEqual({ kind: 'could-not-record', code: 3 });
+      expect(readBaseline(join(dir, BASELINE_FILE)).kind).toBe('absent');
+    });
   });
 });

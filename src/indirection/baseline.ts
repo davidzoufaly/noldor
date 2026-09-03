@@ -10,7 +10,7 @@
  * framework does not own.
  */
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { z } from 'zod';
 
@@ -119,6 +119,43 @@ export function readBaseline(path: string): BaselineRead {
 export function writeBaseline(path: string, baseline: IndirectionBaseline): void {
   mkdirSync(dirname(path), { recursive: true });
   atomicWriteFileSync(path, `${JSON.stringify(baseline, null, 2)}\n`);
+}
+
+export type SeedOutcome =
+  | { readonly kind: 'already-recorded' }
+  | { readonly kind: 'recorded' }
+  | { readonly kind: 'unreadable'; readonly message: string }
+  | { readonly kind: 'could-not-record'; readonly code: number };
+
+/**
+ * Record a baseline on a repo that has never recorded one — the seam that arms
+ * the ratchet on a consumer install.
+ *
+ * `indirection check` reports green on an absent baseline deliberately (a repo
+ * mid-adoption must not be hard-blocked by a file no command has written yet),
+ * and nothing else in the flow ever closes that branch. So a consumer whose
+ * pre-push block runs `check` gets a green verdict on every push forever,
+ * against a ceiling that does not exist — the guard is installed and inert.
+ *
+ * The recorder is a parameter rather than an import for two reasons:
+ * `indirection-cli` imports this module, so importing it back would close a
+ * cycle; and recording means running dependency-cruiser over the whole corpus,
+ * which is the boundary a caller defers (nothing is loaded when the baseline is
+ * already present) and a test fakes.
+ *
+ * Never overwrites. A present-but-unreadable baseline is left alone for `check`
+ * to report as exit 3: replacing it here would silently re-record the ceiling a
+ * red was about to be measured against.
+ */
+export async function seedBaselineIfAbsent(
+  cwd: string,
+  record: (cwd: string) => Promise<number>,
+): Promise<SeedOutcome> {
+  const prior = readBaseline(join(cwd, BASELINE_FILE));
+  if (prior.kind === 'ok') return { kind: 'already-recorded' };
+  if (prior.kind === 'unreadable') return { kind: 'unreadable', message: prior.message };
+  const code = await record(cwd);
+  return code === 0 ? { kind: 'recorded' } : { kind: 'could-not-record', code };
 }
 
 export type RatchetVerdict =
