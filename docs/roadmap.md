@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Auto-Open Link Resolves Against the Worktree, Not the Editor's Workspace
-
-- id: Q-0207
-- area: tooling
-- type: fix
-- since: 2026-09-02
-- size: S
-- impact: high
-- confidence: high
-- parent: auto-open-design-artifacts
-
-Every spec or plan link the auto-open hook hands an operator in a `specs-only-*` / `full-*` session is dead, because those sessions all run inside `.worktrees/<slug>/` and the link resolves against the worktree rather than the editor's workspace folder. Hit live on the desktop-app-bridge spec: the hook returned `docs/design/specs/<file>.md`, the editor was open on the main checkout, and that path exists only under `.worktrees/<slug>/`. The cause is the last rung of the ladder: [`resolveRoot`](../src/design/open-artifact.ts) falls back to the artifact's own checkout (`verdict.toplevel`, from `git rev-parse --show-toplevel`) when neither a named `--workspace-root` nor the hook's `payload.cwd` hint contains the artifact — and in a worktree that fallback is *always* the worktree, which is precisely the case the ladder exists to handle. The mechanism itself is sound: the manual escape prints the correct `.worktrees/<slug>/docs/...` link, and only the inference is wrong. What makes this `high` rather than `med` is that three skills (`/noldor-gate`, `/noldor-spec`, `/noldor-plan`) instruct pasting the hook's link **verbatim** on the grounds that a hand-built one silently fails — so following the instruction faithfully still produces a dead link, in every worktree session. Two candidate fixes: prefer the main checkout when `git rev-parse --git-common-dir` shows the artifact sits in a linked worktree (note the code deliberately chose `--show-toplevel` over it, so that trade-off has to be re-argued rather than assumed), or have the gate export `NOLDOR_WORKSPACE_ROOT` at worktree creation — the variable is already read as an operator override and nothing anywhere sets it. Survived PRs #416 and #417, which wired the hook and stopped it stealing focus without touching the root inference. Deletion test: a spec written inside `.worktrees/<slug>/` reports a link that opens from a workspace rooted at the main checkout. (found 2026-09-02, desktop-app-bridge spec session; absorbed from a lesson)
-
 ### Milestone-Queue Linking
 
 - id: Q-0083

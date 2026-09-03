@@ -183,6 +183,42 @@ function contains(parent: string, child: string): boolean {
 }
 
 /**
+ * The MAIN checkout of the repo, when `parent` sits in a LINKED worktree —
+ * `undefined` when it is the main checkout itself, or when the probe did not say.
+ *
+ * `--git-common-dir` names the SHARED git dir (the main checkout's) while
+ * `--git-dir` names this checkout's own, so the two differ exactly in a linked
+ * worktree. Both are resolved against the probe's cwd before comparing, because
+ * git returns whichever of relative or absolute is shorter: from a subdirectory
+ * of a main checkout that is `../../../.git` for one and an absolute path for the
+ * other, and a raw string compare therefore reads the PRIMARY case as a worktree.
+ *
+ * noldor:cut the standard `<root>/.git` layout — probe `git worktree list
+ * --porcelain`, whose first entry is always the main worktree, if a consumer with
+ * a relocated git dir (`--separate-git-dir`) appears. Until then that layout is
+ * ASSERTED rather than assumed, which is what keeps the cut from being a bug: the
+ * common dir must be named `.git`, its parent must exist, and the caller must
+ * find the artifact expressible from that parent. Any of the three failing leaves
+ * the artifact's own checkout as the reported root.
+ */
+function linkedWorktreeMain(
+  parent: string,
+  commonDir: string | undefined,
+  gitDir: string | undefined,
+): string | undefined {
+  if (commonDir === undefined || gitDir === undefined) return undefined;
+  const common = canonical(resolve(parent, commonDir));
+  if (common === canonical(resolve(parent, gitDir))) return undefined;
+  // Only `<root>/.git` puts a main checkout at `<root>`. A BARE repo's worktrees
+  // are all linked and it has no main checkout at all, yet `/proj/repo.git`
+  // dirnames to `/proj` — an existing directory that does contain the artifact,
+  // so containment alone would let the steer print `a/docs/…` against a root no
+  // editor is open on. The name check is what makes the layout a precondition.
+  if (basename(common) !== '.git') return undefined;
+  return existingDir(dirname(common));
+}
+
+/**
  * Is `absPath` a LIVE design artifact — a `.md` regular file sitting directly in
  * its own checkout's specs or plans doc root?
  *
@@ -194,11 +230,19 @@ function contains(parent: string, child: string): boolean {
  * a symlink (`os.tmpdir()` on macOS is one, so an uncanonicalized comparison
  * fails every temp-dir test). And only DIRECT children qualify, which is what
  * excludes `archive/` — an archived artifact is history, not a review surface.
+ *
+ * The same probe also asks for `--git-common-dir` and `--git-dir`, whose only
+ * consumer is {@link linkedWorktreeMain}. Three flags on the one `rev-parse` keep
+ * the documented single-probe bound intact: the worktree question has to be
+ * answered for every artifact resolution, and a second `execFileSync` to ask it
+ * would be the exact regression the "ONE git probe" note below guards against.
  */
 function classify(
   absPath: string,
   git: GitProbe,
-): { ok: true; toplevel: string } | { ok: false; reason: RejectReason; message: string } {
+):
+  | { ok: true; toplevel: string; mainCheckout: string | undefined }
+  | { ok: false; reason: RejectReason; message: string } {
   let stat;
   try {
     stat = lstatSync(absPath);
@@ -216,10 +260,14 @@ function classify(
   const parent = dirname(absPath);
   // The ONE git probe. Mandatory, unlike the ladder's rungs: without a checkout
   // root there is no doc root to compare against, so this cannot degrade to a
-  // guess. The resolved value is returned rather than re-probed by the caller —
+  // guess. The resolved values are returned rather than re-probed by the caller —
   // repeating it broke the documented single-probe latency bound.
-  const toplevel = git(['rev-parse', '--show-toplevel'], parent);
-  if (toplevel === undefined) {
+  const probe = git(['rev-parse', '--show-toplevel', '--git-common-dir', '--git-dir'], parent);
+  // Line order follows flag order. Only the first line is required: the trailing
+  // two feed a REPORTING preference, so a git old or odd enough to answer them
+  // differently must degrade to the pre-existing behaviour, never to a rejection.
+  const [toplevel, commonDir, gitDir] = probe?.split('\n').map((l) => l.trim()) ?? [];
+  if (toplevel === undefined || toplevel.length === 0) {
     return { ok: false, reason: 'no-repo', message: `not inside a git repository: ${absPath}` };
   }
 
@@ -227,12 +275,40 @@ function classify(
   const parentReal = canonical(parent);
   const isArtifactDir = [roots.specs, roots.plans].some((r) => canonical(r) === parentReal);
   return isArtifactDir
-    ? { ok: true, toplevel }
+    ? { ok: true, toplevel, mainCheckout: linkedWorktreeMain(parent, commonDir, gitDir) }
     : {
         ok: false,
         reason: 'not-an-artifact',
         message: `not a direct child of a specs or plans doc root: ${absPath}`,
       };
+}
+
+/**
+ * Steer an INFERRED root off a linked worktree and onto the main checkout — the
+ * folder an editor is actually opened on in a gate session working inside
+ * `.worktrees/<slug>/`, which is every `specs-only-*` / `full-*` session.
+ *
+ * Applies to BOTH inferred rungs and to neither named one. The hook's
+ * `payload.cwd` hint is the AGENT's cwd, which in such a session is the worktree
+ * — so it contains the artifact and rung 2 answers with the very root the rung-3
+ * fallback would have; steering only the fallback would leave the reported link
+ * dead whenever a hint arrived, which is whenever the hook is the caller. A root
+ * the operator NAMED is never steered: they said which folder is open, and a
+ * worktree-rooted window is a real layout (`--workspace-root <tree>`, or
+ * {@link WORKSPACE_ROOT_ENV}, is therefore also the manual escape from this).
+ *
+ * Containment is the guard, so a worktree living OUTSIDE its main checkout keeps
+ * the bare path: there the main checkout cannot express the artifact at all, and
+ * a `../` hop out of the workspace folder is not a link the editor can open.
+ */
+function preferMainCheckout(
+  inferred: string,
+  absPath: string,
+  checkout: string,
+  mainCheckout: string | undefined,
+): string {
+  if (mainCheckout === undefined || canonical(inferred) !== canonical(checkout)) return inferred;
+  return contains(mainCheckout, absPath) ? mainCheckout : inferred;
 }
 
 /**
@@ -248,6 +324,8 @@ function classify(
  * @param checkout - The artifact's own checkout root, already probed by
  *   {@link classify}. Passed in rather than re-derived: this is rung 3, and a
  *   second probe would buy nothing but latency inside a hook.
+ * @param mainCheckout - The main checkout when `checkout` is a linked worktree,
+ *   from the same probe. See {@link preferMainCheckout} for what it overrides.
  * @returns the root to print against, plus a warning when a NAMED root was
  *   discarded for not containing the artifact.
  */
@@ -255,12 +333,14 @@ function resolveRoot(
   absPath: string,
   req: ResolveArtifactRequest,
   checkout: string,
+  mainCheckout: string | undefined,
 ): { root: string; warning?: string } {
   const named = existingDir(req.workspaceRoot);
   if (named !== undefined && contains(named, absPath)) return { root: named };
 
   const hint = existingDir(req.hintRoot);
-  const fallback = hint !== undefined && contains(hint, absPath) ? hint : checkout;
+  const inferred = hint !== undefined && contains(hint, absPath) ? hint : checkout;
+  const fallback = preferMainCheckout(inferred, absPath, checkout, mainCheckout);
 
   // A named root that is well-formed but cannot express this path gets both: the
   // path still falls back, and the discard is reported. Refusing to print
@@ -307,7 +387,7 @@ export function resolveArtifact(req: ResolveArtifactRequest): ResolveArtifactRes
     };
   }
 
-  const { root, warning } = resolveRoot(absPath, req, verdict.toplevel);
+  const { root, warning } = resolveRoot(absPath, req, verdict.toplevel, verdict.mainCheckout);
   // Mirrors `contains`, and for the same reason: the lexical relationship is the
   // one the editor resolves, so it wins whenever it exists. Only when it does not
   // is the canonical bridge used, and even then the leaf stays lexical
