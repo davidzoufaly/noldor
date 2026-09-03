@@ -39,6 +39,27 @@ export function pickMostRecentByDatePrefix(paths: readonly string[]): string | n
   return sorted[0];
 }
 
+/**
+ * Order every plan path the branch added, oldest first — the order a reader
+ * consumes them in. A split plan writes `YYYY-MM-DD-<slug>-part<N>.md`
+ * siblings, and each part sets the contract the next one builds on, so none
+ * may be dropped: a most-recent-wins pick leaves every part but the last
+ * invisible from the PR.
+ *
+ * Sorting is numeric-aware on the basename, which orders the date prefix and
+ * the `-part<N>` suffix in one pass (`-part10` after `-part2`). Basenames
+ * without a date prefix fall in lexical-ascending order alongside the rest —
+ * the same tolerance {@link pickMostRecentByDatePrefix} extends, so a
+ * non-conforming filename is still linked rather than dropped.
+ */
+export function orderPlanPaths(paths: readonly string[]): string[] {
+  return paths.toSorted((a, b) => {
+    const aBase = a.split('/').pop() ?? a;
+    const bBase = b.split('/').pop() ?? b;
+    return aBase.localeCompare(bBase, 'en', { numeric: true });
+  });
+}
+
 export function parseCrTrailersFromLog(log: string): CrResultSummary {
   const passes: CrResultSummary['passes'] = [];
   for (const line of log.split('\n')) {
@@ -311,9 +332,7 @@ export async function runCli(cwd: string): Promise<number> {
 
   // One git round-trip, filtered twice — the query is identical for both.
   const addedFiles = discoverAddedFiles({ cwd });
-  const planPath = pickMostRecentByDatePrefix(
-    addedFiles.filter((f) => f.startsWith('docs/design/plans/')),
-  );
+  const planPaths = orderPlanPaths(addedFiles.filter((f) => f.startsWith('docs/design/plans/')));
   const specPath = pickMostRecentByDatePrefix(
     addedFiles.filter((f) => f.startsWith('docs/design/specs/')),
   );
@@ -331,7 +350,7 @@ export async function runCli(cwd: string): Promise<number> {
     session,
     fd,
     specPath,
-    planPath,
+    planPaths,
     crResults,
     verify,
     headSha,
