@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { isBookkeepingOnly } from './allowlist.js';
 import { discoverAddedFiles } from './branch-added.js';
+import { readFrontmatter } from './fd-load.js';
 import { stripTrailers } from './trailers.js';
 import { readSession, clearSession, type SessionMarker } from './session.js';
 import { loadConfig, type NoldorConfig } from './config.js';
@@ -226,6 +227,122 @@ export function loadVerifyEvidence(cwd: string, slug: string): VerifySummary | n
   return { verdict: sink.verdict, evidence };
 }
 
+/**
+ * Shape of a stable queue-entry ID. Mirrors `ENTRY_ID_RE` in
+ * `src/triage/entry-id.ts` rather than importing it: the `core-is-foundation`
+ * boundary forbids `src/core` → `src/triage`, the same reason
+ * {@link loadVerifyEvidence} hand-rolls its sink shape check.
+ *
+ * This is the ONLY place a task ID is validated. Both sources below are
+ * untrusted-ish — the retired-ID map is a plain JSON file an operator can edit,
+ * and `entry-id:` is FD frontmatter — so filtering happens where they enter and
+ * a bad value degrades to "no ID". Deliberately not re-checked at the PR gate:
+ * `validatePrSummary` refusing delivery over a corrupt map would block work
+ * that already passed review, with nothing an author could amend, and would
+ * fail a drain iteration outright under `autonomous.onFailure: 'abort'`.
+ */
+const ENTRY_ID_RE = /^Q-\d{4,}$/;
+
+/** Repo-relative path of the retired-ID map `roadmap remove-block` maintains. */
+const RETIRED_IDS_REL = '.noldor/retired-entry-ids.json';
+
+/**
+ * The `Q-NNNN` keys `headJson` has and `baseJson` does not — the entries this
+ * branch retired.
+ *
+ * A key delta rather than a slug lookup on purpose. `session.slug` happens to
+ * equal the retired entry's slug on `fast-track`, but an attach session retires
+ * its entry under that entry's own slug while the marker carries only `parent`
+ * and `enhancement` — so a slug lookup answers "no ID" for exactly the path
+ * where the FD fallback would then supply the *parent's* ID, which is not what
+ * shipped. The delta names whatever the branch actually retired, on every path.
+ *
+ * `null` for either side means "no map at that revision", which is the ordinary
+ * state of a repo that had never retired an ID-carrying entry. Non-ID keys are
+ * dropped rather than reported: a hand-edited map is `validate:triage`'s
+ * business, and this function must not turn one into a bogus PR bullet.
+ *
+ * Throws on unparseable JSON so the caller can decide — see
+ * {@link resolveTaskId}, which degrades to the FD source rather than failing a
+ * delivery over a bullet.
+ */
+export function retiredIdsAdded(baseJson: string | null, headJson: string | null): string[] {
+  const keys = (json: string | null): Set<string> => {
+    if (json === null) return new Set();
+    const parsed: unknown = JSON.parse(json);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${RETIRED_IDS_REL}: expected an object of Q-NNNN keys`);
+    }
+    return new Set(Object.keys(parsed).filter((k) => ENTRY_ID_RE.test(k)));
+  };
+  return [...keys(headJson).difference(keys(baseJson))].toSorted();
+}
+
+/** A blob's content at one revision, or `null` when the path does not exist there. */
+function gitShowOrNull(cwd: string, rev: string, path: string): string | null {
+  const r = spawnSync('git', ['show', `${rev}:${path}`], { cwd, encoding: 'utf8' });
+  return r.status === 0 ? r.stdout : null;
+}
+
+/**
+ * The stable queue-entry IDs this branch shipped, for the PR body's first Scope
+ * bullet. Two sources, in this order:
+ *
+ * 1. **The retired-ID keys the branch added** (see {@link retiredIdsAdded}).
+ *    Covers the paths where the entry leaves the queue without an FD carrying
+ *    its ID — `fast-track` and the attach paths — and is the more specific
+ *    answer wherever both sources fire.
+ * 2. **The FD's `entry-id:` frontmatter**, which is where `/noldor-promote`
+ *    parks the ID on the `*-new` paths.
+ *
+ * Empty when neither source has one: an ad-hoc fast-track that was never a
+ * queue entry, or an FD promoted before stable IDs existed. That is a
+ * legitimate outcome, not a failure — see `composeScope` in `pr-flow.ts` for why
+ * it is rendered rather than rejected.
+ *
+ * Best-effort by design, like {@link loadVerifyEvidence}: a corrupt map warns
+ * and falls through to the FD instead of throwing, because a PR body bullet is
+ * never worth failing a delivery that has already passed review.
+ */
+export function resolveTaskId(input: {
+  cwd: string;
+  base: string;
+  fdSlug: string | undefined;
+}): string[] {
+  const { cwd, base, fdSlug } = input;
+  try {
+    const retired = retiredIdsAdded(
+      gitShowOrNull(cwd, base, RETIRED_IDS_REL),
+      gitShowOrNull(cwd, 'HEAD', RETIRED_IDS_REL),
+    );
+    if (retired.length > 0) return retired;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(
+      `pnpm pr-flow: warning — could not read ${RETIRED_IDS_REL}: ${message}. ` +
+        `Falling back to the FD's entry-id frontmatter for the PR's Task ID bullet.\n`,
+    );
+  }
+
+  if (fdSlug === undefined) return [];
+  let md: string;
+  try {
+    md = readFileSync(join(cwd, 'docs', 'features', `${fdSlug}.md`), 'utf8');
+  } catch {
+    // Already warned about by loadFdSummary, which reads the same file.
+    return [];
+  }
+  // Through the repo's one guarded FD reader, not a local regex: `entry-id:` is
+  // a real frontmatter field, and a YAML parse is what tells a quoted value
+  // (`entry-id: "Q-0083"`) and a body line mentioning `entry-id:` apart from the
+  // field itself. `readFrontmatter` also never throws on a malformed FD, which
+  // is the policy here too — a bad FD must not fail a delivery.
+  const parsed = readFrontmatter(md);
+  if (!parsed.ok) return [];
+  const id = parsed.data['entry-id'];
+  return typeof id === 'string' && ENTRY_ID_RE.test(id) ? [id] : [];
+}
+
 export interface ApprovalGateInput {
   config: NoldorConfig | null;
   session: SessionMarker;
@@ -329,6 +446,11 @@ export async function runCli(cwd: string): Promise<number> {
   const fdSlug = session.parent ?? session.slug;
   const fd = fdSlug !== undefined ? loadFdSummary(cwd, fdSlug) : null;
   const verify = fdSlug !== undefined ? loadVerifyEvidence(cwd, fdSlug) : null;
+  // `origin/main`, matching the `origin/main..HEAD` range every other read here
+  // walks — the retired-ID delta has to be measured against the same base the
+  // PR is opened against, or a stale local `main` would report entries that
+  // shipped in someone else's PR.
+  const taskIds = resolveTaskId({ cwd, base: 'origin/main', fdSlug });
 
   // One git round-trip, filtered twice — the query is identical for both.
   const addedFiles = discoverAddedFiles({ cwd });
@@ -356,6 +478,7 @@ export async function runCli(cwd: string): Promise<number> {
     headSha,
     summaryCommit,
     branchFiles,
+    taskIds,
     spawn: nodeSpawn(),
     onStatus: (line) => process.stderr.write(line + '\n'),
     // Parallel drain K>1: the supervisor's merge coordinator merges; this call stops at PR-open.

@@ -15,6 +15,8 @@ import {
   loadVerifyEvidence,
   parseCommitFileLists,
   pickSummarySha,
+  retiredIdsAdded,
+  resolveTaskId,
 } from '../pr-flow-cli.js';
 import { writeSession } from '../session.js';
 import { stripTrailers } from '../trailers.js';
@@ -471,5 +473,210 @@ describe('stripTrailers', () => {
     expect(stripTrailers('Adds the Noldor-Path: trailer to commits.')).toBe(
       'Adds the Noldor-Path: trailer to commits.',
     );
+  });
+});
+
+describe('retiredIdsAdded', () => {
+  it('reports the key the branch added and not the ones already on the base', () => {
+    const base = JSON.stringify({ 'Q-0089': { slug: 'old-thing' } });
+    const head = JSON.stringify({
+      'Q-0089': { slug: 'old-thing' },
+      'Q-0202': { slug: 'the-entry-that-shipped' },
+    });
+    expect(retiredIdsAdded(base, head)).toEqual(['Q-0202']);
+  });
+
+  it('treats a base with no map at all as having retired nothing', () => {
+    const head = JSON.stringify({ 'Q-0202': { slug: 'first-ever-retirement' } });
+    expect(retiredIdsAdded(null, head)).toEqual(['Q-0202']);
+  });
+
+  it('reports every added key, sorted, when a branch retired several entries', () => {
+    const head = JSON.stringify({
+      'Q-0207': { slug: 'b' },
+      'Q-0202': { slug: 'a' },
+    });
+    expect(retiredIdsAdded(null, head)).toEqual(['Q-0202', 'Q-0207']);
+  });
+
+  it('reports nothing when the branch only rewrote an existing record', () => {
+    const base = JSON.stringify({ 'Q-0202': { slug: 'a' } });
+    const head = JSON.stringify({ 'Q-0202': { slug: 'a', retiredInto: 'some-fd' } });
+    expect(retiredIdsAdded(base, head)).toEqual([]);
+  });
+
+  it('drops a hand-edited non-ID key rather than turning it into a PR bullet', () => {
+    const head = JSON.stringify({ 'not-an-id': { slug: 'a' }, 'Q-0202': { slug: 'b' } });
+    expect(retiredIdsAdded(null, head)).toEqual(['Q-0202']);
+  });
+
+  it('throws on a map that is not an object of keys, so the caller can degrade', () => {
+    expect(() => retiredIdsAdded(null, '["Q-0202"]')).toThrow(/expected an object/);
+  });
+});
+
+describe('resolveTaskId', () => {
+  /** A real repo with a base commit on `main` and a feature branch off it. */
+  function repoWithBase(): { repo: string; git: (...args: string[]) => string } {
+    const repo = mkdtempSync(join(tmpdir(), 'noldor-taskid-'));
+    const git = (...args: string[]): string =>
+      execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'test');
+    writeFileSync(join(repo, 'seed.txt'), 'seed\n');
+    git('add', '-A');
+    git('commit', '-q', '--no-verify', '-m', 'chore: seed');
+    return { repo, git };
+  }
+
+  it('reads the entry the branch retired, on a fast-track with no FD', () => {
+    const { repo, git } = repoWithBase();
+    mkdirSync(join(repo, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(repo, '.noldor', 'retired-entry-ids.json'),
+      JSON.stringify({ 'Q-0202': { slug: 'the-entry' } }, null, 2),
+    );
+    git('add', '-A');
+    git('commit', '-q', '--no-verify', '-m', 'docs(roadmap): retire the-entry');
+
+    expect(resolveTaskId({ cwd: repo, base: 'main~1', fdSlug: undefined })).toEqual(['Q-0202']);
+  });
+
+  it('ignores an entry that was already retired on the base', () => {
+    const { repo, git } = repoWithBase();
+    mkdirSync(join(repo, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(repo, '.noldor', 'retired-entry-ids.json'),
+      JSON.stringify({ 'Q-0089': { slug: 'older' } }, null, 2),
+    );
+    git('add', '-A');
+    git('commit', '-q', '--no-verify', '-m', 'docs(roadmap): retire older');
+    const base = git('rev-parse', 'HEAD').trim();
+
+    writeFileSync(join(repo, 'impl.ts'), 'export const x = 1;\n');
+    git('add', '-A');
+    git('commit', '-q', '--no-verify', '-m', 'feat: no retirement here');
+
+    expect(resolveTaskId({ cwd: repo, base, fdSlug: undefined })).toEqual([]);
+  });
+
+  it("falls back to the FD's entry-id frontmatter when the branch retired nothing", () => {
+    const { repo } = repoWithBase();
+    mkdirSync(join(repo, 'docs', 'features'), { recursive: true });
+    writeFileSync(
+      join(repo, 'docs', 'features', 'some-feature.md'),
+      ['---', 'name: Some Feature', 'entry-id: Q-0083', '---', '', '## Summary', ''].join('\n'),
+    );
+
+    expect(resolveTaskId({ cwd: repo, base: 'main', fdSlug: 'some-feature' })).toEqual(['Q-0083']);
+  });
+
+  it('prefers the retired entry over the FD, so an attach names what shipped', () => {
+    // An attach branch retires the enhancement's own entry while the FD it
+    // extends carries the parent's ID — the parent's is not what shipped.
+    const { repo, git } = repoWithBase();
+    mkdirSync(join(repo, '.noldor'), { recursive: true });
+    mkdirSync(join(repo, 'docs', 'features'), { recursive: true });
+    writeFileSync(
+      join(repo, 'docs', 'features', 'parent-feature.md'),
+      ['---', 'name: Parent', 'entry-id: Q-0001', '---', '', '## Summary', ''].join('\n'),
+    );
+    writeFileSync(
+      join(repo, '.noldor', 'retired-entry-ids.json'),
+      JSON.stringify(
+        { 'Q-0202': { slug: 'the-enhancement', retiredInto: 'parent-feature' } },
+        null,
+        2,
+      ),
+    );
+    git('add', '-A');
+    git('commit', '-q', '--no-verify', '-m', 'docs(features:parent-feature): absorb entry');
+
+    expect(resolveTaskId({ cwd: repo, base: 'main~1', fdSlug: 'parent-feature' })).toEqual([
+      'Q-0202',
+    ]);
+  });
+
+  it('resolves nothing when neither source has an ID', () => {
+    const { repo } = repoWithBase();
+    mkdirSync(join(repo, 'docs', 'features'), { recursive: true });
+    writeFileSync(
+      join(repo, 'docs', 'features', 'historical.md'),
+      ['---', 'name: Historical', '---', '', '## Summary', ''].join('\n'),
+    );
+
+    expect(resolveTaskId({ cwd: repo, base: 'main', fdSlug: 'historical' })).toEqual([]);
+  });
+
+  it('drops a malformed entry-id rather than putting it in the PR body', () => {
+    const { repo } = repoWithBase();
+    mkdirSync(join(repo, 'docs', 'features'), { recursive: true });
+    writeFileSync(
+      join(repo, 'docs', 'features', 'bad-id.md'),
+      ['---', 'name: Bad', 'entry-id: Q-42', '---', '', '## Summary', ''].join('\n'),
+    );
+
+    expect(resolveTaskId({ cwd: repo, base: 'main', fdSlug: 'bad-id' })).toEqual([]);
+  });
+
+  it('accepts a quoted entry-id, which YAML unquotes and a regex would not', () => {
+    const { repo } = repoWithBase();
+    mkdirSync(join(repo, 'docs', 'features'), { recursive: true });
+    writeFileSync(
+      join(repo, 'docs', 'features', 'quoted-id.md'),
+      ['---', 'name: Quoted Id', 'entry-id: "Q-0083"', '---', '', '## Summary', ''].join('\n'),
+    );
+
+    expect(resolveTaskId({ cwd: repo, base: 'main', fdSlug: 'quoted-id' })).toEqual(['Q-0083']);
+  });
+
+  it('resolves nothing from an FD whose frontmatter will not parse', () => {
+    const { repo } = repoWithBase();
+    mkdirSync(join(repo, 'docs', 'features'), { recursive: true });
+    writeFileSync(
+      join(repo, 'docs', 'features', 'broken.md'),
+      ['---', 'name: [unclosed', 'entry-id: Q-0083', '---', '', '## Summary', ''].join('\n'),
+    );
+
+    expect(resolveTaskId({ cwd: repo, base: 'main', fdSlug: 'broken' })).toEqual([]);
+  });
+
+  it('reads entry-id from the frontmatter, not from a line in the body', () => {
+    const { repo } = repoWithBase();
+    mkdirSync(join(repo, 'docs', 'features'), { recursive: true });
+    writeFileSync(
+      join(repo, 'docs', 'features', 'quoted.md'),
+      [
+        '---',
+        'name: Quoted',
+        'entry-id: Q-0083',
+        '---',
+        '',
+        '## Summary',
+        '',
+        'entry-id: Q-9999',
+        '',
+      ].join('\n'),
+    );
+
+    expect(resolveTaskId({ cwd: repo, base: 'main', fdSlug: 'quoted' })).toEqual(['Q-0083']);
+  });
+
+  it('degrades to the FD rather than throwing when the map is corrupt', () => {
+    const { repo, git } = repoWithBase();
+    mkdirSync(join(repo, '.noldor'), { recursive: true });
+    mkdirSync(join(repo, 'docs', 'features'), { recursive: true });
+    writeFileSync(join(repo, '.noldor', 'retired-entry-ids.json'), 'not json at all');
+    writeFileSync(
+      join(repo, 'docs', 'features', 'some-feature.md'),
+      ['---', 'name: Some Feature', 'entry-id: Q-0083', '---', '', '## Summary', ''].join('\n'),
+    );
+    git('add', '-A');
+    git('commit', '-q', '--no-verify', '-m', 'chore: corrupt map');
+
+    expect(resolveTaskId({ cwd: repo, base: 'main~1', fdSlug: 'some-feature' })).toEqual([
+      'Q-0083',
+    ]);
   });
 });

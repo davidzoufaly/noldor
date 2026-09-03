@@ -48,7 +48,18 @@ const baseInput: PrFlowInput = {
   verify: null,
   headSha: 'abc123',
   summaryCommit: { subject: 'feat(scripts:test-feature): scaffold', body: '' },
+  taskIds: ['Q-0202'],
 };
+
+/**
+ * The Scope section's bullets, in render order. Sliced out of the body rather
+ * than matched with `toContain` because the assertions below are about the
+ * task ID coming *first* — a containment check passes wherever the bullet sits.
+ */
+function scopeBullets(body: string): string[] {
+  const after = body.split('## Scope\n\n')[1] ?? '';
+  return after.split('\n\n')[0].split('\n');
+}
 
 describe('composeTitle', () => {
   it('uses the summary commit subject for full-new path', () => {
@@ -1637,5 +1648,31 @@ describe('validatePrSummary', () => {
       openAndAutoMerge({ ...baseInput, branchFiles: ['src/core/x.ts'], spawn }),
     ).rejects.toThrow(PrSummaryError);
     expect(spawn).not.toHaveBeenCalled();
+  });
+});
+
+describe('composeBody task-ID Scope bullet', () => {
+  it('leads the Scope section with the queue entry the branch shipped', () => {
+    expect(scopeBullets(composeBody(baseInput))[0]).toBe('- Task ID: `Q-0202`');
+  });
+
+  it('keeps the other Scope bullets after it, in their original order', () => {
+    expect(scopeBullets(composeBody(baseInput))).toEqual([
+      '- Task ID: `Q-0202`',
+      '- Gate path: `full-new`',
+      '- Slug: `test-feature`',
+      '- Parent FD: `—`',
+      '- Worktree branch: `worktree-test-feature`',
+    ]);
+  });
+
+  it('says so explicitly when no queue entry motivated the PR', () => {
+    const body = composeBody({ ...baseInput, taskIds: [] });
+    expect(scopeBullets(body)[0]).toBe('- Task ID: none — no queue entry');
+  });
+
+  it('names every entry when one branch retired several', () => {
+    const body = composeBody({ ...baseInput, taskIds: ['Q-0202', 'Q-0207'] });
+    expect(scopeBullets(body)[0]).toBe('- Task ID: `Q-0202`, `Q-0207`');
   });
 });

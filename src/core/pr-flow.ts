@@ -78,6 +78,22 @@ export interface PrFlowInput {
    * it; the distinction only protects hand-built inputs.
    */
   branchFiles?: readonly string[];
+  /**
+   * Stable queue-entry IDs (`Q-NNNN`) this branch shipped, for the Scope
+   * section's first bullet — the machine-readable link from a merged PR back to
+   * the entry that motivated it. Resolved by `pr-flow-cli`'s `resolveTaskId`
+   * from the FD's `entry-id:` frontmatter or from the retired-ID map; empty when
+   * no queue entry motivated the PR.
+   *
+   * Required, unlike {@link PrFlowInput.branchFiles}: there is no useful
+   * absent-vs-empty distinction (both mean "no ID to show"), so an optional
+   * field would only let a caller skip the question by accident.
+   *
+   * A list rather than one string because a single branch may retire more than
+   * one entry, and an entry that shipped must not go unnamed just because a
+   * sibling shipped with it.
+   */
+  taskIds: readonly string[];
 }
 
 export interface PrFlowResult {
@@ -219,6 +235,43 @@ function renderRetirementSummary(
 }
 
 /**
+ * The Scope section's bullets.
+ *
+ * The task ID leads. Every other bullet is a property of the session or the
+ * branch, all of which a reader can also recover from the PR's own metadata;
+ * the queue-entry ID is the one fact nothing else on the page carries, which is
+ * why it goes first rather than appended at the end.
+ *
+ * An empty {@link PrFlowInput.taskIds} renders as an explicit "no queue entry"
+ * rather than a blank value or an omitted bullet, and delivery proceeds. That is
+ * the seam this feature had to settle: the ID is machine-resolved (see
+ * `resolveTaskId` in `pr-flow-cli.ts`), never author-typed, so an absent value
+ * means *no entry ever existed* — an ad-hoc fast-track, or an FD promoted before
+ * stable IDs — not that someone forgot to write one. There is no commit an
+ * author could amend to supply it, and refusing delivery over it would fail a
+ * whole drain iteration (`autonomous.onFailure: 'abort'`) for a bookkeeping
+ * fact. Rendering the absence keeps it visible instead of silent.
+ *
+ * A *malformed* ID is the opposite case and is filtered where it enters, in
+ * `resolveTaskId` — same reasoning: a corrupt retired-ID map or a bad FD field
+ * must degrade to "no ID" rather than block work that already passed review.
+ * There is deliberately no second check here; one input, one place that decides.
+ */
+function composeScope(input: PrFlowInput): string {
+  const taskIds =
+    input.taskIds.length === 0
+      ? 'none — no queue entry'
+      : input.taskIds.map((id) => `\`${id}\``).join(', ');
+  return [
+    `- Task ID: ${taskIds}`,
+    `- Gate path: \`${input.session.path}\``,
+    `- Slug: \`${input.session.slug ?? '—'}\``,
+    `- Parent FD: \`${input.session.parent ?? '—'}\``,
+    `- Worktree branch: \`${input.branch}\``,
+  ].join('\n');
+}
+
+/**
  * The Summary section's text, shared by {@link composeBody} and
  * {@link validatePrSummary} so the gate measures exactly the prose the PR will
  * carry — never a reconstruction that can drift from it.
@@ -335,12 +388,7 @@ export function composeBody(input: PrFlowInput): string {
 
   const summary = composeSummary(input);
 
-  const scope = [
-    `- Gate path: \`${input.session.path}\``,
-    `- Slug: \`${input.session.slug ?? '—'}\``,
-    `- Parent FD: \`${input.session.parent ?? '—'}\``,
-    `- Worktree branch: \`${input.branch}\``,
-  ].join('\n');
+  const scope = composeScope(input);
 
   const links = renderLinksSection(input);
 
