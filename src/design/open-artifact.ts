@@ -195,9 +195,11 @@ function contains(parent: string, child: string): boolean {
  *
  * noldor:cut the standard `<root>/.git` layout — probe `git worktree list
  * --porcelain`, whose first entry is always the main worktree, if a consumer with
- * a relocated git dir (`--separate-git-dir`) appears. Until then the two guards
- * below make a wrong derivation inert rather than wrong: a path that is not an
- * existing directory, or that cannot express the artifact, simply does not fire.
+ * a relocated git dir (`--separate-git-dir`) appears. Until then that layout is
+ * ASSERTED rather than assumed, which is what keeps the cut from being a bug: the
+ * common dir must be named `.git`, its parent must exist, and the caller must
+ * find the artifact expressible from that parent. Any of the three failing leaves
+ * the artifact's own checkout as the reported root.
  */
 function linkedWorktreeMain(
   parent: string,
@@ -207,6 +209,12 @@ function linkedWorktreeMain(
   if (commonDir === undefined || gitDir === undefined) return undefined;
   const common = canonical(resolve(parent, commonDir));
   if (common === canonical(resolve(parent, gitDir))) return undefined;
+  // Only `<root>/.git` puts a main checkout at `<root>`. A BARE repo's worktrees
+  // are all linked and it has no main checkout at all, yet `/proj/repo.git`
+  // dirnames to `/proj` — an existing directory that does contain the artifact,
+  // so containment alone would let the steer print `a/docs/…` against a root no
+  // editor is open on. The name check is what makes the layout a precondition.
+  if (basename(common) !== '.git') return undefined;
   return existingDir(dirname(common));
 }
 

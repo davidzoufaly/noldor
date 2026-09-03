@@ -344,6 +344,23 @@ describe('resolveArtifact — the workspace-root ladder', () => {
     expect(r.kind === 'artifact' && r.linkPath).toBe('docs/design/specs/2026-01-01-x-design.md');
   });
 
+  // A bare repo's worktrees are ALL linked, so there is no main checkout for an
+  // editor to be open on — and `dirname('/proj/repo.git')` is `/proj`, which
+  // exists and does contain the artifact, so containment alone lets the steer
+  // fire and print `a/docs/design/specs/…` against a root nobody opened. The
+  // layout has to be asserted, not inferred from those two guards passing.
+  it('does not steer a bare repo whose worktrees have no main checkout', () => {
+    const { root } = setupRepo();
+    const proj = tempDir('qoa-bare-wt-');
+    const bare = join(proj, 'repo.git');
+    execSync(`git clone -q --bare ${root} ${bare}`);
+    const tree = join(proj, 'a');
+    execSync(`git worktree add -q -b wt-a ${tree}`, { cwd: bare });
+    const spec = join(tree, 'docs', 'design', 'specs', '2026-01-01-x-design.md');
+    const r = resolveArtifact({ path: spec, cwd: tree, hintRoot: tree });
+    expect(r.kind === 'artifact' && r.linkPath).toBe('docs/design/specs/2026-01-01-x-design.md');
+  });
+
   it('honours a named worktree root over the main-checkout preference', () => {
     const { root } = setupRepo();
     const { tree, spec } = addWorktree(root, 'wt');
