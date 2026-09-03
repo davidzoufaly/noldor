@@ -24,17 +24,44 @@ The oscillation detector, locatable findings, the `noldor:cut` code-comment scan
 
 ## Diagram
 
-<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
-     two beside it for readers that do not render mermaid. No shape worth drawing?
-     Replace this comment with: noldor:cut <reason> -->
+Component view of one code-review round. `cr orchestrate` gains a read of the round ledger before it dispatches and a write after the round resolves; the ledger was previously written only by `cr autofix record`, which is why an operator round was invisible to the cap.
+
+```mermaid
+flowchart TD
+    GATE["/noldor-gate Step 2.5 / Step 4"] --> ORCH["cr orchestrate"]
+    ORCH -->|"read: rounds so far"| LEDGER[("round ledger<br/>.noldor/cr/autofix/slug-kind.json")]
+    ORCH -->|"at cap: refuse, exit 3"| STOP["print history<br/>name the override remedy"]
+    ORCH -->|"under cap: dispatch"| LANES["reviewer / codex / verifier lanes"]
+    LANES --> SINKS[("lane sinks<br/>.noldor/cr/slug-kind-lane.json")]
+    SINKS --> ORCH
+    ORCH -->|"write: round entry, origin=operator"| LEDGER
+    GATE --> SEAM["cr autofix plan / record"]
+    SEAM -->|"read + write, origin=autofix"| LEDGER
+    LANES -.->|"codex now carries<br/>the cut-marker contract"| CUT["shared CUT_MARKER_GUIDE"]
+```
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an agent or operator running code review through `/noldor-gate`, I want the re-round cap counted and enforced in code, and the codex lane told that a documented cut is a decision, so that a review loop stops at a budget it actually has instead of running twelve rounds and closing with a hand-typed override.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+Nothing new to invoke. `cr orchestrate` is called exactly as before and behaves identically while the round budget lasts.
+
+```
+pnpm noldor cr orchestrate --slug <slug> --artifact . --kind code --base-sha origin/main
+```
+
+Once the ledger holds `AUTOFIX_ROUND_CAP` re-rounds for the pair, the next call refuses instead of dispatching, exits 3, and prints the round history plus the remedy:
+
+```
+round 3/3 for (<slug>, code) — cap reached
+  1  autofix   3 applied, 1 deferred  <sha>
+  2  operator  —                      <sha>
+To close: fix the remaining blockers and re-review (one closing round is
+still allowed), or record the arbitration:
+  git commit --amend --no-edit --trailer "Noldor-Path-Override: <why>"
+```
 
 ## PRs
 

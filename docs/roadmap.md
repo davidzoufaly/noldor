@@ -25,7 +25,7 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 - size: L
 - impact: high
 - confidence: med
-- parent: specs-cr-gate-multi-reviewer
+- parent: cr-re-round-cap-enforcement-and-oscillation-detector
 - split-from: Q-0170
 - blocked-by: Q-0170
 
