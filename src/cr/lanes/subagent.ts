@@ -76,6 +76,31 @@ export function parseSubagentMarkdown(md: string): ParsedMarkdown | null {
 }
 
 /**
+ * The files the round's range changed — the confinement boundary and basename
+ * resolver for {@link extractLocations}.
+ *
+ * Deliberately NOT reused from {@link resolveBindingRules} below, which returns
+ * at its first line for every `kind !== 'code'`: rules are code-only, locations
+ * are not, and folding the two would leave spec and plan reviews with no set to
+ * match against at all.
+ *
+ * Best-effort — a git failure yields `[]`, which costs locations for the round
+ * and nothing else. Turning a review into a lane error over a git hiccup is the
+ * one outcome worth avoiding here.
+ */
+export function resolveChangedFiles(opts: {
+  repoRoot: string;
+  base: string;
+  head: string;
+}): string[] {
+  try {
+    return discoverChangedFiles({ cwd: opts.repoRoot, base: opts.base, head: opts.head });
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Pre-render the cascade rules that BIND the changed files, for the reviewer
  * prompt. `undefined` (field omitted) whenever there is nothing binding to say.
  *
