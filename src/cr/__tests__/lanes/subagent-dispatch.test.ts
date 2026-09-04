@@ -260,3 +260,15 @@ describe('default dispatcher timeout', () => {
     expect(spawnAgent.mock.calls[0][1].timeoutMs).toBe(42_000);
   });
 });
+
+it('asks every Critical and Important bullet to name a file and line', () => {
+  const prompt = buildPrompt({
+    artifact: 'a.md',
+    fdSummary: 'summary',
+    baseSha: 'BASE',
+    headSha: 'HEAD',
+    description: 'code for FD s',
+  });
+  expect(prompt).toContain('path/to/file.ts:123');
+  expect(prompt).toMatch(/name the file and line/i);
+});
