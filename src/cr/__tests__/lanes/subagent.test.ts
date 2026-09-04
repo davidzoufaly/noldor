@@ -13,7 +13,7 @@ vi.mock('../../../core/branch-added.js', () => ({
 import { discoverChangedFiles } from '../../../core/branch-added.js';
 
 import { setDispatcher } from '../../lanes/subagent-dispatch.js';
-import { resolveChangedFiles, runSubagent } from '../../lanes/subagent.js';
+import { mkFindingFor, resolveChangedFiles, runSubagent } from '../../lanes/subagent.js';
 import { readFdSummary } from '../../read-fd-summary.js';
 import type { LaneInput } from '../../lane-types.js';
 
@@ -211,5 +211,26 @@ describe('resolveChangedFiles', () => {
       throw new Error('not a repository');
     });
     expect(resolveChangedFiles({ repoRoot: '/r', base: 'BASE', head: 'HEAD' })).toEqual([]);
+  });
+});
+
+describe('mkFinding locations', () => {
+  const changed = ['src/cr/orchestrate.ts'];
+
+  it('attaches a resolved location and leaves the message intact', () => {
+    const f = mkFindingFor('high', 'a.md', changed)('[design] `orchestrate.ts:475` returns early');
+    expect(f.locations).toEqual([{ file: 'src/cr/orchestrate.ts', line: 475 }]);
+    expect(f.message).toBe('`orchestrate.ts:475` returns early');
+    expect(f.class).toBe('design');
+  });
+
+  it('omits the key when the bullet names no location', () => {
+    const f = mkFindingFor('med', 'a.md', changed)('this is simply wrong');
+    expect(f).not.toHaveProperty('locations');
+  });
+
+  it('omits the key when nothing resolves', () => {
+    const f = mkFindingFor('med', 'a.md', changed)('`src/core/session.ts:10` is wrong');
+    expect(f).not.toHaveProperty('locations');
   });
 });

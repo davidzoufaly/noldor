@@ -7,6 +7,7 @@ import type { Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { readFdSummary } from '../read-fd-summary.js';
 import { splitClassTag } from '../finding-class.js';
+import { extractLocations } from '../locations.js';
 import { dispatchSubagent } from './subagent-dispatch.js';
 
 interface ParsedMarkdown {
@@ -140,6 +141,30 @@ function resolveBindingRules(input: LaneInput, baseSha: string): string | undefi
   );
 }
 
+/**
+ * Bullet text -> {@link Finding}, curried on severity, the artifact label and
+ * the round's changed files. Exported so the location and class parsing is
+ * testable without a dispatch.
+ *
+ * `file` keeps its existing meaning — the artifact LABEL, not a location.
+ * Rewriting it to the first resolved location would change what every existing
+ * sink reader sees, and `fingerprintBlockers` hashes it, so the change would
+ * silently invalidate every digest already in a ledger.
+ */
+export const mkFindingFor =
+  (severity: 'high' | 'med' | 'low', artifact: string, changedFiles: readonly string[]) =>
+  (bullet: string): Finding => {
+    const { class: cls, message } = splitClassTag(bullet);
+    const locations = extractLocations(message, changedFiles);
+    return {
+      file: artifact,
+      severity,
+      message,
+      ...(cls ? { class: cls } : {}),
+      ...(locations.length > 0 ? { locations } : {}),
+    };
+  };
+
 export async function runSubagent(input: LaneInput): Promise<LaneResult> {
   const sinkPath = join(
     input.repoRoot,
@@ -156,6 +181,14 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
   // silently drop the binding-rules section from every code-kind full review.
   const rulesBaseSha = input.baseSha ?? `${input.artifactSha}~1`;
   const promptBaseSha = input.fullReview ? input.artifactSha : rulesBaseSha;
+  // Resolved here, beside `rulesBaseSha`, so the two error paths below (dispatch
+  // failure, parse failure) are unaffected — those write findings with no
+  // location, which is correct.
+  const changedFiles = resolveChangedFiles({
+    repoRoot: input.repoRoot,
+    base: rulesBaseSha,
+    head: input.artifactSha,
+  });
 
   let markdown: string;
   try {
@@ -228,17 +261,8 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
   // Each bullet may carry a leading `[mechanical]` / `[design]` tag (see
   // buildPrompt). `splitClassTag` strips it into `class`; an untagged bullet
   // yields no `class` key, which `cr autofix` reads as `design`.
-  const mkFinding =
-    (severity: 'high' | 'med' | 'low') =>
-    (bullet: string): Finding => {
-      const { class: cls, message } = splitClassTag(bullet);
-      return {
-        file: input.artifact,
-        severity,
-        message,
-        ...(cls ? { class: cls } : {}),
-      };
-    };
+  const mkFinding = (severity: 'high' | 'med' | 'low') =>
+    mkFindingFor(severity, input.artifact, changedFiles);
 
   const blockers = [
     ...parsed.critical.map(mkFinding('high')),
