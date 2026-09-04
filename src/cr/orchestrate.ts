@@ -9,6 +9,7 @@ import { aggregate } from './aggregate.js';
 import {
   AUTOFIX_ROUND_CAP,
   appendRound,
+  fingerprintBlocker,
   fingerprintBlockers,
   hasClosingRound,
   headMatches,
@@ -35,6 +36,8 @@ import {
 } from '../core/lanes.js';
 import type { SessionPathSignal } from '../core/lanes.js';
 import { readSession } from '../core/session.js';
+import { ruleR1, ruleR3 } from './reflag.js';
+import type { RuleBlocker } from './reflag.js';
 import { laneFindingsSchema } from './findings-schema.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult, PriorReview } from './lane-types.js';
@@ -428,6 +431,43 @@ export async function resolveIntroducedLines(
   return out;
 }
 
+/**
+ * Run every re-flag rule and render both halves: the lines a human reads and
+ * the records the ledger stores.
+ *
+ * Split out of the round-recording block so the rendering is testable without a
+ * dispatch, and so R2 slots in here rather than in the middle of `run()`.
+ *
+ * The rule ORDER in the array below is what fixes the printed order, which the
+ * tests pin. R2 is appended between R1 and R3, so the parameters it needs are
+ * added AFTER these — no existing call site changes shape.
+ *
+ * An `omitted` rule produces BOTH a line and a record. Dropping either would
+ * turn "could not tell" back into silence — the failure the three-arm outcome
+ * exists to prevent, one layer up.
+ */
+export function runReflagRules(
+  blockers: readonly RuleBlocker[],
+  priorRounds: readonly (readonly string[])[] | undefined,
+  introducedByFile: ReadonlyMap<string, ReadonlySet<number>> | undefined,
+): { lines: string[]; signals: Record<string, unknown>[] } {
+  const results = [ruleR1(blockers, priorRounds), ruleR3(blockers, introducedByFile)];
+  const lines: string[] = [];
+  const signals: Record<string, unknown>[] = [];
+  for (const r of results) {
+    if (r.outcome === 'fired') {
+      for (const s of r.signals) {
+        lines.push(`[${s.rule}] ${s.message}`);
+        signals.push({ ...s });
+      }
+    } else if (r.outcome === 'omitted') {
+      lines.push(`[omitted] ${r.reason}`);
+      signals.push({ rule: 'omitted', reason: r.reason });
+    }
+  }
+  return { lines, signals };
+}
+
 /** The refusal banner: what was spent, and the two ways out. */
 export function renderCapRefusal(
   ledger: AutofixLedger | null,
@@ -772,9 +812,32 @@ export async function run(opts: RunOpts): Promise<RunResult> {
           `round counted from the lanes that resolved — ${agg.unresolved.join(', ')} did not`,
         );
       }
+      const ruleBlockers: RuleBlocker[] = filed.map((b) => ({
+        id: fingerprintBlocker(b),
+        severity: b.severity,
+        message: b.message,
+        ...(b.locations ? { locations: b.locations } : {}),
+      }));
+      // The series' FIRST reviewed head, not this round's — R3 measures
+      // cumulatively. Falls back to this round's head on an empty ledger, where
+      // the range is empty and R3 is correctly clear.
+      const firstHead = (ledger?.rounds ?? [])[0]?.headSha ?? headSha;
+      const reflag = runReflagRules(
+        ruleBlockers,
+        priorBlockerIds(ledger?.rounds ?? []),
+        await resolveIntroducedLines(
+          firstHead,
+          async (args) => (await execAsync('git', args, { cwd })).stdout,
+        ),
+      );
+      // `console.error`, not `console.log`: the round summary already goes to
+      // stderr, and stdout carries the `lanes run:` line the gate parses.
+      for (const line of reflag.lines) console.error(line);
       await appendRound(cwd, opts.args.slug, opts.args.kind, roundKey, {
         headSha,
         fingerprint: fingerprintBlockers(agg.blockers),
+        blockerIds: ruleBlockers.map((b) => b.id).sort(),
+        signals: reflag.signals,
         verdict: red ? 'red' : 'green',
         applied: 0,
         deferred: 0,

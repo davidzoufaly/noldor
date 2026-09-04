@@ -17,7 +17,13 @@ vi.mock('../lanes/subagent.js', () => ({
 vi.mock('../lanes/render-compare.js', () => ({
   runRenderCompare: vi.fn(async () => ({ lane: 'render-compare', sinkPath: 'rc', ok: true })),
 }));
-import { priorBlockerIds, resolveIntroducedLines, resolveLanes, run } from '../orchestrate.js';
+import {
+  priorBlockerIds,
+  resolveIntroducedLines,
+  resolveLanes,
+  run,
+  runReflagRules,
+} from '../orchestrate.js';
 import { ledgerDir, ledgerPath } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';
 import { runSubagent as subagentLane } from '../lanes/subagent.js';
@@ -850,6 +856,44 @@ describe('round budget (Q-0170)', () => {
     });
   });
 
+  // ADVISORY WITH TEETH: a re-flag signal is reported and stored, and changes
+  // nothing else. A round that fires R1 must return the same exit code and
+  // write the same sink set as one that fires nothing.
+  it('leaves the exit code and the sink set untouched when a signal fires', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await writeReviewerSink([BLOCKER]);
+      const silent = await run({
+        args: { ...ARGS, headSha: 'aaaaaaa', autonomous: true },
+        cwd: root,
+      });
+      const silentSinks = (await readdir(join(root, '.noldor', 'cr'))).toSorted();
+      const firedId = ((await ledgerRounds())[0]!.blockerIds as string[])[0];
+
+      // Round 2 files the very same blocker at a new head — R1's repeat shape.
+      await writeReviewerSink([BLOCKER]);
+      const signalling = await run({
+        args: { ...ARGS, headSha: 'bbbbbbb', autonomous: true },
+        cwd: root,
+      });
+
+      expect(signalling.exitCode).toBe(silent.exitCode);
+      expect((await readdir(join(root, '.noldor', 'cr'))).toSorted()).toEqual(silentSinks);
+      const round2 = (await ledgerRounds()).at(-1)!;
+      expect(round2.blockerIds).toEqual([firedId]);
+      // R3 is `omitted` here and that is the contract working: the fixture's
+      // shas are literals in a tmpdir with no git history, so the ancestry
+      // check fails and the rule refuses to answer rather than reading clear.
+      expect(round2.signals).toEqual([
+        expect.objectContaining({ rule: 'R1', blockerId: firedId }),
+        expect.objectContaining({ rule: 'omitted' }),
+      ]);
+      expect(spy.mock.calls.flat().join('\n')).toContain('[R1]');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('refuses past the cap when HEAD is unchanged, and names the way out', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
@@ -1264,5 +1308,37 @@ describe('resolveIntroducedLines', () => {
     const git = async (args: string[]) => (args[0] === 'merge-base' ? '' : diff);
     const map = await resolveIntroducedLines('FIRST', git);
     expect([...(map?.get('src/x.ts') ?? [])].sort((a, b) => a - b)).toEqual([11, 12]);
+  });
+});
+
+describe('runReflagRules', () => {
+  const b = { id: 'a', severity: 'high' as const, message: 'boom' };
+  const located = { ...b, locations: [{ file: 'src/x.ts', line: 12 }] };
+
+  it('renders a fired signal and a persisted record', () => {
+    const out = runReflagRules([b], [['a']], new Map());
+    expect(out.lines).toEqual([expect.stringContaining('[R1]')]);
+    expect(out.signals).toEqual([
+      { rule: 'R1', blockerId: 'a', message: expect.stringContaining('survived a fix') },
+    ]);
+  });
+
+  it('renders an omitted rule as a reason, not silence', () => {
+    const out = runReflagRules([b], undefined, new Map());
+    expect(out.lines).toEqual([expect.stringContaining('[omitted]')]);
+    expect(out.signals).toEqual([
+      { rule: 'omitted', reason: expect.stringContaining('no recorded blocker ids') },
+    ]);
+  });
+
+  it('renders nothing when every rule is clear', () => {
+    const out = runReflagRules([b], [['other']], new Map());
+    expect(out.lines).toEqual([]);
+    expect(out.signals).toEqual([]);
+  });
+
+  it('renders R1 before R3', () => {
+    const out = runReflagRules([located], [['a']], new Map([['src/x.ts', new Set([12])]]));
+    expect(out.lines.map((l) => l.slice(0, 4))).toEqual(['[R1]', '[R3]']);
   });
 });
