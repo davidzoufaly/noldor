@@ -9,30 +9,40 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   BRIDGE_BOOTSTRAP_PATH,
   BRIDGE_DOWN_MESSAGE,
+  PENCIL_EXTENSION_ID,
   penBridgeRecipe,
   planPenBridge,
   rankPenCandidates,
 } from '../pen-bridge.js';
 import {
-  BUNDLE_UNRESOLVED_MARKER,
   main,
   openPenFile,
+  renderLaunchFailure,
   renderPlan,
   trackedPenFiles,
   type PenLaunchDeps,
 } from '../pen-bridge-cli.js';
 
 /**
- * A scripted `open` run. `stderr` is the signal that matters — macOS reports a
- * launch failure there, and for `-b` also with a non-zero exit.
+ * Scripted launcher seams: which extensions VS Code reports, and what the editor
+ * launch returned. `undefined` extensions models a list that could not be read,
+ * which is a different input from an empty one.
  */
-function runner(result: { status?: number | null; stderr?: string; error?: Error }) {
-  const calls: { cmd: string; args: readonly string[] }[] = [];
-  const run = (cmd: string, args: readonly string[]) => {
-    calls.push({ cmd, args });
-    return { status: result.status ?? 0, stderr: result.stderr ?? '', error: result.error };
+function launcher(opts: {
+  extensions?: readonly string[] | undefined;
+  unreadable?: boolean;
+  open?: { ok: boolean; error?: string };
+}) {
+  const opened: { absPath: string; cwd: string }[] = [];
+  const deps: PenLaunchDeps = {
+    listExtensions: () =>
+      opts.unreadable === true ? undefined : (opts.extensions ?? [PENCIL_EXTENSION_ID]),
+    open: (absPath, cwd) => {
+      opened.push({ absPath, cwd });
+      return opts.open ?? { ok: true };
+    },
   };
-  return { calls, run };
+  return { opened, deps };
 }
 
 describe('rankPenCandidates', () => {
@@ -101,56 +111,75 @@ describe('penBridgeRecipe', () => {
 
   // Measured: a GUI launch from a non-GUI context exits 0 and starts nothing,
   // so an agent that believes it can recover alone waives the design step.
-  it('says the operator, not the agent, starts a stopped app', () => {
-    expect(penBridgeRecipe('/tmp/scratch.pen')).toMatch(/cannot start|start it yourself/i);
+  it('names the harness, not the file, as the cause of absent MCP tools', () => {
+    const out = penBridgeRecipe('/tmp/scratch.pen');
+    expect(out).toContain('checks pen-bridge');
+    expect(out).toMatch(/terminal Claude Code/);
+  });
+
+  // The extension is what makes a launch a canvas rather than a text buffer, so
+  // the shared recipe has to say what exit 3 means.
+  it('tells the reader what a missing pen.dev extension looks like', () => {
+    expect(penBridgeRecipe('/tmp/scratch.pen')).toContain(PENCIL_EXTENSION_ID);
   });
 });
 
 describe('openPenFile', () => {
-  it('asks macOS to open the file in the pencil bundle without taking focus', () => {
-    const { calls, run } = runner({});
-    const out = openPenFile('/repo/docs/design/ui/a.pen', '/repo', { platform: 'darwin', run });
-    expect(out).toEqual({ kind: 'dispatched' });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.cmd).toBe('open');
-    expect(calls[0]?.args).toEqual([
-      '-g',
-      '-b',
-      'dev.pencil.desktop',
-      '/repo/docs/design/ui/a.pen',
-    ]);
-  });
-
-  // There is no `open` and no bundle id off macOS, and the `code` fallback is
-  // gone from this path — so spawning anything would be a guess.
-  it.each(['linux', 'win32'])('refuses on %s without spawning', (platform) => {
-    const { calls, run } = runner({});
-    expect(openPenFile('/repo/a.pen', '/repo', { platform, run })).toEqual({
-      kind: 'unsupported-platform',
-      platform,
+  it('hands the absolute path to the editor when the extension is installed', () => {
+    const { opened, deps } = launcher({ extensions: ['other.thing', PENCIL_EXTENSION_ID] });
+    expect(openPenFile('/repo/docs/design/ui/a.pen', '/repo', deps)).toEqual({
+      kind: 'dispatched',
     });
-    expect(calls).toHaveLength(0);
+    expect(opened).toEqual([{ absPath: '/repo/docs/design/ui/a.pen', cwd: '/repo' }]);
   });
 
-  // Measured 2026-09-02: `open -g -b <unregistered> f` exits 1 with this marker.
-  it('reads the LSCopyApplicationURLs marker as a missing app, not a failed launch', () => {
-    const { run } = runner({
-      status: 1,
-      stderr:
-        'LSCopyApplicationURLsForBundleIdentifier() failed while trying to determine the application with bundle identifier dev.pencil.desktop.',
+  // Without the extension VS Code renders the design's raw JSON in a text
+  // buffer. That opens no canvas, so dispatching it would report a false wake.
+  it('refuses without launching when the pen.dev extension is absent', () => {
+    const { opened, deps } = launcher({ extensions: ['ms-vscode.other'] });
+    expect(openPenFile('/repo/a.pen', '/repo', deps)).toEqual({ kind: 'not-installed' });
+    expect(opened).toHaveLength(0);
+  });
+
+  it('refuses without launching when nothing at all is installed', () => {
+    const { opened, deps } = launcher({ extensions: [] });
+    expect(openPenFile('/repo/a.pen', '/repo', deps)).toEqual({ kind: 'not-installed' });
+    expect(opened).toHaveLength(0);
+  });
+
+  // An unreadable list is not an empty one. Refusing here would turn a missing
+  // `code` on PATH into a confident report about extensions, and would withhold
+  // the one action that might still work.
+  it('still launches when the extension list could not be read', () => {
+    const { opened, deps } = launcher({ unreadable: true });
+    expect(openPenFile('/repo/a.pen', '/repo', deps)).toEqual({ kind: 'dispatched' });
+    expect(opened).toHaveLength(1);
+  });
+
+  it('reports a refused editor launch as failed, carrying the reason', () => {
+    const { deps } = launcher({ open: { ok: false, error: 'code: command not found' } });
+    expect(openPenFile('/repo/a.pen', '/repo', deps)).toEqual({
+      kind: 'failed',
+      error: 'code: command not found',
     });
-    const out = openPenFile('/repo/a.pen', '/repo', { platform: 'darwin', run });
-    expect(out.kind).toBe('not-installed');
   });
 
-  it.each([
-    ['a non-zero exit', { status: 3, stderr: '' }],
-    ['stderr on a zero exit', { status: 0, stderr: 'kLSNoExecutableErr' }],
-    ['a spawn error', { status: null, stderr: '', error: new Error('ENOENT') }],
-  ])('reports %s as a failed launch', (_label, result) => {
-    expect(
-      openPenFile('/repo/a.pen', '/repo', { platform: 'darwin', ...runner(result) }).kind,
-    ).toBe('failed');
+  it('substitutes a reason when the launch failed without one', () => {
+    const { deps } = launcher({ open: { ok: false } });
+    const out = openPenFile('/repo/a.pen', '/repo', deps);
+    expect(out.kind).toBe('failed');
+    expect(out).toMatchObject({ error: expect.stringMatching(/\S/) as unknown as string });
+  });
+});
+
+describe('renderLaunchFailure', () => {
+  // The remedy is the whole value: "install the app" would send the operator to
+  // the editor this path deliberately left behind.
+  it('names the extension, not an app, as the missing piece', () => {
+    const out = renderLaunchFailure({ kind: 'not-installed' }, '/repo/a.pen');
+    expect(out).toContain(PENCIL_EXTENSION_ID);
+    expect(out).toContain('raw JSON');
+    expect(out).not.toMatch(/desktop app/i);
   });
 });
 
@@ -177,13 +206,15 @@ describe('renderPlan', () => {
   it('tells a bootstrap plan to author the file in the editor', () => {
     const out = renderPlan({ kind: 'bootstrap', path: BRIDGE_BOOTSTRAP_PATH });
     expect(out).toContain(BRIDGE_BOOTSTRAP_PATH);
-    expect(out).toContain('encrypted');
+    expect(out).toMatch(/VS Code/);
   });
 
-  // The desktop app parks self-authored documents under ~/.pencil/documents/,
-  // where nothing commits them — so "create one" alone loses the design.
+  // A design saved outside the repo is a design nothing commits, so "create
+  // one" alone loses it.
   it('tells a bootstrap plan to save into the repo', () => {
-    expect(renderPlan({ kind: 'bootstrap', path: BRIDGE_BOOTSTRAP_PATH })).toMatch(/save as/i);
+    expect(renderPlan({ kind: 'bootstrap', path: BRIDGE_BOOTSTRAP_PATH })).toMatch(
+      /INSIDE this repo/i,
+    );
   });
 });
 
@@ -230,7 +261,7 @@ describe('trackedPenFiles', () => {
 
   /** stdout captured across one `main` call, driving the real launcher. */
   // NOT Partial: the compiler, not the comment below, is what keeps a case from
-  // omitting `platform` or `run` and falling through to the real `spawnSync`.
+  // omitting a seam and falling through to a real editor spawn.
   async function runMain(deps: PenLaunchDeps): Promise<{ code: number; out: string }> {
     const lines: string[] = [];
     const log = console.log;
@@ -247,20 +278,14 @@ describe('trackedPenFiles', () => {
   }
 
   // The whole point of the `dispatched` naming is that nothing claims a wake
-  // that did not happen. Printing the plan before launching defeats it: on a
-  // platform that spawns nothing, stdout still told the reader to retry MCP.
-  // Every case pins `platform` AND supplies a `run`, so no case can reach the
-  // real `spawnSync`. An earlier revision passed a stub where deps were expected;
-  // `platform` came back undefined, fell through to the host darwin, and handed a
-  // junk temp file to the actual desktop app.
+  // that did not happen. Printing the plan before launching defeats it: an
+  // outcome that opened nothing still told the reader to retry MCP. Every case
+  // supplies BOTH seams, so none can reach a real editor spawn — an earlier
+  // revision passed a stub where deps were expected, a field came back
+  // undefined, and a junk temp file went to the real editor.
   it.each([
-    ['an unsupported platform', { platform: 'linux', run: runner({}).run }, 4],
-    [
-      'a missing app',
-      { platform: 'darwin', run: runner({ status: 1, stderr: BUNDLE_UNRESOLVED_MARKER }).run },
-      3,
-    ],
-    ['a failed launch', { platform: 'darwin', run: runner({ status: 1, stderr: 'boom' }).run }, 2],
+    ['a missing extension', launcher({ extensions: [] }).deps, 3],
+    ['a failed launch', launcher({ open: { ok: false, error: 'boom' } }).deps, 2],
   ])('says nothing about a request on %s', async (_label, deps, expected) => {
     const { code, out } = await runMain(deps);
     expect(code).toBe(expected);
@@ -269,7 +294,7 @@ describe('trackedPenFiles', () => {
   });
 
   it('reports the request only once the launcher dispatched one', async () => {
-    const { code, out } = await runMain({ platform: 'darwin', run: runner({ status: 0 }).run });
+    const { code, out } = await runMain(launcher({}).deps);
     expect(code).toBe(0);
     expect(out).toContain('requested');
   });

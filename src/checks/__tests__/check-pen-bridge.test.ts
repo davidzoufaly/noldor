@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { PENCIL_EXTENSION_ID } from '../../design/pen-bridge.js';
 import {
   ENTRYPOINT_VAR,
   EXPECTED_MCP_APP,
@@ -92,18 +93,28 @@ function rows(
   return checkPenBridge(f.cwd, {
     platform: 'darwin',
     home: f.home,
-    probeBundle: () => probe,
+    probeExtensions: extensions(probe),
     readEnv: env(WORKING_ENTRYPOINT),
   });
 }
 
+/**
+ * An extension list producing the named row. `indeterminate` returns
+ * `undefined` — the list could not be read — which is deliberately distinct
+ * from `missing`, an empty list that answers the question.
+ */
+function extensions(probe: 'ok' | 'missing' | 'indeterminate') {
+  return () =>
+    probe === 'indeterminate' ? undefined : probe === 'ok' ? [PENCIL_EXTENSION_ID] : [];
+}
+
 /** The single harness row from a run under `entrypoint`. */
 function harnessRow(entrypoint: string | undefined): PenBridgeRow {
-  const f = fixture({ user: pencil(['--app', 'desktop']) });
+  const f = fixture({ user: pencil(['--app', 'visual_studio_code']) });
   const row = checkPenBridge(f.cwd, {
     platform: 'darwin',
     home: f.home,
-    probeBundle: () => 'ok',
+    probeExtensions: extensions('ok'),
     readEnv: env(entrypoint),
   }).find((r) => r.kind.startsWith('harness-'));
   if (row === undefined) throw new Error('no harness row');
@@ -119,9 +130,9 @@ function mcpRow(f: { cwd: string; home: string }): PenBridgeRow {
 
 describe('checkPenBridge — the --app pin', () => {
   it.each([
-    ['a separate value', ['--app', 'desktop', '--agent', 'claudeCodeCLI']],
-    ['an inline value', ['--app=desktop', '--agent=claudeCodeCLI']],
-  ])('accepts %s of desktop', (_label, args) => {
+    ['a separate value', ['--app', 'visual_studio_code', '--agent', 'claudeCodeCLI']],
+    ['an inline value', ['--app=visual_studio_code', '--agent=claudeCodeCLI']],
+  ])('accepts %s of visual_studio_code', (_label, args) => {
     expect(mcpRow(fixture({ user: pencil(args) }))).toEqual({
       kind: 'mcp-app-ok',
       source: 'user (~/.claude.json)',
@@ -129,7 +140,7 @@ describe('checkPenBridge — the --app pin', () => {
   });
 
   it.each([
-    ['the VS Code extension', ['--app', 'visual_studio_code']],
+    ['the pen.dev desktop app', ['--app', 'desktop']],
     ['an app nobody has heard of', ['--app', 'emacs']],
   ])('reports %s as a mismatch, naming what it found', (_label, args) => {
     const row = mcpRow(fixture({ user: pencil(args) }));
@@ -138,7 +149,9 @@ describe('checkPenBridge — the --app pin', () => {
   });
 
   it('reads the first --app when the flag repeats', () => {
-    const row = mcpRow(fixture({ user: pencil(['--app', 'desktop', '--app', 'emacs']) }));
+    const row = mcpRow(
+      fixture({ user: pencil(['--app', 'visual_studio_code', '--app', 'emacs']) }),
+    );
     expect(row.kind).toBe('mcp-app-ok');
   });
 });
@@ -149,8 +162,8 @@ describe('checkPenBridge — scope precedence', () => {
   it('prefers the local project block over the user block', () => {
     const row = mcpRow(
       fixture({
-        user: pencil(['--app', 'desktop']),
-        local: pencil(['--app', 'visual_studio_code']),
+        user: pencil(['--app', 'visual_studio_code']),
+        local: pencil(['--app', 'desktop']),
       }),
     );
     expect(row).toMatchObject({ kind: 'mcp-app-mismatch', source: 'local (~/.claude.json)' });
@@ -159,8 +172,8 @@ describe('checkPenBridge — scope precedence', () => {
   it('prefers an approved .mcp.json over the user block', () => {
     const row = mcpRow(
       fixture({
-        user: pencil(['--app', 'desktop']),
-        project: pencil(['--app', 'visual_studio_code']),
+        user: pencil(['--app', 'visual_studio_code']),
+        project: pencil(['--app', 'desktop']),
         enabled: ['pencil'],
       }),
     );
@@ -172,8 +185,8 @@ describe('checkPenBridge — scope precedence', () => {
   it('ignores an unapproved .mcp.json and falls through to the user block', () => {
     const row = mcpRow(
       fixture({
-        user: pencil(['--app', 'desktop']),
-        project: pencil(['--app', 'visual_studio_code']),
+        user: pencil(['--app', 'visual_studio_code']),
+        project: pencil(['--app', 'desktop']),
         enabled: [],
       }),
     );
@@ -186,7 +199,7 @@ describe('checkPenBridge — scope precedence', () => {
   it('never reads another project’s mcpServers block', () => {
     const row = mcpRow(
       fixture({
-        user: pencil(['--app', 'desktop']),
+        user: pencil(['--app', 'visual_studio_code']),
         otherProject: { path: '/somewhere/else', mcpServers: pencil(['--app', 'emacs']) },
       }),
     );
@@ -200,7 +213,7 @@ describe('checkPenBridge — indeterminate never becomes a finding', () => {
     ['no config at all', { claudeJson: false }],
     ['no pencil entry in any scope', { user: { other: { command: 'x', args: [] } } }],
     ['a pencil entry with no args', { user: { pencil: { command: 'x' } } }],
-    ['a non-array args', { user: pencil('--app desktop') }],
+    ['a non-array args', { user: pencil('--app visual_studio_code') }],
     ['args carrying no --app', { user: pencil(['--agent', 'claudeCodeCLI']) }],
     ['--app with nothing after it', { user: pencil(['--agent', 'x', '--app']) }],
     ['an inline --app with an empty value', { user: pencil(['--app=']) }],
@@ -229,7 +242,7 @@ describe('checkPenBridge — indeterminate never becomes a finding', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'pen-bridge-repo-'));
     writeFileSync(
       join(home, '.claude.json'),
-      JSON.stringify({ mcpServers: pencil(['--app', 'desktop']) }),
+      JSON.stringify({ mcpServers: pencil(['--app', 'visual_studio_code']) }),
     );
     // A directory where a file is expected: readFileSync throws EISDIR, not ENOENT.
     mkdirSync(join(cwd, '.mcp.json'));
@@ -242,15 +255,15 @@ describe('checkPenBridge — the harness row', () => {
   // The whole point: a machine whose config and app are both perfect still has no
   // bridge under the VS Code extension, and nothing in the config could say so.
   it('reds on the VS Code extension even with a perfect pin and an installed app', () => {
-    const f = fixture({ user: pencil(['--app', 'desktop']) });
+    const f = fixture({ user: pencil(['--app', 'visual_studio_code']) });
     const found = checkPenBridge(f.cwd, {
       platform: 'darwin',
       home: f.home,
-      probeBundle: () => 'ok',
+      probeExtensions: extensions('ok'),
       readEnv: env('claude-vscode'),
     });
     expect(found).toContainEqual({ kind: 'mcp-app-ok', source: 'user (~/.claude.json)' });
-    expect(found).toContainEqual({ kind: 'app-ok' });
+    expect(found).toContainEqual({ kind: 'ext-ok' });
     expect(found).toContainEqual({
       kind: 'harness-unsupported',
       entrypoint: 'claude-vscode',
@@ -280,11 +293,11 @@ describe('checkPenBridge — the harness row', () => {
   });
 
   it('leads with the harness, because it decides whether the other rows matter', () => {
-    const f = fixture({ user: pencil(['--app', 'desktop']) });
+    const f = fixture({ user: pencil(['--app', 'visual_studio_code']) });
     const [first] = checkPenBridge(f.cwd, {
       platform: 'darwin',
       home: f.home,
-      probeBundle: () => 'ok',
+      probeExtensions: extensions('ok'),
       readEnv: env('claude-vscode'),
     });
     expect(first?.kind).toBe('harness-unsupported');
@@ -304,14 +317,28 @@ describe('checkPenBridge — the harness row', () => {
   });
 });
 
-describe('checkPenBridge — the app row', () => {
+describe('checkPenBridge — the extension row', () => {
   it.each([
-    ['ok', 'app-ok'],
-    ['missing', 'app-missing'],
-    ['indeterminate', 'app-indeterminate'],
+    ['ok', 'ext-ok'],
+    ['missing', 'ext-missing'],
+    ['indeterminate', 'ext-indeterminate'],
   ] as const)('maps a %s probe to %s', (probe, kind) => {
-    const found = rows(fixture({ user: pencil(['--app', 'desktop']) }), probe);
+    const found = rows(fixture({ user: pencil(['--app', EXPECTED_MCP_APP]) }), probe);
     expect(found.some((r) => r.kind === kind)).toBe(true);
+  });
+
+  // An unreadable list must never red: the same reasoning the MCP rows follow.
+  it('keeps an unreadable extension list green', () => {
+    const found = rows(fixture({ user: pencil(['--app', EXPECTED_MCP_APP]) }), 'indeterminate');
+    expect(penBridgeExitCode(found)).toBe(0);
+  });
+
+  // The raw-JSON outcome is the reason this row exists — an operator told only
+  // "not installed" has no idea what they will see instead of a canvas.
+  it('names the raw-JSON outcome in the missing-extension remedy', () => {
+    const out = renderPenBridgeRow({ kind: 'ext-missing' });
+    expect(out).toContain(PENCIL_EXTENSION_ID);
+    expect(out).toContain('raw JSON');
   });
 });
 
@@ -320,13 +347,13 @@ describe('checkPenBridge — platform gating', () => {
     'returns one not-applicable row on %s, probing nothing',
     (platform) => {
       let probed = false;
-      const f = fixture({ user: pencil(['--app', 'visual_studio_code']) });
+      const f = fixture({ user: pencil(['--app', 'desktop']) });
       const found = checkPenBridge(f.cwd, {
         platform,
         home: f.home,
-        probeBundle: () => {
+        probeExtensions: () => {
           probed = true;
-          return 'ok';
+          return [PENCIL_EXTENSION_ID];
         },
       });
       expect(found).toEqual([{ kind: 'not-applicable', platform }]);
@@ -336,9 +363,9 @@ describe('checkPenBridge — platform gating', () => {
 });
 
 describe('penBridgeExitCode', () => {
-  it('reds on a mismatch, a missing app or an unsupported harness', () => {
+  it('reds on a mismatch, a missing extension or an unsupported harness', () => {
     expect(penBridgeExitCode([{ kind: 'mcp-app-mismatch', source: 's', found: 'x' }])).toBe(1);
-    expect(penBridgeExitCode([{ kind: 'app-missing' }])).toBe(1);
+    expect(penBridgeExitCode([{ kind: 'ext-missing' }])).toBe(1);
     expect(
       penBridgeExitCode([{ kind: 'harness-unsupported', entrypoint: 'e', harness: 'h' }]),
     ).toBe(1);
@@ -350,7 +377,7 @@ describe('penBridgeExitCode', () => {
       [
         { kind: 'harness-ok', entrypoint: 'cli' },
         { kind: 'mcp-app-ok', source: 's' },
-        { kind: 'app-ok' },
+        { kind: 'ext-ok' },
       ],
     ],
     [
@@ -358,6 +385,7 @@ describe('penBridgeExitCode', () => {
       [
         { kind: 'harness-indeterminate', reason: 'r' },
         { kind: 'mcp-indeterminate', reason: 'r' },
+        { kind: 'ext-indeterminate', reason: 'r' },
       ],
     ],
     ['an unsupported platform', [{ kind: 'not-applicable', platform: 'linux' }]],
@@ -367,7 +395,9 @@ describe('penBridgeExitCode', () => {
 });
 
 describe('EXPECTED_MCP_APP', () => {
-  it('is the pen.dev desktop app', () => {
-    expect(EXPECTED_MCP_APP).toBe('desktop');
+  // The server derives ~/.pencil/socket/pencil-<app>.sock from this exact
+  // string, so a typo is a permanently dead bridge with no error naming it.
+  it('is the VS Code socket name', () => {
+    expect(EXPECTED_MCP_APP).toBe('visual_studio_code');
   });
 });

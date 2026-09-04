@@ -181,24 +181,27 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 ## Pencil / UI design
 
 - **"A file needs to be open in the editor" is a bridge-liveness gate, not a
-  per-file lock.** `.pen` is encrypted, so pencil MCP is the only reader, and
-  every call fails with that message until *some* `.pen` is open in the pen.dev
-  desktop app. Once any file is open, `execute` routes to any *existing* `.pen`
-  by `filePath` — including a scratch copy that was never opened. So the fix is
-  to open a file, not to change the path you asked for: `pnpm noldor design
-  pen-bridge` finds and opens one (exit 1 = the repo tracks no `.pen` and the
-  app must author it, since Node cannot).
-- **That same message also means the MCP server is pinned to the wrong app —
+  per-file lock.** Pencil MCP is the write API, and every call fails with that
+  message until *some* `.pen` is open in VS Code. Once any file is open,
+  `execute` routes to any *existing* `.pen` by `filePath` — including a scratch
+  copy that was never opened. So the fix is to open a file, not to change the
+  path you asked for: `pnpm noldor design pen-bridge` finds and opens one
+  (exit 1 = the repo tracks no `.pen` and the editor must author one; exit 3 =
+  the pen.dev extension is not installed).
+- **That same message also means the MCP server is pinned to the wrong editor —
   and nothing distinguishes the two cases.** The server derives its socket as
   `~/.pencil/socket/pencil-<app>.sock` from its own `--app` flag, so a server
-  started with `--app visual_studio_code` talks past a perfectly healthy desktop
-  app forever, reporting exactly the liveness error above. `pnpm noldor checks
-  pen-bridge` is what tells them apart: it names the scope and file holding the
-  effective pencil entry. The flag is read once, at startup, so a fix needs a
-  Claude Code restart.
+  started with `--app desktop` talks past a perfectly healthy VS Code forever,
+  reporting exactly the liveness error above. Both sockets can be live at once
+  (`pencil-desktop.sock` and `pencil-visual_studio_code.sock` were both listening
+  on this machine on 2026-09-04), which is why the wrong pin fails silently
+  rather than loudly. `pnpm noldor checks pen-bridge` is what tells the cases
+  apart: it names the scope and file holding the effective pencil entry, and the
+  expected value is `visual_studio_code`. The flag is read once, at startup, so
+  a fix needs a Claude Code restart.
 - **The pencil MCP server does not connect under the Claude Code VS Code
-  extension.** Same `~/.claude.json`, same `--app desktop` pin, same installed
-  app: from a terminal `claude` the server connects, and under the extension it
+  extension.** Same `~/.claude.json`, same `--app` pin, same installed
+  editor: from a terminal `claude` the server connects, and under the extension it
   reports `CONNECTION_CLOSED` at session start and none of its tools exist for
   the rest of the session. This failure looks nothing like the other two — there
   is no `A file needs to be open in the editor` to match on, because there is no
@@ -209,24 +212,31 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   spawned processes, so the check sees the harness that would make the call). No
   configuration edit helps — do `.pen` work from terminal Claude Code, or hand
   the step to the operator. An entrypoint nobody has measured reads as
-  indeterminate, never as a finding. (found 2026-09-04)
-- **An agent cannot start the desktop app.** A GUI launch from a tool shell
-  exits 0, prints nothing, and starts nothing — sandbox on or off — while the
-  same command works from the operator's terminal. Handing a file to an
-  *already running* app does work from a tool shell. So `pen-bridge` reports
-  that the open was *requested*, never that it succeeded; retrying the pencil
-  MCP call is the only proof, and a still-dead bridge is an operator action.
-- **The desktop app parks documents it authors itself under
-  `~/.pencil/documents/<uuid>/`.** A file opened from a repo path stays at that
-  path and is edited in place, but one created inside the app lands in its own
-  library where nothing in the repo will ever commit it. Bootstrapping a repo's
-  first `.pen` therefore needs an explicit **Save As** into
-  `docs/design/ui/`.
+  indeterminate, never as a finding. **This is the bug that once justified moving
+  `.pen` to the desktop app** — the blame landed on the pen.dev VS Code extension
+  when the harness was at fault, and no choice of `.pen` editor could ever have
+  fixed it. (found 2026-09-04)
+- **A `.pen` is plain, unencrypted UTF-8 JSON.** Every `.pen` in the charuy
+  consumer parses with `JSON.parse` across three format versions (2.13, 2.14,
+  2.17), top-level keys `version, children, variables, fileToken`. The framework
+  claimed the opposite for months — "encrypted, so pencil MCP is the only
+  reader" — and that false premise is load-bearing in places that have not all
+  been revisited yet (the CR lane prompts still tell agents never to open one
+  with a file-reading tool). The consequence you *will* hit: with no editor
+  association VS Code renders the design as text, because there is no binary
+  guard to stop it. `noldor init` seeds
+  `workbench.editorAssociations: {"*.pen": "pencil.designEditor"}` for exactly
+  that reason, merging into a consumer's existing `.vscode/settings.json` rather
+  than replacing it. (found 2026-09-04)
+- **A launch is not an open.** Handing a file to an already-running editor works
+  from a tool shell, but nothing reachable from a tool shell can confirm a canvas
+  came up. So `pen-bridge` reports that the open was *requested*, never that it
+  succeeded; retrying the pencil MCP call is the only proof.
 - **A `filePath` that does not exist is a silent write to the open canvas, not
   an error.** Routing holds only while the file is there; otherwise the edit
-  lands on whatever document the app currently has open, with no diagnostic. A
+  lands on whatever document the editor currently has open, with no diagnostic. A
   worktree-relative path while the app held a baseline `.pen` from
-  `docs/design/ui/baseline/` deleted four pages from that baseline, and the app then auto-saved the same
+  `docs/design/ui/baseline/` deleted four pages from that baseline, and the editor then auto-saved the same
   session document over both the baseline and another feature's archived
   `.pen`; they came out byte-identical, and `git status` in the **main**
   workspace was the only signal — the worktree's own status stayed clean. So
@@ -235,14 +245,18 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   from a worktree; any archived `.pen` modified or moved out of `archive/`;
   `NOLDOR_ALLOW_PEN_WRITE=1` waives both for the gate's one sanctioned baseline
   write-back). (Q-0187)
-- **The pen.dev desktop app is the `.pen` editor, addressed by bundle id
-  `dev.pencil.desktop`.** It registers `.pen` as a document type, so
-  `open -g -b dev.pencil.desktop <abs path>.pen` opens that exact file — the
-  older claim that it "has no scriptable open" was wrong, and the VS Code
-  extension it justified is gone from this path. Spec and plan `.md` artifacts
-  still open via `code`; only `.pen` moved. An unregistered bundle id exits 1
-  with `LSCopyApplicationURLsForBundleIdentifier` in stderr, which is how "not
-  installed" is told from "launch failed".
+- **VS Code is the `.pen` editor, via the pen.dev extension
+  `highagency.pencildev` (custom editor `pencil.designEditor`).** One editor for
+  everything: `.pen` designs and `.md` artifacts both go through
+  `openInEditor`, and `checks pen-bridge` expects `--app visual_studio_code`.
+  `.pen` briefly moved to the pen.dev desktop app (`dev.pencil.desktop`) and came
+  back — see the Claude Code harness bullet above for why the move was
+  misdiagnosed. The desktop app is gone from this path rather than kept as a
+  fallback: two editors mean two sockets, and a file open in one while the server
+  is pinned to the other is a permanently dead bridge with no error naming the
+  cause. `pen-bridge` therefore checks `code --list-extensions` for the extension
+  *before* launching — without it VS Code opens the `.pen` in the text editor and
+  shows raw JSON, a launch that looks fine and wakes nothing (exit 3).
 - **Waive the UI-design step only after a wake attempt.** A closed editor and
   an absent editor look identical from Node, and recording `uiWaiver` for the
   first one buys permanent baseline debt for a fixable five-second problem.

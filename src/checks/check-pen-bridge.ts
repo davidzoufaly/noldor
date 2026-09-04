@@ -19,16 +19,20 @@
 // Reporting only: nothing here writes configuration, and no commit or push gate
 // consumes it.
 
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { runIfDirect } from '../core/cli-entry.js';
-import { PENCIL_BUNDLE_ID } from '../design/pen-bridge.js';
+import { listVsCodeExtensions } from '../design/editor-launch.js';
+import { PENCIL_EXTENSION_ID } from '../design/pen-bridge.js';
 
-/** The `--app` value the launcher needs, because it opens that app and no other. */
-export const EXPECTED_MCP_APP = 'desktop';
+/**
+ * The `--app` value the launcher needs, because it opens that editor and no
+ * other. The server derives its socket as `~/.pencil/socket/pencil-<app>.sock`,
+ * so this string is the whole contract between the two halves.
+ */
+export const EXPECTED_MCP_APP = 'visual_studio_code';
 
 /** Key of the pencil server under an `mcpServers` object. */
 const PENCIL_SERVER_KEY = 'pencil';
@@ -65,12 +69,13 @@ export type PenBridgeRow =
   | { kind: 'mcp-app-ok'; source: string }
   | { kind: 'mcp-app-mismatch'; source: string; found: string }
   | { kind: 'mcp-indeterminate'; reason: string }
-  | { kind: 'app-ok' }
-  | { kind: 'app-missing' }
-  | { kind: 'app-indeterminate'; reason: string }
+  | { kind: 'ext-ok' }
+  | { kind: 'ext-missing' }
+  | { kind: 'ext-indeterminate'; reason: string }
   | { kind: 'not-applicable'; platform: string };
 
-export type BundleProbe = (bundleId: string) => 'ok' | 'missing' | 'indeterminate';
+/** Installed VS Code extension ids, or `undefined` when the list is unreadable. */
+export type ExtensionProbe = (cwd: string) => readonly string[] | undefined;
 
 /**
  * Injectable seams. The filesystem is deliberately absent: config files are read
@@ -88,7 +93,7 @@ export type BundleProbe = (bundleId: string) => 'ok' | 'missing' | 'indeterminat
 export interface PenBridgeCheckDeps {
   readonly platform: string;
   readonly home: string;
-  readonly probeBundle: BundleProbe;
+  readonly probeExtensions: ExtensionProbe;
   readonly readEnv: (name: string) => string | undefined;
 }
 
@@ -265,27 +270,12 @@ function harnessRow(readEnv: (name: string) => string | undefined): PenBridgeRow
 }
 
 /**
- * Does an application claim {@link PENCIL_BUNDLE_ID}?
- *
- * Spotlight, not `open -b`. `open` is the launcher's mechanism and it would
- * START the app — a side effect on a read-only diagnostic, and one that would
- * raise a design canvas every time `doctor` ran.
- */
-export function probeBundleViaSpotlight(bundleId: string): 'ok' | 'missing' | 'indeterminate' {
-  const run = spawnSync('mdfind', [`kMDItemCFBundleIdentifier == '${bundleId}'`], {
-    encoding: 'utf8',
-    timeout: 5_000,
-  });
-  if (run.error !== undefined || run.status !== 0) return 'indeterminate';
-  return (run.stdout ?? '').trim().length > 0 ? 'ok' : 'missing';
-}
-
-/**
  * Everything the pen bridge needs from the machine, as rows a caller prints.
  *
- * Off darwin nothing is probed: there is no `open`, no bundle id and no
- * Spotlight, so every row this could return would be an answer about a different
- * operating system.
+ * Off darwin nothing is probed. `.pen` editing itself is not macOS-bound any
+ * more — VS Code and its pen.dev extension run everywhere — but the pencil MCP
+ * server has only ever been exercised here, so a row claiming a verdict about
+ * another operating system would be an assertion this framework has not earned.
  */
 export function checkPenBridge(
   cwd: string,
@@ -295,19 +285,22 @@ export function checkPenBridge(
   if (platform !== 'darwin') return [{ kind: 'not-applicable', platform }];
 
   const home = deps.home ?? homedir();
-  const probe = deps.probeBundle ?? probeBundleViaSpotlight;
+  const probe = deps.probeExtensions ?? listVsCodeExtensions;
   const readEnv = deps.readEnv ?? ((name: string): string | undefined => process.env[name]);
-  const app = probe(PENCIL_BUNDLE_ID);
-  const appRow: PenBridgeRow =
-    app === 'ok'
-      ? { kind: 'app-ok' }
-      : app === 'missing'
-        ? { kind: 'app-missing' }
-        : { kind: 'app-indeterminate', reason: 'could not ask Spotlight for the pencil bundle' };
+  const installed = probe(cwd);
+  const extRow: PenBridgeRow =
+    installed === undefined
+      ? {
+          kind: 'ext-indeterminate',
+          reason: 'could not read the installed VS Code extensions (no `code` on PATH?)',
+        }
+      : installed.includes(PENCIL_EXTENSION_ID)
+        ? { kind: 'ext-ok' }
+        : { kind: 'ext-missing' };
   // Harness first: it decides whether the other two rows can matter at all. A
-  // correct pin and an installed app describe a bridge that still will not carry
-  // a call from a harness the server never reaches.
-  return [harnessRow(readEnv), mcpRow(cwd, home), appRow];
+  // correct pin and an installed extension describe a bridge that still will not
+  // carry a call from a harness the server never reaches.
+  return [harnessRow(readEnv), mcpRow(cwd, home), extRow];
 }
 
 /**
@@ -321,15 +314,15 @@ export function penBridgeRowLevel(row: PenBridgeRow): 'finding' | 'healthy' | 'u
   switch (row.kind) {
     case 'harness-unsupported':
     case 'mcp-app-mismatch':
-    case 'app-missing':
+    case 'ext-missing':
       return 'finding';
     case 'harness-ok':
     case 'mcp-app-ok':
-    case 'app-ok':
+    case 'ext-ok':
       return 'healthy';
     case 'harness-indeterminate':
     case 'mcp-indeterminate':
-    case 'app-indeterminate':
+    case 'ext-indeterminate':
     case 'not-applicable':
       return 'undetermined';
   }
@@ -366,14 +359,17 @@ export function renderPenBridgeRow(row: PenBridgeRow): string {
       );
     case 'mcp-indeterminate':
       return `pen-bridge: could not determine the pencil MCP pin — ${row.reason}`;
-    case 'app-ok':
-      return `pen-bridge: the pen.dev desktop app is installed (${PENCIL_BUNDLE_ID})`;
-    case 'app-missing':
-      return `pen-bridge: no application is registered for ${PENCIL_BUNDLE_ID}\n  → install the pen.dev desktop app`;
-    case 'app-indeterminate':
-      return `pen-bridge: could not determine whether the pen.dev desktop app is installed — ${row.reason}`;
+    case 'ext-ok':
+      return `pen-bridge: the pen.dev VS Code extension is installed (${PENCIL_EXTENSION_ID})`;
+    case 'ext-missing':
+      return (
+        `pen-bridge: the pen.dev VS Code extension (${PENCIL_EXTENSION_ID}) is not installed\n` +
+        `  → install it. Without it VS Code opens a \`.pen\` in the text editor and shows the design's raw JSON — a launch that looks fine and wakes no bridge`
+      );
+    case 'ext-indeterminate':
+      return `pen-bridge: could not determine whether the pen.dev VS Code extension is installed — ${row.reason}`;
     case 'not-applicable':
-      return `pen-bridge: not applicable on ${row.platform} — the pen.dev desktop app is macOS-only`;
+      return `pen-bridge: not applicable on ${row.platform} — the pencil MCP server has only been exercised on macOS`;
   }
 }
 

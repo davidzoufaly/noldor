@@ -2,31 +2,48 @@
 // The pencil bridge: which editor drives `.pen` files, and how a session wakes
 // the bridge instead of waiving the UI-design step.
 //
-// `.pen` is encrypted, so pencil MCP is the only reader — and every MCP call
-// fails with "A file needs to be open in the editor" until SOME `.pen` is open
-// in the pen.dev desktop app. That is a bridge-liveness gate, not a per-file
-// lock: once any file is open, `execute` routes to any EXISTING `.pen` by
-// `filePath`, including a scratch copy that was never opened. A `filePath`
+// The editor is VS Code, via the pen.dev extension. Pencil MCP is the write API
+// regardless — every call fails with "A file needs to be open in the editor"
+// until SOME `.pen` is open there. That is a bridge-liveness gate, not a
+// per-file lock: once any file is open, `execute` routes to any EXISTING `.pen`
+// by `filePath`, including a scratch copy that was never opened. A `filePath`
 // that does not exist is worse than an error — the write silently lands on the
-// canvas the app has open (Q-0187). The first two facts were observed in the
+// canvas the editor has open (Q-0187). The first two facts were observed in the
 // render-compare export spike (2026-08-21) and lived only in that spec plus one
 // lane prompt string; the recipe below is the shared source.
 
 import { UI_BASELINE_DIR } from '../core/design-artifact-names.js';
 
 /**
- * The pen.dev desktop app, addressed by bundle id rather than by install path so
- * a relocated or user-installed copy still resolves.
+ * The VS Code extension that edits `.pen`, as the id `code --list-extensions`
+ * prints and `code --install-extension` accepts.
  *
- * This replaced a `PENCIL_EDITOR_DEFAULT` / `PENCIL_EXTENSION_ID` pair that named
- * the VS Code extension. That default rested on the claim that the desktop app
- * "has no scriptable open", which is false: the bundle registers `.pen` as a
- * document type, so `open -b <this id> <file>.pen` opens that exact file in
- * place. No editor-selection constant replaces them — there is one `.pen` route
- * now, and a declared default nothing reads only advertises a choice the code
- * cannot make.
+ * `.pen` is back in VS Code. It briefly moved to the pen.dev desktop app
+ * (`dev.pencil.desktop`) on the belief that a bug in this extension was what
+ * kept pencil MCP from answering. That belief was wrong: the culprit was the
+ * **Claude Code** VS Code extension, under which the pencil MCP server does not
+ * connect at all — see the harness row in `checks pen-bridge`, and note that no
+ * `.pen` editor can fix it, because the failure is upstream of every editor. So
+ * the move bought nothing and cost the editor the operator actually works in.
+ *
+ * The desktop app is gone from this path entirely rather than kept as a
+ * fallback: two editors mean two sockets
+ * (`~/.pencil/socket/pencil-<app>.sock`), and a session whose file is open in
+ * one while the MCP server is pinned to the other sees a permanently dead
+ * bridge with no error that names the cause.
  */
-export const PENCIL_BUNDLE_ID = 'dev.pencil.desktop';
+export const PENCIL_EXTENSION_ID = 'highagency.pencildev';
+
+/**
+ * The custom-editor `viewType` the extension registers for `*.pen`, and the
+ * value a `workbench.editorAssociations` entry must carry.
+ *
+ * Naming it matters because the fallback is silent and wrong: a `.pen` is plain
+ * UTF-8 JSON, so with no association VS Code renders it happily in the text
+ * editor — no binary warning, no custom editor, just the document's internals on
+ * screen. `noldor init` seeds the association for this reason.
+ */
+export const PENCIL_VIEW_TYPE = 'pencil.designEditor';
 
 /** The MCP error that means the bridge is down rather than the file is bad. */
 export const BRIDGE_DOWN_MESSAGE = 'A file needs to be open in the editor';
@@ -54,7 +71,7 @@ export function rankPenCandidates(paths: readonly string[]): string[] {
 /**
  * What to do about the bridge. `open` names an existing `.pen` to hand to the
  * editor; `bootstrap` means the repo has none, so the editor must author one —
- * a distinct outcome because Node cannot write a `.pen` (encrypted format), and
+ * a distinct outcome because a hand-written `.pen` is not a design, and
  * reporting it as an ordinary open would claim a live bridge that isn't.
  */
 export type PenBridgePlan = { kind: 'open'; path: string } | { kind: 'bootstrap'; path: string };
@@ -85,7 +102,7 @@ export function planPenBridge(paths: readonly string[], preferred?: string): Pen
  * `penPath` is the file that lane already owns.
  */
 export function penBridgeRecipe(penPath: string): string {
-  return `If every pencil MCP call fails with "${BRIDGE_DOWN_MESSAGE}", the bridge is down, not the file: run \`pnpm noldor design pen-bridge --pen ${penPath}\`, wait a few seconds, and retry the call. Once any \`.pen\` is open in the pen.dev desktop app, \`execute\` reaches this file by \`filePath\` even if it was never opened. A bare \`pnpm noldor design pen-bridge\` picks a tracked \`.pen\` when you have no path of your own. Exit 0 means the open was requested of macOS, not that a canvas came up — retrying the MCP call is the only way to find out. If it still fails, the app is not running: you cannot start it from a tool shell (the launch exits 0 and starts nothing), so ask the operator to open it.
+  return `If every pencil MCP call fails with "${BRIDGE_DOWN_MESSAGE}", the bridge is down, not the file: run \`pnpm noldor design pen-bridge --pen ${penPath}\`, wait a few seconds, and retry the call. Once any \`.pen\` is open in VS Code, \`execute\` reaches this file by \`filePath\` even if it was never opened. A bare \`pnpm noldor design pen-bridge\` picks a tracked \`.pen\` when you have no path of your own. Exit 0 means the open was requested, not that a canvas came up — retrying the MCP call is the only way to find out. Exit 3 means the pen.dev extension (\`${PENCIL_EXTENSION_ID}\`) is not installed, so VS Code would show the file's raw JSON instead of a canvas; that is an operator action.
 
-If instead the pencil MCP tools are absent altogether — no such tool to call, or the server reported a closed connection at session start — the harness is the cause and none of the above applies. The pencil server does not connect under the Claude Code VS Code extension; it connects from terminal Claude Code with the same configuration. Run \`pnpm noldor checks pen-bridge\` to confirm which harness this session is (its first row names it), and if it reports an unsupported harness, ask the operator to redo this step from a terminal — there is no configuration edit that fixes it from here.`;
+If instead the pencil MCP tools are absent altogether — no such tool to call, or the server reported a closed connection at session start — the harness is the cause and none of the above applies. The pencil server does not connect under the Claude Code VS Code extension; it connects from terminal Claude Code with the same configuration. Run \`pnpm noldor checks pen-bridge\` to confirm which harness this session is (its first row names it), and if it reports an unsupported harness, ask the operator to redo this step from a terminal — there is no configuration edit, and no choice of \`.pen\` editor, that fixes it from here.`;
 }
