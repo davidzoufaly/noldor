@@ -6,6 +6,8 @@ import {
   arbitrationPath,
   arbitrationRecordSchema,
   isFilled,
+  parseArbitrationTrailer,
+  recordDigest,
 } from '../arbitration.js';
 import type { Slug } from '../../core/slug.js';
 
@@ -85,5 +87,46 @@ describe('isFilled', () => {
       dispositions: [...rec.dispositions, { blockerId: 'b2', disposition: 'rejected' as const }],
     };
     expect(isFilled(arbitrationRecordSchema.parse(full))).toBe(true);
+  });
+});
+
+describe('recordDigest', () => {
+  const rec = arbitrationRecordSchema.parse(base);
+
+  it('is stable across key order', () => {
+    const reordered = arbitrationRecordSchema.parse({
+      dispositions: [],
+      signals: [],
+      blockers: base.blockers,
+      rounds: base.rounds,
+      boundTree: base.boundTree,
+      kind: 'code',
+      slug: 's',
+      version: 1,
+    });
+    expect(recordDigest(rec)).toBe(recordDigest(reordered));
+  });
+
+  it('changes when a disposition is added', () => {
+    const filled = arbitrationRecordSchema.parse({
+      ...base,
+      dispositions: [{ blockerId: 'b1', disposition: 'accepted' }],
+    });
+    expect(recordDigest(filled)).not.toBe(recordDigest(rec));
+  });
+});
+
+describe('parseArbitrationTrailer', () => {
+  it('reads the digest out of a structured override', () => {
+    const v = 'cr-arbitration abc123def456 — two design blockers rejected';
+    expect(parseArbitrationTrailer(v)).toBe('abc123def456');
+  });
+
+  it('returns null for a bare free-text override', () => {
+    expect(parseArbitrationTrailer('verify lane infra red, shipping anyway')).toBeNull();
+  });
+
+  it('returns null when the marker is present but the digest is malformed', () => {
+    expect(parseArbitrationTrailer('cr-arbitration NOTHEX — why')).toBeNull();
   });
 });
