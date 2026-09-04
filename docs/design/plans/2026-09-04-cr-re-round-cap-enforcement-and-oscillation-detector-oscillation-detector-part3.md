@@ -22,7 +22,7 @@
 
 `tokenize()` in `src/clones/tokenize.ts` cannot serve here: it discards comments (so it cannot find a marker) and its own header says regex literals "degrade to punctuation" (so its brace depth is wrong — measured today it ends at `+1` for `src/core/ui-predicate.ts` and `-1` for `src/invariants/public-api-tsdoc.ts`).
 
-- [ ] **Step 1: Write the failing test.** Create `src/cr/__tests__/cut-scan.test.ts`:
+- [x] **Step 1: Write the failing test.** Create `src/cr/__tests__/cut-scan.test.ts`:
 
 ```ts
 // @tests: specs-cr-gate-multi-reviewer
@@ -80,7 +80,7 @@ describe('scanSource', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/cut-scan.test.ts
@@ -88,7 +88,7 @@ pnpm vitest run src/cr/__tests__/cut-scan.test.ts
 
 Expected: `Failed to resolve import "../cut-scan.js"`.
 
-- [ ] **Step 3: Implement.** Create `src/cr/cut-scan.ts`:
+- [x] **Step 3: Implement.** Create `src/cr/cut-scan.ts`:
 
 ```ts
 /**
@@ -244,7 +244,7 @@ export function scanSource(source: string): ScanResult {
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/cut-scan.test.ts
@@ -252,7 +252,7 @@ pnpm vitest run src/cr/__tests__/cut-scan.test.ts
 
 Expected: every case passes, both real-file cases included. If a real file fails, do NOT loosen the balance check — that check is the safety net. Find the construct the pass mis-lexes and add it as its own unit case first.
 
-- [ ] **Step 5: Measure the corpus.** Confirm the pass is clean across the tree it will actually run on:
+- [x] **Step 5: Measure the corpus.** Confirm the pass is clean across the tree it will actually run on:
 
 ```bash
 node --experimental-strip-types -e "
@@ -268,7 +268,7 @@ bad.slice(0,10).forEach(f => console.log('  ', f));
 
 Expected: `unscannable 0`. A handful is tolerable — the omit path exists for it — but investigate each before accepting, because every unscannable file is a file R2 goes quiet on.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
 ```bash
 cat > /tmp/msg-p3t1.txt <<'EOF'
@@ -303,7 +303,7 @@ git commit -F /tmp/msg-p3t1.txt
 
 **Files:** Modify: `src/cr/cut-scan.ts` · Test: `src/cr/__tests__/cut-scan.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/cut-scan.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/cut-scan.test.ts`:
 
 ```ts
 describe('findMarkers', () => {
@@ -352,7 +352,7 @@ Add `CUT_MARKER` to the test's imports, from `../../core/structural-context-cont
 
 Add `findMarkers` to the import block from `../cut-scan.js`.
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/cut-scan.test.ts -t findMarkers
@@ -360,7 +360,7 @@ pnpm vitest run src/cr/__tests__/cut-scan.test.ts -t findMarkers
 
 Expected: `Module '"../cut-scan.js"' has no exported member 'findMarkers'`.
 
-- [ ] **Step 3: Implement.** Append to `src/cr/cut-scan.ts`:
+- [x] **Step 3: Implement.** Append to `src/cr/cut-scan.ts`:
 
 ```ts
 /** A `noldor:cut` marker found in a comment, with the reason its author gave. */
@@ -415,7 +415,7 @@ export function findMarkers(source: string): CutMarker[] {
 
 If the repo's TypeScript lib does not expose `RegExp.escape`, mirror whatever `src/core/markdown-section-scan.ts` does rather than inlining a second escape helper.
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/cut-scan.test.ts
@@ -423,7 +423,7 @@ pnpm vitest run src/cr/__tests__/cut-scan.test.ts
 
 Expected: all cases pass.
 
-- [ ] **Step 5: Verify against the real corpus.**
+- [x] **Step 5: Verify against the real corpus.**
 
 ```bash
 node --experimental-strip-types -e "
@@ -442,7 +442,7 @@ console.log('markers found:', n);
 
 Expected: at least 15 markers, across files the spec names (`core/agent-runner/registry.ts`, `core/repo-paths.ts`, `core/config.ts`, `checks/*`, `cr/lanes/render-compare.ts`, …), and **no** hit in `src/docs/architecture-form.ts` for its `noldor:cut-section` token. A count near zero means the comment classification is wrong — debug `scanSource` before touching the marker regex.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
 ```bash
 cat > /tmp/msg-p3t2.txt <<'EOF'
@@ -471,7 +471,7 @@ git commit -F /tmp/msg-p3t2.txt
 
 **Files:** Modify: `src/cr/cut-scan.ts` · Test: `src/cr/__tests__/cut-scan.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/cut-scan.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/cut-scan.test.ts`:
 
 ```ts
 describe('markerScopes', () => {
@@ -518,7 +518,7 @@ describe('markerScopes', () => {
 
 Add `markerScopes` to the import block.
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/cut-scan.test.ts -t markerScopes
@@ -526,7 +526,7 @@ pnpm vitest run src/cr/__tests__/cut-scan.test.ts -t markerScopes
 
 Expected: `Module '"../cut-scan.js"' has no exported member 'markerScopes'`.
 
-- [ ] **Step 3: Implement.** Append to `src/cr/cut-scan.ts`:
+- [x] **Step 3: Implement.** Append to `src/cr/cut-scan.ts`:
 
 ```ts
 /** A marker plus the inclusive 1-based line span it governs. */
@@ -579,7 +579,7 @@ export function markerScopes(source: string): CutScope[] {
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/cut-scan.test.ts && pnpm typecheck
@@ -587,7 +587,7 @@ pnpm vitest run src/cr/__tests__/cut-scan.test.ts && pnpm typecheck
 
 Expected: every case passes and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p3t3.txt <<'EOF'
@@ -614,7 +614,7 @@ git commit -F /tmp/msg-p3t3.txt
 
 **Files:** Modify: `src/cr/reflag.ts` · Test: `src/cr/__tests__/reflag.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/reflag.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/reflag.test.ts`:
 
 ```ts
 describe('ruleR2', () => {
@@ -657,7 +657,7 @@ describe('ruleR2', () => {
 
 Add `ruleR2` to the import block from `../reflag.js`.
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/reflag.test.ts -t ruleR2
@@ -665,7 +665,7 @@ pnpm vitest run src/cr/__tests__/reflag.test.ts -t ruleR2
 
 Expected: `Module '"../reflag.js"' has no exported member 'ruleR2'`.
 
-- [ ] **Step 3: Implement.** Append to `src/cr/reflag.ts`, adding `import type { CutScope } from './cut-scan.js';` at the top:
+- [x] **Step 3: Implement.** Append to `src/cr/reflag.ts`, adding `import type { CutScope } from './cut-scan.js';` at the top:
 
 ```ts
 /**
@@ -717,7 +717,7 @@ export function ruleR2(
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/reflag.test.ts && pnpm typecheck
@@ -725,7 +725,7 @@ pnpm vitest run src/cr/__tests__/reflag.test.ts && pnpm typecheck
 
 Expected: all cases pass and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p3t4.txt <<'EOF'
@@ -752,7 +752,7 @@ git commit -F /tmp/msg-p3t4.txt
 
 **Files:** Modify: `src/cr/orchestrate.ts` · Test: `src/cr/__tests__/orchestrate.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/orchestrate.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/orchestrate.test.ts`:
 
 ```ts
 it('renders R2 alongside R1 and R3', () => {
@@ -774,7 +774,7 @@ it('renders R2 alongside R1 and R3', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t "renders R2 alongside"
@@ -782,7 +782,7 @@ pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t "renders R2 alongside"
 
 Expected: `Expected 3 arguments, but got 5` on the `runReflagRules` call.
 
-- [ ] **Step 3: Implement.** Widen `runReflagRules` in `src/cr/orchestrate.ts` — signature and rule list only; the rendering loop below it is unchanged. The two new parameters go LAST so every Part 2 call site keeps its argument order:
+- [x] **Step 3: Implement.** Widen `runReflagRules` in `src/cr/orchestrate.ts` — signature and rule list only; the rendering loop below it is unchanged. The two new parameters go LAST so every Part 2 call site keeps its argument order:
 
 ```ts
 export function runReflagRules(
@@ -801,7 +801,7 @@ export function runReflagRules(
 
 The rule ORDER in that array is what fixes the printed order to R1, R2, R3, which the test above pins. Update the existing Part 2 tests for `runReflagRules` to pass `new Map(), []` for the two new trailing arguments — every R1 and R3 case must keep asserting exactly what it asserts today.
 
-- [ ] **Step 4: Resolve the scopes at the call site.** In `run()`, directly before the `runReflagRules` call added in Part 2:
+- [x] **Step 4: Resolve the scopes at the call site.** In `run()`, directly before the `runReflagRules` call added in Part 2:
 
 ```ts
       const located = [
@@ -837,9 +837,9 @@ and extend the call Part 2 wrote, appending the two new arguments:
 
 `firstHead` and `gitRun` already exist here — Part 2 introduced both. Add only the new imports: `markerScopes` / `scanSource` / `type CutScope` from `./cut-scan.js`, `ruleR2` from `./reflag.js`, `readFileNoFollow` from `../core/slug-paths.js`, and `join` from `node:path`.
 
-- [ ] **Step 5: Assert the symlink boundary.** Spec AC4. Append to `src/cr/__tests__/orchestrate.test.ts` a case that creates a tracked-looking path which is a symlink to a file outside the fixture root, puts a location on it, and asserts the round produces no R2 signal for it and reads nothing through the link — `readFileNoFollow` throws `ELOOP`, so the file lands in `unscannable` and R2 reports `omitted`. Build the fixture with `symlinkSync` in a `mkdtempSync` root and reuse the file's existing cleanup helpers; do not point the link at a real repo file.
+- [x] **Step 5: Assert the symlink boundary.** Spec AC4. Append to `src/cr/__tests__/orchestrate.test.ts` a case that creates a tracked-looking path which is a symlink to a file outside the fixture root, puts a location on it, and asserts the round produces no R2 signal for it and reads nothing through the link — `readFileNoFollow` throws `ELOOP`, so the file lands in `unscannable` and R2 reports `omitted`. Build the fixture with `symlinkSync` in a `mkdtempSync` root and reuse the file's existing cleanup helpers; do not point the link at a real repo file.
 
-- [ ] **Step 6: Run everything.**
+- [x] **Step 6: Run everything.**
 
 ```bash
 pnpm typecheck && pnpm test && pnpm noldor checks push-gates
@@ -847,7 +847,7 @@ pnpm typecheck && pnpm test && pnpm noldor checks push-gates
 
 Expected: typecheck exits 0, the suite is green, `checks push-gates` exits 0. The Part 2 assertion that a signalling round matches a silent one on exit code and sink set must still pass — that is the regression guard on "advisory".
 
-- [ ] **Step 7: Verify end to end.**
+- [ ] **Step 7: Verify end to end.** (SKIPPED — a live dispatch would append a real round to this session's ledger and move the CR cap; run it deliberately at CR time)
 
 ```bash
 pnpm noldor cr orchestrate --slug cr-re-round-cap-enforcement-and-oscillation-detector \
@@ -857,7 +857,7 @@ node -e "const j=require('./.noldor/cr/autofix/cr-re-round-cap-enforcement-and-o
 
 Expected: the round's `signals` array holds entries whose `rule` is one of `R1` / `R2` / `R3` / `omitted`. An all-`omitted` first round is the contract working, not a failure.
 
-- [ ] **Step 8: Commit.**
+- [x] **Step 8: Commit.**
 
 ```bash
 cat > /tmp/msg-p3t5.txt <<'EOF'
