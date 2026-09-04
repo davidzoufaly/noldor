@@ -2,12 +2,17 @@
 // Launching an EDITOR on a plain file, without taking focus where the platform
 // allows it.
 //
-// Extracted from `pen-bridge-cli.ts` when `.pen` files moved to the pen.dev
-// desktop app: the sole consumer of everything here is now
-// `open-artifact.ts`, which opens spec and plan `.md` artifacts in VS Code, and
-// a module hosting a launcher it does not itself call reads as dead code to
-// everyone who opens it. `EDITOR_TIMEOUT_MS` stays shared — it is the deadline
-// on any editor spawn, and the `.pen` launcher applies the same one.
+// Every editor spawn in the framework goes through here, and there is exactly
+// one editor: `open-artifact.ts` opens spec and plan `.md` artifacts,
+// `pen-bridge-cli.ts` opens `.pen` designs, and both land on `openInEditor`.
+// That was briefly untrue — `.pen` had its own macOS bundle launcher while the
+// designs lived in the pen.dev desktop app — and one route is what makes the
+// shared `EDITOR_TIMEOUT_MS` deadline and the shared no-focus behaviour facts
+// rather than coincidences.
+//
+// `listVsCodeExtensions` lives here for the same reason: the `code` CLI is one
+// boundary, and a second module shelling out to it would make the claim below
+// about subprocesses false.
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
@@ -90,17 +95,51 @@ function openInBackground(path: string, cwd: string): OpenResult | undefined {
   if (process.platform !== 'darwin') return undefined;
   const app = enclosingAppBundle(cwd);
   if (app === undefined) return undefined;
-  // `spawnSync`, not `execFileSync`: the latter RETURNS stdout, and the signal
-  // that matters here is stderr on a ZERO exit — which `execFileSync` only
-  // surfaces on a throw that never comes.
-  const run = spawnSync('open', ['-g', '-a', app, path], {
-    cwd,
-    encoding: 'utf8',
-    timeout: EDITOR_TIMEOUT_MS,
-  });
-  if (run.error !== undefined || run.status !== 0) return undefined;
+  const run = ranCleanly('open', ['-g', '-a', app, path], cwd);
+  if (run === undefined) return undefined;
   // Exit 0 proves nothing here — see above. Anything on stderr is a failure.
   return (run.stderr ?? '').trim().length === 0 ? { ok: true } : undefined;
+}
+
+/**
+ * A bounded spawn whose non-answers all collapse to `undefined`: a spawn error
+ * (no such binary, an expired {@link EDITOR_TIMEOUT_MS}) or a non-zero exit.
+ * Callers that need more — stderr on a ZERO exit, or stdout — read it off the
+ * returned run.
+ *
+ * `spawnSync`, not `execFileSync`: the latter RETURNS stdout and surfaces stderr
+ * only on a throw, which never comes for the zero-exit-with-stderr case
+ * {@link openInBackground} depends on.
+ */
+function ranCleanly(
+  cmd: string,
+  args: readonly string[],
+  cwd: string,
+): { stdout?: string; stderr?: string } | undefined {
+  const run = spawnSync(cmd, [...args], { cwd, encoding: 'utf8', timeout: EDITOR_TIMEOUT_MS });
+  return run.error === undefined && run.status === 0 ? run : undefined;
+}
+
+/**
+ * Extension ids VS Code reports as installed, or `undefined` when it could not
+ * be asked (no `code` on PATH, a non-zero exit, an expired deadline).
+ *
+ * `undefined` and `[]` are different answers and every caller must keep them
+ * apart: the empty list says nothing is installed, while `undefined` says the
+ * question went unanswered — and treating the second as the first turns a
+ * missing `code` into a confident report about extensions.
+ *
+ * This lives beside {@link openInEditor} because it is the same boundary — the
+ * `code` CLI — and the module comment's claim that subprocesses start only here
+ * has to keep being true.
+ */
+export function listVsCodeExtensions(cwd: string): readonly string[] | undefined {
+  const run = ranCleanly('code', ['--list-extensions'], cwd);
+  if (run === undefined) return undefined;
+  return (run.stdout ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
 }
 
 /**

@@ -85,7 +85,7 @@ export const MANIFEST: Record<string, Group> = {
       },
       'pen-bridge': {
         src: 'design/pen-bridge-cli.ts',
-        desc: 'Open a .pen in the default editor so pencil MCP answers (bridge wake)',
+        desc: 'Open a .pen in VS Code so pencil MCP answers (bridge wake)',
       },
       open: {
         src: 'design/open-artifact-cli.ts',
@@ -350,7 +350,7 @@ export const MANIFEST: Record<string, Group> = {
       },
       'pen-bridge': {
         src: 'checks/check-pen-bridge.ts',
-        desc: 'pencil MCP --app pin + pen.dev desktop app presence; exit 1 on mismatch or missing app',
+        desc: 'Harness + pencil MCP --app pin + pen.dev extension presence; exit 1 on an unsupported harness, mismatch or missing extension',
       },
     },
   },

@@ -104,3 +104,41 @@ export function penSlugFromFilename(filename: string): string | null {
 export function penFileName(date: string, key: string): string {
   return `${date}-${key}.pen`;
 }
+
+/**
+ * The VS Code extension that edits `.pen`, as the id `code --list-extensions`
+ * prints and `code --install-extension` accepts.
+ *
+ * `.pen` is back in VS Code. It briefly moved to the pen.dev desktop app
+ * (`dev.pencil.desktop`) on the belief that a bug in this extension was what
+ * kept pencil MCP from answering. That belief was wrong: the culprit was the
+ * **Claude Code** VS Code extension, under which the pencil MCP server does not
+ * connect at all — see the harness row in `checks pen-bridge`, and note that no
+ * `.pen` editor can fix it, because the failure is upstream of every editor. So
+ * the move bought nothing and cost the editor the operator actually works in.
+ *
+ * The desktop app is gone from this path entirely rather than kept as a
+ * fallback: two editors mean two sockets
+ * (`~/.pencil/socket/pencil-<app>.sock`), and a session whose file is open in
+ * one while the MCP server is pinned to the other sees a permanently dead
+ * bridge with no error that names the cause.
+ *
+ * In core, beside the other design identities, because three domains read it:
+ * `src/design` launches the editor, `src/checks` diagnoses the bridge, and
+ * `src/core` seeds the association below. A copy in each would be three places
+ * for one editor's identity to drift.
+ */
+export const PENCIL_EXTENSION_ID = 'highagency.pencildev';
+
+/**
+ * The custom-editor `viewType` the extension registers for `*.pen`, and the
+ * value a `workbench.editorAssociations` entry must carry.
+ *
+ * Named because `noldor init` writes it into the consumer's
+ * `workbench.editorAssociations`, pinning the repo's `.pen` editor rather than
+ * leaving it to whatever a given machine has installed. The association is not
+ * what makes a plain open work — the extension claims `*.pen` at default
+ * priority on its own — so see `init-vscode-settings.ts` for what it does and
+ * does not buy.
+ */
+export const PENCIL_VIEW_TYPE = 'pencil.designEditor';

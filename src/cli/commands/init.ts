@@ -24,6 +24,10 @@ import { loadFrameworkVersion, writeFrameworkVersion } from '../../core/consumer
 import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 import { ensureRolloutMarker } from '../../core/rollout-marker.js';
 import { ensureGitignoreBlock } from '../../core/init-gitignore.js';
+import {
+  ensureVscodeEditorAssociation,
+  renderVscodeSettingsOutcome,
+} from '../../core/init-vscode-settings.js';
 import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
 
 const argv = process.argv.slice(2);
@@ -93,6 +97,13 @@ try {
   if (ignore !== 'unchanged') {
     console.log(`${ignore.padEnd(10)} .gitignore (.noldor transient-state block)`);
   }
+  // Pin `*.pen` to the pen.dev custom editor for this repo. Not what makes a
+  // plain open work (the extension claims `*.pen` at default priority itself) —
+  // it settles the sticky and ambiguous cases, and records the intent where the
+  // repo can carry it. Merged into whatever the consumer already has, never
+  // overwritten; every outcome is a log line, never a throw.
+  const vscode = renderVscodeSettingsOutcome(ensureVscodeEditorAssociation(consumer));
+  if (vscode !== undefined) console.log(vscode);
   // Arm the gate validators (trailer / receipt / session hard wall) from the
   // next commit onward. Without a committed marker every validator stays in
   // soft mode — enforcement prose without enforcement.

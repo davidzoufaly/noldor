@@ -5,20 +5,16 @@
 // launches the default editor on it. It never claims the bridge is live: only
 // pencil MCP can prove that, in-session, by retrying a call.
 
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 
 import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
+import { PENCIL_EXTENSION_ID } from '../core/design-artifact-names.js';
 
-import { EDITOR_TIMEOUT_MS } from './editor-launch.js';
+import { listVsCodeExtensions, openInEditor, type OpenResult } from './editor-launch.js';
 
-import {
-  BRIDGE_BOOTSTRAP_PATH,
-  PENCIL_BUNDLE_ID,
-  planPenBridge,
-  type PenBridgePlan,
-} from './pen-bridge.js';
+import { BRIDGE_BOOTSTRAP_PATH, planPenBridge, type PenBridgePlan } from './pen-bridge.js';
 
 /**
  * Tracked `.pen` files that are actually on disk, ordering left to the ranking.
@@ -41,82 +37,64 @@ export function trackedPenFiles(cwd: string): string[] {
 }
 
 /**
- * What asking macOS to open a `.pen` produced.
+ * What asking VS Code to open a `.pen` produced.
  *
  * `dispatched` is deliberately not `opened`. A launch from a context with no
- * window-server connection — every agent tool shell — exits 0 with empty stderr
- * and starts nothing, so nothing reachable from here can prove a canvas came up.
- * Only pencil MCP can, by answering a retried call. Naming the success `opened`
- * would report a wake that never happened, which is the failure this whole
- * module exists to avoid.
+ * window-server connection — every agent tool shell — can exit 0 and raise
+ * nothing, so nothing reachable from here can prove a canvas came up. Only
+ * pencil MCP can, by answering a retried call. Naming the success `opened` would
+ * report a wake that never happened, which is the failure this whole module
+ * exists to avoid.
+ *
+ * `not-installed` is about the pen.dev EXTENSION, not the editor. Without it
+ * VS Code opens the file in its text editor and shows the document's raw JSON —
+ * a launch that looks like a success, leaves the bridge dead, and gives the
+ * operator a wall of coordinates instead of a canvas. It is checked before the
+ * launch precisely so that outcome is named rather than dispatched.
  */
 export type PenLaunch =
   | { kind: 'dispatched' }
-  | { kind: 'not-installed'; error: string }
-  | { kind: 'failed'; error: string }
-  | { kind: 'unsupported-platform'; platform: string };
+  | { kind: 'not-installed' }
+  | { kind: 'failed'; error: string };
 
-/** Injectable seams. Defaults are `process.platform` and a bounded `spawnSync`. */
+/**
+ * Injectable seams.
+ *
+ * `listExtensions` returns `undefined` when the list could not be read at all
+ * (no `code` on PATH, a non-zero exit, an expired deadline) — distinct from an
+ * empty list, which is a real answer meaning nothing is installed. The
+ * difference decides the launch: see {@link openPenFile}.
+ */
 export interface PenLaunchDeps {
-  readonly platform: string;
-  readonly run: (
-    cmd: string,
-    args: readonly string[],
-    cwd: string,
-  ) => { status: number | null; stderr: string; error?: Error };
+  readonly listExtensions: (cwd: string) => readonly string[] | undefined;
+  readonly open: (absPath: string, cwd: string) => OpenResult;
 }
 
 /**
- * The marker macOS prints when a bundle id resolves to nothing. It is the whole
- * mechanism behind the not-installed / failed split — there is no second probe.
- * Measured 2026-09-02: `open -g -b <unregistered> <file>` exits 1 with it.
- */
-export const BUNDLE_UNRESOLVED_MARKER = 'LSCopyApplicationURLsForBundleIdentifier';
-
-/**
- * Ask macOS to open `absPath` in the pen.dev desktop app, without taking focus.
+ * Ask VS Code to open `absPath`, preferring a launch that does not steal focus.
  *
- * `absPath` must already be absolute — {@link main} resolves it, so `open` never
- * receives a path whose meaning depends on the child's working directory.
+ * `absPath` must already be absolute — {@link main} resolves it, so the editor
+ * never receives a path whose meaning depends on the child's working directory.
  *
- * Off darwin this spawns nothing: there is no `open`, no bundle id, and (unlike
- * the `.md` path, which keeps `openInEditor`) no `code` fallback to degrade to.
- * Guessing at a launcher there would be the silent no-op this type exists to
- * prevent, so the caller renders the path and the operator opens it by hand.
+ * An unreadable extension list **does not block the launch**. Refusing on a
+ * probe that merely failed to answer would turn a missing `code` on PATH into a
+ * reported missing extension, and would withhold the one action that might still
+ * work; the operator learns the real state from `checks pen-bridge`, which
+ * reports that same unreadable list as indeterminate rather than as a finding.
  */
 export function openPenFile(
   absPath: string,
   cwd: string,
   deps: Partial<PenLaunchDeps> = {},
 ): PenLaunch {
-  const platform = deps.platform ?? process.platform;
-  if (platform !== 'darwin') return { kind: 'unsupported-platform', platform };
-
-  const run = deps.run ?? defaultRun;
-  const out = run('open', ['-g', '-b', PENCIL_BUNDLE_ID, absPath], cwd);
-  const stderr = (out.stderr ?? '').trim();
-  // Belt and braces. For `-b` a bad bundle id already exits non-zero, unlike the
-  // `-a` behaviour `editor-launch.ts` documents — but stderr on a zero exit is
-  // still the cheaper signal to keep than to re-derive.
-  if (out.error === undefined && out.status === 0 && stderr.length === 0) {
-    return { kind: 'dispatched' };
+  const installed = (deps.listExtensions ?? listVsCodeExtensions)(cwd);
+  if (installed !== undefined && !installed.includes(PENCIL_EXTENSION_ID)) {
+    return { kind: 'not-installed' };
   }
-  const error = out.error?.message ?? (stderr.length > 0 ? stderr : `exit ${String(out.status)}`);
-  return stderr.includes(BUNDLE_UNRESOLVED_MARKER)
-    ? { kind: 'not-installed', error }
-    : { kind: 'failed', error };
-}
-
-/** `spawnSync`, bounded, reduced to the three fields {@link openPenFile} reads. */
-function defaultRun(
-  cmd: string,
-  args: readonly string[],
-  cwd: string,
-): { status: number | null; stderr: string; error?: Error } {
-  const run = spawnSync(cmd, [...args], { cwd, encoding: 'utf8', timeout: EDITOR_TIMEOUT_MS });
-  return run.error === undefined
-    ? { status: run.status, stderr: run.stderr ?? '' }
-    : { status: run.status, stderr: run.stderr ?? '', error: run.error };
+  const opened = (deps.open ?? openInEditor)(absPath, cwd);
+  return opened.ok
+    ? { kind: 'dispatched' }
+    : { kind: 'failed', error: opened.error ?? 'the editor launch failed without a message' };
 }
 
 /**
@@ -126,38 +104,37 @@ function defaultRun(
  */
 export function renderPlan(plan: PenBridgePlan, launch = true): string {
   if (plan.kind === 'bootstrap') {
-    // "Save As", not "save": a document the app authors for itself lands under
-    // ~/.pencil/documents/<uuid>/, where nothing in this repo will ever commit
-    // it — so an instruction that stops at "create one" loses the design.
-    return `pen-bridge: no .pen is tracked in this repo — the app must author one (Node cannot: .pen is encrypted)\n  → open the pen.dev desktop app, create a document, then Save As to ${BRIDGE_BOOTSTRAP_PATH} INSIDE this repo (a document the app saves for itself lands in ~/.pencil/documents/ and is never committed), then retry the pencil MCP call`;
+    // "Save", not "write": a `.pen` is plain JSON, so Node could technically
+    // produce bytes here — but a document assembled outside the editor is not a
+    // design, and the format is the editor's to version, not this framework's.
+    return `pen-bridge: no .pen is tracked in this repo — the editor must author one\n  → in VS Code, create a pen.dev design and save it to ${BRIDGE_BOOTSTRAP_PATH} INSIDE this repo, then retry the pencil MCP call`;
   }
   return launch
-    ? `pen-bridge: open requested for ${plan.path}\n  → retry the failing pencil MCP call in a few seconds; a request is not a confirmed open, and if it still fails the app is not running — start it yourself`
-    : `pen-bridge: resolved ${plan.path} (nothing launched — --print-only)\n  → open ${plan.path} in the pen.dev desktop app yourself, then retry the failing pencil MCP call`;
+    ? `pen-bridge: open requested for ${plan.path}\n  → retry the failing pencil MCP call in a few seconds; a request is not a confirmed open, and if it still fails, open the file in VS Code yourself`
+    : `pen-bridge: resolved ${plan.path} (nothing launched — --print-only)\n  → open ${plan.path} in VS Code yourself, then retry the failing pencil MCP call`;
 }
 
 /**
- * Exit code per launch outcome. `2` is the existing launch-failure code and also
- * a bad `--pen`; `3` and `4` are new because "install the app", "open it by hand
- * on this platform" and "you typed a bad path" are three different remedies, and
- * collapsing them leaves a script unable to tell them apart.
+ * Exit code per launch outcome. `2` is the launch-failure code and also a bad
+ * `--pen`; `3` is separate because "install the pen.dev extension" and "you
+ * typed a bad path" are different remedies, and collapsing them leaves a script
+ * unable to tell them apart.
+ *
+ * Exit `4` retired with the desktop app: it meant "no scriptable open on this
+ * platform", and `openInEditor` has a `code` fallback that works on every one.
  */
 export const LAUNCH_EXIT: Record<PenLaunch['kind'], number> = {
   dispatched: 0,
   failed: 2,
   'not-installed': 3,
-  'unsupported-platform': 4,
 };
 
 /** Operator-facing remedy for a launch that did not dispatch. */
 export function renderLaunchFailure(outcome: PenLaunch, absPath: string): string {
-  if (outcome.kind === 'unsupported-platform') {
-    return `pen-bridge: no scriptable open on ${outcome.platform} — the pen.dev desktop app is macOS-only\n  → open ${absPath} by hand, then retry the failing pencil MCP call`;
-  }
   if (outcome.kind === 'not-installed') {
-    return `pen-bridge: no application is registered for bundle id ${PENCIL_BUNDLE_ID}\n  → install the pen.dev desktop app, then re-run this command`;
+    return `pen-bridge: the pen.dev VS Code extension (${PENCIL_EXTENSION_ID}) is not installed\n  → install it, then re-run this command. Without it VS Code opens ${absPath} in the text editor and shows the design's raw JSON, which wakes no bridge`;
   }
-  return `pen-bridge: could not ask macOS to open ${absPath}: ${outcome.kind === 'failed' ? outcome.error : ''}\n  → open it in the pen.dev desktop app by hand — the path above is still correct`;
+  return `pen-bridge: could not ask VS Code to open ${absPath}: ${outcome.kind === 'failed' ? outcome.error : ''}\n  → open it in VS Code by hand — the path above is still correct`;
 }
 
 export async function main(
