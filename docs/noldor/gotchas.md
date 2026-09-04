@@ -196,6 +196,20 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   pen-bridge` is what tells them apart: it names the scope and file holding the
   effective pencil entry. The flag is read once, at startup, so a fix needs a
   Claude Code restart.
+- **The pencil MCP server does not connect under the Claude Code VS Code
+  extension.** Same `~/.claude.json`, same `--app desktop` pin, same installed
+  app: from a terminal `claude` the server connects, and under the extension it
+  reports `CONNECTION_CLOSED` at session start and none of its tools exist for
+  the rest of the session. This failure looks nothing like the other two — there
+  is no `A file needs to be open in the editor` to match on, because there is no
+  tool to call — so a session hunting the bridge-liveness recipe finds nothing
+  wrong and waives the UI-design step. `pnpm noldor checks pen-bridge` leads with
+  the harness row for exactly this reason: it reads `CLAUDE_CODE_ENTRYPOINT`
+  (`cli` = terminal, `claude-vscode` = the extension; the variable survives into
+  spawned processes, so the check sees the harness that would make the call). No
+  configuration edit helps — do `.pen` work from terminal Claude Code, or hand
+  the step to the operator. An entrypoint nobody has measured reads as
+  indeterminate, never as a finding. (found 2026-09-04)
 - **An agent cannot start the desktop app.** A GUI launch from a tool shell
   exits 0, prints nothing, and starts nothing — sandbox on or off — while the
   same command works from the operator's terminal. Handing a file to an
