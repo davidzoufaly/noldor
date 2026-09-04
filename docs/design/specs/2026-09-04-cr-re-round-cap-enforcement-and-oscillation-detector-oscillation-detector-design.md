@@ -125,11 +125,18 @@ no second thing a reviewer can get wrong. The rejected alternative, a structured
 like the class tag, is deterministic but starts at zero coverage and turns a malformed prefix into a new
 parse-failure class.
 
-Of the 30 location mentions observed, 21 carry a directory and 9 are a bare basename. A bare basename
-resolves against the round's changed-file set (`discoverChangedFiles`, already called in
-[`subagent.ts:94`](../../../src/cr/lanes/subagent.ts#L94)); none of the 8 distinct basenames seen was
-ambiguous even against all of `src/`, and the changed set is far smaller. An ambiguous or unresolvable
-basename yields no location for that mention rather than a guess.
+**Every resolved location is confined to the round's changed-file set** — the choke-point posture
+Q-0097 established for `slugPath`. This is a security boundary, not a convenience: `locations.file`
+originates in LLM output, and orchestrate then *reads* those files to resolve U2's marker scopes. So a
+mention is resolved only by matching it against `discoverChangedFiles` (already called at
+[`subagent.ts:94`](../../../src/cr/lanes/subagent.ts#L94)), and a mention that does not match yields no
+location. An absolute path, a traversal like `../../x.ts:1`, and a directory-qualified path outside the
+changed set are all simply unmatched — the resolver never opens a path it was handed, only one it
+recognised.
+
+Of the 30 location mentions observed, 21 carry a directory and 9 are a bare basename; none of the 8
+distinct basenames was ambiguous even against all of `src/`, and the changed set is far smaller. An
+ambiguous basename also yields no location, rather than a guess.
 
 **`fingerprintBlockers` does not change**, and `locations` is not added to it. Its docstring
 ([`autofix-ledger.ts:283-290`](../../../src/cr/autofix-ledger.ts#L283-L290)) explains why `line` is
@@ -224,9 +231,13 @@ HIGH blocker appeared in every aggregate for the pair, turning green runs red. `
 non-files, so nesting removes the whole collision class. This record reuses the ledger's proven answer
 rather than minting a second one.
 
-**Two writers, two jobs.** `cr orchestrate` writes the record *skeleton* on its cap refusal — it
-already holds the ledger and the unresolved blockers at exactly that moment, so it fills the round
-history, the blockers and the per-round signals and leaves `dispositions` empty for the operator. The
+**Two writers, two jobs.** `cr orchestrate` writes the record *skeleton* on its cap refusal. What it
+holds at that moment is only the **ledger**: the refusal returns at
+[`orchestrate.ts:476-479`](../../../src/cr/orchestrate.ts#L476-L479) before any dispatch, with
+`lanesRun: []`, and the ledger stores a blocker-set *fingerprint*, never the blockers themselves. The
+skeleton's unresolved blockers therefore come from **re-reading the pair's current lane sinks**, which
+are still on disk precisely because a refused run writes none. Round history and per-round signals come
+from the ledger; `dispositions` is left empty for the operator. The
 **pre-push hook enforces**, beside the existing `enforce-review-receipt` job: a bare free-text
 `Noldor-Path-Override` is refused when the ledger shows red rounds for the pair and no filled record
 matches the tree. Orchestrate cannot enforce — it is not on the path to `main`, so an operator who
