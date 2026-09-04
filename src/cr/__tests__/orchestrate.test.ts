@@ -24,7 +24,8 @@ import {
   run,
   runReflagRules,
 } from '../orchestrate.js';
-import { ledgerDir, ledgerPath } from '../autofix-ledger.js';
+import { buildSkeleton } from '../orchestrate.js';
+import { fingerprintBlockers, ledgerDir, ledgerPath } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';
 import { runSubagent as subagentLane } from '../lanes/subagent.js';
 import { runManual as manualLane } from '../lanes/manual.js';
@@ -1402,4 +1403,80 @@ it('renders R2 alongside R1 and R3', () => {
   );
   expect(out.lines.map((l) => l.slice(0, 4))).toEqual(['[R1]', '[R2]', '[R3]']);
   expect(out.signals).toHaveLength(3);
+});
+
+describe('buildSkeleton', () => {
+  const sinkBlockers = [
+    { lane: 'reviewer' as const, severity: 'high' as const, file: 'a.md', message: 'boom' },
+  ];
+  const rounds = [
+    {
+      round: 1,
+      headSha: 'a1',
+      fingerprint: fingerprintBlockers(sinkBlockers),
+      verdict: 'red' as const,
+      applied: 0,
+      deferred: 0,
+      diffStat: '',
+      blockerIds: ['b1'],
+      signals: [{ rule: 'R1', blockerId: 'b1' }],
+    },
+  ];
+
+  it('carries rounds, blockers and signals, with dispositions empty', () => {
+    const rec = buildSkeleton('s', 'code', 'TREE', rounds, sinkBlockers, () => 'b1');
+    expect(rec?.dispositions).toEqual([]);
+    expect(rec?.blockers).toEqual([
+      { id: 'b1', severity: 'high', message: 'boom', lanes: ['reviewer'] },
+    ]);
+    expect(rec?.signals).toHaveLength(1);
+    expect(rec?.boundTree).toBe('TREE');
+  });
+
+  it('collapses one logical blocker filed by two lanes into one entry', () => {
+    const two = [...sinkBlockers, { ...sinkBlockers[0]!, lane: 'codex' as const }];
+    const rec = buildSkeleton(
+      's',
+      'code',
+      'TREE',
+      [{ ...rounds[0]!, fingerprint: fingerprintBlockers(two) }],
+      two,
+      () => 'b1',
+    );
+    expect(rec?.blockers).toHaveLength(1);
+    expect(rec?.blockers[0]!.lanes).toEqual(['codex', 'reviewer']);
+  });
+
+  // Sinks are overwritten by ANY lane run, and the gate documents standalone
+  // `cr` invocations. A skeleton built from someone else's review would have the
+  // operator arbitrate the wrong blockers.
+  it('returns null when the sinks do not match the ledger round', () => {
+    const stale = [{ ...rounds[0]!, fingerprint: 'SOMETHING-ELSE' }];
+    expect(buildSkeleton('s', 'code', 'TREE', stale, sinkBlockers, () => 'b1')).toBeNull();
+  });
+
+  // An integrity blocker says "this verdict cannot be trusted", which is not a
+  // finding an operator can arbitrate. It still counts toward the fingerprint,
+  // because that is the set the ledger hashed.
+  it('keeps an integrity blocker out of the arbitrated set but inside the digest', () => {
+    const withIntegrity = [
+      ...sinkBlockers,
+      {
+        lane: 'codex' as const,
+        severity: 'high' as const,
+        file: 'a.md',
+        message: 'sink unreadable',
+        integrity: true as const,
+      },
+    ];
+    const rec = buildSkeleton(
+      's',
+      'code',
+      'TREE',
+      [{ ...rounds[0]!, fingerprint: fingerprintBlockers(withIntegrity) }],
+      withIntegrity,
+      (b) => b.message,
+    );
+    expect(rec?.blockers.map((b) => b.message)).toEqual(['boom']);
+  });
 });

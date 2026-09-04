@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { readFileNoFollowAsync } from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
 import { copyFile, mkdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
 import { writeExpectedLanes } from './expected-lanes.js';
 import { aggregate } from './aggregate.js';
@@ -39,9 +39,11 @@ import { readSession } from '../core/session.js';
 import { ruleR1, ruleR2, ruleR3 } from './reflag.js';
 import type { RuleBlocker } from './reflag.js';
 import { markerScopes, scanSource } from './cut-scan.js';
+import { arbitrationPath, arbitrationRecordSchema } from './arbitration.js';
+import type { ArbitrationRecord } from './arbitration.js';
 import type { CutScope } from './cut-scan.js';
 import { laneFindingsSchema } from './findings-schema.js';
-import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
+import type { ArtifactKind, Finding, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult, PriorReview } from './lane-types.js';
 import { laneSinkPath } from './filename.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
@@ -477,6 +479,125 @@ export function runReflagRules(
   return { lines, signals };
 }
 
+/**
+ * The arbitration skeleton for a refused round, or `null` when the sinks cannot
+ * be trusted to describe it.
+ *
+ * What orchestrate holds at a cap refusal is only the LEDGER — the refusal
+ * returns at the top of `run()` before any dispatch, with `lanesRun: []`, and
+ * the ledger stores a blocker-set fingerprint rather than the blockers. So the
+ * unresolved blockers are re-read from the pair's current lane sinks, which are
+ * still on disk precisely because a refused run writes none.
+ *
+ * Those sinks are VERIFIED before they are trusted: nothing stops a lane being
+ * run standalone between the closing round and the refusal, which would leave
+ * sinks describing a different review. Recomputing the set fingerprint and
+ * comparing it against the ledger's last round is what catches that, and a
+ * mismatch yields `null` rather than a plausible-looking record about the wrong
+ * blockers.
+ *
+ * `sinkBlockers` is the WHOLE aggregate set, integrity blockers included,
+ * because that is the set the ledger hashed. Only the arbitrated list drops
+ * them: "this verdict cannot be trusted" is not a finding an operator can
+ * accept, reject or defer.
+ *
+ * `idOf` is injected so the identity function is visible to a test without a
+ * fixture repo; production passes {@link fingerprintBlocker}.
+ */
+export function buildSkeleton(
+  slug: string,
+  kind: ArtifactKind,
+  boundTree: string,
+  rounds: readonly AutofixRound[],
+  sinkBlockers: readonly (Finding & { lane: string; integrity?: true })[],
+  idOf: (b: Finding) => string,
+  fingerprintOf: (bs: readonly Finding[]) => string = fingerprintBlockers,
+): ArbitrationRecord | null {
+  const last = rounds.at(-1);
+  if (!last) return null;
+  if (fingerprintOf(sinkBlockers) !== last.fingerprint) return null;
+
+  const byId = new Map<string, { blocker: Finding; lanes: Set<string> }>();
+  for (const b of sinkBlockers) {
+    if (b.integrity === true) continue;
+    const id = idOf(b);
+    const entry = byId.get(id) ?? { blocker: b, lanes: new Set<string>() };
+    entry.lanes.add(b.lane);
+    byId.set(id, entry);
+  }
+  return {
+    version: 1,
+    slug,
+    kind,
+    boundTree,
+    rounds: rounds.map((r) => ({
+      round: r.round,
+      verdict: roundVerdict(r),
+      headSha: r.headSha,
+    })),
+    blockers: [...byId].map(([id, { blocker, lanes }]) => ({
+      id,
+      severity: blocker.severity,
+      message: blocker.message,
+      lanes: [...lanes].sort(),
+    })),
+    signals: rounds.flatMap((r) => r.signals ?? []),
+    dispositions: [],
+  };
+}
+
+/**
+ * Write the skeleton, unless a record for this tree already exists.
+ *
+ * Re-running orchestrate at the cap refuses again and reaches here again, so
+ * an unconditional write would erase dispositions the operator had already
+ * filled in. Existing-and-same-tree is left alone; existing-but-bound-to-another
+ * tree is replaced, because that record arbitrated different work.
+ *
+ * Never throws: failing to write an advisory record must not change what a cap
+ * refusal does.
+ */
+export async function writeSkeletonIfAbsent(
+  cwd: string,
+  slug: Slug,
+  kind: ArtifactKind,
+  ledger: AutofixLedger | null,
+): Promise<void> {
+  try {
+    const tree = (await execAsync('git', ['rev-parse', 'HEAD^{tree}'], { cwd })).stdout.trim();
+    const path = arbitrationPath(cwd, slug, kind);
+    const existing = await readFileNoFollowAsync(path).catch(() => null);
+    if (existing !== null) {
+      const prior = arbitrationRecordSchema.safeParse(JSON.parse(existing));
+      if (prior.success && prior.data.boundTree === tree) {
+        console.error(`arbitration record already present: ${path}`);
+        return;
+      }
+    }
+    // `aggregate` already owns the sink glob and the per-lane blocker list, so
+    // this reuses it rather than minting a second reader of the same files.
+    const { blockers } = await aggregate(slug, kind, { cwd });
+    const rec = buildSkeleton(slug, kind, tree, ledger?.rounds ?? [], blockers, fingerprintBlocker);
+    if (!rec) {
+      console.error(
+        'arbitration skeleton not written — the lane sinks on disk do not describe the ' +
+          'arbitrated round. Re-run the round before arbitrating.',
+      );
+      return;
+    }
+    await mkdir(dirname(path), { recursive: true });
+    await writeJsonAtomic(path, rec);
+    console.error(`arbitration skeleton written: ${path}`);
+    console.error(
+      `  ${rec.blockers.length} unresolved blockers await a disposition; then commit with:`,
+    );
+    console.error('  git commit --amend --no-edit --trailer \\');
+    console.error('    "Noldor-Path-Override: cr-arbitration <digest> — <why>"');
+  } catch (err) {
+    console.error(`arbitration skeleton not written: ${(err as Error).message}`);
+  }
+}
+
 /** The refusal banner: what was spent, and the two ways out. */
 export function renderCapRefusal(
   ledger: AutofixLedger | null,
@@ -593,6 +714,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   const cap = capVerdict(ledger, roundKey, headSha);
   if (cap.refuse) {
     console.error(renderCapRefusal(ledger, opts.args.slug, opts.args.kind));
+    await writeSkeletonIfAbsent(cwd, opts.args.slug, opts.args.kind, ledger);
     return { lanesRun: [], syntheticOks: [], exitCode: EXIT_ROUND_CAP };
   }
 
