@@ -22,7 +22,7 @@
 
 `enforceReviewReceipt` returns `{ ok: true }` the moment it sees a `Noldor-Path-Override` (`src/hooks/noldor-enforce-review-receipt.ts:39`). That early return is the hole. This guard runs beside it and closes it for the one case that matters.
 
-- [ ] **Step 1: Write the failing test.** Create `src/hooks/__tests__/noldor-enforce-arbitration.test.ts`:
+- [x] **Step 1: Write the failing test.** Create `src/hooks/__tests__/noldor-enforce-arbitration.test.ts`:
 
 ```ts
 // @tests: specs-cr-gate-multi-reviewer
@@ -112,7 +112,7 @@ describe('decideArbitration', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/hooks/__tests__/noldor-enforce-arbitration.test.ts
@@ -120,7 +120,7 @@ pnpm vitest run src/hooks/__tests__/noldor-enforce-arbitration.test.ts
 
 Expected: `Failed to resolve import "../noldor-enforce-arbitration.js"`.
 
-- [ ] **Step 3: Implement the decision.** Create `src/hooks/noldor-enforce-arbitration.ts`:
+- [x] **Step 3: Implement the decision.** Create `src/hooks/noldor-enforce-arbitration.ts`:
 
 ```ts
 // pre-push stage: refuses a bare free-text `Noldor-Path-Override` on a series
@@ -209,7 +209,7 @@ export function decideArbitration(input: {
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/hooks/__tests__/noldor-enforce-arbitration.test.ts && pnpm typecheck
@@ -217,7 +217,7 @@ pnpm vitest run src/hooks/__tests__/noldor-enforce-arbitration.test.ts && pnpm t
 
 Expected: all nine cases pass and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p5t1.txt <<'EOF'
@@ -248,7 +248,7 @@ git commit -F /tmp/msg-p5t1.txt
 
 **Files:** Modify: `src/hooks/noldor-enforce-arbitration.ts`, `src/cli/manifest.ts`, `lefthook/noldor.yml` · Test: `src/hooks/__tests__/noldor-enforce-arbitration.test.ts`, `src/checks/__tests__/check-lefthook-wiring.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/hooks/__tests__/noldor-enforce-arbitration.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/hooks/__tests__/noldor-enforce-arbitration.test.ts`:
 
 ```ts
 describe('enforceArbitration over a push range', () => {
@@ -305,7 +305,7 @@ describe('enforceArbitration over a push range', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/hooks/__tests__/noldor-enforce-arbitration.test.ts -t "push range"
@@ -313,7 +313,7 @@ pnpm vitest run src/hooks/__tests__/noldor-enforce-arbitration.test.ts -t "push 
 
 Expected: `Module '"../noldor-enforce-arbitration.js"' has no exported member 'enforceArbitration'`.
 
-- [ ] **Step 3: Implement.** Append to `src/hooks/noldor-enforce-arbitration.ts`:
+- [x] **Step 3: Implement.** Append to `src/hooks/noldor-enforce-arbitration.ts`:
 
 ```ts
 /**
@@ -354,7 +354,7 @@ export function enforceArbitration(input: {
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/hooks/__tests__/noldor-enforce-arbitration.test.ts && pnpm typecheck
@@ -362,7 +362,7 @@ pnpm vitest run src/hooks/__tests__/noldor-enforce-arbitration.test.ts && pnpm t
 
 Expected: all twelve cases pass and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Add the CLI entry and the production readers.** Register the command in `src/cli/manifest.ts` under the existing `hooks` group, beside `enforce-review-receipt`:
+- [x] **Step 5: Add the CLI entry and the production readers.** Register the command in `src/cli/manifest.ts` under the existing `hooks` group, beside `enforce-review-receipt`:
 
 ```ts
       'enforce-arbitration': {
@@ -378,7 +378,7 @@ Then add the runnable entry point at the bottom of `src/hooks/noldor-enforce-arb
 - `readLedger` — read `.noldor/cr/autofix/<slug>-code.json` and map its rounds to `{ round, verdict }`. **Do NOT use `readLedger` from `autofix-ledger.ts`**: it returns `null` for a different `sessionStartedAt`, and a push legitimately happens in a later session than the rounds it arbitrates — session-scoped reading would make this guard fail open on every session rotation while claiming to be loud.
 - `readRecord` — read the arbitration record, `arbitrationRecordSchema.parse` it, and return `{ digest: recordDigest(rec), filled: isFilled(rec), boundTree: rec.boundTree, currentTree: <git rev-parse HEAD^{tree}> }`. An unreadable or unparseable file returns `null`, which the decision reports as "no arbitration record on disk".
 
-- [ ] **Step 6: Register the lefthook job.** In `lefthook/noldor.yml`, directly after the `noldor-enforce-review-receipt` job:
+- [x] **Step 6: Register the lefthook job.** In `lefthook/noldor.yml`, directly after the `noldor-enforce-review-receipt` job:
 
 ```yaml
     - name: noldor-enforce-arbitration
@@ -390,7 +390,7 @@ Then add the runnable entry point at the bottom of `src/hooks/noldor-enforce-arb
 
 Then mirror the change into the templates twin (`templates/**`), or `checks template-sync` and the doctor-drift case in `cli.test.ts` go red.
 
-- [ ] **Step 7: Run everything, including the wiring check.**
+- [x] **Step 7: Run everything, including the wiring check.**
 
 ```bash
 pnpm typecheck && pnpm test && pnpm noldor checks lefthook-wiring && pnpm noldor checks push-gates
@@ -398,7 +398,7 @@ pnpm typecheck && pnpm test && pnpm noldor checks lefthook-wiring && pnpm noldor
 
 Expected: typecheck exits 0, the suite is green, and both checks exit 0. `checks push-gates` now replays the new job too — that is the point of preflighting through lefthook itself rather than an enumeration.
 
-- [ ] **Step 8: Verify the guard end to end.** On a scratch branch, confirm the two directions:
+- [x] **Step 8: Verify the guard end to end.** On a scratch branch, confirm the two directions:
 
 ```bash
 git switch -c arb-probe
@@ -420,7 +420,7 @@ Expected: a non-zero exit and the "a bare override is not enough" message. Then 
 git switch - && git branch -D arb-probe && rm -f .noldor/cr/autofix/probe-code.json
 ```
 
-- [ ] **Step 9: Commit.**
+- [x] **Step 9: Commit.**
 
 ```bash
 cat > /tmp/msg-p5t2.txt <<'EOF'
