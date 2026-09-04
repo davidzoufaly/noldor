@@ -134,9 +134,11 @@ export const PENCIL_EXTENSION_ID = 'highagency.pencildev';
  * The custom-editor `viewType` the extension registers for `*.pen`, and the
  * value a `workbench.editorAssociations` entry must carry.
  *
- * Naming it matters because the fallback is silent and wrong: a `.pen` is plain
- * UTF-8 JSON, so with no association VS Code renders it happily in the text
- * editor — no binary warning, no custom editor, just the document's internals on
- * screen. `noldor init` seeds the association for this reason.
+ * Named because `noldor init` writes it into the consumer's
+ * `workbench.editorAssociations`, pinning the repo's `.pen` editor rather than
+ * leaving it to whatever a given machine has installed. The association is not
+ * what makes a plain open work — the extension claims `*.pen` at default
+ * priority on its own — so see `init-vscode-settings.ts` for what it does and
+ * does not buy.
  */
 export const PENCIL_VIEW_TYPE = 'pencil.designEditor';

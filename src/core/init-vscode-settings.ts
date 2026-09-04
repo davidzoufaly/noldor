@@ -2,13 +2,25 @@
 // The `.pen` editor association in the consumer's `.vscode/settings.json`,
 // ensured by `noldor init`.
 //
-// A `.pen` is plain UTF-8 JSON. That single fact is the whole reason this file
-// exists: with no association VS Code has nothing to stop it, so it opens the
-// design in the text editor and renders several thousand nodes of coordinates —
-// no binary warning, no custom editor, no hint that a canvas was meant. An
-// operator who clicks a `.pen` in the explorer or a search result gets that,
-// while pencil MCP goes on reporting a dead bridge, because a text buffer is not
-// an open design.
+// What this is NOT for. An earlier draft of this module claimed VS Code renders
+// a `.pen` as text unless the association is set. That is false, and the
+// extension's own manifest says so: its `contributes.customEditors` entry
+// declares `selector: [{ filenamePattern: "*.pen" }]` with no `priority`, and
+// VS Code's default is `priority: "default"` — the custom editor opens for a
+// matching file automatically. A plain open needs nothing from this file.
+//
+// What it IS for: pinning the choice where it is genuinely ambiguous or sticky.
+// A per-resource "Open With → Text Editor" is remembered by VS Code for that
+// file; a second `*.pen` handler, or a competing association carried in from
+// another repo, resolves by rules nothing here controls. Writing the association
+// makes the repo's intent explicit and portable instead of resting on which
+// extensions a given machine happens to have.
+//
+// It does NOT help in a diff view. Custom editors do not participate in diffs,
+// so `git diff`, a review pane, or an agent-harness checkpoint diff of a `.pen`
+// renders as raw JSON no matter what this file says — a `.pen` is plain UTF-8
+// JSON, so there is no binary guard to fall back on either. That is a property
+// of diffs, not a misconfiguration, and no setting fixes it.
 //
 // A merge rather than a template copy. `.vscode/settings.json` is a file
 // consumers already own and fill with unrelated keys, so a scaffold-only
@@ -36,9 +48,17 @@ export const PEN_GLOB = '*.pen';
  * `conflict` is the case worth naming: an association for `*.pen` already
  * exists and names something else. That is an operator decision — they may be
  * pointing at a fork of the extension, or deliberately reading the JSON — so it
- * is reported and never overwritten. `blocked` covers a settings file that is
- * present but unusable (unreadable, or not a JSON object); rewriting it from
- * scratch would discard whatever it holds.
+ * is reported and never overwritten. `blocked` covers every reason the write did
+ * not happen: a settings file present but unusable (unreadable, or not a JSON
+ * object), where rewriting from scratch would discard whatever it holds, and a
+ * directory or file that cannot be written at all.
+ *
+ * Nothing here throws. The caller is `noldor init`, whose top-level catch aborts
+ * the entire scaffold — before the rollout marker, the lefthook wiring report
+ * and the indirection baseline seed — and an unwritable `.vscode/` must not cost
+ * a consumer all of that over an editor association. Every neighbouring seam
+ * follows the same rule (`ensureRolloutMarker` → `skipped-no-git`,
+ * `seedBaselineIfAbsent` → `recorder-threw`).
  */
 export type VscodeSettingsOutcome =
   | { kind: 'created' }
@@ -70,12 +90,7 @@ function objectAt(host: Record<string, unknown>, key: string): Record<string, un
 export function ensureVscodeEditorAssociation(consumerRoot: string): VscodeSettingsOutcome {
   const path = join(consumerRoot, VSCODE_SETTINGS_PATH);
   if (!existsSync(path)) {
-    mkdirSync(dirname(path), { recursive: true });
-    atomicWriteFileSync(
-      path,
-      render({ [EDITOR_ASSOCIATIONS_KEY]: { [PEN_GLOB]: PENCIL_VIEW_TYPE } }),
-    );
-    return { kind: 'created' };
+    return write(path, { [EDITOR_ASSOCIATIONS_KEY]: { [PEN_GLOB]: PENCIL_VIEW_TYPE } }, 'created');
   }
 
   let parsed: unknown;
@@ -108,28 +123,43 @@ export function ensureVscodeEditorAssociation(consumerRoot: string): VscodeSetti
   if (current === PENCIL_VIEW_TYPE) return { kind: 'unchanged' };
   if (current !== undefined) return { kind: 'conflict', found: String(current) };
 
-  atomicWriteFileSync(
+  return write(
     path,
-    render({
-      ...settings,
-      [EDITOR_ASSOCIATIONS_KEY]: { ...associations, [PEN_GLOB]: PENCIL_VIEW_TYPE },
-    }),
+    { ...settings, [EDITOR_ASSOCIATIONS_KEY]: { ...associations, [PEN_GLOB]: PENCIL_VIEW_TYPE } },
+    'added',
   );
-  return { kind: 'added' };
 }
 
-/** Two-space JSON with a trailing newline — the shape VS Code itself writes. */
-function render(settings: Record<string, unknown>): string {
-  return `${JSON.stringify(settings, null, 2)}\n`;
+/**
+ * Write the settings file, creating its directory, and turn any filesystem
+ * refusal into a `blocked` outcome rather than a throw — see
+ * {@link VscodeSettingsOutcome} for why init must never abort on this.
+ */
+function write(
+  path: string,
+  settings: Record<string, unknown>,
+  onSuccess: 'created' | 'added',
+): VscodeSettingsOutcome {
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    // Two-space JSON with a trailing newline — the shape VS Code itself writes.
+    atomicWriteFileSync(path, `${JSON.stringify(settings, null, 2)}\n`);
+  } catch (e) {
+    return {
+      kind: 'blocked',
+      reason: `${VSCODE_SETTINGS_PATH} could not be written (${String(e)}) — add "${PEN_GLOB}": "${PENCIL_VIEW_TYPE}" under "${EDITOR_ASSOCIATIONS_KEY}" by hand`,
+    };
+  }
+  return { kind: onSuccess };
 }
 
 /** Init's summary line for an outcome, or `undefined` when there is nothing to say. */
 export function renderVscodeSettingsOutcome(outcome: VscodeSettingsOutcome): string | undefined {
   switch (outcome.kind) {
     case 'created':
-      return `created    ${VSCODE_SETTINGS_PATH} ("${PEN_GLOB}" → ${PENCIL_VIEW_TYPE}, so a .pen opens as a canvas and not as raw JSON)`;
+      return `created    ${VSCODE_SETTINGS_PATH} ("${PEN_GLOB}" → ${PENCIL_VIEW_TYPE}, pinning the .pen editor for this repo)`;
     case 'added':
-      return `updated    ${VSCODE_SETTINGS_PATH} ("${PEN_GLOB}" → ${PENCIL_VIEW_TYPE}, so a .pen opens as a canvas and not as raw JSON)`;
+      return `updated    ${VSCODE_SETTINGS_PATH} ("${PEN_GLOB}" → ${PENCIL_VIEW_TYPE}, pinning the .pen editor for this repo)`;
     case 'unchanged':
       return undefined;
     case 'conflict':

@@ -97,10 +97,11 @@ try {
   if (ignore !== 'unchanged') {
     console.log(`${ignore.padEnd(10)} .gitignore (.noldor transient-state block)`);
   }
-  // Point `*.pen` at the pen.dev custom editor. A `.pen` is plain JSON, so with
-  // no association VS Code shows the design's internals in a text buffer — which
-  // opens no canvas and wakes no bridge. Merged into whatever the consumer
-  // already has, never overwritten; every outcome is a log line, never a throw.
+  // Pin `*.pen` to the pen.dev custom editor for this repo. Not what makes a
+  // plain open work (the extension claims `*.pen` at default priority itself) —
+  // it settles the sticky and ambiguous cases, and records the intent where the
+  // repo can carry it. Merged into whatever the consumer already has, never
+  // overwritten; every outcome is a log line, never a throw.
   const vscode = renderVscodeSettingsOutcome(ensureVscodeEditorAssociation(consumer));
   if (vscode !== undefined) console.log(vscode);
   // Arm the gate validators (trailer / receipt / session hard wall) from the

@@ -1,5 +1,5 @@
 // @tests: pendev-ui-design-phase
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -120,6 +120,36 @@ describe('ensureVscodeEditorAssociation — a file it must not rewrite', () => {
     const out = ensureVscodeEditorAssociation(repo);
     expect(out.kind).toBe('blocked');
     expect(readFileSync(join(repo, VSCODE_SETTINGS_PATH), 'utf8')).toBe(raw);
+  });
+});
+
+describe('ensureVscodeEditorAssociation — a filesystem that refuses', () => {
+  // `noldor init` wraps its whole scaffold in one try/catch that prints
+  // `init failed:` and exits 1. A throw here would therefore cost a consumer the
+  // rollout marker, the lefthook wiring report and the indirection baseline
+  // seed — all over a cosmetic editor association.
+  it('reports an unwritable .vscode as blocked instead of throwing', () => {
+    // A FILE where the directory must go: mkdirSync then fails with ENOTDIR,
+    // which is a real refusal rather than a permission bit root could ignore.
+    writeFileSync(join(repo, '.vscode'), 'not a directory');
+    const out = ensureVscodeEditorAssociation(repo);
+    expect(out.kind).toBe('blocked');
+    expect(out).toMatchObject({ reason: expect.stringMatching(/\S/) as unknown as string });
+  });
+
+  it('reports a read-only .vscode directory as blocked instead of throwing', () => {
+    const dir = join(repo, '.vscode');
+    mkdirSync(dir);
+    chmodSync(dir, 0o500);
+    try {
+      // skipIf is not usable here: the condition (running as root, where the
+      // mode is ignored) is only knowable at run time. Assert the contract that
+      // holds either way — never a throw — and the outcome when the mode bites.
+      const out = ensureVscodeEditorAssociation(repo);
+      expect(['blocked', 'created']).toContain(out.kind);
+    } finally {
+      chmodSync(dir, 0o700);
+    }
   });
 });
 
