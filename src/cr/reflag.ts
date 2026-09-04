@@ -148,13 +148,25 @@ export function ruleR3(
       if (span === undefined) continue;
       const introduced = introducedByFile.get(loc.file);
       if (introduced === undefined) continue;
-      // Walk the span rather than testing one line: a `path:10-20` bullet is
-      // about a line this series introduced if ANY line in it was introduced.
+      // A span is "about a line this series introduced" if ANY line in it was.
+      //
+      // Whichever side is SMALLER gets iterated, and that is a bound rather than
+      // a micro-optimisation: a span's endpoints come from reviewer prose and
+      // nothing caps them, so a bullet naming `src/x.ts:10-1000000000` would
+      // otherwise walk a billion integers to answer "clear". The introduced set
+      // is bounded by real file content, so scanning it instead makes the work
+      // proportional to the repository rather than to LLM output.
       let hit: number | undefined;
-      for (let n = span.start; n <= span.end; n++) {
-        if (introduced.has(n)) {
-          hit = n;
-          break;
+      if (span.end - span.start <= introduced.size) {
+        for (let n = span.start; n <= span.end; n++) {
+          if (introduced.has(n)) {
+            hit = n;
+            break;
+          }
+        }
+      } else {
+        for (const n of introduced) {
+          if (n >= span.start && n <= span.end && (hit === undefined || n < hit)) hit = n;
         }
       }
       if (hit !== undefined) {
@@ -179,20 +191,25 @@ export function ruleR3(
  * documented cut sites five times in a single review.
  *
  * `scopesByFile` and `unscannable` both arrive as data — the module opens
- * nothing. A blocker whose file could not be scanned yields `omitted` naming
+ * nothing. A blocker whose file could not be examined yields `omitted` naming
  * that file, never `clear`.
+ *
+ * `unscannable` maps a file to the caller's REASON rather than listing bare
+ * paths, because only the caller knows which one it hit: a file can fail to
+ * scan (brace depth did not balance) or fail to read at all (a changed path
+ * that turned out to be a symlink, refused before the read). Naming a single
+ * invented cause here sent an operator looking at the wrong problem.
  */
 export function ruleR2(
   blockers: readonly RuleBlocker[],
   scopesByFile: ReadonlyMap<string, readonly CutScope[]>,
-  unscannable: readonly string[],
+  unscannable: ReadonlyMap<string, string>,
 ): RuleResult {
   const signals: ReflagSignal[] = [];
-  const blocked = new Set(unscannable);
   const blockedHit = new Set<string>();
   for (const b of blockers) {
     for (const loc of b.locations ?? []) {
-      if (blocked.has(loc.file)) {
+      if (unscannable.has(loc.file)) {
         blockedHit.add(loc.file);
         continue;
       }
@@ -219,7 +236,10 @@ export function ruleR2(
   // is news whether or not some other blocker landed.
   const omitted =
     blockedHit.size > 0
-      ? `could not scan ${[...blockedHit].sort().join(', ')} — brace depth did not balance`
+      ? `could not examine ${[...blockedHit]
+          .sort()
+          .map((f) => `${f} (${unscannable.get(f) ?? 'reason not recorded'})`)
+          .join(', ')}`
       : undefined;
   return fired(signals, omitted);
 }

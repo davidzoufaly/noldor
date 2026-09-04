@@ -460,7 +460,7 @@ export function runReflagRules(
   priorRounds: readonly (readonly string[])[] | undefined,
   introducedByFile: ReadonlyMap<string, ReadonlySet<number>> | undefined,
   scopesByFile: ReadonlyMap<string, readonly CutScope[]>,
-  unscannable: readonly string[],
+  unscannable: ReadonlyMap<string, string>,
 ): { lines: string[]; signals: Record<string, unknown>[] } {
   const results = [
     ruleR1(blockers, priorRounds),
@@ -966,7 +966,11 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         ...new Set(ruleBlockers.flatMap((b) => (b.locations ?? []).map((l) => l.file))),
       ];
       const scopesByFile = new Map<string, readonly CutScope[]>();
-      const unscannable: string[] = [];
+      // File -> why it could not be examined. The REASON is recorded here
+      // rather than invented by the rule: these two branches are different
+      // problems, and telling an operator a refused symlink was a brace-depth
+      // failure sends them to the wrong place.
+      const unscannable = new Map<string, string>();
       for (const f of located) {
         try {
           // readFileNoFollowAsync, not readFile: `f` came from a changed-file
@@ -974,9 +978,9 @@ export async function run(opts: RunOpts): Promise<RunResult> {
           // target is outside the checkout.
           const src = await readFileNoFollowAsync(join(cwd, f));
           if (scanSource(src).ok) scopesByFile.set(f, markerScopes(src));
-          else unscannable.push(f);
-        } catch {
-          unscannable.push(f);
+          else unscannable.set(f, 'brace depth did not balance');
+        } catch (err) {
+          unscannable.set(f, `unreadable: ${(err as Error).message}`);
         }
       }
       const reflag = runReflagRules(

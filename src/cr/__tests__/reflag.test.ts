@@ -76,28 +76,32 @@ describe('ruleR2', () => {
   const scopes = new Map([['src/x.ts', [{ line: 10, reason: 'why', startLine: 10, endLine: 20 }]]]);
 
   it('fires for a location inside a marker scope', () => {
-    const r = ruleR2([b], scopes, []);
+    const r = ruleR2([b], scopes, new Map());
     expect(r.outcome).toBe('fired');
     if (r.outcome === 'fired') expect(r.signals[0]!.message).toContain('src/x.ts:10');
   });
 
   it('is clear for a location outside every scope', () => {
     expect(
-      ruleR2([{ ...b, locations: [{ file: 'src/x.ts', line: 40 }] }], scopes, []).outcome,
+      ruleR2([{ ...b, locations: [{ file: 'src/x.ts', line: 40 }] }], scopes, new Map()).outcome,
     ).toBe('clear');
   });
 
   it('is clear for a blocker with no locations', () => {
-    expect(ruleR2([{ id: 'a', severity: 'low', message: 'x' }], scopes, []).outcome).toBe('clear');
+    expect(ruleR2([{ id: 'a', severity: 'low', message: 'x' }], scopes, new Map()).outcome).toBe(
+      'clear',
+    );
   });
 
   it('is clear for a location with a file but no line', () => {
-    expect(ruleR2([{ ...b, locations: [{ file: 'src/x.ts' }] }], scopes, []).outcome).toBe('clear');
+    expect(ruleR2([{ ...b, locations: [{ file: 'src/x.ts' }] }], scopes, new Map()).outcome).toBe(
+      'clear',
+    );
   });
 
   // "We could not look" must never read the same as "we looked and found nothing".
   it('is omitted when the located file was unscannable', () => {
-    const r = ruleR2([b], new Map(), ['src/x.ts']);
+    const r = ruleR2([b], new Map(), new Map([['src/x.ts', 'brace depth did not balance']]));
     expect(r.outcome).toBe('omitted');
     if (r.outcome === 'omitted') expect(r.reason).toContain('src/x.ts');
   });
@@ -122,7 +126,11 @@ describe('ruleR2 reporting a signal beside an omission', () => {
   const scopes = new Map([['src/x.ts', [{ line: 10, reason: 'why', startLine: 10, endLine: 20 }]]]);
 
   it('names the unscannable file even when another blocker fires', () => {
-    const r = ruleR2([inScope, unreadable], scopes, ['src/bad.ts']);
+    const r = ruleR2(
+      [inScope, unreadable],
+      scopes,
+      new Map([['src/bad.ts', 'brace depth did not balance']]),
+    );
     expect(r.outcome).toBe('fired');
     if (r.outcome === 'fired') {
       expect(r.signals).toHaveLength(1);
@@ -131,12 +139,16 @@ describe('ruleR2 reporting a signal beside an omission', () => {
   });
 
   it('still reports a pure omission as omitted', () => {
-    const r = ruleR2([unreadable], new Map(), ['src/bad.ts']);
+    const r = ruleR2(
+      [unreadable],
+      new Map(),
+      new Map([['src/bad.ts', 'brace depth did not balance']]),
+    );
     expect(r.outcome).toBe('omitted');
   });
 
   it('carries no omission when every located file scanned', () => {
-    const r = ruleR2([inScope], scopes, []);
+    const r = ruleR2([inScope], scopes, new Map());
     expect(r.outcome).toBe('fired');
     if (r.outcome === 'fired') expect(r.omitted).toBeUndefined();
   });
@@ -157,14 +169,14 @@ describe('range-aware matching', () => {
     const scopes = new Map([
       ['src/x.ts', [{ line: 15, reason: 'why', startLine: 15, endLine: 18 }]],
     ]);
-    expect(ruleR2([ranged('src/x.ts')], scopes, []).outcome).toBe('fired');
+    expect(ruleR2([ranged('src/x.ts')], scopes, new Map()).outcome).toBe('fired');
   });
 
   it('R2 stays clear when the range ends before the scope starts', () => {
     const scopes = new Map([
       ['src/x.ts', [{ line: 30, reason: 'why', startLine: 30, endLine: 40 }]],
     ]);
-    expect(ruleR2([ranged('src/x.ts')], scopes, []).outcome).toBe('clear');
+    expect(ruleR2([ranged('src/x.ts')], scopes, new Map()).outcome).toBe('clear');
   });
 
   it('R3 fires when a ranged location covers an introduced line', () => {
@@ -175,5 +187,55 @@ describe('range-aware matching', () => {
   it('R3 stays clear when the range covers no introduced line', () => {
     const introduced = new Map([['src/x.ts', new Set([40])]]);
     expect(ruleR3([ranged('src/x.ts')], introduced).outcome).toBe('clear');
+  });
+});
+
+// CR round 2, reviewer finding 1: the cause of an omission belongs to the
+// producer. The caller's list carries files that would not SCAN and files that
+// would not READ (a refused symlink), and only the caller can tell them apart.
+describe('ruleR2 reporting the cause it was given', () => {
+  const b = {
+    id: 'a',
+    severity: 'med' as const,
+    message: 'x',
+    locations: [{ file: 'src/bad.ts', line: 3 }],
+  };
+
+  it('prints the producer reason verbatim', () => {
+    const r = ruleR2([b], new Map(), new Map([['src/bad.ts', 'refused a symlinked path']]));
+    expect(r.outcome).toBe('omitted');
+    if (r.outcome === 'omitted') {
+      expect(r.reason).toContain('src/bad.ts');
+      expect(r.reason).toContain('refused a symlinked path');
+      expect(r.reason).not.toContain('brace depth');
+    }
+  });
+});
+
+// CR round 2, reviewer finding 2: a span's bounds come from reviewer prose and
+// nothing caps them. Walking `10-1000000000` line by line is a hang driven by
+// LLM output.
+describe('ruleR3 with an enormous claimed range', () => {
+  it('answers an absurd span without walking it', () => {
+    const huge = {
+      id: 'a',
+      severity: 'med' as const,
+      message: 'x',
+      locations: [{ file: 'src/x.ts', line: 10, endLine: 1_000_000_000 }],
+    };
+    const started = Date.now();
+    const r = ruleR3([huge], new Map([['src/x.ts', new Set([5])]]));
+    expect(r.outcome).toBe('clear');
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
+  it('still fires when the enormous span really does cover an introduced line', () => {
+    const huge = {
+      id: 'a',
+      severity: 'med' as const,
+      message: 'x',
+      locations: [{ file: 'src/x.ts', line: 10, endLine: 1_000_000_000 }],
+    };
+    expect(ruleR3([huge], new Map([['src/x.ts', new Set([12])]])).outcome).toBe('fired');
   });
 });

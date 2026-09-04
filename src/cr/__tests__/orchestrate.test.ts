@@ -1354,7 +1354,7 @@ describe('runReflagRules', () => {
   const located = { ...b, locations: [{ file: 'src/x.ts', line: 12 }] };
 
   it('renders a fired signal and a persisted record', () => {
-    const out = runReflagRules([b], [['a']], new Map(), new Map(), []);
+    const out = runReflagRules([b], [['a']], new Map(), new Map(), new Map());
     expect(out.lines).toEqual([expect.stringContaining('[R1]')]);
     expect(out.signals).toEqual([
       { rule: 'R1', blockerId: 'a', message: expect.stringContaining('survived a fix') },
@@ -1362,7 +1362,7 @@ describe('runReflagRules', () => {
   });
 
   it('renders an omitted rule as a reason, not silence', () => {
-    const out = runReflagRules([b], undefined, new Map(), new Map(), []);
+    const out = runReflagRules([b], undefined, new Map(), new Map(), new Map());
     expect(out.lines).toEqual([expect.stringContaining('[omitted]')]);
     expect(out.signals).toEqual([
       { rule: 'omitted', reason: expect.stringContaining('no recorded blocker ids') },
@@ -1370,7 +1370,7 @@ describe('runReflagRules', () => {
   });
 
   it('renders nothing when every rule is clear', () => {
-    const out = runReflagRules([b], [['other']], new Map(), new Map(), []);
+    const out = runReflagRules([b], [['other']], new Map(), new Map(), new Map());
     expect(out.lines).toEqual([]);
     expect(out.signals).toEqual([]);
   });
@@ -1381,7 +1381,7 @@ describe('runReflagRules', () => {
       [['a']],
       new Map([['src/x.ts', new Set([12])]]),
       new Map(),
-      [],
+      new Map(),
     );
     expect(out.lines.map((l) => l.slice(0, 4))).toEqual(['[R1]', '[R3]']);
   });
@@ -1399,7 +1399,7 @@ it('renders R2 alongside R1 and R3', () => {
     [['a']],
     new Map([['src/x.ts', new Set([12])]]),
     new Map([['src/x.ts', [{ line: 10, reason: 'why', startLine: 10, endLine: 20 }]]]),
-    [],
+    new Map(),
   );
   expect(out.lines.map((l) => l.slice(0, 4))).toEqual(['[R1]', '[R2]', '[R3]']);
   expect(out.signals).toHaveLength(3);
@@ -1501,7 +1501,7 @@ it('renders both halves when a rule fires and omits at once', () => {
     [],
     new Map(),
     new Map([['src/x.ts', [{ line: 10, reason: 'why', startLine: 10, endLine: 20 }]]]),
-    ['src/bad.ts'],
+    new Map([['src/bad.ts', 'brace depth did not balance']]),
   );
   expect(out.lines).toEqual([
     expect.stringContaining('[R2]'),
