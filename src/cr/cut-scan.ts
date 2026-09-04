@@ -13,6 +13,7 @@
  *
  * Pure: takes source text, returns data. No fs, no git.
  */
+import { CUT_MARKER } from '../core/structural-context-contract.js';
 
 /** A brace block, as 1-based inclusive line numbers. */
 interface Block {
@@ -168,4 +169,58 @@ export function scanSource(source: string): ScanResult {
   }
 
   return { ok: !negative && depth === 0, commentLines, blocks };
+}
+
+/** A `noldor:cut` marker found in a comment, with the reason its author gave. */
+export interface CutMarker {
+  /** 1-based line the marker sits on. */
+  readonly line: number;
+  /** Everything after the marker token, trimmed. May be empty. */
+  readonly reason: string;
+}
+
+/**
+ * The marker must be its OWN token. `markdown-section-scan.ts` records what a
+ * bare `startsWith` cost there — `noldor:cutlery` suppressed a section, with
+ * `lery …` counting as the reason — and `noldor:cut-section` is a genuinely
+ * different marker owned by `src/docs/architecture-form.ts`. So the character
+ * after the token must be whitespace or end-of-line: both `-` and a word
+ * character fail.
+ *
+ * A BACKTICK before the token disqualifies it too. A comment that discusses the
+ * marker grammar rather than declaring a cut writes it fenced — `docs`-adjacent
+ * prose in `src/docs/architecture-form.ts` does exactly that, and without this
+ * the scanner reports a scope for a sentence about markers.
+ *
+ * Built from {@link CUT_MARKER} through `RegExp.escape`, exactly as
+ * `markdown-section-scan.ts` does, so a future edit to the constant cannot
+ * silently turn this into a metacharacter bug.
+ */
+const MARKER_RE = new RegExp(`(?:^|[^\\w:\\-\`])${RegExp.escape(CUT_MARKER)}(?:\\s+(.*))?$`);
+
+/**
+ * Every `noldor:cut` marker in `source`, in document order.
+ *
+ * Comment-aware, which a raw-text regex could not be: a marker is recognised
+ * only on a line the lexical pass classified as comment, so the literal
+ * `noldor:cut` inside a string or template — which this repo's own prompt
+ * strings and test fixtures contain — is not a marker.
+ *
+ * An unscannable file yields `[]`. Markers might still be findable there, but a
+ * marker with no trustworthy scope is useless to R2, and reporting one would
+ * imply a scope that was never computed.
+ */
+export function findMarkers(source: string): CutMarker[] {
+  const scan = scanSource(source);
+  if (!scan.ok) return [];
+  const out: CutMarker[] = [];
+  const lines = source.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const lineNo = i + 1;
+    if (!scan.commentLines.has(lineNo)) continue;
+    const m = MARKER_RE.exec(lines[i] ?? '');
+    if (!m) continue;
+    out.push({ line: lineNo, reason: (m[1] ?? '').trim() });
+  }
+  return out;
 }
