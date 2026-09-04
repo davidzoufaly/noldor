@@ -17,7 +17,7 @@ import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
-import { slugPath } from '../core/slug-paths.js';
+import { slugKindJsonPath } from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
 import { artifactKindSchema } from './findings-schema.js';
 import type { ArtifactKind } from './findings-schema.js';
@@ -109,9 +109,7 @@ export type ArbitrationRecord = z.infer<typeof arbitrationRecordSchema>;
  * incident and its remedy; this reuses it rather than minting a second one.
  */
 export function arbitrationPath(cwd: string, slug: Slug, kind: ArtifactKind): string {
-  const built = slugPath(cwd, ['.noldor', 'cr', 'arbitration'], slug, { suffix: `-${kind}.json` });
-  if (!built.ok) throw new Error(`cannot resolve arbitration record: ${built.error.kind}`);
-  return built.path;
+  return slugKindJsonPath(cwd, ['.noldor', 'cr', 'arbitration'], slug, kind, 'arbitration record');
 }
 
 /** Every unresolved blocker carries exactly one disposition. */

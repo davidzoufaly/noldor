@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileNoFollowAsync, slugPath } from '../core/slug-paths.js';
+import { readFileNoFollowAsync, slugKindJsonPath } from '../core/slug-paths.js';
 import { readSession } from '../core/session.js';
 import type { Slug } from '../core/slug.js';
 import { mkdir, rename } from 'node:fs/promises';
@@ -159,9 +159,7 @@ export function ledgerDir(cwd: string): string {
  * `.noldor/cr/autofix` — repository tampering, not a bad argument.
  */
 export function ledgerPath(cwd: string, slug: Slug, kind: ArtifactKind): string {
-  const built = slugPath(cwd, ['.noldor', 'cr', 'autofix'], slug, { suffix: `-${kind}.json` });
-  if (!built.ok) throw new Error(`cannot resolve autofix ledger: ${built.error.kind}`);
-  return built.path;
+  return slugKindJsonPath(cwd, ['.noldor', 'cr', 'autofix'], slug, kind, 'autofix ledger');
 }
 
 /** Quarantine path a malformed ledger is renamed to. */
