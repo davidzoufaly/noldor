@@ -125,14 +125,33 @@ no second thing a reviewer can get wrong. The rejected alternative, a structured
 like the class tag, is deterministic but starts at zero coverage and turns a malformed prefix into a new
 parse-failure class.
 
-**Every resolved location is confined to the round's changed-file set** — the choke-point posture
+**Every resolved location is confined to the series' changed-file set** — the choke-point posture
 Q-0097 established for `slugPath`. This is a security boundary, not a convenience: `locations.file`
-originates in LLM output, and orchestrate then *reads* those files to resolve U2's marker scopes. So a
-mention is resolved only by matching it against `discoverChangedFiles` (already called at
-[`subagent.ts:94`](../../../src/cr/lanes/subagent.ts#L94)), and a mention that does not match yields no
-location. An absolute path, a traversal like `../../x.ts:1`, and a directory-qualified path outside the
-changed set are all simply unmatched — the resolver never opens a path it was handed, only one it
-recognised.
+originates in LLM output, and orchestrate then *reads* those files to resolve U2's marker scopes. A
+mention is resolved only by matching it against that set; an absolute path, a traversal like
+`../../x.ts:1`, and a directory-qualified path outside the set are all simply unmatched. The resolver
+never opens a path it was handed, only one it recognised.
+
+Three details make that real, and each corrects a first draft that was wrong.
+
+**The set is the series', not the round's.** `resolveBaseSha`
+([`autofix.ts:118-120`](../../../src/cr/autofix.ts#L118-L120)) hands every re-round the *last* fix's
+tip as `--base-sha`, and `discoverChangedFiles` over that range names only the files that fix touched.
+A blocker in a file the series changed in round 1 but the latest fix did not would then go unmatched,
+get no location, and silence R2/R3 on precisely the survivor R1 exists to name — and it would
+contradict R3, which measures cumulatively. So confinement unions the round's `--base-sha` range with
+the cumulative `firstHeadSha..HEAD` range.
+
+**Discovery must run for every kind.** The existing `discoverChangedFiles` call sits inside
+`resolveBindingRules`, which returns at [`subagent.ts:91`](../../../src/cr/lanes/subagent.ts#L91)
+before reaching it for every `kind !== 'code'`. Reusing that call would leave spec and plan reviews
+with no set to match against at all. The changed-set discovery therefore moves up into `runSubagent`,
+independent of the code-only rules branch.
+
+**Matching the set is not yet confinement.** A tracked, changed path can be a symlink whose target lies
+outside the checkout, and an ordinary read follows it. Every file this feature opens is read through
+[`readFileNoFollow`](../../../src/core/slug-paths.ts#L188), which the repo already provides for exactly
+this class.
 
 Of the 30 location mentions observed, 21 carry a directory and 9 are a bare basename; none of the 8
 distinct basenames was ambiguous even against all of `src/`, and the changed set is far smaller. An
@@ -183,6 +202,20 @@ inside a comment run, so the literal `noldor:cut` appearing in a string or templ
 this repo, whose own test fixtures and prompt strings contain it — is not a marker. A raw-text line
 regex could not make that distinction.
 
+**The `/` rule is pinned, and so is its failure mode.** A lexical pass that guesses wrong about one
+slash desynchronises everything after it — which would be *worse* than the bounded ±1 this design
+rejected `tokenize()` for, and neither fixture in AC6 would catch it. So: a `/` begins a regex literal
+when the previous significant token is not a value-producing one (an identifier, a literal, `)`, `]`,
+`}`, or a `++`/`--` postfix); otherwise it is division. Inside a template literal, `${` re-enters code
+and its matching `}` returns to template text, tracked on a stack so nested templates nest correctly;
+escapes are consumed inside strings, templates and regex character classes alike, and a `/` inside a
+regex `[...]` class does not close the literal.
+
+Because a desync is silent and unbounded, the scanner is also self-checking: a file whose brace depth
+ends non-zero, or goes negative at any point, is treated as unscannable — R2 is omitted **for that
+file**, with a notice, rather than producing scopes from a corrupted depth. That check is what turns
+the worst failure mode into a reported gap.
+
 The scanner still reads `noldor:cut` from `CUT_MARKER` rather than restating it, so the constant
 remains the single spelling.
 
@@ -199,16 +232,33 @@ block plus the following non-blank line. Neither fallback ever runs to EOF.
 
 A pure module beside the ledger in c39, shaped after
 [`src/core/split-suggestion.ts`](../../../src/core/split-suggestion.ts): exported threshold constants,
-a `{ rule, value, threshold, message }` signal record, one function per rule, no I/O, no clock.
+one function per rule, no I/O, no clock.
+
+**A rule reports one of three outcomes, not two.** `split-suggestion.ts` emits only
+`{ rule, value, threshold, message }` because its input is always available; here an input can be
+missing — a file that would not scan, a range that is not a fast-forward, a git call that failed. A
+shape with only "fired" and "did not fire" would encode "could not tell" as silence, which is the one
+reading a detector must never produce. So a rule yields **fired**, **clear**, or **omitted**, and an
+omitted result carries why. The exact discriminated-union shape is the plan's to pin; that it has three
+arms is this spec's.
 
 **Blocker identity comes first — R1 is not decidable without it.** `AutofixRound.fingerprint` is a
 digest of the whole blocker *set* (`fingerprintBlockers`), so set equality cannot name which blocker
 survived, and a single survivor beside an otherwise-changed set produces a different digest and no
-signal at all. This feature therefore adds one pure function beside it, `fingerprintBlocker(b)` —
-`sha1(severity|file|message)` for a **single** finding, the same tuple and the same `line`-excluding
-reasoning as the set digest. That per-blocker id is what R1 compares, what a signal points at, and what
-a disposition in the arbitration record keys on. `fingerprintBlockers` itself is untouched and the
-no-progress stop keeps using it.
+signal at all. This feature therefore adds one pure function beside it, `fingerprintBlocker(b)` — a digest over the
+same `severity` / `file` / `message` tuple as the set fingerprint, with the same `line`-excluding
+reasoning, for a **single** finding. The fields are **length-prefixed, not `|`-joined**: a message may
+itself contain `|`, so a plain join lets two different findings encode identically. (The existing
+`fingerprintBlockers` has the same latent ambiguity; it is left alone here because changing it would
+alter every digest already in a ledger, and it is filed with the `tokenize()` defect.)
+
+An id identifies a *logical* finding, so the same blocker filed by two lanes shares one — which is
+intended for R1 and for dispositions alike: the operator arbitrates the finding once, not once per
+lane. The record therefore carries at most one disposition per id, and lists the lanes that filed it.
+
+That per-blocker id is what R1 compares, what a signal points at, and what a disposition in the
+arbitration record keys on. `fingerprintBlockers` itself is untouched and the no-progress stop keeps
+using it.
 
 - **R1 — repeat.** A blocker whose `fingerprintBlocker` id appears in a prior round's recorded id list.
   This needs the ledger to carry those ids, so `AutofixRound` gains an optional `blockerIds` array
@@ -230,11 +280,17 @@ contract `split-suggestion.ts` holds and the same posture the roadmap entry dema
 
 **The module takes data; the caller fetches it.** R3 needs a git diff and R2 needs file reads, and
 neither belongs inside a module whose whole contract is that it cannot fail. `cr orchestrate` resolves
-R3's changed-line set from the ledger's `fixHeadSha` / `diffRange`
-([`autofix-ledger.ts:49`](../../../src/cr/autofix-ledger.ts#L49),
-[`:84`](../../../src/cr/autofix-ledger.ts#L84)) and resolves U2's marker scopes, then passes both in.
-That is exactly how `split-suggestion.ts` earns its testability, and it means every rule is testable
-from literals with no fixture repo.
+R3's cumulative introduced-line set (the series' first round's `headSha` to `HEAD`, per the rule above)
+and U2's marker scopes, then passes both in. That is exactly how `split-suggestion.ts` earns its
+testability, and it means every rule is testable from literals with no fixture repo.
+
+**R3 is omitted rather than trusted when its range is not a fast-forward.** The cumulative range is a
+tree diff and nothing inside it distinguishes this series' commits from anyone else's: an amend-only
+rewrite is harmless, but a rebase onto a moved `origin/main` mid-series puts every upstream-added line
+inside `firstHeadSha..HEAD`, and R3 would then fire on any location in a file upstream happened to
+touch. That range does not *fail*, so the omit-on-failure rule below does not catch it. The guard is
+`git merge-base --is-ancestor <firstHeadSha>^ HEAD`: true after an amend, false after a rebase. When it
+is false, R3 is omitted with a notice rather than computed.
 
 **Signals are persisted per round, on the ledger.** `AutofixRound` gains an optional `signals` array,
 written by orchestrate in the same `appendRound` call that already writes the round verdict
@@ -267,7 +323,14 @@ holds at that moment is only the **ledger**: the refusal returns at
 `lanesRun: []`, and the ledger stores a blocker-set *fingerprint*, never the blockers themselves. The
 skeleton's unresolved blockers therefore come from **re-reading the pair's current lane sinks**, which
 are still on disk precisely because a refused run writes none. Round history and per-round signals come
-from the ledger; `dispositions` is left empty for the operator. The
+from the ledger; `dispositions` is left empty for the operator.
+
+**Those sinks are verified before they are trusted.** Nothing stops a lane being run standalone between
+the closing round and the refusal — the gate skill documents doing exactly that — which would leave
+sinks describing a different review. The ledger's last round already carries the set `fingerprint`, and
+now the per-blocker ids, so the writer recomputes `fingerprintBlockers` over what it re-read and
+compares. On a mismatch it writes no skeleton and says the sinks do not describe the arbitrated round;
+the operator re-runs rather than arbitrating the wrong blockers. The
 **pre-push hook enforces**, beside the existing `enforce-review-receipt` job. Orchestrate cannot
 enforce — it is not on the path to `main`, so an operator who simply never re-runs it would push a bare
 override unimpeded.
@@ -281,12 +344,18 @@ no review receipt matches `HEAD^{tree}`.
 
 **The guard resolves the pair from the tip commit, and reads the ledger session-agnostically.** The
 existing receipt hook works from `HEAD^{tree}` alone and knows no slug, while a ledger is keyed by
-`<slug>-<kind>`. The guard therefore reads the pushed tip's `Noldor-FD` trailer for the slug and checks
-the `code` ledger — the only kind that can gate a push. It must *not* go through `readLedger`, which
-returns `null` for a different `sessionStartedAt`: a push legitimately happens in a later session than
-the rounds it is arbitrating, and session-scoped reading would make the guard fail open on every
-session rotation while claiming to be loud. A tip with no `Noldor-FD` trailer (fast-track, micro-chore)
-has no pair to resolve and is not guarded.
+`<slug>-<kind>`. The guard therefore reads a commit's `Noldor-FD` trailer for the slug and checks the
+`code` ledger — the only kind that can gate a push.
+
+It reads **every outgoing commit in the push range, not just the tip**. A push commonly carries several
+new commits, and a capped override can sit on any of them while the tip names a different FD or none at
+all; guarding the tip alone would leave that bypassable by adding one commit on top. The hook already
+receives the range on stdin, which is what makes this free.
+
+It must *not* go through `readLedger`, which returns `null` for a different `sessionStartedAt`: a push
+legitimately happens in a later session than the rounds it is arbitrating, and session-scoped reading
+would make the guard fail open on every session rotation while claiming to be loud. A commit with no
+`Noldor-FD` trailer (fast-track, micro-chore) has no pair to resolve and is not guarded.
 
 **The trailer vocabulary does not change.** The record is named by a structured value *inside* the
 existing `Noldor-Path-Override`, because
@@ -304,6 +373,16 @@ refuse every honest override from a session that never ran orchestrate at all (m
 fast-track, a doc fix), which is most overrides in this repo. This deliberately matches Q-0170's
 existing behaviour rather than silently widening it; the printed line is what keeps the hole visible.
 
+### Why this spec attaches to Q-0170's FD
+
+Q-0209 carved these four units out of Q-0170 during that entry's spec dialogue, and it is delivered as
+an **attach** enhancement: the roadmap block was retired into
+`docs/features/cr-re-round-cap-enforcement-and-oscillation-detector.md` at promote, with the retired ID
+recorded in `.noldor/retired-entry-ids.json` so `blocked-by: Q-0209` keeps resolving. That is what an
+attach path is, and it is why this spec's **FD:** line names the parent rather than a child FD. There
+is no ownership contradiction to resolve: Q-0170 shipped the round counter and the codex cut contract
+(PR #431), and this work builds the detector and the receipt on top of it, under the same FD.
+
 ### What the plan owns, not this spec
 
 The spec-stage review asked for a full implementation contract. Some of that belongs here and has
@@ -315,8 +394,13 @@ pass, and it is enumerated here so the plan cannot quietly skip it:
   the disposition vocabulary, and what happens on a duplicate, unknown, or missing disposition.
 - The record's binding lifecycle end to end: which tree is bound and when it is selected, the hash
   algorithm and canonical serialization, which fields are excluded from the digest so that filling in
-  dispositions does not invalidate the record's own binding, whether the record is tracked by git, and
-  the exact verification algorithm.
+  dispositions does not invalidate the record's own binding, and the exact verification algorithm.
+  (**Whether the record is tracked is settled here, not in the plan: it is not.** `.gitignore:64`
+  ignores `.noldor/cr/`, so the record is local like the ledger and the sinks it is built from. That
+  is what keeps the binding non-self-referential — committing never changes the record, so the tree it
+  binds is stable — and pre-push runs in the same checkout, so the file is there when the guard looks.
+  The cost is that the record does not travel with the PR; the trailer is what reaches `main`, and it
+  is the trailer the release gate reads.)
 - The `Noldor-Path-Override: cr-arbitration <sha> — <why>` grammar: what the sha is taken over, how the
   operator obtains it, and whether the guard re-derives it from the file on disk so a post-commit edit
   is caught.
@@ -338,16 +422,20 @@ pass, and it is enumerated here so the plan cannot quietly skip it:
 1. Every `LaneFindings` sink and every `AutofixLedger` written before this change parses unchanged, and
    yields no `locations`, no `signals` and no `blockerIds`.
 2. A reviewer bullet naming a file and line yields a `Finding` whose `locations` names it; a bullet
-   naming none yields no `locations` key. A mention that does not match the round's changed-file set
+   naming none yields no `locations` key. A mention that does not match the series' changed-file set
    yields no location — including an absolute path, a `../` traversal, and an ambiguous bare basename.
+   Changed-set discovery runs for `spec` and `plan` kinds, not only `code`.
 3. `fingerprintBlockers` returns the same digest for the same blocker set as it does today, and
-   `fingerprintBlocker` distinguishes two findings that differ only in severity, file, or message.
-4. The scanner reads both the line-comment and the JSDoc-comment marker forms from real `src/**` files,
-   and does not match `noldor:cut-section` or `noldor:cutlery`.
-5. A `noldor:cut` occurrence inside a string or template literal is **not** discovered as a marker.
+   `fingerprintBlocker` distinguishes two findings that differ only in severity, file, or message —
+   including two whose fields differ only by where a `|` falls.
+4. A location naming a changed path that is a symlink out of the checkout resolves to no file read.
+5. The scanner reads both the line-comment and the JSDoc-comment marker forms from real `src/**` files,
+   and matches neither `noldor:cut-section` nor `noldor:cutlery`. A `noldor:cut` occurrence inside a
+   string or template literal is not discovered as a marker.
 6. A `{` inside a string, template literal, comment, or **regex literal** does not change a resolved
    scope: `src/core/ui-predicate.ts` and `src/invariants/public-api-tsdoc.ts` — both of which
-   `tokenize()` leaves brace-unbalanced today — scope correctly.
+   `tokenize()` leaves brace-unbalanced today — scope correctly. A file whose brace depth ends non-zero
+   or goes negative yields no scopes and an omitted R2 for that file.
 7. A marker with no enclosing brace block scopes to the next block that opens after it; with no such
    block either, to its comment block plus the following non-blank line. Neither ever reaches EOF.
 8. Renaming `CUT_MARKER` in `structural-context-contract.ts` fails the suite rather than silently
@@ -357,19 +445,23 @@ pass, and it is enumerated here so the plan cannot quietly skip it:
    blocker on a line added since the series' first round, in current coordinates. Each is decidable
    from literals, with no fixture repo.
 10. A round carrying any signal exits with the same code, and writes the same lane sinks, as the
-    identical round carrying none. A rule whose input could not be collected is reported as omitted
-    rather than silently dropped.
+    identical round carrying none. A rule whose input could not be collected reports `omitted` with a
+    reason — never silence, never a failed round. R3 is omitted when
+    `git merge-base --is-ancestor <firstHeadSha>^ HEAD` is false.
 11. Signals and blocker ids computed in a round are readable from the ledger after that round's lane
     sinks have been overwritten.
 12. `aggregate` does not collect the arbitration record as a lane sink, and files no
     `non-conforming filename` blocker because of it.
-13. At pre-push, a bare free-text `Noldor-Path-Override` is refused only when the cap is reached, the
-    last round is red, and no receipt matches `HEAD^{tree}` — a ledger with red rounds that converged
-    green is not refused, and a tip with no `Noldor-FD` trailer is not guarded.
-14. A valid filled record plus a correctly structured trailer permits the push. A malformed record,
+13. The skeleton is written only when `fingerprintBlockers` over the re-read sinks matches the ledger's
+    last round; on a mismatch it writes nothing and reports that the sinks describe another review.
+14. At pre-push, a bare free-text `Noldor-Path-Override` is refused only when the cap is reached, the
+    last round is red, and no receipt matches `HEAD^{tree}`. A ledger whose red rounds converged green
+    is not refused; a commit with no `Noldor-FD` trailer is not guarded; and every commit in the push
+    range is examined, not only the tip.
+15. A valid filled record plus a correctly structured trailer permits the push. A malformed record,
     partial dispositions, a wrong slug/kind, a record whose bound tree no longer matches, or an altered
     blocker set does not.
-15. The guard resolves its ledger without session scoping: rounds recorded in one session still gate a
+16. The guard resolves its ledger without session scoping: rounds recorded in one session still gate a
     push made in a later one. With no ledger at all the push proceeds and prints a could-not-verify
     line.
 
@@ -396,7 +488,18 @@ pass, and it is enumerated here so the plan cannot quietly skip it:
   `src/clones/tokenize.ts` owns another, and they will drift. The alternative — teaching `tokenize()`
   regex literals and comment retention — changes the token stream clone detection already depends on,
   which is a behaviour change to a shipped feature and not this feature's risk to take. `tokenize()`'s
-  regex gap is a genuine defect for clone detection; it is filed separately rather than fixed here.
+  regex gap is a genuine defect for clone detection; it is filed separately rather than fixed here,
+  alongside `fingerprintBlockers`' own `|`-join ambiguity.
+- **A mis-lexed `/` is unbounded where `tokenize()`'s error was bounded.** One slash classified wrong
+  desynchronises the rest of the file, which is a worse failure than the ±1 depth this design rejected
+  `tokenize()` for. The disambiguation rule is pinned above and the depth self-check converts the
+  failure into an omitted R2 for that file — but the rule is a heuristic over the previous significant
+  token, not a parse, and a construct that defeats it is silent until the depth check catches it. That
+  check is the whole safety net; it is why AC6 tests the balance property, not just the two fixtures.
+- **The arbitration record does not travel with the PR.** It lives under gitignored `.noldor/cr/`, so a
+  reviewer on GitHub sees only the trailer. That is the price of a non-self-referential binding and a
+  file pre-push can actually read, and it is the same posture the ledger and the lane sinks already
+  take — but it does mean the audit trail is reconstructable only in the checkout that produced it.
 - **The guard's fail-open leaves a known hole.** Deleting `.noldor/cr/autofix/<slug>-<kind>.json` still
   resets the cap, and now also disarms the override guard. This spec does not close that — it declines
   to widen it, and makes it audible. Closing it needs the ledger to live somewhere an operator cannot
@@ -436,8 +539,9 @@ arbitration skeleton written: .noldor/cr/arbitration/<slug>-code.json
     "Noldor-Path-Override: cr-arbitration <record-sha> — <why>"
 ```
 
-Pushing with a bare free-text override instead is refused while the ledger shows red rounds for that
-pair. With no ledger at all the push proceeds and pre-push prints that it could not verify.
+Pushing with a bare free-text override instead is refused only once the cap is reached with a red last
+round and no receipt for the tree. A loop that went red and converged green is not refused, and with no
+ledger at all the push proceeds and pre-push prints that it could not verify.
 
 ## Open questions (resolved)
 
@@ -485,8 +589,9 @@ pair. With no ledger at all the push proceeds and pre-push prints that it could 
 
 7. *Where does the guard run, and what happens when the ledger is absent?*
    -> **Orchestrate writes the skeleton, pre-push enforces; an absent ledger fails open and says so.**
-   (D7, ratified) Orchestrate holds the ledger and the unresolved blockers at the moment it refuses but
-   is not on the path to `main`; pre-push is, and already hosts `enforce-review-receipt`. An absent
+   (D7, ratified) Orchestrate holds the ledger at the moment it refuses — the blockers it re-reads from
+   the pair's sinks — but it is not on the path to `main`; pre-push is, and already hosts
+   `enforce-review-receipt`. An absent
    ledger cannot be told apart from a session that never hit the cap, so refusing there would block
    every honest micro-chore and fast-track override — the printed could-not-verify line keeps the known
    delete-to-reset hole visible instead.
