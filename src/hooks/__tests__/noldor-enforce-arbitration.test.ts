@@ -1,7 +1,7 @@
 // @tests: specs-cr-gate-multi-reviewer
 import { describe, expect, it } from 'vitest';
 
-import { decideArbitration } from '../noldor-enforce-arbitration.js';
+import { decideArbitration, enforceArbitration } from '../noldor-enforce-arbitration.js';
 
 const capped = {
   rounds: [
@@ -81,5 +81,49 @@ describe('decideArbitration', () => {
 
   it('ignores a commit with no override at all', () => {
     expect(decideArbitration({ override: null, ledger: capped, record: null }).ok).toBe(true);
+  });
+});
+
+describe('enforceArbitration over a push range', () => {
+  // Guarding only the tip is bypassable by adding one commit on top: a capped
+  // override can sit on any commit in the range while the tip names another FD.
+  it('examines every commit in the range, not just the tip', () => {
+    const seen: string[] = [];
+    const r = enforceArbitration({
+      commits: ['c1', 'c2', 'c3'],
+      readCommit: (sha) => {
+        seen.push(sha);
+        return { override: null, slug: null };
+      },
+      readLedger: () => null,
+      readRecord: () => null,
+    });
+    expect(seen).toEqual(['c1', 'c2', 'c3']);
+    expect(r.ok).toBe(true);
+  });
+
+  it('refuses when any non-tip commit fails the decision', () => {
+    const r = enforceArbitration({
+      commits: ['c1', 'c2'],
+      readCommit: (sha) =>
+        sha === 'c1' ? { override: 'bare', slug: 's' } : { override: null, slug: null },
+      readLedger: () => capped,
+      readRecord: () => null,
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  // A commit with no Noldor-FD trailer (fast-track, micro-chore) has no pair to
+  // resolve, so there is nothing to guard.
+  it('skips a commit with no slug', () => {
+    const r = enforceArbitration({
+      commits: ['c1'],
+      readCommit: () => ({ override: 'bare', slug: null }),
+      readLedger: () => {
+        throw new Error('must not be consulted');
+      },
+      readRecord: () => null,
+    });
+    expect(r.ok).toBe(true);
   });
 });

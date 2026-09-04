@@ -116,6 +116,9 @@ pre-push:
   jobs:
     - name: noldor-enforce-review-receipt
       run: pnpm noldor hooks enforce-review-receipt
+    - name: noldor-enforce-arbitration
+      use_stdin: true
+      run: pnpm noldor hooks enforce-arbitration {1}
     - name: noldor-pre-push
       use_stdin: true
       run: pnpm noldor hooks pre-push {1}

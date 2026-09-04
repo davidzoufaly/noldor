@@ -43,12 +43,14 @@ links:
     - src/core/__tests__/lanes.test.ts
     - src/core/__tests__/prompt-stdin.test.ts
     - src/cr/__tests__/aggregate.test.ts
+    - src/cr/__tests__/arbitration.test.ts
     - src/cr/__tests__/atomic-write.test.ts
     - src/cr/__tests__/autofix-cli.test.ts
     - src/cr/__tests__/autofix-ledger.test.ts
     - src/cr/__tests__/autofix.test.ts
     - src/cr/__tests__/codex-failure.test.ts
     - src/cr/__tests__/codex.test.ts
+    - src/cr/__tests__/cut-scan.test.ts
     - src/cr/__tests__/deep-review-spawn.test.ts
     - src/cr/__tests__/delta.test.ts
     - src/cr/__tests__/escalate.test.ts
@@ -60,12 +62,15 @@ links:
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
     - src/cr/__tests__/lanes/verify.test.ts
+    - src/cr/__tests__/locations.test.ts
     - src/cr/__tests__/orchestrate.integration.test.ts
     - src/cr/__tests__/orchestrate.test.ts
     - src/cr/__tests__/overwrite-guard.test.ts
     - src/cr/__tests__/prior-review.test.ts
     - src/cr/__tests__/read-fd-summary.test.ts
+    - src/cr/__tests__/reflag.test.ts
     - src/garden/detectors/__tests__/override-audit.test.ts
+    - src/hooks/__tests__/noldor-enforce-arbitration.test.ts
     - src/metrics/__tests__/cr-and-override.test.ts
     - src/validate/__tests__/noldor-config.test.ts
   spec: lost-pre-extraction
@@ -77,7 +82,6 @@ noldor-tier: full
 introduced: 0.6.0
 updated: 1.4.0
 ---
-
 ## Summary
 
 Layer a CR gate at the spec/plan stage (before code) with parallel reviewers, orchestrated by `pnpm noldor cr orchestrate --kind <spec|plan|code>`: `manual` (operator pass over the artifact); `codex` (`pnpm noldor cr codex`, opt-in per `crLanes`; unioned automatically at `--kind spec` / `--kind code` on M/L/XL sessions); `reviewer` (senior-reviewer subagent over the artifact diff — a self-contained `claude -p` prompt in [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts), mandatory at `--kind spec` / `--kind plan`); `verifier` (acceptance-verification lane); and `standalone` (a spawned separate terminal running `claude` with max-thinking, reusing the multiterminal-development flow). Each lane writes `.noldor/cr/<slug>-<kind>-<lane>.json`; `cr aggregate` decides green/red and `cr escalate` / `cr autofix` handle a red. Outcomes feed back into the spec/plan before promotion to code. Closes the early-feedback gap at `/noldor-gate` Step 2.5.

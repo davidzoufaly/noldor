@@ -312,6 +312,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'hooks/noldor-enforce-review-receipt.ts',
         desc: 'Enforce review receipt on pre-push',
       },
+      'enforce-arbitration': {
+        src: 'hooks/noldor-enforce-arbitration.ts',
+        desc: 'pre-push: require a filled arbitration record for a capped, still-red override',
+      },
       'pre-push': { src: 'hooks/noldor-pre-push.ts', desc: 'Pre-push gate' },
       'pre-edit-guard': { src: 'hooks/noldor-pre-edit-guard.ts', desc: 'PreToolUse guard' },
       'open-artifact': {
