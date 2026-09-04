@@ -22,7 +22,7 @@
 
 **Files:** Modify: `src/cr/autofix-ledger.ts` · Test: `src/cr/__tests__/autofix-ledger.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/autofix-ledger.test.ts`, and add `fingerprintBlocker` to the existing import block from `../autofix-ledger.js`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/autofix-ledger.test.ts`, and add `fingerprintBlocker` to the existing import block from `../autofix-ledger.js`:
 
 ```ts
 describe('fingerprintBlocker', () => {
@@ -59,7 +59,7 @@ describe('fingerprintBlocker', () => {
 
 `Finding` is already imported as a type in that file; if not, add `import type { Finding } from '../findings-schema.js';`.
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/autofix-ledger.test.ts -t fingerprintBlocker
@@ -67,7 +67,7 @@ pnpm vitest run src/cr/__tests__/autofix-ledger.test.ts -t fingerprintBlocker
 
 Expected: the file fails to resolve — `No "fingerprintBlocker" export is defined on the "../autofix-ledger.js" mock` or a TypeScript error `Module '"../autofix-ledger.js"' has no exported member 'fingerprintBlocker'`.
 
-- [ ] **Step 3: Implement.** In `src/cr/autofix-ledger.ts`, directly above the existing `fingerprintBlockers`, add:
+- [x] **Step 3: Implement.** In `src/cr/autofix-ledger.ts`, directly above the existing `fingerprintBlockers`, add:
 
 ```ts
 /**
@@ -95,7 +95,7 @@ export function fingerprintBlocker(b: Finding): string {
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/autofix-ledger.test.ts
@@ -103,7 +103,7 @@ pnpm vitest run src/cr/__tests__/autofix-ledger.test.ts
 
 Expected: all tests in the file pass, including the four new `fingerprintBlocker` cases. The existing `fingerprintBlockers` describe block must still pass unchanged — that is the regression guard on leaving it alone.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p1t1.txt <<'EOF'
@@ -136,7 +136,7 @@ git commit -F /tmp/msg-p1t1.txt
 
 **Files:** Modify: `src/cr/findings-schema.ts`, `src/cr/autofix-ledger.ts` · Test: `src/cr/__tests__/findings-schema.test.ts`, `src/cr/__tests__/autofix-ledger.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Create or append to `src/cr/__tests__/findings-schema.test.ts`:
+- [x] **Step 1: Write the failing test.** Create or append to `src/cr/__tests__/findings-schema.test.ts`:
 
 ```ts
 // @tests: specs-cr-gate-multi-reviewer
@@ -188,7 +188,7 @@ describe('findingSchema locations', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/findings-schema.test.ts
@@ -196,7 +196,7 @@ pnpm vitest run src/cr/__tests__/findings-schema.test.ts
 
 Expected: the ranged-location case fails — zod strips unknown keys, so `parsed.locations` is `undefined` and the `toEqual` assertion reports `undefined` where the array was expected. The rejects-a-location-with-no-file case fails too (nothing throws).
 
-- [ ] **Step 3: Implement.** In `src/cr/findings-schema.ts`, above `findingSchema`, add the location schema, then the field:
+- [x] **Step 3: Implement.** In `src/cr/findings-schema.ts`, above `findingSchema`, add the location schema, then the field:
 
 ```ts
 /**
@@ -251,7 +251,7 @@ In `src/cr/autofix-ledger.ts`, inside `autofixRoundSchema`, immediately after th
   signals: z.array(z.record(z.unknown())).optional(),
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/findings-schema.test.ts src/cr/__tests__/autofix-ledger.test.ts && pnpm typecheck
@@ -259,7 +259,7 @@ pnpm vitest run src/cr/__tests__/findings-schema.test.ts src/cr/__tests__/autofi
 
 Expected: both test files pass and `pnpm typecheck` exits 0 with no output.
 
-- [ ] **Step 5: Add the ledger back-compat case.** Append to `src/cr/__tests__/autofix-ledger.test.ts`:
+- [x] **Step 5: Add the ledger back-compat case.** Append to `src/cr/__tests__/autofix-ledger.test.ts`:
 
 ```ts
 it('parses a ledger written before blockerIds and signals existed', async () => {
@@ -291,7 +291,7 @@ it('parses a ledger written before blockerIds and signals existed', async () => 
 
 Place it inside the existing `describe('readLedger', …)` block so it inherits that block's `cwd` fixture and `beforeEach`/`afterEach`.
 
-- [ ] **Step 6: Run it and watch it pass.**
+- [x] **Step 6: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/autofix-ledger.test.ts
@@ -299,7 +299,7 @@ pnpm vitest run src/cr/__tests__/autofix-ledger.test.ts
 
 Expected: all tests pass, including the new back-compat case.
 
-- [ ] **Step 7: Commit.**
+- [x] **Step 7: Commit.**
 
 ```bash
 cat > /tmp/msg-p1t2.txt <<'EOF'
@@ -326,7 +326,7 @@ git commit -F /tmp/msg-p1t2.txt
 
 **Files:** Create: `src/cr/locations.ts` · Test: `src/cr/__tests__/locations.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Create `src/cr/__tests__/locations.test.ts`:
+- [x] **Step 1: Write the failing test.** Create `src/cr/__tests__/locations.test.ts`:
 
 ```ts
 // @tests: specs-cr-gate-multi-reviewer
@@ -393,7 +393,7 @@ describe('extractLocations', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/locations.test.ts
@@ -401,7 +401,7 @@ pnpm vitest run src/cr/__tests__/locations.test.ts
 
 Expected: `Failed to resolve import "../locations.js"` — the module does not exist yet.
 
-- [ ] **Step 3: Implement.** Create `src/cr/locations.ts`:
+- [x] **Step 3: Implement.** Create `src/cr/locations.ts`:
 
 ```ts
 import type { FindingLocation } from './findings-schema.js';
@@ -482,7 +482,7 @@ export function extractLocations(
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/locations.test.ts
@@ -490,7 +490,7 @@ pnpm vitest run src/cr/__tests__/locations.test.ts
 
 Expected: all ten cases pass.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p1t3.txt <<'EOF'
@@ -522,7 +522,7 @@ git commit -F /tmp/msg-p1t3.txt
 
 The existing `discoverChangedFiles` call sits *inside* `resolveBindingRules`, which returns at `src/cr/lanes/subagent.ts:91` for every `kind !== 'code'`. Reusing it would leave spec and plan reviews with no set to confine against.
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/lanes/subagent.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/lanes/subagent.test.ts`:
 
 ```ts
 describe('resolveChangedFiles', () => {
@@ -551,7 +551,7 @@ describe('resolveChangedFiles', () => {
 
 Add `resolveChangedFiles` to the file's import block from `../../lanes/subagent.js` (match the existing relative path used by that test file's other imports).
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/subagent.test.ts -t resolveChangedFiles
@@ -559,7 +559,7 @@ pnpm vitest run src/cr/__tests__/lanes/subagent.test.ts -t resolveChangedFiles
 
 Expected: `Module '"../../lanes/subagent.js"' has no exported member 'resolveChangedFiles'`.
 
-- [ ] **Step 3: Implement.** In `src/cr/lanes/subagent.ts`, add above `resolveBindingRules`:
+- [x] **Step 3: Implement.** In `src/cr/lanes/subagent.ts`, add above `resolveBindingRules`:
 
 ```ts
 /**
@@ -596,7 +596,7 @@ export function resolveChangedFiles(opts: {
 
 If `DiscoverChangedFilesOptions` does not expose a `run` seam, drop the `run` parameter from both the test and this function and inject via the existing seam that `discoverChangedFiles` provides — check `src/core/branch-added.ts` and match it exactly rather than adding a new one.
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/subagent.test.ts && pnpm typecheck
@@ -604,7 +604,7 @@ pnpm vitest run src/cr/__tests__/lanes/subagent.test.ts && pnpm typecheck
 
 Expected: the file's tests pass and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p1t4.txt <<'EOF'
@@ -631,7 +631,7 @@ git commit -F /tmp/msg-p1t4.txt
 
 **Files:** Modify: `src/cr/lanes/subagent.ts` · Test: `src/cr/__tests__/lanes/subagent.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/lanes/subagent.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/lanes/subagent.test.ts`:
 
 ```ts
 describe('mkFinding locations', () => {
@@ -658,7 +658,7 @@ describe('mkFinding locations', () => {
 
 Add `mkFindingFor` to the import block from `../../lanes/subagent.js`.
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/subagent.test.ts -t "mkFinding locations"
@@ -666,7 +666,7 @@ pnpm vitest run src/cr/__tests__/lanes/subagent.test.ts -t "mkFinding locations"
 
 Expected: `Module '"../../lanes/subagent.js"' has no exported member 'mkFindingFor'`.
 
-- [ ] **Step 3: Implement.** In `src/cr/lanes/subagent.ts`, add the import `import { extractLocations } from '../locations.js';`, then lift the existing inline `mkFinding` out of `runSubagent` into an exported factory directly above it:
+- [x] **Step 3: Implement.** In `src/cr/lanes/subagent.ts`, add the import `import { extractLocations } from '../locations.js';`, then lift the existing inline `mkFinding` out of `runSubagent` into an exported factory directly above it:
 
 ```ts
 /**
@@ -710,7 +710,7 @@ Then in `runSubagent`, replace the inline `mkFinding` definition with:
 
 Place the `resolveChangedFiles` call beside the existing `rulesBaseSha` computation near the top of `runSubagent`, so the two error paths above it (dispatch failure, parse failure) are unaffected — those write findings with no location, which is correct.
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/subagent.test.ts && pnpm typecheck
@@ -718,7 +718,7 @@ pnpm vitest run src/cr/__tests__/lanes/subagent.test.ts && pnpm typecheck
 
 Expected: the file's tests pass and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Verify end to end against a real sink.** Run the reviewer lane over this branch and confirm at least one finding carries a location:
+- [ ] **Step 5: Verify end to end against a real sink.** (SKIPPED — a live reviewer dispatch would write a ledger round into this session and move the CR cap; run it deliberately at CR time) Run the reviewer lane over this branch and confirm at least one finding carries a location:
 
 ```bash
 pnpm noldor cr orchestrate --slug cr-re-round-cap-enforcement-and-oscillation-detector \
@@ -728,7 +728,7 @@ node -e "const j=require('./.noldor/cr/cr-re-round-cap-enforcement-and-oscillati
 
 Expected: the printed array contains at least one non-`null` entry. If every entry is `null`, the reviewer named no resolvable location this round — re-read the sink's `message` fields before assuming a bug, since the feature degrades to silence by design.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
 ```bash
 cat > /tmp/msg-p1t5.txt <<'EOF'
@@ -757,7 +757,7 @@ git commit -F /tmp/msg-p1t5.txt
 
 **Files:** Modify: `src/cr/lanes/subagent-dispatch.ts` · Test: `src/cr/__tests__/lanes/subagent-dispatch.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/lanes/subagent-dispatch.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/lanes/subagent-dispatch.test.ts`:
 
 ```ts
 it('asks every Critical and Important bullet to name a file and line', () => {
@@ -773,7 +773,7 @@ it('asks every Critical and Important bullet to name a file and line', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/subagent-dispatch.test.ts -t "name a file and line"
@@ -781,13 +781,13 @@ pnpm vitest run src/cr/__tests__/lanes/subagent-dispatch.test.ts -t "name a file
 
 Expected: `expected '…' to contain 'path/to/file.ts:123'`.
 
-- [ ] **Step 3: Implement.** In `src/cr/lanes/subagent-dispatch.ts`, inside `buildPrompt`'s returned template, insert this paragraph immediately after the `Tag by what the FIX needs…` paragraph and before `Emit your review in this exact format`:
+- [x] **Step 3: Implement.** In `src/cr/lanes/subagent-dispatch.ts`, inside `buildPrompt`'s returned template, insert this paragraph immediately after the `Tag by what the FIX needs…` paragraph and before `Emit your review in this exact format`:
 
 ```
 In every Critical and Important bullet, name the file and line the finding is about, as \`path/to/file.ts:123\` (or \`path/to/file.ts:123-130\` for a range). Repo-relative paths are preferred; a bare filename is accepted when it is unambiguous. Write it inline in the sentence — there is no separate field, and the surrounding prose is unchanged. Omit it only when the finding genuinely has no single location.
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/subagent-dispatch.test.ts
@@ -795,7 +795,7 @@ pnpm vitest run src/cr/__tests__/lanes/subagent-dispatch.test.ts
 
 Expected: every test in the file passes. If a snapshot-style test pins the whole prompt, update that expectation in the same commit — the prompt is deliberately changing.
 
-- [ ] **Step 5: Run the full suite and the gates.**
+- [x] **Step 5: Run the full suite and the gates.**
 
 ```bash
 pnpm typecheck && pnpm test && pnpm noldor checks push-gates
@@ -803,7 +803,7 @@ pnpm typecheck && pnpm test && pnpm noldor checks push-gates
 
 Expected: typecheck exits 0, the suite is green, and `checks push-gates` exits 0.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
 ```bash
 cat > /tmp/msg-p1t6.txt <<'EOF'
