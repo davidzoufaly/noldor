@@ -49,6 +49,26 @@ export const autofixRoundSchema = z.object({
   fixHeadSha: z.string().optional(),
   fingerprint: z.string().min(1),
   /**
+   * Every blocker id ({@link fingerprintBlocker}) this round filed, in sorted
+   * order. R1 compares against these: the set-level {@link
+   * autofixRoundSchema.shape.fingerprint} above cannot say WHICH blocker came
+   * back.
+   *
+   * Optional so every ledger written before this field existed still parses.
+   */
+  blockerIds: z.array(z.string().min(1)).optional(),
+  /**
+   * The re-flag signals this round produced, as opaque records. Written here
+   * rather than recomputed later because lane sinks are overwritten each round
+   * and survive only in `archive/` — a signal computed at round 2 is otherwise
+   * unrecoverable when the cap fires.
+   *
+   * Typed as unknown-shaped on purpose: the ledger is a transport for them and
+   * must not import the detector, which would invert the dependency direction
+   * the pure module depends on.
+   */
+  signals: z.array(z.record(z.unknown())).optional(),
+  /**
    * Whether the round found anything. `green` only when at least one lane wrote
    * a sink and none of those filed a real finding. An unresolved lane no longer
    * makes a round red on its own — the verdict comes from what was FILED — but a

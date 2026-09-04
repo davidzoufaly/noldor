@@ -149,6 +149,29 @@ describe('readLedger', () => {
       LedgerParseError,
     );
   });
+
+  it('parses a ledger written before blockerIds and signals existed', async () => {
+    writeRaw(
+      JSON.stringify({
+        slug: 'slug',
+        kind: 'spec',
+        sessionStartedAt: SESSION,
+        rounds: [
+          {
+            round: 1,
+            headSha: 'abc1234',
+            fingerprint: 'f',
+            applied: 0,
+            deferred: 0,
+            diffStat: '',
+          },
+        ],
+      }),
+    );
+    const ledger = await readLedger(cwd, 'slug', 'spec', SESSION);
+    expect(ledger?.rounds[0]!.blockerIds).toBeUndefined();
+    expect(ledger?.rounds[0]!.signals).toBeUndefined();
+  });
 });
 
 describe('appendRound', () => {
