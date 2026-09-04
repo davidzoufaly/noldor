@@ -19,7 +19,7 @@
 
 **Files:** Create: `src/cr/arbitration.ts` · Test: `src/cr/__tests__/arbitration.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Create `src/cr/__tests__/arbitration.test.ts`:
+- [x] **Step 1: Write the failing test.** Create `src/cr/__tests__/arbitration.test.ts`:
 
 ```ts
 // @tests: specs-cr-gate-multi-reviewer
@@ -110,7 +110,7 @@ describe('isFilled', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/arbitration.test.ts
@@ -118,7 +118,7 @@ pnpm vitest run src/cr/__tests__/arbitration.test.ts
 
 Expected: `Failed to resolve import "../arbitration.js"`.
 
-- [ ] **Step 3: Implement.** Create `src/cr/arbitration.ts`:
+- [x] **Step 3: Implement.** Create `src/cr/arbitration.ts`:
 
 ```ts
 /**
@@ -243,7 +243,7 @@ export function isFilled(rec: ArbitrationRecord): boolean {
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/arbitration.test.ts && pnpm typecheck
@@ -251,7 +251,7 @@ pnpm vitest run src/cr/__tests__/arbitration.test.ts && pnpm typecheck
 
 Expected: every case passes and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p4t1.txt <<'EOF'
@@ -287,7 +287,7 @@ git commit -F /tmp/msg-p4t1.txt
 
 **Files:** Modify: `src/cr/arbitration.ts` · Test: `src/cr/__tests__/arbitration.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/arbitration.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/arbitration.test.ts`:
 
 ```ts
 describe('recordDigest', () => {
@@ -332,7 +332,7 @@ describe('parseArbitrationTrailer', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/arbitration.test.ts -t recordDigest
@@ -340,7 +340,7 @@ pnpm vitest run src/cr/__tests__/arbitration.test.ts -t recordDigest
 
 Expected: `Module '"../arbitration.js"' has no exported member 'recordDigest'`.
 
-- [ ] **Step 3: Implement.** Append to `src/cr/arbitration.ts` (add `import { createHash } from 'node:crypto';`):
+- [x] **Step 3: Implement.** Append to `src/cr/arbitration.ts` (add `import { createHash } from 'node:crypto';`):
 
 ```ts
 /**
@@ -387,7 +387,7 @@ export function parseArbitrationTrailer(value: string): string | null {
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/arbitration.test.ts && pnpm typecheck
@@ -395,7 +395,7 @@ pnpm vitest run src/cr/__tests__/arbitration.test.ts && pnpm typecheck
 
 Expected: every case passes and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p4t2.txt <<'EOF'
@@ -428,7 +428,7 @@ git commit -F /tmp/msg-p4t2.txt
 
 **Files:** Modify: `src/cr/orchestrate.ts` · Test: `src/cr/__tests__/orchestrate.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/orchestrate.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/orchestrate.test.ts`:
 
 ```ts
 describe('buildSkeleton', () => {
@@ -463,7 +463,7 @@ describe('buildSkeleton', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t buildSkeleton
@@ -471,7 +471,7 @@ pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t buildSkeleton
 
 Expected: `Module '"../orchestrate.js"' has no exported member 'buildSkeleton'`.
 
-- [ ] **Step 3: Implement.** In `src/cr/orchestrate.ts`, beside `runReflagRules`:
+- [x] **Step 3: Implement.** In `src/cr/orchestrate.ts`, beside `runReflagRules`:
 
 ```ts
 /**
@@ -538,7 +538,7 @@ export function buildSkeleton(
 
 The test passes `() => 'b1'` as `idOf` and relies on the default `fingerprintOf`; make the ledger fixture's `fingerprint` field equal `fingerprintBlockers(sinkBlockers)` for the two passing cases, and something else for the mismatch case. Compute it in the test rather than hard-coding a hex string.
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t buildSkeleton && pnpm typecheck
@@ -546,7 +546,7 @@ pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t buildSkeleton && pnpm ty
 
 Expected: all three cases pass and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Write it at the refusal site.** In `run()`, replace the existing refusal block:
+- [x] **Step 5: Write it at the refusal site.** In `run()`, replace the existing refusal block:
 
 ```ts
   if (cap.refuse) {
@@ -622,7 +622,7 @@ export async function writeSkeletonIfAbsent(
 
 Add the imports this needs: `arbitrationPath`, `arbitrationRecordSchema`, `type ArbitrationRecord` from `./arbitration.js`; `readFileNoFollowAsync` from `../core/slug-paths.js`; `mkdir` from `node:fs/promises`; `dirname` from `node:path`; `writeJsonAtomic` from `./atomic-write.js`; `fingerprintBlocker` and `fingerprintBlockers` from `./autofix-ledger.js`.
 
-- [ ] **Step 6: Run everything.**
+- [x] **Step 6: Run everything.**
 
 ```bash
 pnpm typecheck && pnpm test
@@ -630,7 +630,7 @@ pnpm typecheck && pnpm test
 
 Expected: typecheck exits 0 and the suite is green.
 
-- [ ] **Step 7: Verify the aggregate glob is unaffected.**
+- [x] **Step 7: Verify the aggregate glob is unaffected.**
 
 ```bash
 mkdir -p .noldor/cr/arbitration && echo '{}' > .noldor/cr/arbitration/probe-code.json
@@ -640,7 +640,7 @@ rm -f .noldor/cr/arbitration/probe-code.json
 
 Expected: `clean`. A `REGRESSION` line means the record landed inside the lane-sink glob after all — check `arbitrationPath`.
 
-- [ ] **Step 8: Commit.**
+- [x] **Step 8: Commit.**
 
 ```bash
 cat > /tmp/msg-p4t3.txt <<'EOF'
