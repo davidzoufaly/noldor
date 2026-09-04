@@ -19,7 +19,7 @@
 
 **Files:** Create: `src/cr/reflag.ts` · Test: `src/cr/__tests__/reflag.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Create `src/cr/__tests__/reflag.test.ts`:
+- [x] **Step 1: Write the failing test.** Create `src/cr/__tests__/reflag.test.ts`:
 
 ```ts
 // @tests: specs-cr-gate-multi-reviewer
@@ -61,7 +61,7 @@ describe('ruleR1', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/reflag.test.ts
@@ -69,7 +69,7 @@ pnpm vitest run src/cr/__tests__/reflag.test.ts
 
 Expected: `Failed to resolve import "../reflag.js"`.
 
-- [ ] **Step 3: Implement.** Create `src/cr/reflag.ts`:
+- [x] **Step 3: Implement.** Create `src/cr/reflag.ts`:
 
 ```ts
 /**
@@ -150,7 +150,7 @@ export function ruleR1(
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/reflag.test.ts && pnpm typecheck
@@ -158,7 +158,7 @@ pnpm vitest run src/cr/__tests__/reflag.test.ts && pnpm typecheck
 
 Expected: all five cases pass and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p2t1.txt <<'EOF'
@@ -188,7 +188,7 @@ git commit -F /tmp/msg-p2t1.txt
 
 **Files:** Modify: `src/cr/orchestrate.ts` · Test: `src/cr/__tests__/orchestrate.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/orchestrate.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/orchestrate.test.ts`:
 
 ```ts
 describe('priorBlockerIds', () => {
@@ -221,7 +221,7 @@ describe('priorBlockerIds', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t priorBlockerIds
@@ -229,7 +229,7 @@ pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t priorBlockerIds
 
 Expected: `Module '"../orchestrate.js"' has no exported member 'priorBlockerIds'`.
 
-- [ ] **Step 3: Implement.** In `src/cr/orchestrate.ts`, add beside the other exported helpers (near `capVerdict`):
+- [x] **Step 3: Implement.** In `src/cr/orchestrate.ts`, add beside the other exported helpers (near `capVerdict`):
 
 ```ts
 /**
@@ -249,7 +249,7 @@ export function priorBlockerIds(
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t priorBlockerIds && pnpm typecheck
@@ -257,7 +257,7 @@ pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t priorBlockerIds && pnpm 
 
 Expected: all three cases pass and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p2t2.txt <<'EOF'
@@ -281,7 +281,7 @@ git commit -F /tmp/msg-p2t2.txt
 
 **Files:** Modify: `src/cr/reflag.ts` · Test: `src/cr/__tests__/reflag.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/reflag.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/reflag.test.ts`:
 
 ```ts
 describe('ruleR3', () => {
@@ -315,7 +315,7 @@ describe('ruleR3', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/reflag.test.ts -t ruleR3
@@ -323,7 +323,7 @@ pnpm vitest run src/cr/__tests__/reflag.test.ts -t ruleR3
 
 Expected: `Module '"../reflag.js"' has no exported member 'ruleR3'`.
 
-- [ ] **Step 3: Implement.** Append to `src/cr/reflag.ts`:
+- [x] **Step 3: Implement.** Append to `src/cr/reflag.ts`:
 
 ```ts
 /**
@@ -367,7 +367,7 @@ export function ruleR3(
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/reflag.test.ts && pnpm typecheck
@@ -375,7 +375,7 @@ pnpm vitest run src/cr/__tests__/reflag.test.ts && pnpm typecheck
 
 Expected: all cases pass and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p2t3.txt <<'EOF'
@@ -406,7 +406,7 @@ git commit -F /tmp/msg-p2t3.txt
 
 **Files:** Modify: `src/cr/orchestrate.ts` · Test: `src/cr/__tests__/orchestrate.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/orchestrate.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/orchestrate.test.ts`:
 
 ```ts
 describe('resolveIntroducedLines', () => {
@@ -438,7 +438,7 @@ describe('resolveIntroducedLines', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t resolveIntroducedLines
@@ -446,7 +446,7 @@ pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t resolveIntroducedLines
 
 Expected: `Module '"../orchestrate.js"' has no exported member 'resolveIntroducedLines'`.
 
-- [ ] **Step 3: Implement.** In `src/cr/orchestrate.ts`, beside `priorBlockerIds`:
+- [x] **Step 3: Implement.** In `src/cr/orchestrate.ts`, beside `priorBlockerIds`:
 
 ```ts
 /**
@@ -497,7 +497,7 @@ export function resolveIntroducedLines(
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t resolveIntroducedLines && pnpm typecheck
@@ -505,7 +505,7 @@ pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t resolveIntroducedLines &
 
 Expected: all three cases pass and `pnpm typecheck` exits 0.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 cat > /tmp/msg-p2t4.txt <<'EOF'
@@ -533,7 +533,7 @@ git commit -F /tmp/msg-p2t4.txt
 
 **Files:** Modify: `src/cr/orchestrate.ts` · Test: `src/cr/__tests__/orchestrate.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Append to `src/cr/__tests__/orchestrate.test.ts`:
+- [x] **Step 1: Write the failing test.** Append to `src/cr/__tests__/orchestrate.test.ts`:
 
 ```ts
 describe('runReflagRules', () => {
@@ -573,7 +573,7 @@ describe('runReflagRules', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail.**
+- [x] **Step 2: Run it and watch it fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t runReflagRules
@@ -581,7 +581,7 @@ pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t runReflagRules
 
 Expected: `Module '"../orchestrate.js"' has no exported member 'runReflagRules'`.
 
-- [ ] **Step 3: Implement.** In `src/cr/orchestrate.ts`, add beside `priorBlockerIds`:
+- [x] **Step 3: Implement.** In `src/cr/orchestrate.ts`, add beside `priorBlockerIds`:
 
 ```ts
 /**
@@ -625,7 +625,7 @@ export function runReflagRules(
 
 Add the imports: `ruleR1`, `ruleR3` and `type RuleBlocker` from `./reflag.js`, `fingerprintBlocker` from `./autofix-ledger.js`.
 
-- [ ] **Step 4: Run it and watch it pass.**
+- [x] **Step 4: Run it and watch it pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t runReflagRules
@@ -633,7 +633,7 @@ pnpm vitest run src/cr/__tests__/orchestrate.test.ts -t runReflagRules
 
 Expected: all four cases pass.
 
-- [ ] **Step 5: Wire it into the round record.** In `run()`, inside the existing `try` block that calls `appendRound`, directly before the `await appendRound(...)` call, add:
+- [x] **Step 5: Wire it into the round record.** In `run()`, inside the existing `try` block that calls `appendRound`, directly before the `await appendRound(...)` call, add:
 
 ```ts
       const ruleBlockers: RuleBlocker[] = filed.map((b) => ({
@@ -665,9 +665,9 @@ Then extend the `appendRound` payload with exactly two new fields, leaving every
 
 `console.error`, not `console.log`: the round summary already goes to stderr, and stdout carries the `lanes run:` line the gate parses.
 
-- [ ] **Step 6: Assert the exit code and sinks are untouched.** Append to `src/cr/__tests__/orchestrate.test.ts` a case asserting a round that produces signals returns the same `exitCode` and writes the same sink set as an identical round that produces none. Model it on the file's existing `run()` integration cases and reuse their fixture helpers — do not build a second harness.
+- [x] **Step 6: Assert the exit code and sinks are untouched.** Append to `src/cr/__tests__/orchestrate.test.ts` a case asserting a round that produces signals returns the same `exitCode` and writes the same sink set as an identical round that produces none. Model it on the file's existing `run()` integration cases and reuse their fixture helpers — do not build a second harness.
 
-- [ ] **Step 7: Run everything.**
+- [x] **Step 7: Run everything.**
 
 ```bash
 pnpm typecheck && pnpm test && pnpm noldor checks push-gates
@@ -675,7 +675,7 @@ pnpm typecheck && pnpm test && pnpm noldor checks push-gates
 
 Expected: typecheck exits 0, the suite is green, `checks push-gates` exits 0.
 
-- [ ] **Step 8: Verify end to end.**
+- [ ] **Step 8: Verify end to end.** (SKIPPED — a live dispatch would append a real round to this session's ledger and move the CR cap; run it deliberately at CR time)
 
 ```bash
 pnpm noldor cr orchestrate --slug cr-re-round-cap-enforcement-and-oscillation-detector \
@@ -685,7 +685,7 @@ node -e "const j=require('./.noldor/cr/autofix/cr-re-round-cap-enforcement-and-o
 
 Expected: the printed round carries a `blockerIds` array and a `signals` array. On a first round `signals` legitimately holds only an `omitted` entry — that is the contract working, not a failure.
 
-- [ ] **Step 9: Commit.**
+- [x] **Step 9: Commit.**
 
 ```bash
 cat > /tmp/msg-p2t5.txt <<'EOF'
