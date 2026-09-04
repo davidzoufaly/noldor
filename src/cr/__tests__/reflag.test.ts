@@ -102,3 +102,78 @@ describe('ruleR2', () => {
     if (r.outcome === 'omitted') expect(r.reason).toContain('src/x.ts');
   });
 });
+
+// CR round 1, reviewer finding 1: a signal and an omission can be true at the
+// same time. Reporting only the signal turns the other blocker's "could not
+// look" into the silence the three-arm outcome exists to prevent.
+describe('ruleR2 reporting a signal beside an omission', () => {
+  const inScope = {
+    id: 'a',
+    severity: 'med' as const,
+    message: 'x',
+    locations: [{ file: 'src/x.ts', line: 12 }],
+  };
+  const unreadable = {
+    id: 'b',
+    severity: 'med' as const,
+    message: 'y',
+    locations: [{ file: 'src/bad.ts', line: 3 }],
+  };
+  const scopes = new Map([['src/x.ts', [{ line: 10, reason: 'why', startLine: 10, endLine: 20 }]]]);
+
+  it('names the unscannable file even when another blocker fires', () => {
+    const r = ruleR2([inScope, unreadable], scopes, ['src/bad.ts']);
+    expect(r.outcome).toBe('fired');
+    if (r.outcome === 'fired') {
+      expect(r.signals).toHaveLength(1);
+      expect(r.omitted).toContain('src/bad.ts');
+    }
+  });
+
+  it('still reports a pure omission as omitted', () => {
+    const r = ruleR2([unreadable], new Map(), ['src/bad.ts']);
+    expect(r.outcome).toBe('omitted');
+  });
+
+  it('carries no omission when every located file scanned', () => {
+    const r = ruleR2([inScope], scopes, []);
+    expect(r.outcome).toBe('fired');
+    if (r.outcome === 'fired') expect(r.omitted).toBeUndefined();
+  });
+});
+
+// CR round 1, reviewer finding 2: `extractLocations` emits `endLine` for a
+// `path:10-20` bullet, and both rules ignored it. A range counts on ANY
+// overlap — a finding about lines 10-20 IS a finding about the cut at 15-18.
+describe('range-aware matching', () => {
+  const ranged = (file: string) => ({
+    id: 'a',
+    severity: 'med' as const,
+    message: 'x',
+    locations: [{ file, line: 10, endLine: 20 }],
+  });
+
+  it('R2 fires when a ranged location overlaps a scope it does not start in', () => {
+    const scopes = new Map([
+      ['src/x.ts', [{ line: 15, reason: 'why', startLine: 15, endLine: 18 }]],
+    ]);
+    expect(ruleR2([ranged('src/x.ts')], scopes, []).outcome).toBe('fired');
+  });
+
+  it('R2 stays clear when the range ends before the scope starts', () => {
+    const scopes = new Map([
+      ['src/x.ts', [{ line: 30, reason: 'why', startLine: 30, endLine: 40 }]],
+    ]);
+    expect(ruleR2([ranged('src/x.ts')], scopes, []).outcome).toBe('clear');
+  });
+
+  it('R3 fires when a ranged location covers an introduced line', () => {
+    const introduced = new Map([['src/x.ts', new Set([15])]]);
+    expect(ruleR3([ranged('src/x.ts')], introduced).outcome).toBe('fired');
+  });
+
+  it('R3 stays clear when the range covers no introduced line', () => {
+    const introduced = new Map([['src/x.ts', new Set([40])]]);
+    expect(ruleR3([ranged('src/x.ts')], introduced).outcome).toBe('clear');
+  });
+});

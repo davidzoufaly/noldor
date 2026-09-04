@@ -450,6 +450,10 @@ export async function resolveIntroducedLines(
  * An `omitted` rule produces BOTH a line and a record. Dropping either would
  * turn "could not tell" back into silence — the failure the three-arm outcome
  * exists to prevent, one layer up.
+ *
+ * A `fired` result carrying its own `omitted` reason renders both, for the same
+ * reason: a rule that found one thing and could not look at another has two
+ * things to say, and printing only the first is the silence again.
  */
 export function runReflagRules(
   blockers: readonly RuleBlocker[],
@@ -470,6 +474,10 @@ export function runReflagRules(
       for (const s of r.signals) {
         lines.push(`[${s.rule}] ${s.message}`);
         signals.push({ ...s });
+      }
+      if (r.omitted !== undefined) {
+        lines.push(`[omitted] ${r.omitted}`);
+        signals.push({ rule: 'omitted', reason: r.omitted });
       }
     } else if (r.outcome === 'omitted') {
       lines.push(`[omitted] ${r.reason}`);

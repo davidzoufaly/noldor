@@ -1480,3 +1480,35 @@ describe('buildSkeleton', () => {
     expect(rec?.blockers.map((b) => b.message)).toEqual(['boom']);
   });
 });
+
+// The rule can now report a signal AND an omission together. Rendering only the
+// signal would re-create, one layer up, exactly the silence the fix removed.
+it('renders both halves when a rule fires and omits at once', () => {
+  const inScope = {
+    id: 'a',
+    severity: 'high' as const,
+    message: 'boom',
+    locations: [{ file: 'src/x.ts', line: 12 }],
+  };
+  const unreadable = {
+    id: 'b',
+    severity: 'med' as const,
+    message: 'bang',
+    locations: [{ file: 'src/bad.ts', line: 3 }],
+  };
+  const out = runReflagRules(
+    [inScope, unreadable],
+    [],
+    new Map(),
+    new Map([['src/x.ts', [{ line: 10, reason: 'why', startLine: 10, endLine: 20 }]]]),
+    ['src/bad.ts'],
+  );
+  expect(out.lines).toEqual([
+    expect.stringContaining('[R2]'),
+    expect.stringContaining('src/bad.ts'),
+  ]);
+  expect(out.signals).toEqual([
+    expect.objectContaining({ rule: 'R2' }),
+    expect.objectContaining({ rule: 'omitted' }),
+  ]);
+});

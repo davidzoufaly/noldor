@@ -36,17 +36,59 @@ export interface ReflagSignal {
  * that is not a fast-forward, a git call that failed — and a two-arm shape
  * would encode "could not tell" as silence, which is the one reading a detector
  * must never produce.
+ *
+ * `fired` carries an optional `omitted` for the same reason the third arm
+ * exists at all: a rule can both find something AND fail to look somewhere. One
+ * blocker points at a file that would not scan while another lands in a scope —
+ * without this the result is `fired` with only the second, and the first
+ * blocker's "could not tell" becomes exactly the silence the three arms were
+ * meant to prevent.
  */
 export type RuleResult =
-  | { readonly outcome: 'fired'; readonly signals: readonly ReflagSignal[] }
+  | {
+      readonly outcome: 'fired';
+      readonly signals: readonly ReflagSignal[];
+      readonly omitted?: string;
+    }
   | { readonly outcome: 'clear' }
   | { readonly outcome: 'omitted'; readonly reason: string };
 
 const CLEAR: RuleResult = { outcome: 'clear' };
 
-/** Shared by every rule: no signals is `clear`, never an empty `fired`. */
-export function fired(signals: readonly ReflagSignal[]): RuleResult {
-  return signals.length > 0 ? { outcome: 'fired', signals } : CLEAR;
+/**
+ * Shared by every rule: no signals is `clear`, never an empty `fired`.
+ *
+ * With an `omitted` reason and no signals the answer is the `omitted` arm — a
+ * rule that looked nowhere has nothing to report as clear.
+ */
+export function fired(signals: readonly ReflagSignal[], omitted?: string): RuleResult {
+  if (signals.length === 0)
+    return omitted === undefined ? CLEAR : { outcome: 'omitted', reason: omitted };
+  return omitted === undefined
+    ? { outcome: 'fired', signals }
+    : { outcome: 'fired', signals, omitted };
+}
+
+/**
+ * The inclusive line span a location covers. A bullet naming `path:10-20`
+ * parses to `line: 10, endLine: 20` ({@link extractLocations}), and both
+ * range-matching rules count ANY overlap: a finding about lines 10-20 IS a
+ * finding about the cut declared at 15-18. Matching the start line alone would
+ * make the parsed `endLine` decorative.
+ *
+ * `undefined` when the location names no line at all — a file-only location
+ * cannot be compared against a line span, and guessing "the whole file" would
+ * fire on every marker in it.
+ */
+function lineSpan(loc: FindingLocation): { start: number; end: number } | undefined {
+  if (loc.line === undefined) return undefined;
+  const end = loc.endLine !== undefined && loc.endLine > loc.line ? loc.endLine : loc.line;
+  return { start: loc.line, end };
+}
+
+/** Human-readable form of a span, for a signal message. */
+function spanLabel(span: { start: number; end: number }): string {
+  return span.start === span.end ? `${span.start}` : `${span.start}-${span.end}`;
 }
 
 /**
@@ -102,12 +144,26 @@ export function ruleR3(
   const signals: ReflagSignal[] = [];
   for (const b of blockers) {
     for (const loc of b.locations ?? []) {
-      if (loc.line === undefined) continue;
-      if (introducedByFile.get(loc.file)?.has(loc.line)) {
+      const span = lineSpan(loc);
+      if (span === undefined) continue;
+      const introduced = introducedByFile.get(loc.file);
+      if (introduced === undefined) continue;
+      // Walk the span rather than testing one line: a `path:10-20` bullet is
+      // about a line this series introduced if ANY line in it was introduced.
+      let hit: number | undefined;
+      for (let n = span.start; n <= span.end; n++) {
+        if (introduced.has(n)) {
+          hit = n;
+          break;
+        }
+      }
+      if (hit !== undefined) {
         signals.push({
           rule: 'R3',
           blockerId: b.id,
-          message: `blocker at ${loc.file}:${loc.line} is about a line this series introduced`,
+          message:
+            `blocker at ${loc.file}:${spanLabel(span)} is about line ${hit}, ` +
+            `which this series introduced`,
         });
         break;
       }
@@ -140,27 +196,30 @@ export function ruleR2(
         blockedHit.add(loc.file);
         continue;
       }
-      const line = loc.line;
-      if (line === undefined) continue;
+      const span = lineSpan(loc);
+      if (span === undefined) continue;
+      // Overlap, not containment: a finding spanning 10-20 is about the cut
+      // declared at 15-18 even though it starts outside it.
       const hit = (scopesByFile.get(loc.file) ?? []).find(
-        (s) => line >= s.startLine && line <= s.endLine,
+        (s) => span.start <= s.endLine && span.end >= s.startLine,
       );
       if (hit) {
         signals.push({
           rule: 'R2',
           blockerId: b.id,
           message:
-            `blocker at ${loc.file}:${line} sits inside a noldor:cut scope ` +
+            `blocker at ${loc.file}:${spanLabel(span)} sits inside a noldor:cut scope ` +
             `declared at ${loc.file}:${hit.line} — "${hit.reason}"`,
         });
         break;
       }
     }
   }
-  if (signals.length === 0 && blockedHit.size > 0)
-    return {
-      outcome: 'omitted',
-      reason: `could not scan ${[...blockedHit].sort().join(', ')} — brace depth did not balance`,
-    };
-  return fired(signals);
+  // Reported even when signals fired: see RuleResult. A file nobody could scan
+  // is news whether or not some other blocker landed.
+  const omitted =
+    blockedHit.size > 0
+      ? `could not scan ${[...blockedHit].sort().join(', ')} — brace depth did not balance`
+      : undefined;
+  return fired(signals, omitted);
 }
