@@ -377,6 +377,57 @@ export function priorBlockerIds(
     : undefined;
 }
 
+/**
+ * Lines this series ADDED, per file, in current coordinates — R3's input.
+ *
+ * The fast-forward guard is the whole reason this returns `undefined` rather
+ * than an empty map. The cumulative range is a tree diff and nothing inside it
+ * distinguishes this series' commits from anyone else's: an amend-only rewrite
+ * is harmless, but a rebase onto a moved `origin/main` puts every
+ * upstream-added line inside `firstHeadSha..HEAD`, and R3 would then fire on
+ * any location in a file upstream happened to touch. That range does not FAIL,
+ * so an error path would never catch it — only the ancestry check does.
+ *
+ * `git` is the caller's runner rather than a sync `execFileSync` of its
+ * own: everything else in this module spawns git through `execAsync`, and a
+ * second, synchronous runner would be a parallel seam for tests to drift apart
+ * on.
+ */
+export async function resolveIntroducedLines(
+  firstHeadSha: string,
+  git: (args: string[]) => Promise<string>,
+): Promise<Map<string, Set<number>> | undefined> {
+  if (firstHeadSha === '') return undefined;
+  let diff: string;
+  try {
+    await git(['merge-base', '--is-ancestor', `${firstHeadSha}^`, 'HEAD']);
+    diff = await git(['diff', '--unified=0', '--diff-filter=d', '-M', `${firstHeadSha}^`, 'HEAD']);
+  } catch {
+    return undefined;
+  }
+  const out = new Map<string, Set<number>>();
+  let file = '';
+  let next = 0;
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+++ b/')) {
+      file = line.slice('+++ b/'.length);
+      continue;
+    }
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+    if (hunk) {
+      next = Number(hunk[1]);
+      continue;
+    }
+    if (file !== '' && line.startsWith('+') && !line.startsWith('+++')) {
+      const set = out.get(file) ?? new Set<number>();
+      set.add(next);
+      out.set(file, set);
+      next += 1;
+    }
+  }
+  return out;
+}
+
 /** The refusal banner: what was spent, and the two ways out. */
 export function renderCapRefusal(
   ledger: AutofixLedger | null,

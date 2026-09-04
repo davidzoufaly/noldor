@@ -17,7 +17,7 @@ vi.mock('../lanes/subagent.js', () => ({
 vi.mock('../lanes/render-compare.js', () => ({
   runRenderCompare: vi.fn(async () => ({ lane: 'render-compare', sinkPath: 'rc', ok: true })),
 }));
-import { priorBlockerIds, resolveLanes, run } from '../orchestrate.js';
+import { priorBlockerIds, resolveIntroducedLines, resolveLanes, run } from '../orchestrate.js';
 import { ledgerDir, ledgerPath } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';
 import { runSubagent as subagentLane } from '../lanes/subagent.js';
@@ -1236,5 +1236,33 @@ describe('priorBlockerIds', () => {
   // say a blocker is new — the whole series degrades to `omitted`.
   it('returns undefined when any round predates the field', () => {
     expect(priorBlockerIds([round(), round({ blockerIds: ['y'] })])).toBeUndefined();
+  });
+});
+
+describe('resolveIntroducedLines', () => {
+  it('returns undefined when the series is not a fast-forward', async () => {
+    const git = async (args: string[]) => {
+      if (args[0] === 'merge-base') throw new Error('not an ancestor');
+      return '';
+    };
+    expect(await resolveIntroducedLines('FIRST', git)).toBeUndefined();
+  });
+
+  it('returns undefined with no first head', async () => {
+    expect(await resolveIntroducedLines('', async () => '')).toBeUndefined();
+  });
+
+  it('maps added lines per file from a --unified=0 diff', async () => {
+    const diff = [
+      'diff --git a/src/x.ts b/src/x.ts',
+      '--- a/src/x.ts',
+      '+++ b/src/x.ts',
+      '@@ -10,0 +11,2 @@',
+      '+added',
+      '+added2',
+    ].join('\n');
+    const git = async (args: string[]) => (args[0] === 'merge-base' ? '' : diff);
+    const map = await resolveIntroducedLines('FIRST', git);
+    expect([...(map?.get('src/x.ts') ?? [])].sort((a, b) => a - b)).toEqual([11, 12]);
   });
 });
