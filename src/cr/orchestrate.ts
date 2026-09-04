@@ -36,8 +36,10 @@ import {
 } from '../core/lanes.js';
 import type { SessionPathSignal } from '../core/lanes.js';
 import { readSession } from '../core/session.js';
-import { ruleR1, ruleR3 } from './reflag.js';
+import { ruleR1, ruleR2, ruleR3 } from './reflag.js';
 import type { RuleBlocker } from './reflag.js';
+import { markerScopes, scanSource } from './cut-scan.js';
+import type { CutScope } from './cut-scan.js';
 import { laneFindingsSchema } from './findings-schema.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult, PriorReview } from './lane-types.js';
@@ -436,11 +438,12 @@ export async function resolveIntroducedLines(
  * the records the ledger stores.
  *
  * Split out of the round-recording block so the rendering is testable without a
- * dispatch, and so R2 slots in here rather than in the middle of `run()`.
+ * dispatch, rather than living in the middle of `run()`.
  *
  * The rule ORDER in the array below is what fixes the printed order, which the
- * tests pin. R2 is appended between R1 and R3, so the parameters it needs are
- * added AFTER these — no existing call site changes shape.
+ * tests pin: R1, R2, R3. R2's own two inputs come LAST in the parameter list
+ * even though it prints second, so widening the seam changed no call site's
+ * argument order.
  *
  * An `omitted` rule produces BOTH a line and a record. Dropping either would
  * turn "could not tell" back into silence — the failure the three-arm outcome
@@ -450,8 +453,14 @@ export function runReflagRules(
   blockers: readonly RuleBlocker[],
   priorRounds: readonly (readonly string[])[] | undefined,
   introducedByFile: ReadonlyMap<string, ReadonlySet<number>> | undefined,
+  scopesByFile: ReadonlyMap<string, readonly CutScope[]>,
+  unscannable: readonly string[],
 ): { lines: string[]; signals: Record<string, unknown>[] } {
-  const results = [ruleR1(blockers, priorRounds), ruleR3(blockers, introducedByFile)];
+  const results = [
+    ruleR1(blockers, priorRounds),
+    ruleR2(blockers, scopesByFile, unscannable),
+    ruleR3(blockers, introducedByFile),
+  ];
   const lines: string[] = [];
   const signals: Record<string, unknown>[] = [];
   for (const r of results) {
@@ -822,6 +831,24 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       // cumulatively. Falls back to this round's head on an empty ledger, where
       // the range is empty and R3 is correctly clear.
       const firstHead = (ledger?.rounds ?? [])[0]?.headSha ?? headSha;
+      // Only the files this round's blockers actually point at get opened.
+      const located = [
+        ...new Set(ruleBlockers.flatMap((b) => (b.locations ?? []).map((l) => l.file))),
+      ];
+      const scopesByFile = new Map<string, readonly CutScope[]>();
+      const unscannable: string[] = [];
+      for (const f of located) {
+        try {
+          // readFileNoFollowAsync, not readFile: `f` came from a changed-file
+          // match, and a tracked changed path can still be a symlink whose
+          // target is outside the checkout.
+          const src = await readFileNoFollowAsync(join(cwd, f));
+          if (scanSource(src).ok) scopesByFile.set(f, markerScopes(src));
+          else unscannable.push(f);
+        } catch {
+          unscannable.push(f);
+        }
+      }
       const reflag = runReflagRules(
         ruleBlockers,
         priorBlockerIds(ledger?.rounds ?? []),
@@ -829,6 +856,8 @@ export async function run(opts: RunOpts): Promise<RunResult> {
           firstHead,
           async (args) => (await execAsync('git', args, { cwd })).stdout,
         ),
+        scopesByFile,
+        unscannable,
       );
       // `console.error`, not `console.log`: the round summary already goes to
       // stderr, and stdout carries the `lanes run:` line the gate parses.

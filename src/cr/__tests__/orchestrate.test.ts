@@ -1,6 +1,6 @@
 // @tests: acceptance-verify-lane, autonomous-plan-to-pr-merge, specs-cr-gate-multi-reviewer
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -894,6 +894,43 @@ describe('round budget (Q-0170)', () => {
     }
   });
 
+  // Spec AC4. A `locations.file` originates in LLM output, and a tracked
+  // changed path can still be a symlink pointing outside the checkout. R2 opens
+  // those files, so the read must refuse to follow the link — the file lands in
+  // `unscannable` and R2 reports `omitted`, never a scope read through the link.
+  it('never reads a located path through a symlink', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const outside = await mkdtemp(join(tmpdir(), 'orc-outside-'));
+    try {
+      // The link target carries a real marker, so a followed read would produce
+      // an R2 signal — that is what makes this test able to fail.
+      await writeFile(
+        join(outside, 'secret.ts'),
+        '// noldor:cut deliberate\nfunction a() {\n  return 1;\n}\n',
+        'utf8',
+      );
+      await mkdir(join(root, 'src'), { recursive: true });
+      symlinkSync(join(outside, 'secret.ts'), join(root, 'src', 'linked.ts'));
+
+      await writeReviewerSink([{ ...BLOCKER, locations: [{ file: 'src/linked.ts', line: 2 }] }]);
+      await run({ args: { ...ARGS, headSha: 'aaaaaaa', autonomous: true }, cwd: root });
+
+      const signals = (await ledgerRounds())[0]!.signals as Array<Record<string, unknown>>;
+      expect(signals.some((s) => s.rule === 'R2')).toBe(false);
+      expect(signals).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            rule: 'omitted',
+            reason: expect.stringContaining('src/linked.ts'),
+          }),
+        ]),
+      );
+    } finally {
+      spy.mockRestore();
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
   it('refuses past the cap when HEAD is unchanged, and names the way out', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
@@ -1316,7 +1353,7 @@ describe('runReflagRules', () => {
   const located = { ...b, locations: [{ file: 'src/x.ts', line: 12 }] };
 
   it('renders a fired signal and a persisted record', () => {
-    const out = runReflagRules([b], [['a']], new Map());
+    const out = runReflagRules([b], [['a']], new Map(), new Map(), []);
     expect(out.lines).toEqual([expect.stringContaining('[R1]')]);
     expect(out.signals).toEqual([
       { rule: 'R1', blockerId: 'a', message: expect.stringContaining('survived a fix') },
@@ -1324,7 +1361,7 @@ describe('runReflagRules', () => {
   });
 
   it('renders an omitted rule as a reason, not silence', () => {
-    const out = runReflagRules([b], undefined, new Map());
+    const out = runReflagRules([b], undefined, new Map(), new Map(), []);
     expect(out.lines).toEqual([expect.stringContaining('[omitted]')]);
     expect(out.signals).toEqual([
       { rule: 'omitted', reason: expect.stringContaining('no recorded blocker ids') },
@@ -1332,13 +1369,37 @@ describe('runReflagRules', () => {
   });
 
   it('renders nothing when every rule is clear', () => {
-    const out = runReflagRules([b], [['other']], new Map());
+    const out = runReflagRules([b], [['other']], new Map(), new Map(), []);
     expect(out.lines).toEqual([]);
     expect(out.signals).toEqual([]);
   });
 
   it('renders R1 before R3', () => {
-    const out = runReflagRules([located], [['a']], new Map([['src/x.ts', new Set([12])]]));
+    const out = runReflagRules(
+      [located],
+      [['a']],
+      new Map([['src/x.ts', new Set([12])]]),
+      new Map(),
+      [],
+    );
     expect(out.lines.map((l) => l.slice(0, 4))).toEqual(['[R1]', '[R3]']);
   });
+});
+
+it('renders R2 alongside R1 and R3', () => {
+  const b = {
+    id: 'a',
+    severity: 'high' as const,
+    message: 'boom',
+    locations: [{ file: 'src/x.ts', line: 12 }],
+  };
+  const out = runReflagRules(
+    [b],
+    [['a']],
+    new Map([['src/x.ts', new Set([12])]]),
+    new Map([['src/x.ts', [{ line: 10, reason: 'why', startLine: 10, endLine: 20 }]]]),
+    [],
+  );
+  expect(out.lines.map((l) => l.slice(0, 4))).toEqual(['[R1]', '[R2]', '[R3]']);
+  expect(out.signals).toHaveLength(3);
 });
