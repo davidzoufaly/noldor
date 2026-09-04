@@ -1,0 +1,120 @@
+/**
+ * The arbitration record — what a spent round cap terminates in.
+ *
+ * 23 of this repo's 41 unique `Noldor-Path-Override` trailers name a CR round
+ * or a convergence failure, and every one of them is free text. This record is
+ * the machine-readable half: the round history, the blockers left standing, the
+ * signals that explain them, and one operator disposition per blocker.
+ *
+ * NOT tracked by git. `.gitignore` ignores `.noldor/cr/`, so the record is
+ * local like the ledger and the sinks it is built from. That is what keeps its
+ * tree binding non-self-referential — committing never changes the record, so
+ * the tree it binds is stable — and pre-push runs in the same checkout, so the
+ * file is there when the guard looks. The cost is that the record does not
+ * travel with the PR; the trailer is what reaches `main`.
+ */
+import { z } from 'zod';
+
+import { slugPath } from '../core/slug-paths.js';
+import type { Slug } from '../core/slug.js';
+import { artifactKindSchema } from './findings-schema.js';
+import type { ArtifactKind } from './findings-schema.js';
+
+/**
+ * What an operator can say about a blocker they are not fixing.
+ *
+ * A closed vocabulary rather than free text, because the whole point is that a
+ * later reader — or a detector — can tell "I judged this wrong" from "I agree
+ * and accept the debt". The `note` beside it carries the sentence.
+ */
+export const DISPOSITIONS = ['accepted', 'rejected', 'deferred'] as const;
+export const dispositionSchema = z.enum(DISPOSITIONS);
+export type Disposition = z.infer<typeof dispositionSchema>;
+
+export const arbitrationBlockerSchema = z.object({
+  /** `fingerprintBlocker` id — the same key a signal points at. */
+  id: z.string().min(1),
+  severity: z.enum(['high', 'med', 'low']),
+  message: z.string().min(1),
+  /** Every lane that filed this logical finding. One id can have several. */
+  lanes: z.array(z.string().min(1)).min(1),
+});
+
+export const arbitrationRoundSchema = z.object({
+  round: z.number().int().positive(),
+  verdict: z.enum(['green', 'red']),
+  headSha: z.string(),
+});
+
+export const arbitrationDispositionSchema = z.object({
+  blockerId: z.string().min(1),
+  disposition: dispositionSchema,
+  note: z.string().optional(),
+});
+
+export const arbitrationRecordSchema = z
+  .object({
+    /** Schema version. Present from the first write so a later shape can migrate. */
+    version: z.literal(1),
+    slug: z.string().min(1),
+    kind: artifactKindSchema,
+    /**
+     * `HEAD^{tree}` at the moment the cap refused — what this arbitration is
+     * ABOUT. A later commit changes the tree, which is what makes the record go
+     * stale rather than silently standing for work it never saw.
+     */
+    boundTree: z.string().min(1),
+    rounds: z.array(arbitrationRoundSchema),
+    blockers: z.array(arbitrationBlockerSchema),
+    /** Opaque here — the detector owns their shape; this record transports them. */
+    signals: z.array(z.record(z.unknown())),
+    dispositions: z.array(arbitrationDispositionSchema),
+  })
+  .strict()
+  .superRefine((rec, ctx) => {
+    const ids = new Set(rec.blockers.map((b) => b.id));
+    const seen = new Set<string>();
+    for (const d of rec.dispositions) {
+      // One disposition per blocker: an id identifies a LOGICAL finding, so the
+      // operator arbitrates it once even when two lanes filed it. Two entries
+      // for one id would leave "which one counts" undefined.
+      if (seen.has(d.blockerId))
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `duplicate disposition for blocker ${d.blockerId}`,
+          path: ['dispositions'],
+        });
+      seen.add(d.blockerId);
+      if (!ids.has(d.blockerId))
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `disposition names unknown blocker ${d.blockerId}`,
+          path: ['dispositions'],
+        });
+    }
+  });
+export type ArbitrationRecord = z.infer<typeof arbitrationRecordSchema>;
+
+/**
+ * Path for a `slug`+`kind` pair.
+ *
+ * A SUBDIRECTORY of `.noldor/cr`, and that is load-bearing: `aggregate`
+ * collects every `.noldor/cr/<slug>-<kind>-*.json` regular file as a lane sink,
+ * so a record named `<slug>-<kind>-arbitration.json` beside them would match
+ * that glob, `inferLaneFromFilename` would return null, and a bogus
+ * `non-conforming filename` HIGH blocker would land in every aggregate for the
+ * pair — turning green runs red. `autofix-ledger.ts` records that exact
+ * incident and its remedy; this reuses it rather than minting a second one.
+ */
+export function arbitrationPath(cwd: string, slug: Slug, kind: ArtifactKind): string {
+  const built = slugPath(cwd, ['.noldor', 'cr', 'arbitration'], slug, { suffix: `-${kind}.json` });
+  if (!built.ok) throw new Error(`cannot resolve arbitration record: ${built.error.kind}`);
+  return built.path;
+}
+
+/** Every unresolved blocker carries exactly one disposition. */
+export function isFilled(rec: ArbitrationRecord): boolean {
+  if (rec.blockers.length === 0) return false;
+  const disposed = new Set(rec.dispositions.map((d) => d.blockerId));
+  return rec.blockers.every((b) => disposed.has(b.id));
+}
