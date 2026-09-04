@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { CUT_MARKER } from '../../core/structural-context-contract.js';
-import { findMarkers, scanSource } from '../cut-scan.js';
+import { findMarkers, markerScopes, scanSource } from '../cut-scan.js';
 
 describe('scanSource', () => {
   it('reports balanced depth for ordinary code', () => {
@@ -106,5 +106,46 @@ describe('findMarkers backtick boundary', () => {
     expect(findMarkers('/**\n * noldor:cut why\n */\nconst a = 1;\n')).toEqual([
       { line: 2, reason: 'why' },
     ]);
+  });
+});
+
+describe('markerScopes', () => {
+  it('scopes to the innermost enclosing block', () => {
+    const src = [
+      'function outer() {', // 1
+      '  function inner() {', // 2
+      '    // noldor:cut why', // 3
+      '    return 1;', // 4
+      '  }', // 5
+      '  return inner;', // 6
+      '}', // 7
+    ].join('\n');
+    expect(markerScopes(src)).toEqual([{ line: 3, reason: 'why', startLine: 3, endLine: 5 }]);
+  });
+
+  it('scopes a module-scope marker to the next block that opens', () => {
+    const src = [
+      '/**', // 1
+      ' * noldor:cut why', // 2
+      ' */', // 3
+      'function a() {', // 4
+      '  return 1;', // 5
+      '}', // 6
+    ].join('\n');
+    expect(markerScopes(src)[0]).toMatchObject({ line: 2, startLine: 2, endLine: 6 });
+  });
+
+  it('falls back to the comment block plus the next non-blank line', () => {
+    const src = ['// noldor:cut why', '// more context', '', 'const a = 1;'].join('\n');
+    expect(markerScopes(src)[0]).toMatchObject({ line: 1, startLine: 1, endLine: 4 });
+  });
+
+  it('never runs to EOF when nothing follows', () => {
+    const src = ['const a = 1;', '// noldor:cut why', '', '', ''].join('\n');
+    expect(markerScopes(src)[0]!.endLine).toBeLessThan(5);
+  });
+
+  it('yields nothing for an unscannable file', () => {
+    expect(markerScopes('// noldor:cut why\nfunction a() {\n')).toEqual([]);
   });
 });

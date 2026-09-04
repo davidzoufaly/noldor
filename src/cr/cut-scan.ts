@@ -224,3 +224,52 @@ export function findMarkers(source: string): CutMarker[] {
   }
   return out;
 }
+
+/** A marker plus the inclusive 1-based line span it governs. */
+export interface CutScope extends CutMarker {
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
+/**
+ * Every marker in `source`, with the lines it governs.
+ *
+ * The scope runs from the marker's own line to the end of the innermost brace
+ * block containing it — which reaches the function BODY, where a re-flagged
+ * finding actually lands. A comment-block-only scope was rejected for exactly
+ * that reason: it goes silent on most real re-flags.
+ *
+ * Two fallbacks cover the module-scope case, which is the common JSDoc shape.
+ * With no enclosing block, the scope is the next block that OPENS after the
+ * marker — the declaration the comment documents. With no such block either, it
+ * is the marker's contiguous comment block plus the following non-blank line.
+ * Neither ever reaches EOF, so a marker near the end of a file cannot claim the
+ * rest of it.
+ */
+export function markerScopes(source: string): CutScope[] {
+  const scan = scanSource(source);
+  if (!scan.ok) return [];
+  const markers = findMarkers(source);
+  if (markers.length === 0) return [];
+  const lines = source.split('\n');
+
+  return markers.map((m) => {
+    // Innermost enclosing block = the containing one with the smallest span.
+    // Blocks are recorded on close, so several may enclose a given line.
+    const enclosing = scan.blocks
+      .filter((b) => b.openLine <= m.line && b.closeLine >= m.line)
+      .sort((a, b) => a.closeLine - a.openLine - (b.closeLine - b.openLine))[0];
+    if (enclosing) return { ...m, startLine: m.line, endLine: enclosing.closeLine };
+
+    const following = scan.blocks
+      .filter((b) => b.openLine > m.line)
+      .sort((a, b) => a.openLine - b.openLine)[0];
+    if (following) return { ...m, startLine: m.line, endLine: following.closeLine };
+
+    let end = m.line;
+    while (end < lines.length && scan.commentLines.has(end + 1)) end += 1;
+    let after = end + 1;
+    while (after <= lines.length && (lines[after - 1] ?? '').trim() === '') after += 1;
+    return { ...m, startLine: m.line, endLine: after <= lines.length ? after : end };
+  });
+}
