@@ -17,7 +17,7 @@ vi.mock('../lanes/subagent.js', () => ({
 vi.mock('../lanes/render-compare.js', () => ({
   runRenderCompare: vi.fn(async () => ({ lane: 'render-compare', sinkPath: 'rc', ok: true })),
 }));
-import { resolveLanes, run } from '../orchestrate.js';
+import { priorBlockerIds, resolveLanes, run } from '../orchestrate.js';
 import { ledgerDir, ledgerPath } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';
 import { runSubagent as subagentLane } from '../lanes/subagent.js';
@@ -1207,5 +1207,34 @@ describe('round budget (Q-0170)', () => {
     const r = await run({ args: { ...ARGS, headSha: 'aaaaaaa' }, cwd: root });
     expect(r.exitCode).toBe(0);
     spy.mockRestore();
+  });
+});
+
+describe('priorBlockerIds', () => {
+  const round = (over: Record<string, unknown> = {}) => ({
+    round: 1,
+    headSha: 'a',
+    fingerprint: 'f',
+    applied: 0,
+    deferred: 0,
+    diffStat: '',
+    ...over,
+  });
+
+  it('returns one list per round when every round recorded ids', () => {
+    expect(priorBlockerIds([round({ blockerIds: ['x'] }), round({ blockerIds: ['y'] })])).toEqual([
+      ['x'],
+      ['y'],
+    ]);
+  });
+
+  it('returns an empty array for an empty series', () => {
+    expect(priorBlockerIds([])).toEqual([]);
+  });
+
+  // A pre-field round means the history is INCOMPLETE, so R1 cannot honestly
+  // say a blocker is new — the whole series degrades to `omitted`.
+  it('returns undefined when any round predates the field', () => {
+    expect(priorBlockerIds([round(), round({ blockerIds: ['y'] })])).toBeUndefined();
   });
 });

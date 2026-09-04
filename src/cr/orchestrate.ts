@@ -18,7 +18,7 @@ import {
   roundVerdict,
   sessionKey,
 } from './autofix-ledger.js';
-import type { AutofixLedger } from './autofix-ledger.js';
+import type { AutofixLedger, AutofixRound } from './autofix-ledger.js';
 import {
   DEFAULT_CR_LANES,
   loadConfig,
@@ -357,6 +357,24 @@ export function capVerdict(
   // a change and grant a closing round nobody earned.
   if (headMatches(last?.headSha ?? '', headSha)) return { refuse: true, closingRound: false };
   return { refuse: false, closingRound: true };
+}
+
+/**
+ * R1's history input: one blocker-id list per prior round, or `undefined`.
+ *
+ * `undefined` whenever ANY round in the series predates the `blockerIds` field.
+ * Partial history is worse than none here: R1 would report a genuinely repeated
+ * blocker as new because the round that first filed it recorded no ids, and a
+ * false "clear" from a detector is exactly the reading the three-arm outcome
+ * exists to prevent.
+ */
+export function priorBlockerIds(
+  rounds: readonly AutofixRound[],
+): readonly (readonly string[])[] | undefined {
+  const lists = rounds.map((r) => r.blockerIds);
+  return lists.every((l) => l !== undefined)
+    ? (lists as readonly (readonly string[])[])
+    : undefined;
 }
 
 /** The refusal banner: what was spent, and the two ways out. */
