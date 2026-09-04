@@ -10,6 +10,7 @@
  * ADVISORY WITH TEETH. A signal never suppresses a finding, never edits a sink,
  * and never moves an exit code. It is reported; the operator decides.
  */
+import type { CutScope } from './cut-scan.js';
 import type { FindingLocation } from './findings-schema.js';
 
 /** A blocker reduced to what the rules need. */
@@ -112,5 +113,54 @@ export function ruleR3(
       }
     }
   }
+  return fired(signals);
+}
+
+/**
+ * R2 — cut-site. A blocker located inside a documented cut marker's scope.
+ *
+ * This is the signal that would have caught the Q-0146 case: codex re-flagged
+ * documented cut sites five times in a single review.
+ *
+ * `scopesByFile` and `unscannable` both arrive as data — the module opens
+ * nothing. A blocker whose file could not be scanned yields `omitted` naming
+ * that file, never `clear`.
+ */
+export function ruleR2(
+  blockers: readonly RuleBlocker[],
+  scopesByFile: ReadonlyMap<string, readonly CutScope[]>,
+  unscannable: readonly string[],
+): RuleResult {
+  const signals: ReflagSignal[] = [];
+  const blocked = new Set(unscannable);
+  const blockedHit = new Set<string>();
+  for (const b of blockers) {
+    for (const loc of b.locations ?? []) {
+      if (blocked.has(loc.file)) {
+        blockedHit.add(loc.file);
+        continue;
+      }
+      const line = loc.line;
+      if (line === undefined) continue;
+      const hit = (scopesByFile.get(loc.file) ?? []).find(
+        (s) => line >= s.startLine && line <= s.endLine,
+      );
+      if (hit) {
+        signals.push({
+          rule: 'R2',
+          blockerId: b.id,
+          message:
+            `blocker at ${loc.file}:${line} sits inside a noldor:cut scope ` +
+            `declared at ${loc.file}:${hit.line} — "${hit.reason}"`,
+        });
+        break;
+      }
+    }
+  }
+  if (signals.length === 0 && blockedHit.size > 0)
+    return {
+      outcome: 'omitted',
+      reason: `could not scan ${[...blockedHit].sort().join(', ')} — brace depth did not balance`,
+    };
   return fired(signals);
 }

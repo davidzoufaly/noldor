@@ -1,7 +1,7 @@
 // @tests: specs-cr-gate-multi-reviewer
 import { describe, expect, it } from 'vitest';
 
-import { ruleR1, ruleR3 } from '../reflag.js';
+import { ruleR1, ruleR2, ruleR3 } from '../reflag.js';
 
 const blocker = (id: string) => ({ id, severity: 'high' as const, message: 'boom' });
 
@@ -63,5 +63,42 @@ describe('ruleR3', () => {
     const r = ruleR3([b], undefined);
     expect(r.outcome).toBe('omitted');
     if (r.outcome === 'omitted') expect(r.reason).toMatch(/fast-forward|unavailable/i);
+  });
+});
+
+describe('ruleR2', () => {
+  const b = {
+    id: 'a',
+    severity: 'med' as const,
+    message: 'simplify this',
+    locations: [{ file: 'src/x.ts', line: 12 }],
+  };
+  const scopes = new Map([['src/x.ts', [{ line: 10, reason: 'why', startLine: 10, endLine: 20 }]]]);
+
+  it('fires for a location inside a marker scope', () => {
+    const r = ruleR2([b], scopes, []);
+    expect(r.outcome).toBe('fired');
+    if (r.outcome === 'fired') expect(r.signals[0]!.message).toContain('src/x.ts:10');
+  });
+
+  it('is clear for a location outside every scope', () => {
+    expect(
+      ruleR2([{ ...b, locations: [{ file: 'src/x.ts', line: 40 }] }], scopes, []).outcome,
+    ).toBe('clear');
+  });
+
+  it('is clear for a blocker with no locations', () => {
+    expect(ruleR2([{ id: 'a', severity: 'low', message: 'x' }], scopes, []).outcome).toBe('clear');
+  });
+
+  it('is clear for a location with a file but no line', () => {
+    expect(ruleR2([{ ...b, locations: [{ file: 'src/x.ts' }] }], scopes, []).outcome).toBe('clear');
+  });
+
+  // "We could not look" must never read the same as "we looked and found nothing".
+  it('is omitted when the located file was unscannable', () => {
+    const r = ruleR2([b], new Map(), ['src/x.ts']);
+    expect(r.outcome).toBe('omitted');
+    if (r.outcome === 'omitted') expect(r.reason).toContain('src/x.ts');
   });
 });
