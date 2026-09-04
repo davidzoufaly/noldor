@@ -213,3 +213,26 @@ function readOnlyNoFollowFlags(): number {
   }
   return constants.O_RDONLY | O_NOFOLLOW;
 }
+
+/**
+ * {@link slugPath} for a `<slug>-<kind>.json` file under a `.noldor` subtree,
+ * throwing rather than returning a result.
+ *
+ * The CR ledger and the arbitration record wanted byte-identical bodies for
+ * this — the clone detector flagged the pair — and both want a throw: a branded
+ * slug is already validated, so a refusal here means a symlink or a relocated
+ * root under the subtree, which is repository tampering rather than a bad
+ * argument. `what` names the artifact in that message, which is the only thing
+ * the two call sites ever differed in.
+ */
+export function slugKindJsonPath(
+  cwd: string,
+  relRoot: readonly string[],
+  slug: Slug,
+  kind: string,
+  what: string,
+): string {
+  const built = slugPath(cwd, relRoot, slug, { suffix: `-${kind}.json` });
+  if (!built.ok) throw new Error(`cannot resolve ${what}: ${built.error.kind}`);
+  return built.path;
+}

@@ -13,7 +13,7 @@ vi.mock('../../../core/branch-added.js', () => ({
 import { discoverChangedFiles } from '../../../core/branch-added.js';
 
 import { setDispatcher } from '../../lanes/subagent-dispatch.js';
-import { runSubagent } from '../../lanes/subagent.js';
+import { mkFindingFor, resolveChangedFiles, runSubagent } from '../../lanes/subagent.js';
 import { readFdSummary } from '../../read-fd-summary.js';
 import type { LaneInput } from '../../lane-types.js';
 
@@ -192,5 +192,45 @@ describe('runSubagent', () => {
     expect(dispatchSubagent).toHaveBeenCalledWith(
       expect.objectContaining({ baseSha: 'aaa~1', headSha: 'aaa' }),
     );
+  });
+});
+
+describe('resolveChangedFiles', () => {
+  it('returns the changed set for a spec kind, not only code', () => {
+    vi.mocked(discoverChangedFiles).mockReturnValueOnce(['docs/design/specs/a-design.md']);
+    expect(resolveChangedFiles({ repoRoot: '/r', base: 'BASE', head: 'HEAD' })).toEqual([
+      'docs/design/specs/a-design.md',
+    ]);
+    expect(discoverChangedFiles).toHaveBeenCalledWith({ cwd: '/r', base: 'BASE', head: 'HEAD' });
+  });
+
+  // Git failing here must degrade the feature, never turn a review into a lane
+  // error — the same posture resolveBindingRules already takes.
+  it('returns an empty set when git fails', () => {
+    vi.mocked(discoverChangedFiles).mockImplementationOnce(() => {
+      throw new Error('not a repository');
+    });
+    expect(resolveChangedFiles({ repoRoot: '/r', base: 'BASE', head: 'HEAD' })).toEqual([]);
+  });
+});
+
+describe('mkFinding locations', () => {
+  const changed = ['src/cr/orchestrate.ts'];
+
+  it('attaches a resolved location and leaves the message intact', () => {
+    const f = mkFindingFor('high', 'a.md', changed)('[design] `orchestrate.ts:475` returns early');
+    expect(f.locations).toEqual([{ file: 'src/cr/orchestrate.ts', line: 475 }]);
+    expect(f.message).toBe('`orchestrate.ts:475` returns early');
+    expect(f.class).toBe('design');
+  });
+
+  it('omits the key when the bullet names no location', () => {
+    const f = mkFindingFor('med', 'a.md', changed)('this is simply wrong');
+    expect(f).not.toHaveProperty('locations');
+  });
+
+  it('omits the key when nothing resolves', () => {
+    const f = mkFindingFor('med', 'a.md', changed)('`src/core/session.ts:10` is wrong');
+    expect(f).not.toHaveProperty('locations');
   });
 });

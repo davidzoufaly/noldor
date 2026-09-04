@@ -1,6 +1,6 @@
 // @tests: acceptance-verify-lane, autonomous-plan-to-pr-merge, specs-cr-gate-multi-reviewer
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,8 +17,15 @@ vi.mock('../lanes/subagent.js', () => ({
 vi.mock('../lanes/render-compare.js', () => ({
   runRenderCompare: vi.fn(async () => ({ lane: 'render-compare', sinkPath: 'rc', ok: true })),
 }));
-import { resolveLanes, run } from '../orchestrate.js';
-import { ledgerDir, ledgerPath } from '../autofix-ledger.js';
+import {
+  priorBlockerIds,
+  resolveIntroducedLines,
+  resolveLanes,
+  run,
+  runReflagRules,
+} from '../orchestrate.js';
+import { buildSkeleton } from '../orchestrate.js';
+import { fingerprintBlockers, ledgerDir, ledgerPath } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';
 import { runSubagent as subagentLane } from '../lanes/subagent.js';
 import { runManual as manualLane } from '../lanes/manual.js';
@@ -850,6 +857,81 @@ describe('round budget (Q-0170)', () => {
     });
   });
 
+  // ADVISORY WITH TEETH: a re-flag signal is reported and stored, and changes
+  // nothing else. A round that fires R1 must return the same exit code and
+  // write the same sink set as one that fires nothing.
+  it('leaves the exit code and the sink set untouched when a signal fires', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await writeReviewerSink([BLOCKER]);
+      const silent = await run({
+        args: { ...ARGS, headSha: 'aaaaaaa', autonomous: true },
+        cwd: root,
+      });
+      const silentSinks = (await readdir(join(root, '.noldor', 'cr'))).toSorted();
+      const firedId = ((await ledgerRounds())[0]!.blockerIds as string[])[0];
+
+      // Round 2 files the very same blocker at a new head — R1's repeat shape.
+      await writeReviewerSink([BLOCKER]);
+      const signalling = await run({
+        args: { ...ARGS, headSha: 'bbbbbbb', autonomous: true },
+        cwd: root,
+      });
+
+      expect(signalling.exitCode).toBe(silent.exitCode);
+      expect((await readdir(join(root, '.noldor', 'cr'))).toSorted()).toEqual(silentSinks);
+      const round2 = (await ledgerRounds()).at(-1)!;
+      expect(round2.blockerIds).toEqual([firedId]);
+      // R3 is `omitted` here and that is the contract working: the fixture's
+      // shas are literals in a tmpdir with no git history, so the ancestry
+      // check fails and the rule refuses to answer rather than reading clear.
+      expect(round2.signals).toEqual([
+        expect.objectContaining({ rule: 'R1', blockerId: firedId }),
+        expect.objectContaining({ rule: 'omitted' }),
+      ]);
+      expect(spy.mock.calls.flat().join('\n')).toContain('[R1]');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  // Spec AC4. A `locations.file` originates in LLM output, and a tracked
+  // changed path can still be a symlink pointing outside the checkout. R2 opens
+  // those files, so the read must refuse to follow the link — the file lands in
+  // `unscannable` and R2 reports `omitted`, never a scope read through the link.
+  it('never reads a located path through a symlink', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const outside = await mkdtemp(join(tmpdir(), 'orc-outside-'));
+    try {
+      // The link target carries a real marker, so a followed read would produce
+      // an R2 signal — that is what makes this test able to fail.
+      await writeFile(
+        join(outside, 'secret.ts'),
+        '// noldor:cut deliberate\nfunction a() {\n  return 1;\n}\n',
+        'utf8',
+      );
+      await mkdir(join(root, 'src'), { recursive: true });
+      symlinkSync(join(outside, 'secret.ts'), join(root, 'src', 'linked.ts'));
+
+      await writeReviewerSink([{ ...BLOCKER, locations: [{ file: 'src/linked.ts', line: 2 }] }]);
+      await run({ args: { ...ARGS, headSha: 'aaaaaaa', autonomous: true }, cwd: root });
+
+      const signals = (await ledgerRounds())[0]!.signals as Array<Record<string, unknown>>;
+      expect(signals.some((s) => s.rule === 'R2')).toBe(false);
+      expect(signals).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            rule: 'omitted',
+            reason: expect.stringContaining('src/linked.ts'),
+          }),
+        ]),
+      );
+    } finally {
+      spy.mockRestore();
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
   it('refuses past the cap when HEAD is unchanged, and names the way out', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
@@ -1208,4 +1290,225 @@ describe('round budget (Q-0170)', () => {
     expect(r.exitCode).toBe(0);
     spy.mockRestore();
   });
+});
+
+describe('priorBlockerIds', () => {
+  const round = (over: Record<string, unknown> = {}) => ({
+    round: 1,
+    headSha: 'a',
+    fingerprint: 'f',
+    applied: 0,
+    deferred: 0,
+    diffStat: '',
+    ...over,
+  });
+
+  it('returns one list per round when every round recorded ids', () => {
+    expect(priorBlockerIds([round({ blockerIds: ['x'] }), round({ blockerIds: ['y'] })])).toEqual([
+      ['x'],
+      ['y'],
+    ]);
+  });
+
+  it('returns an empty array for an empty series', () => {
+    expect(priorBlockerIds([])).toEqual([]);
+  });
+
+  // A pre-field round means the history is INCOMPLETE, so R1 cannot honestly
+  // say a blocker is new — the whole series degrades to `omitted`.
+  it('returns undefined when any round predates the field', () => {
+    expect(priorBlockerIds([round(), round({ blockerIds: ['y'] })])).toBeUndefined();
+  });
+});
+
+describe('resolveIntroducedLines', () => {
+  it('returns undefined when the series is not a fast-forward', async () => {
+    const git = async (args: string[]) => {
+      if (args[0] === 'merge-base') throw new Error('not an ancestor');
+      return '';
+    };
+    expect(await resolveIntroducedLines('FIRST', git)).toBeUndefined();
+  });
+
+  it('returns undefined with no first head', async () => {
+    expect(await resolveIntroducedLines('', async () => '')).toBeUndefined();
+  });
+
+  it('maps added lines per file from a --unified=0 diff', async () => {
+    const diff = [
+      'diff --git a/src/x.ts b/src/x.ts',
+      '--- a/src/x.ts',
+      '+++ b/src/x.ts',
+      '@@ -10,0 +11,2 @@',
+      '+added',
+      '+added2',
+    ].join('\n');
+    const git = async (args: string[]) => (args[0] === 'merge-base' ? '' : diff);
+    const map = await resolveIntroducedLines('FIRST', git);
+    expect([...(map?.get('src/x.ts') ?? [])].sort((a, b) => a - b)).toEqual([11, 12]);
+  });
+});
+
+describe('runReflagRules', () => {
+  const b = { id: 'a', severity: 'high' as const, message: 'boom' };
+  const located = { ...b, locations: [{ file: 'src/x.ts', line: 12 }] };
+
+  it('renders a fired signal and a persisted record', () => {
+    const out = runReflagRules([b], [['a']], new Map(), new Map(), new Map());
+    expect(out.lines).toEqual([expect.stringContaining('[R1]')]);
+    expect(out.signals).toEqual([
+      { rule: 'R1', blockerId: 'a', message: expect.stringContaining('survived a fix') },
+    ]);
+  });
+
+  it('renders an omitted rule as a reason, not silence', () => {
+    const out = runReflagRules([b], undefined, new Map(), new Map(), new Map());
+    expect(out.lines).toEqual([expect.stringContaining('[omitted]')]);
+    expect(out.signals).toEqual([
+      { rule: 'omitted', reason: expect.stringContaining('no recorded blocker ids') },
+    ]);
+  });
+
+  it('renders nothing when every rule is clear', () => {
+    const out = runReflagRules([b], [['other']], new Map(), new Map(), new Map());
+    expect(out.lines).toEqual([]);
+    expect(out.signals).toEqual([]);
+  });
+
+  it('renders R1 before R3', () => {
+    const out = runReflagRules(
+      [located],
+      [['a']],
+      new Map([['src/x.ts', new Set([12])]]),
+      new Map(),
+      new Map(),
+    );
+    expect(out.lines.map((l) => l.slice(0, 4))).toEqual(['[R1]', '[R3]']);
+  });
+});
+
+it('renders R2 alongside R1 and R3', () => {
+  const b = {
+    id: 'a',
+    severity: 'high' as const,
+    message: 'boom',
+    locations: [{ file: 'src/x.ts', line: 12 }],
+  };
+  const out = runReflagRules(
+    [b],
+    [['a']],
+    new Map([['src/x.ts', new Set([12])]]),
+    new Map([['src/x.ts', [{ line: 10, reason: 'why', startLine: 10, endLine: 20 }]]]),
+    new Map(),
+  );
+  expect(out.lines.map((l) => l.slice(0, 4))).toEqual(['[R1]', '[R2]', '[R3]']);
+  expect(out.signals).toHaveLength(3);
+});
+
+describe('buildSkeleton', () => {
+  const sinkBlockers = [
+    { lane: 'reviewer' as const, severity: 'high' as const, file: 'a.md', message: 'boom' },
+  ];
+  const rounds = [
+    {
+      round: 1,
+      headSha: 'a1',
+      fingerprint: fingerprintBlockers(sinkBlockers),
+      verdict: 'red' as const,
+      applied: 0,
+      deferred: 0,
+      diffStat: '',
+      blockerIds: ['b1'],
+      signals: [{ rule: 'R1', blockerId: 'b1' }],
+    },
+  ];
+
+  it('carries rounds, blockers and signals, with dispositions empty', () => {
+    const rec = buildSkeleton('s', 'code', 'TREE', rounds, sinkBlockers, () => 'b1');
+    expect(rec?.dispositions).toEqual([]);
+    expect(rec?.blockers).toEqual([
+      { id: 'b1', severity: 'high', message: 'boom', lanes: ['reviewer'] },
+    ]);
+    expect(rec?.signals).toHaveLength(1);
+    expect(rec?.boundTree).toBe('TREE');
+  });
+
+  it('collapses one logical blocker filed by two lanes into one entry', () => {
+    const two = [...sinkBlockers, { ...sinkBlockers[0]!, lane: 'codex' as const }];
+    const rec = buildSkeleton(
+      's',
+      'code',
+      'TREE',
+      [{ ...rounds[0]!, fingerprint: fingerprintBlockers(two) }],
+      two,
+      () => 'b1',
+    );
+    expect(rec?.blockers).toHaveLength(1);
+    expect(rec?.blockers[0]!.lanes).toEqual(['codex', 'reviewer']);
+  });
+
+  // Sinks are overwritten by ANY lane run, and the gate documents standalone
+  // `cr` invocations. A skeleton built from someone else's review would have the
+  // operator arbitrate the wrong blockers.
+  it('returns null when the sinks do not match the ledger round', () => {
+    const stale = [{ ...rounds[0]!, fingerprint: 'SOMETHING-ELSE' }];
+    expect(buildSkeleton('s', 'code', 'TREE', stale, sinkBlockers, () => 'b1')).toBeNull();
+  });
+
+  // An integrity blocker says "this verdict cannot be trusted", which is not a
+  // finding an operator can arbitrate. It still counts toward the fingerprint,
+  // because that is the set the ledger hashed.
+  it('keeps an integrity blocker out of the arbitrated set but inside the digest', () => {
+    const withIntegrity = [
+      ...sinkBlockers,
+      {
+        lane: 'codex' as const,
+        severity: 'high' as const,
+        file: 'a.md',
+        message: 'sink unreadable',
+        integrity: true as const,
+      },
+    ];
+    const rec = buildSkeleton(
+      's',
+      'code',
+      'TREE',
+      [{ ...rounds[0]!, fingerprint: fingerprintBlockers(withIntegrity) }],
+      withIntegrity,
+      (b) => b.message,
+    );
+    expect(rec?.blockers.map((b) => b.message)).toEqual(['boom']);
+  });
+});
+
+// The rule can now report a signal AND an omission together. Rendering only the
+// signal would re-create, one layer up, exactly the silence the fix removed.
+it('renders both halves when a rule fires and omits at once', () => {
+  const inScope = {
+    id: 'a',
+    severity: 'high' as const,
+    message: 'boom',
+    locations: [{ file: 'src/x.ts', line: 12 }],
+  };
+  const unreadable = {
+    id: 'b',
+    severity: 'med' as const,
+    message: 'bang',
+    locations: [{ file: 'src/bad.ts', line: 3 }],
+  };
+  const out = runReflagRules(
+    [inScope, unreadable],
+    [],
+    new Map(),
+    new Map([['src/x.ts', [{ line: 10, reason: 'why', startLine: 10, endLine: 20 }]]]),
+    new Map([['src/bad.ts', 'brace depth did not balance']]),
+  );
+  expect(out.lines).toEqual([
+    expect.stringContaining('[R2]'),
+    expect.stringContaining('src/bad.ts'),
+  ]);
+  expect(out.signals).toEqual([
+    expect.objectContaining({ rule: 'R2' }),
+    expect.objectContaining({ rule: 'omitted' }),
+  ]);
 });

@@ -2,13 +2,14 @@ import { execFile } from 'node:child_process';
 import { readFileNoFollowAsync } from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
 import { copyFile, mkdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
 import { writeExpectedLanes } from './expected-lanes.js';
 import { aggregate } from './aggregate.js';
 import {
   AUTOFIX_ROUND_CAP,
   appendRound,
+  fingerprintBlocker,
   fingerprintBlockers,
   hasClosingRound,
   headMatches,
@@ -18,7 +19,7 @@ import {
   roundVerdict,
   sessionKey,
 } from './autofix-ledger.js';
-import type { AutofixLedger } from './autofix-ledger.js';
+import type { AutofixLedger, AutofixRound } from './autofix-ledger.js';
 import {
   DEFAULT_CR_LANES,
   loadConfig,
@@ -35,8 +36,14 @@ import {
 } from '../core/lanes.js';
 import type { SessionPathSignal } from '../core/lanes.js';
 import { readSession } from '../core/session.js';
+import { ruleR1, ruleR2, ruleR3 } from './reflag.js';
+import type { RuleBlocker } from './reflag.js';
+import { markerScopes, scanSource } from './cut-scan.js';
+import { arbitrationPath, arbitrationRecordSchema } from './arbitration.js';
+import type { ArbitrationRecord } from './arbitration.js';
+import type { CutScope } from './cut-scan.js';
 import { laneFindingsSchema } from './findings-schema.js';
-import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
+import type { ArtifactKind, Finding, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult, PriorReview } from './lane-types.js';
 import { laneSinkPath } from './filename.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
@@ -359,6 +366,246 @@ export function capVerdict(
   return { refuse: false, closingRound: true };
 }
 
+/**
+ * R1's history input: one blocker-id list per prior round, or `undefined`.
+ *
+ * `undefined` whenever ANY round in the series predates the `blockerIds` field.
+ * Partial history is worse than none here: R1 would report a genuinely repeated
+ * blocker as new because the round that first filed it recorded no ids, and a
+ * false "clear" from a detector is exactly the reading the three-arm outcome
+ * exists to prevent.
+ */
+export function priorBlockerIds(
+  rounds: readonly AutofixRound[],
+): readonly (readonly string[])[] | undefined {
+  const lists = rounds.map((r) => r.blockerIds);
+  return lists.every((l) => l !== undefined)
+    ? (lists as readonly (readonly string[])[])
+    : undefined;
+}
+
+/**
+ * Lines this series ADDED, per file, in current coordinates — R3's input.
+ *
+ * The fast-forward guard is the whole reason this returns `undefined` rather
+ * than an empty map. The cumulative range is a tree diff and nothing inside it
+ * distinguishes this series' commits from anyone else's: an amend-only rewrite
+ * is harmless, but a rebase onto a moved `origin/main` puts every
+ * upstream-added line inside `firstHeadSha..HEAD`, and R3 would then fire on
+ * any location in a file upstream happened to touch. That range does not FAIL,
+ * so an error path would never catch it — only the ancestry check does.
+ *
+ * `git` is the caller's runner rather than a sync `execFileSync` of its
+ * own: everything else in this module spawns git through `execAsync`, and a
+ * second, synchronous runner would be a parallel seam for tests to drift apart
+ * on.
+ */
+export async function resolveIntroducedLines(
+  firstHeadSha: string,
+  git: (args: string[]) => Promise<string>,
+): Promise<Map<string, Set<number>> | undefined> {
+  if (firstHeadSha === '') return undefined;
+  let diff: string;
+  try {
+    await git(['merge-base', '--is-ancestor', `${firstHeadSha}^`, 'HEAD']);
+    diff = await git(['diff', '--unified=0', '--diff-filter=d', '-M', `${firstHeadSha}^`, 'HEAD']);
+  } catch {
+    return undefined;
+  }
+  const out = new Map<string, Set<number>>();
+  let file = '';
+  let next = 0;
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+++ b/')) {
+      file = line.slice('+++ b/'.length);
+      continue;
+    }
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+    if (hunk) {
+      next = Number(hunk[1]);
+      continue;
+    }
+    if (file !== '' && line.startsWith('+') && !line.startsWith('+++')) {
+      const set = out.get(file) ?? new Set<number>();
+      set.add(next);
+      out.set(file, set);
+      next += 1;
+    }
+  }
+  return out;
+}
+
+/**
+ * Run every re-flag rule and render both halves: the lines a human reads and
+ * the records the ledger stores.
+ *
+ * Split out of the round-recording block so the rendering is testable without a
+ * dispatch, rather than living in the middle of `run()`.
+ *
+ * The rule ORDER in the array below is what fixes the printed order, which the
+ * tests pin: R1, R2, R3. R2's own two inputs come LAST in the parameter list
+ * even though it prints second, so widening the seam changed no call site's
+ * argument order.
+ *
+ * An `omitted` rule produces BOTH a line and a record. Dropping either would
+ * turn "could not tell" back into silence — the failure the three-arm outcome
+ * exists to prevent, one layer up.
+ *
+ * A `fired` result carrying its own `omitted` reason renders both, for the same
+ * reason: a rule that found one thing and could not look at another has two
+ * things to say, and printing only the first is the silence again.
+ */
+export function runReflagRules(
+  blockers: readonly RuleBlocker[],
+  priorRounds: readonly (readonly string[])[] | undefined,
+  introducedByFile: ReadonlyMap<string, ReadonlySet<number>> | undefined,
+  scopesByFile: ReadonlyMap<string, readonly CutScope[]>,
+  unscannable: ReadonlyMap<string, string>,
+): { lines: string[]; signals: Record<string, unknown>[] } {
+  const results = [
+    ruleR1(blockers, priorRounds),
+    ruleR2(blockers, scopesByFile, unscannable),
+    ruleR3(blockers, introducedByFile),
+  ];
+  const lines: string[] = [];
+  const signals: Record<string, unknown>[] = [];
+  for (const r of results) {
+    if (r.outcome === 'fired') {
+      for (const s of r.signals) {
+        lines.push(`[${s.rule}] ${s.message}`);
+        signals.push({ ...s });
+      }
+      if (r.omitted !== undefined) {
+        lines.push(`[omitted] ${r.omitted}`);
+        signals.push({ rule: 'omitted', reason: r.omitted });
+      }
+    } else if (r.outcome === 'omitted') {
+      lines.push(`[omitted] ${r.reason}`);
+      signals.push({ rule: 'omitted', reason: r.reason });
+    }
+  }
+  return { lines, signals };
+}
+
+/**
+ * The arbitration skeleton for a refused round, or `null` when the sinks cannot
+ * be trusted to describe it.
+ *
+ * What orchestrate holds at a cap refusal is only the LEDGER — the refusal
+ * returns at the top of `run()` before any dispatch, with `lanesRun: []`, and
+ * the ledger stores a blocker-set fingerprint rather than the blockers. So the
+ * unresolved blockers are re-read from the pair's current lane sinks, which are
+ * still on disk precisely because a refused run writes none.
+ *
+ * Those sinks are VERIFIED before they are trusted: nothing stops a lane being
+ * run standalone between the closing round and the refusal, which would leave
+ * sinks describing a different review. Recomputing the set fingerprint and
+ * comparing it against the ledger's last round is what catches that, and a
+ * mismatch yields `null` rather than a plausible-looking record about the wrong
+ * blockers.
+ *
+ * `sinkBlockers` is the WHOLE aggregate set, integrity blockers included,
+ * because that is the set the ledger hashed. Only the arbitrated list drops
+ * them: "this verdict cannot be trusted" is not a finding an operator can
+ * accept, reject or defer.
+ *
+ * `idOf` is injected so the identity function is visible to a test without a
+ * fixture repo; production passes {@link fingerprintBlocker}.
+ */
+export function buildSkeleton(
+  slug: string,
+  kind: ArtifactKind,
+  boundTree: string,
+  rounds: readonly AutofixRound[],
+  sinkBlockers: readonly (Finding & { lane: string; integrity?: true })[],
+  idOf: (b: Finding) => string,
+  fingerprintOf: (bs: readonly Finding[]) => string = fingerprintBlockers,
+): ArbitrationRecord | null {
+  const last = rounds.at(-1);
+  if (!last) return null;
+  if (fingerprintOf(sinkBlockers) !== last.fingerprint) return null;
+
+  const byId = new Map<string, { blocker: Finding; lanes: Set<string> }>();
+  for (const b of sinkBlockers) {
+    if (b.integrity === true) continue;
+    const id = idOf(b);
+    const entry = byId.get(id) ?? { blocker: b, lanes: new Set<string>() };
+    entry.lanes.add(b.lane);
+    byId.set(id, entry);
+  }
+  return {
+    version: 1,
+    slug,
+    kind,
+    boundTree,
+    rounds: rounds.map((r) => ({
+      round: r.round,
+      verdict: roundVerdict(r),
+      headSha: r.headSha,
+    })),
+    blockers: [...byId].map(([id, { blocker, lanes }]) => ({
+      id,
+      severity: blocker.severity,
+      message: blocker.message,
+      lanes: [...lanes].sort(),
+    })),
+    signals: rounds.flatMap((r) => r.signals ?? []),
+    dispositions: [],
+  };
+}
+
+/**
+ * Write the skeleton, unless a record for this tree already exists.
+ *
+ * Re-running orchestrate at the cap refuses again and reaches here again, so
+ * an unconditional write would erase dispositions the operator had already
+ * filled in. Existing-and-same-tree is left alone; existing-but-bound-to-another
+ * tree is replaced, because that record arbitrated different work.
+ *
+ * Never throws: failing to write an advisory record must not change what a cap
+ * refusal does.
+ */
+export async function writeSkeletonIfAbsent(
+  cwd: string,
+  slug: Slug,
+  kind: ArtifactKind,
+  ledger: AutofixLedger | null,
+): Promise<void> {
+  try {
+    const tree = (await execAsync('git', ['rev-parse', 'HEAD^{tree}'], { cwd })).stdout.trim();
+    const path = arbitrationPath(cwd, slug, kind);
+    const existing = await readFileNoFollowAsync(path).catch(() => null);
+    if (existing !== null) {
+      const prior = arbitrationRecordSchema.safeParse(JSON.parse(existing));
+      if (prior.success && prior.data.boundTree === tree) {
+        console.error(`arbitration record already present: ${path}`);
+        return;
+      }
+    }
+    // `aggregate` already owns the sink glob and the per-lane blocker list, so
+    // this reuses it rather than minting a second reader of the same files.
+    const { blockers } = await aggregate(slug, kind, { cwd });
+    const rec = buildSkeleton(slug, kind, tree, ledger?.rounds ?? [], blockers, fingerprintBlocker);
+    if (!rec) {
+      console.error(
+        'arbitration skeleton not written — the lane sinks on disk do not describe the ' +
+          'arbitrated round. Re-run the round before arbitrating.',
+      );
+      return;
+    }
+    await mkdir(dirname(path), { recursive: true });
+    await writeJsonAtomic(path, rec);
+    console.error(`arbitration skeleton written: ${path}`);
+    console.error(
+      `  ${rec.blockers.length} unresolved blockers await a disposition; then commit with:`,
+    );
+    console.error('  git commit --amend --no-edit --trailer \\');
+    console.error('    "Noldor-Path-Override: cr-arbitration <digest> — <why>"');
+  } catch (err) {
+    console.error(`arbitration skeleton not written: ${(err as Error).message}`);
+  }
+}
+
 /** The refusal banner: what was spent, and the two ways out. */
 export function renderCapRefusal(
   ledger: AutofixLedger | null,
@@ -475,6 +722,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   const cap = capVerdict(ledger, roundKey, headSha);
   if (cap.refuse) {
     console.error(renderCapRefusal(ledger, opts.args.slug, opts.args.kind));
+    await writeSkeletonIfAbsent(cwd, opts.args.slug, opts.args.kind, ledger);
     return { lanesRun: [], syntheticOks: [], exitCode: EXIT_ROUND_CAP };
   }
 
@@ -703,9 +951,56 @@ export async function run(opts: RunOpts): Promise<RunResult> {
           `round counted from the lanes that resolved — ${agg.unresolved.join(', ')} did not`,
         );
       }
+      const ruleBlockers: RuleBlocker[] = filed.map((b) => ({
+        id: fingerprintBlocker(b),
+        severity: b.severity,
+        message: b.message,
+        ...(b.locations ? { locations: b.locations } : {}),
+      }));
+      // The series' FIRST reviewed head, not this round's — R3 measures
+      // cumulatively. Falls back to this round's head on an empty ledger, where
+      // the range is empty and R3 is correctly clear.
+      const firstHead = (ledger?.rounds ?? [])[0]?.headSha ?? headSha;
+      // Only the files this round's blockers actually point at get opened.
+      const located = [
+        ...new Set(ruleBlockers.flatMap((b) => (b.locations ?? []).map((l) => l.file))),
+      ];
+      const scopesByFile = new Map<string, readonly CutScope[]>();
+      // File -> why it could not be examined. The REASON is recorded here
+      // rather than invented by the rule: these two branches are different
+      // problems, and telling an operator a refused symlink was a brace-depth
+      // failure sends them to the wrong place.
+      const unscannable = new Map<string, string>();
+      for (const f of located) {
+        try {
+          // readFileNoFollowAsync, not readFile: `f` came from a changed-file
+          // match, and a tracked changed path can still be a symlink whose
+          // target is outside the checkout.
+          const src = await readFileNoFollowAsync(join(cwd, f));
+          if (scanSource(src).ok) scopesByFile.set(f, markerScopes(src));
+          else unscannable.set(f, 'brace depth did not balance');
+        } catch (err) {
+          unscannable.set(f, `unreadable: ${(err as Error).message}`);
+        }
+      }
+      const reflag = runReflagRules(
+        ruleBlockers,
+        priorBlockerIds(ledger?.rounds ?? []),
+        await resolveIntroducedLines(
+          firstHead,
+          async (args) => (await execAsync('git', args, { cwd })).stdout,
+        ),
+        scopesByFile,
+        unscannable,
+      );
+      // `console.error`, not `console.log`: the round summary already goes to
+      // stderr, and stdout carries the `lanes run:` line the gate parses.
+      for (const line of reflag.lines) console.error(line);
       await appendRound(cwd, opts.args.slug, opts.args.kind, roundKey, {
         headSha,
         fingerprint: fingerprintBlockers(agg.blockers),
+        blockerIds: ruleBlockers.map((b) => b.id).sort(),
+        signals: reflag.signals,
         verdict: red ? 'red' : 'green',
         applied: 0,
         deferred: 0,

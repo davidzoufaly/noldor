@@ -11,6 +11,22 @@ export type Severity = z.infer<typeof severitySchema>;
 
 export const findingClassSchema = z.enum(FINDING_CLASSES);
 
+/**
+ * One place a finding is about. Separate from {@link findingSchema}'s `file` /
+ * `line`, which keep their existing meaning — on the reviewer lane `file` is
+ * the artifact LABEL orchestrate was invoked with, not a location, and
+ * rewriting it would change what every existing sink reader sees.
+ *
+ * `line` and `endLine` are optional because a reviewer legitimately names a
+ * file without a line, and a range without an end is a single line.
+ */
+export const findingLocationSchema = z.object({
+  file: z.string().min(1),
+  line: z.number().int().positive().optional(),
+  endLine: z.number().int().positive().optional(),
+});
+export type FindingLocation = z.infer<typeof findingLocationSchema>;
+
 export const findingSchema = z.object({
   file: z.string().min(1),
   line: z.number().int().nonnegative().optional(),
@@ -22,6 +38,12 @@ export const findingSchema = z.object({
   // do not classify (codex, manual, verifier) need no migration — an absent
   // `class` reads as `design` at the decision site, never as auto-fixable.
   class: findingClassSchema.optional(),
+  // Where the finding actually points, resolved from the bullet text against
+  // the round's changed-file set. Optional so every sink written before it
+  // existed still parses and no other lane needs migration — the same additive
+  // posture `class` above took. An absent key means "no location resolved",
+  // never "the whole artifact".
+  locations: z.array(findingLocationSchema).optional(),
 });
 export type Finding = z.infer<typeof findingSchema>;
 

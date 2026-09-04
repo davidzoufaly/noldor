@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileNoFollowAsync, slugPath } from '../core/slug-paths.js';
+import { readFileNoFollowAsync, slugKindJsonPath } from '../core/slug-paths.js';
 import { readSession } from '../core/session.js';
 import type { Slug } from '../core/slug.js';
 import { mkdir, rename } from 'node:fs/promises';
@@ -48,6 +48,26 @@ export const autofixRoundSchema = z.object({
    */
   fixHeadSha: z.string().optional(),
   fingerprint: z.string().min(1),
+  /**
+   * Every blocker id ({@link fingerprintBlocker}) this round filed, in sorted
+   * order. R1 compares against these: the set-level {@link
+   * autofixRoundSchema.shape.fingerprint} above cannot say WHICH blocker came
+   * back.
+   *
+   * Optional so every ledger written before this field existed still parses.
+   */
+  blockerIds: z.array(z.string().min(1)).optional(),
+  /**
+   * The re-flag signals this round produced, as opaque records. Written here
+   * rather than recomputed later because lane sinks are overwritten each round
+   * and survive only in `archive/` — a signal computed at round 2 is otherwise
+   * unrecoverable when the cap fires.
+   *
+   * Typed as unknown-shaped on purpose: the ledger is a transport for them and
+   * must not import the detector, which would invert the dependency direction
+   * the pure module depends on.
+   */
+  signals: z.array(z.record(z.unknown())).optional(),
   /**
    * Whether the round found anything. `green` only when at least one lane wrote
    * a sink and none of those filed a real finding. An unresolved lane no longer
@@ -139,9 +159,7 @@ export function ledgerDir(cwd: string): string {
  * `.noldor/cr/autofix` — repository tampering, not a bad argument.
  */
 export function ledgerPath(cwd: string, slug: Slug, kind: ArtifactKind): string {
-  const built = slugPath(cwd, ['.noldor', 'cr', 'autofix'], slug, { suffix: `-${kind}.json` });
-  if (!built.ok) throw new Error(`cannot resolve autofix ledger: ${built.error.kind}`);
-  return built.path;
+  return slugKindJsonPath(cwd, ['.noldor', 'cr', 'autofix'], slug, kind, 'autofix ledger');
 }
 
 /** Quarantine path a malformed ledger is renamed to. */
@@ -278,6 +296,30 @@ export function roundsExcludingHead(
   const current = rounds.findLast((r) => headMatches(r.headSha, headSha));
   if (!current) return rounds;
   return rounds.filter((r) => r !== current);
+}
+
+/**
+ * Stable id for a SINGLE blocker — what R1 compares, what a signal points at,
+ * and what an arbitration disposition keys on.
+ *
+ * Length-prefixed rather than `|`-joined: a message may itself contain `|`, so
+ * a plain join lets two different findings encode identically. (The set-level
+ * {@link fingerprintBlockers} below has the same latent ambiguity and is left
+ * alone deliberately — changing it would invalidate every digest already
+ * written to a ledger.)
+ *
+ * `line` is excluded for the same reason it is excluded there: an unrelated
+ * edit elsewhere in the file shifts it, and an unfixed blocker must not
+ * fingerprint as progress.
+ *
+ * The id identifies a LOGICAL finding, so the same blocker filed by two lanes
+ * shares one. That is intended: the operator arbitrates the finding once, not
+ * once per lane.
+ */
+export function fingerprintBlocker(b: Finding): string {
+  const parts = [b.severity, b.file, b.message];
+  const encoded = parts.map((p) => `${p.length}:${p}`).join('');
+  return createHash('sha1').update(encoded).digest('hex');
 }
 
 /**

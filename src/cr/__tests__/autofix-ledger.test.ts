@@ -10,6 +10,7 @@ import {
   NoRoundForHeadError,
   annotateRound,
   appendRound,
+  fingerprintBlocker,
   fingerprintBlockers,
   isSameSeries,
   ledgerDir,
@@ -147,6 +148,29 @@ describe('readLedger', () => {
     await expect(readLedger(cwd, 'dir', 'spec', SESSION)).rejects.not.toBeInstanceOf(
       LedgerParseError,
     );
+  });
+
+  it('parses a ledger written before blockerIds and signals existed', async () => {
+    writeRaw(
+      JSON.stringify({
+        slug: 'slug',
+        kind: 'spec',
+        sessionStartedAt: SESSION,
+        rounds: [
+          {
+            round: 1,
+            headSha: 'abc1234',
+            fingerprint: 'f',
+            applied: 0,
+            deferred: 0,
+            diffStat: '',
+          },
+        ],
+      }),
+    );
+    const ledger = await readLedger(cwd, 'slug', 'spec', SESSION);
+    expect(ledger?.rounds[0]!.blockerIds).toBeUndefined();
+    expect(ledger?.rounds[0]!.signals).toBeUndefined();
   });
 });
 
@@ -387,5 +411,36 @@ describe('round identity when a head repeats', () => {
     const led = await readLedger(cwd, 'slug', 'spec', SESSION);
     expect(redRounds(led!.rounds)).toBe(1);
     expect(redRounds([])).toBe(0);
+  });
+});
+
+describe('fingerprintBlocker', () => {
+  const mk = (over: Partial<Finding> = {}): Finding => ({
+    severity: 'high',
+    file: 'a.md',
+    message: 'boom',
+    ...over,
+  });
+
+  it('is stable for the same finding', () => {
+    expect(fingerprintBlocker(mk())).toBe(fingerprintBlocker(mk()));
+  });
+
+  it('distinguishes severity, file and message', () => {
+    expect(fingerprintBlocker(mk())).not.toBe(fingerprintBlocker(mk({ severity: 'med' })));
+    expect(fingerprintBlocker(mk())).not.toBe(fingerprintBlocker(mk({ file: 'b.md' })));
+    expect(fingerprintBlocker(mk())).not.toBe(fingerprintBlocker(mk({ message: 'bang' })));
+  });
+
+  it('ignores line, matching the set-level digest', () => {
+    expect(fingerprintBlocker(mk())).toBe(fingerprintBlocker(mk({ line: 42 })));
+  });
+
+  // A plain `severity|file|message` join lets a `|` inside one field masquerade
+  // as the delimiter, so two different findings encode identically.
+  it('is unambiguous when a field contains the join character', () => {
+    const a = mk({ file: 'a|b.md', message: 'c' });
+    const b = mk({ file: 'a', message: 'b.md|c' });
+    expect(fingerprintBlocker(a)).not.toBe(fingerprintBlocker(b));
   });
 });

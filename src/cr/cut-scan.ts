@@ -1,0 +1,275 @@
+/**
+ * A `noldor:cut` scanner for TypeScript source — the code half of a contract
+ * that until now existed only as prose in a review prompt.
+ *
+ * NOT built on `src/clones/tokenize.ts`, and that is load-bearing rather than
+ * duplication for its own sake. That scanner discards comments, so it cannot
+ * find a marker at all; and its own header records that regex literals "degrade
+ * to punctuation", which is harmless when comparing token streams and fatal
+ * when counting braces — measured on this repo it ends at depth +1 for
+ * `src/core/ui-predicate.ts` (the `{` in `/[*?[{]/`) and -1 for
+ * `src/invariants/public-api-tsdoc.ts`. Teaching it regex literals would change
+ * the token stream clone detection depends on, so that fix belongs there.
+ *
+ * Pure: takes source text, returns data. No fs, no git.
+ */
+import { CUT_MARKER } from '../core/structural-context-contract.js';
+
+/** A brace block, as 1-based inclusive line numbers. */
+interface Block {
+  readonly openLine: number;
+  readonly closeLine: number;
+}
+
+export interface ScanResult {
+  /**
+   * False when the pass cannot be trusted: depth ended non-zero, or went
+   * negative at any point. A mis-lexed `/` desynchronises everything after it,
+   * and unlike `tokenize()`'s bounded ±1 that error is unbounded — so the
+   * balance property IS the safety net, and a failing file yields no scopes at
+   * all rather than scopes computed from a corrupted depth.
+   */
+  readonly ok: boolean;
+  /** 1-based line numbers that sit inside a comment. */
+  readonly commentLines: ReadonlySet<number>;
+  /** Every brace block that closed, in close order. */
+  readonly blocks: readonly Block[];
+}
+
+/** Characters that end a value, after which `/` is division rather than a regex. */
+const VALUE_END = /[\w$)\]]/;
+
+/**
+ * One pass, two outputs: which lines are comment, and where every brace block
+ * opens and closes.
+ *
+ * The `/` rule is the only genuinely ambiguous decision in JavaScript lexing
+ * without a parser: a slash starts a regex unless the previous significant
+ * character ends a value (identifier, literal, `)`, `]`). `}` is deliberately
+ * NOT in that set — it most often closes a block, after which `/` is a regex —
+ * which is the standard heuristic, and is why the balance check exists.
+ */
+export function scanSource(source: string): ScanResult {
+  const commentLines = new Set<number>();
+  const blocks: Block[] = [];
+  const openStack: number[] = [];
+  // Each entry records the brace depth to return to: when depth falls back to
+  // it, the `}` closed a `${` and we are in template text again.
+  const templateStack: number[] = [];
+  let depth = 0;
+  let line = 1;
+  let prevSignificant = '';
+  let negative = false;
+
+  /**
+   * Consume template TEXT from `at` up to the closing backtick or the next
+   * `${`, returning the index of the last consumed character so the caller's
+   * `i++` steps past it.
+   *
+   * A helper rather than inline code because there are TWO entry points into
+   * template text: the opening backtick, and the `}` that closes a `${`. Only
+   * handling the first leaves the text after a substitution being lexed as
+   * code, so `` `${x}}` `` reads its second `}` as a real close and the depth
+   * goes negative on a perfectly balanced file.
+   */
+  const runTemplate = (at: number): number => {
+    let i = at;
+    while (i < source.length) {
+      if (source[i] === '\\') {
+        i++;
+      } else if (source[i] === '`') {
+        break;
+      } else if (source[i] === '$' && source[i + 1] === '{') {
+        templateStack.push(depth);
+        depth += 1;
+        openStack.push(line);
+        i += 1;
+        break;
+      } else if (source[i] === '\n') {
+        line += 1;
+      }
+      i++;
+    }
+    return i;
+  };
+
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i];
+    const next = source[i + 1];
+
+    if (c === '/' && next === '/') {
+      commentLines.add(line);
+      while (i < source.length && source[i] !== '\n') i++;
+      line += 1;
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      commentLines.add(line);
+      i += 2;
+      while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) {
+        if (source[i] === '\n') line += 1;
+        commentLines.add(line);
+        i++;
+      }
+      i += 1; // land on '/', the loop's i++ steps past it
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      i++;
+      while (i < source.length && source[i] !== c) {
+        if (source[i] === '\\') i++;
+        else if (source[i] === '\n') line += 1;
+        i++;
+      }
+      prevSignificant = 'x';
+      continue;
+    }
+    if (c === '`') {
+      i = runTemplate(i + 1);
+      prevSignificant = 'x';
+      continue;
+    }
+    if (c === '/' && !VALUE_END.test(prevSignificant)) {
+      i++;
+      let inClass = false;
+      while (i < source.length) {
+        const r = source[i];
+        if (r === '\\') {
+          i += 2;
+          continue;
+        }
+        if (r === '[') inClass = true;
+        else if (r === ']') inClass = false;
+        else if (r === '/' && !inClass) break;
+        else if (r === '\n') break; // unterminated — bail rather than run away
+        i++;
+      }
+      prevSignificant = 'x';
+      continue;
+    }
+
+    if (c === '{') {
+      depth += 1;
+      openStack.push(line);
+    } else if (c === '}') {
+      depth -= 1;
+      if (depth < 0) negative = true;
+      const openLine = openStack.pop();
+      if (openLine !== undefined) blocks.push({ openLine, closeLine: line });
+      if (templateStack.length > 0 && templateStack.at(-1) === depth) {
+        templateStack.pop();
+        prevSignificant = 'x';
+        i = runTemplate(i + 1);
+        continue;
+      }
+    }
+
+    if (c === '\n') line += 1;
+    else if (c !== undefined && !/\s/.test(c)) prevSignificant = c;
+  }
+
+  return { ok: !negative && depth === 0, commentLines, blocks };
+}
+
+/** A `noldor:cut` marker found in a comment, with the reason its author gave. */
+export interface CutMarker {
+  /** 1-based line the marker sits on. */
+  readonly line: number;
+  /** Everything after the marker token, trimmed. May be empty. */
+  readonly reason: string;
+}
+
+/**
+ * The marker must be its OWN token. `markdown-section-scan.ts` records what a
+ * bare `startsWith` cost there — `noldor:cutlery` suppressed a section, with
+ * `lery …` counting as the reason — and `noldor:cut-section` is a genuinely
+ * different marker owned by `src/docs/architecture-form.ts`. So the character
+ * after the token must be whitespace or end-of-line: both `-` and a word
+ * character fail.
+ *
+ * A BACKTICK before the token disqualifies it too. A comment that discusses the
+ * marker grammar rather than declaring a cut writes it fenced — `docs`-adjacent
+ * prose in `src/docs/architecture-form.ts` does exactly that, and without this
+ * the scanner reports a scope for a sentence about markers.
+ *
+ * Built from {@link CUT_MARKER} through `RegExp.escape`, exactly as
+ * `markdown-section-scan.ts` does, so a future edit to the constant cannot
+ * silently turn this into a metacharacter bug.
+ */
+const MARKER_RE = new RegExp(`(?:^|[^\\w:\\-\`])${RegExp.escape(CUT_MARKER)}(?:\\s+(.*))?$`);
+
+/**
+ * Every `noldor:cut` marker in `source`, in document order.
+ *
+ * Comment-aware, which a raw-text regex could not be: a marker is recognised
+ * only on a line the lexical pass classified as comment, so the literal
+ * `noldor:cut` inside a string or template — which this repo's own prompt
+ * strings and test fixtures contain — is not a marker.
+ *
+ * An unscannable file yields `[]`. Markers might still be findable there, but a
+ * marker with no trustworthy scope is useless to R2, and reporting one would
+ * imply a scope that was never computed.
+ */
+export function findMarkers(source: string): CutMarker[] {
+  const scan = scanSource(source);
+  if (!scan.ok) return [];
+  const out: CutMarker[] = [];
+  const lines = source.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const lineNo = i + 1;
+    if (!scan.commentLines.has(lineNo)) continue;
+    const m = MARKER_RE.exec(lines[i] ?? '');
+    if (!m) continue;
+    out.push({ line: lineNo, reason: (m[1] ?? '').trim() });
+  }
+  return out;
+}
+
+/** A marker plus the inclusive 1-based line span it governs. */
+export interface CutScope extends CutMarker {
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
+/**
+ * Every marker in `source`, with the lines it governs.
+ *
+ * The scope runs from the marker's own line to the end of the innermost brace
+ * block containing it — which reaches the function BODY, where a re-flagged
+ * finding actually lands. A comment-block-only scope was rejected for exactly
+ * that reason: it goes silent on most real re-flags.
+ *
+ * Two fallbacks cover the module-scope case, which is the common JSDoc shape.
+ * With no enclosing block, the scope is the next block that OPENS after the
+ * marker — the declaration the comment documents. With no such block either, it
+ * is the marker's contiguous comment block plus the following non-blank line.
+ * Neither ever reaches EOF, so a marker near the end of a file cannot claim the
+ * rest of it.
+ */
+export function markerScopes(source: string): CutScope[] {
+  const scan = scanSource(source);
+  if (!scan.ok) return [];
+  const markers = findMarkers(source);
+  if (markers.length === 0) return [];
+  const lines = source.split('\n');
+
+  return markers.map((m) => {
+    // Innermost enclosing block = the containing one with the smallest span.
+    // Blocks are recorded on close, so several may enclose a given line.
+    const enclosing = scan.blocks
+      .filter((b) => b.openLine <= m.line && b.closeLine >= m.line)
+      .sort((a, b) => a.closeLine - a.openLine - (b.closeLine - b.openLine))[0];
+    if (enclosing) return { ...m, startLine: m.line, endLine: enclosing.closeLine };
+
+    const following = scan.blocks
+      .filter((b) => b.openLine > m.line)
+      .sort((a, b) => a.openLine - b.openLine)[0];
+    if (following) return { ...m, startLine: m.line, endLine: following.closeLine };
+
+    let end = m.line;
+    while (end < lines.length && scan.commentLines.has(end + 1)) end += 1;
+    let after = end + 1;
+    while (after <= lines.length && (lines[after - 1] ?? '').trim() === '') after += 1;
+    return { ...m, startLine: m.line, endLine: after <= lines.length ? after : end };
+  });
+}

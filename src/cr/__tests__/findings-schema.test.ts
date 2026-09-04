@@ -154,3 +154,51 @@ describe('verify lane extensions', () => {
     });
   });
 });
+
+describe('findingSchema locations', () => {
+  it('accepts a finding with no locations key', () => {
+    const parsed = findingSchema.parse({ severity: 'high', file: 'a.ts', message: 'boom' });
+    expect(parsed.locations).toBeUndefined();
+  });
+
+  it('accepts a file-only location and a ranged one', () => {
+    const parsed = findingSchema.parse({
+      severity: 'med',
+      file: 'a.ts',
+      message: 'boom',
+      locations: [{ file: 'src/a.ts' }, { file: 'src/b.ts', line: 12, endLine: 18 }],
+    });
+    expect(parsed.locations).toEqual([
+      { file: 'src/a.ts' },
+      { file: 'src/b.ts', line: 12, endLine: 18 },
+    ]);
+  });
+
+  it('rejects a location with no file', () => {
+    expect(() =>
+      findingSchema.parse({
+        severity: 'low',
+        file: 'a.ts',
+        message: 'x',
+        locations: [{ line: 3 }],
+      }),
+    ).toThrow();
+  });
+
+  // The whole point of additive: a sink written before this field existed must
+  // still parse, and must not grow the key.
+  it('parses a pre-existing sink unchanged', () => {
+    const legacy = {
+      lane: 'reviewer',
+      artifact: 'a.md',
+      kind: 'code',
+      slug: 's',
+      blockers: [{ severity: 'high', file: 'a.md', message: 'boom' }],
+      suggestions: [],
+      summary: 'needs changes',
+      startedAt: '2026-09-04T00:00:00.000Z',
+    };
+    const parsed = laneFindingsSchema.parse(legacy);
+    expect(parsed.blockers[0].locations).toBeUndefined();
+  });
+});

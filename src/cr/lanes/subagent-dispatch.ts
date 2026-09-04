@@ -172,6 +172,8 @@ Classify every Critical and Important bullet by prefixing it with exactly one ta
 
 Tag by what the FIX needs, not by how severe the finding is. When in doubt, tag \`[design]\` — an untagged or design-tagged blocker is routed to a human, which is always safe. Minor bullets need no tag.
 
+In every Critical and Important bullet, name the file and line the finding is about, as \`path/to/file.ts:123\` (or \`path/to/file.ts:123-130\` for a range). Repo-relative paths are preferred; a bare filename is accepted when it is unambiguous. Write it inline in the sentence — there is no separate field, and the surrounding prose is unchanged. Omit it only when the finding genuinely has no single location.
+
 Emit your review in this exact format, no preamble:
 
 Strengths: <one-line summary of what is well-done>

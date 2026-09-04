@@ -211,6 +211,13 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 - **Outputs:** for any tip commit on paths 2–6, validates the receipt trailer — `Noldor-Reviewed-Subagent: <tree-hash>` (current, amended at gate Step 4) or `Noldor-Reviewed` (legacy) — equals `HEAD^{tree}`. Rejects the push when the tree hash mismatches (new code committed after the review receipt). Tip commits carrying `Noldor-Path-Override: <reason>` skip the check entirely (escape hatch wins over auto-injected `Noldor-Path`). Exit 1 with instructions to re-run review.
 - **Source:** [`src/hooks/noldor-enforce-review-receipt.ts`](../../src/hooks/noldor-enforce-review-receipt.ts)
 
+### `hook:noldor:enforce-arbitration`
+
+- **Trigger:** `pnpm noldor hooks enforce-arbitration`. Runs in `pre-push` (`noldor-enforce-arbitration` job, `use_stdin: true`).
+- **Inputs:** the push range on stdin; per commit, `Noldor-Path-Override` and `Noldor-FD` trailers; the pair's round ledger at `.noldor/cr/autofix/<slug>-code.json`; the arbitration record at `.noldor/cr/arbitration/<slug>-code.json`; `git rev-parse HEAD^{tree}`.
+- **Outputs:** closes the hole `enforce-review-receipt` leaves — that job returns ok on ANY `Noldor-Path-Override`. For a series whose round cap is spent AND whose last round is red, a bare free-text override is refused; the override must name a filled arbitration record as `Noldor-Path-Override: cr-arbitration <digest> — <why>`, and the record must digest to that value, carry a disposition for every blocker, and be bound to HEAD's tree. Every commit in the range is examined, not just the tip. Fails OPEN with a printed warning when no ledger exists or stdin cannot be read — a deleted ledger and a session that never ran orchestrate are indistinguishable. Exit 1 on refusal.
+- **Source:** [`src/hooks/noldor-enforce-arbitration.ts`](../../src/hooks/noldor-enforce-arbitration.ts)
+
 ### `hook:noldor:pre-push`
 
 - **Trigger:** `pnpm noldor hooks pre-push`. Runs in `pre-push` (`noldor-pre-push` job).

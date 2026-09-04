@@ -12,6 +12,8 @@ links:
     - src/cr/run-codex.ts
     - src/cr/lanes/subagent-dispatch.ts
     - src/core/structural-context-contract.ts
+    - src/cr/findings-schema.ts
+    - src/cr/lanes/subagent.ts
   tests:
     - src/cr/__tests__/autofix-ledger.test.ts
     - src/cr/__tests__/autofix-cli.test.ts
@@ -20,7 +22,7 @@ links:
 name: CR Re-Round Cap Enforcement and Oscillation Detector
 packages:
   - scripts
-phase: done
+phase: in-progress
 since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
 ---

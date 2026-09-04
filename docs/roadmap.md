@@ -16,25 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### CR Oscillation Detector and Arbitration Receipt
-
-- id: Q-0209
-- area: tooling
-- type: feat
-- since: 2026-09-03
-- size: L
-- impact: high
-- confidence: med
-- parent: cr-re-round-cap-enforcement-and-oscillation-detector
-- split-from: Q-0170
-- blocked-by: Q-0170
-
-The second half of Q-0170, carved during its spec dialogue because six units with a `Finding` schema change, a new scanner and a receipt path is L work under an M label. Q-0170 ships the round counter and the codex cut-marker contract; this entry ships the detector and the receipt answer on top of it.
-
-Four units. (1) **Locatable findings** — `src/cr/lanes/subagent.ts` sets `file` to the artifact string for every finding and never sets `line`, so `fingerprintBlockers` collapses to `severity|message` for the reviewer lane and nothing can be compared against a code location. `Finding` gains an optional `locations` array and the reviewer prompt asks each Critical/Important bullet to name its file and line; the existing `file` field keeps its meaning so old sinks still parse. This is the precondition for the rest. (2) **A `noldor:cut` scanner for the TypeScript comment form** — `markdown-section-scan.ts` parses only markdown sections, so the ~15 `// noldor:cut <ceiling> — <upgrade path>` comments in `src/**` are read today by humans and by `/noldor-refactor`'s grep alone. Reuse the `CUT_MARKER` constant from `src/core/structural-context-contract.ts` rather than minting a third spelling. (3) **The re-flag detector** — a pure module beside the ledger in graph community c5, shaped after `src/core/split-suggestion.ts` (exported thresholds, rule/value/message signals, no I/O): `R1` repeat (fingerprint matches a prior round), `R2` cut-site (blocker located inside a documented cut marker's scope), `R3` contradiction (blocker on a line a prior round's fix introduced). Signals never suppress a finding and never move the aggregate exit code. (4) **The arbitration record** — `.noldor/cr/<slug>-<kind>-arbitration.json` carrying the round history, unresolved blockers, per-round signals and a required operator disposition per unresolved blocker, blob-bound to the tree it arbitrated, so the cap terminates in a machine-readable record instead of the free-text `Noldor-Path-Override` that 23 of this repo's 41 unique overrides already are. Open at carve time: whether that record earns the receipt through a new trailer or through a structured reason inside the existing override (the receipt hook and the release gate both already accept the latter, so it costs zero gate changes).
-
-Touches: src/cr/findings-schema.ts, src/cr/lanes/subagent.ts, src/cr/lanes/subagent-dispatch.ts, src/cr/autofix-ledger.ts, src/cr/orchestrate.ts, src/core/structural-context-contract.ts
-
 ### Toolchain Floor Reads Root tsconfigs Only
 
 - id: Q-0208
