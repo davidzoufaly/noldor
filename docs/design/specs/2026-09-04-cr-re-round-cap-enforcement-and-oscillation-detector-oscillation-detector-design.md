@@ -163,18 +163,31 @@ Two hazards the markdown scanner already documents apply here. The marker must b
 match is mandatory rather than tidy. Unlike `cutReasons`, this scanner reads markers *inside* comments,
 which is the inverse of the markdown contract; the two must not share an implementation.
 
-**Scope is brace-matched, not parsed.** A marker's scope runs from its own line to the end of the
-innermost brace block containing it, and the block boundaries come from
-[`tokenize()`](../../../src/clones/tokenize.ts) — the repo's existing hand-rolled TS/JS scanner, which
-is pure, does no fs, skips comments, collapses every string and template literal to one token, and tags
-each token with 1-based `line` / `endLine`. Brace matching over that token stream therefore cannot be
-fooled by a `{` inside a string or a comment, which is the whole reason a naive brace count would not
-do. No parser, no new dependency, and the scope reaches the function *body*, where a re-flagged finding
-actually lands.
+**Scope is brace-matched, over the scanner's own lexical pass.** A marker's scope runs from its own
+line to the end of the innermost brace block containing it. Both the marker positions and the brace
+depth come from **one lexical pass this module owns** — a small scanner that classifies each character
+run as code, line comment, block comment, string, template literal, or regex literal.
 
-The scanner makes two passes over one file, and they are deliberately different passes: markers are
-**found** by a line regex over the raw text (they live in comments, which `tokenize()` discards), and
-then **scoped** by brace matching over the token stream. One pass cannot do both jobs.
+That pass is not `tokenize()`, and reusing it was the first draft's error. `tokenize()` fails this job
+twice over. It **discards comments**, so it cannot find a marker at all — markers live only in
+comments. And it has **no regex-literal case**: its own header says regex literals "degrade to
+punctuation and identifier runs — bounded imprecision, never a crash", which is true and harmless for
+comparing token streams and fatal for counting braces. Measured on this repo today, brace depth over
+`tokenize()` output ends at **+1** for [`src/core/ui-predicate.ts`](../../../src/core/ui-predicate.ts)
+(the `{` in `/[*?[{]/`) and **−1** for
+[`src/invariants/public-api-tsdoc.ts`](../../../src/invariants/public-api-tsdoc.ts), so every marker
+scope in those files — and in any file with an unbalanced brace inside a regex — would be wrong.
+
+One pass, two outputs, is also what makes discovery **comment-aware**: a marker is recognised only
+inside a comment run, so the literal `noldor:cut` appearing in a string or template — a real risk in
+this repo, whose own test fixtures and prompt strings contain it — is not a marker. A raw-text line
+regex could not make that distinction.
+
+The scanner still reads `noldor:cut` from `CUT_MARKER` rather than restating it, so the constant
+remains the single spelling.
+
+`tokenize()`'s regex gap is a real defect for clone detection too, but fixing it there changes an
+existing feature's token stream. That is filed as separate work, not folded in here.
 
 Two fallbacks pin the module-scope case, which is the common JSDoc shape (` * noldor:cut …` above a
 declaration, as at `repo-paths.ts:164`). When no brace block encloses the marker, the scope is the next
@@ -188,12 +201,29 @@ A pure module beside the ledger in c39, shaped after
 [`src/core/split-suggestion.ts`](../../../src/core/split-suggestion.ts): exported threshold constants,
 a `{ rule, value, threshold, message }` signal record, one function per rule, no I/O, no clock.
 
-- **R1 — repeat.** This round's blocker fingerprint matches a prior round's in the ledger. Reads
-  `AutofixRound.fingerprint`, which already exists and is already written every round.
+**Blocker identity comes first — R1 is not decidable without it.** `AutofixRound.fingerprint` is a
+digest of the whole blocker *set* (`fingerprintBlockers`), so set equality cannot name which blocker
+survived, and a single survivor beside an otherwise-changed set produces a different digest and no
+signal at all. This feature therefore adds one pure function beside it, `fingerprintBlocker(b)` —
+`sha1(severity|file|message)` for a **single** finding, the same tuple and the same `line`-excluding
+reasoning as the set digest. That per-blocker id is what R1 compares, what a signal points at, and what
+a disposition in the arbitration record keys on. `fingerprintBlockers` itself is untouched and the
+no-progress stop keeps using it.
+
+- **R1 — repeat.** A blocker whose `fingerprintBlocker` id appears in a prior round's recorded id list.
+  This needs the ledger to carry those ids, so `AutofixRound` gains an optional `blockerIds` array
+  beside `signals` — the set digest alone was never enough.
 - **R2 — cut-site.** A blocker's location falls inside a documented cut marker's scope (U2). This is
   the signal that would have caught the Q-0146 case the parent FD names: codex re-flagged documented
   cut sites five times in one review.
-- **R3 — contradiction.** A blocker is located on a line that a prior round's fix introduced.
+- **R3 — contradiction.** A blocker is located on a line introduced since the round series began.
+  **Coordinates are resolved cumulatively**, from the *first* round's `headSha` to the current `HEAD`,
+  never from a single prior round's `diffRange`: a per-round range is expressed in that fix's
+  coordinates, and every later fix shifts them, so from round 3 on a per-round range both misses and
+  misfires. One cumulative range keeps every introduced line in current coordinates, which is the same
+  coordinate space a finding's location is in. Only added lines count; a file renamed inside the range
+  is followed by git's own rename detection, and a location in a file deleted inside the range resolves
+  to nothing.
 
 Signals never suppress a finding, never edit a sink, and never move an aggregate exit code — the same
 contract `split-suggestion.ts` holds and the same posture the roadmap entry demanded.
@@ -238,10 +268,25 @@ holds at that moment is only the **ledger**: the refusal returns at
 skeleton's unresolved blockers therefore come from **re-reading the pair's current lane sinks**, which
 are still on disk precisely because a refused run writes none. Round history and per-round signals come
 from the ledger; `dispositions` is left empty for the operator. The
-**pre-push hook enforces**, beside the existing `enforce-review-receipt` job: a bare free-text
-`Noldor-Path-Override` is refused when the ledger shows red rounds for the pair and no filled record
-matches the tree. Orchestrate cannot enforce — it is not on the path to `main`, so an operator who
-simply never re-runs it would push a bare override unimpeded.
+**pre-push hook enforces**, beside the existing `enforce-review-receipt` job. Orchestrate cannot
+enforce — it is not on the path to `main`, so an operator who simply never re-runs it would push a bare
+override unimpeded.
+
+**The guard's predicate is "cap reached", not "any red round".** A loop that went red and then
+converged green has red rounds in its ledger but never triggered a cap refusal, so no skeleton was ever
+written — and refusing there would trap an operator pushing a bare override for an unrelated reason
+(verify-lane infra red, the Q-0185 case) with no record to fill and no way through. The guard fires
+only when all three hold: the ledger's red-round count has reached the cap, its last round is red, and
+no review receipt matches `HEAD^{tree}`.
+
+**The guard resolves the pair from the tip commit, and reads the ledger session-agnostically.** The
+existing receipt hook works from `HEAD^{tree}` alone and knows no slug, while a ledger is keyed by
+`<slug>-<kind>`. The guard therefore reads the pushed tip's `Noldor-FD` trailer for the slug and checks
+the `code` ledger — the only kind that can gate a push. It must *not* go through `readLedger`, which
+returns `null` for a different `sessionStartedAt`: a push legitimately happens in a later session than
+the rounds it is arbitrating, and session-scoped reading would make the guard fail open on every
+session rotation while claiming to be loud. A tip with no `Noldor-FD` trailer (fast-track, micro-chore)
+has no pair to resolve and is not guarded.
 
 **The trailer vocabulary does not change.** The record is named by a structured value *inside* the
 existing `Noldor-Path-Override`, because
@@ -259,34 +304,74 @@ refuse every honest override from a session that never ran orchestrate at all (m
 fast-track, a doc fix), which is most overrides in this repo. This deliberately matches Q-0170's
 existing behaviour rather than silently widening it; the printed line is what keeps the hole visible.
 
+### What the plan owns, not this spec
+
+The spec-stage review asked for a full implementation contract. Some of that belongs here and has
+landed above — blocker identity, R3's coordinate model, comment-aware discovery, the guard's predicate
+and key. The rest is contract detail whose right home is the plan, where it gets its own mandatory CR
+pass, and it is enumerated here so the plan cannot quietly skip it:
+
+- The record's Zod schema — version field, round representation, how a signal references a blocker,
+  the disposition vocabulary, and what happens on a duplicate, unknown, or missing disposition.
+- The record's binding lifecycle end to end: which tree is bound and when it is selected, the hash
+  algorithm and canonical serialization, which fields are excluded from the digest so that filling in
+  dispositions does not invalidate the record's own binding, whether the record is tracked by git, and
+  the exact verification algorithm.
+- The `Noldor-Path-Override: cr-arbitration <sha> — <why>` grammar: what the sha is taken over, how the
+  operator obtains it, and whether the guard re-derives it from the file on disk so a post-commit edit
+  is caught.
+- `extractLocations(message, changedFiles)`: the exact accepted syntax (extension-agnostic path segment
+  + `:NN`, optional range to `endLine`), normalization, ordering, deduplication, and the behaviour for
+  every ambiguous or invalid match.
+- The signal type as a discriminated union carrying rule-specific evidence, with cardinality,
+  deduplication and deterministic ordering — so the record never requires parsing a human sentence.
+- Which severities count as "unresolved" in the skeleton, how duplicates across lanes are collapsed,
+  and what orchestrate does when an expected sink cannot be read.
+- Failure behaviour for advisory data collection: a file read, a lexical pass, or a git range can fail
+  even though the detector itself cannot. The rule is that a failed input **omits its rule and says
+  so** in the round's signal record — never a silent omission, never a failed round.
+- Whether re-running orchestrate at the cap may overwrite a skeleton the operator has already filled.
+  The intended rule is write-only-when-absent-or-when-the-bound-tree-differs; the plan pins it.
+
 ## Acceptance criteria
 
 1. Every `LaneFindings` sink and every `AutofixLedger` written before this change parses unchanged, and
-   yields no `locations` and no `signals`.
+   yields no `locations`, no `signals` and no `blockerIds`.
 2. A reviewer bullet naming a file and line yields a `Finding` whose `locations` names it; a bullet
-   naming none yields no `locations` key; a bare basename that does not resolve unambiguously against
-   the round's changed files yields no location rather than a guess.
-3. `fingerprintBlockers` returns the same digest for the same blocker set as it does today.
+   naming none yields no `locations` key. A mention that does not match the round's changed-file set
+   yields no location — including an absolute path, a `../` traversal, and an ambiguous bare basename.
+3. `fingerprintBlockers` returns the same digest for the same blocker set as it does today, and
+   `fingerprintBlocker` distinguishes two findings that differ only in severity, file, or message.
 4. The scanner reads both the line-comment and the JSDoc-comment marker forms from real `src/**` files,
    and does not match `noldor:cut-section` or `noldor:cutlery`.
-5. A `{` inside a string, template literal or comment does not change a marker's resolved scope.
-6. A marker with no enclosing brace block scopes to the next block that opens after it; with no such
+5. A `noldor:cut` occurrence inside a string or template literal is **not** discovered as a marker.
+6. A `{` inside a string, template literal, comment, or **regex literal** does not change a resolved
+   scope: `src/core/ui-predicate.ts` and `src/invariants/public-api-tsdoc.ts` — both of which
+   `tokenize()` leaves brace-unbalanced today — scope correctly.
+7. A marker with no enclosing brace block scopes to the next block that opens after it; with no such
    block either, to its comment block plus the following non-blank line. Neither ever reaches EOF.
-7. Renaming `CUT_MARKER` in `structural-context-contract.ts` fails the suite rather than silently
+8. Renaming `CUT_MARKER` in `structural-context-contract.ts` fails the suite rather than silently
    splitting the grammar between the scanner and the prose contract.
-8. R1 fires when a blocker fingerprint repeats across rounds; R2 fires for a blocker located inside a
-   marker's scope and not for one outside it; R3 fires for a blocker on a line a prior round's fix
-   introduced. Each is decidable from literals, with no fixture repo.
-9. A round carrying any signal exits with the same code, and writes the same lane sinks, as the
-   identical round carrying none.
-10. Signals computed in a round are readable from the ledger after that round's lane sinks have been
-    overwritten.
-11. `aggregate` does not collect the arbitration record as a lane sink, and files no
+9. R1 fires when a *single* blocker's id reappears in a later round even though the surrounding set
+   changed; R2 fires for a blocker inside a marker's scope and not for one outside it; R3 fires for a
+   blocker on a line added since the series' first round, in current coordinates. Each is decidable
+   from literals, with no fixture repo.
+10. A round carrying any signal exits with the same code, and writes the same lane sinks, as the
+    identical round carrying none. A rule whose input could not be collected is reported as omitted
+    rather than silently dropped.
+11. Signals and blocker ids computed in a round are readable from the ledger after that round's lane
+    sinks have been overwritten.
+12. `aggregate` does not collect the arbitration record as a lane sink, and files no
     `non-conforming filename` blocker because of it.
-12. A bare free-text `Noldor-Path-Override` is refused at pre-push when the ledger shows red rounds for
-    the pair and no filled record matches the tree; the same push is allowed, with a printed
-    could-not-verify line, when no ledger exists.
-13. An arbitration record whose bound tree no longer matches is reported as stale rather than honored.
+13. At pre-push, a bare free-text `Noldor-Path-Override` is refused only when the cap is reached, the
+    last round is red, and no receipt matches `HEAD^{tree}` — a ledger with red rounds that converged
+    green is not refused, and a tip with no `Noldor-FD` trailer is not guarded.
+14. A valid filled record plus a correctly structured trailer permits the push. A malformed record,
+    partial dispositions, a wrong slug/kind, a record whose bound tree no longer matches, or an altered
+    blocker set does not.
+15. The guard resolves its ledger without session scoping: rounds recorded in one session still gate a
+    push made in a later one. With no ledger at all the push proceeds and prints a could-not-verify
+    line.
 
 ## Risks / trade-offs
 
@@ -303,9 +388,15 @@ existing behaviour rather than silently widening it; the printed line is what ke
   split signal at promote was accepted rather than carved — and it means a plan that parallelises them
   is wrong.
 - **Additive schema, permanent surface.** `locations` alongside `file` and `line` is three ways to say
-  where a finding is, and `signals` widens a ledger schema Q-0170 shipped a day ago. Additive is the
-  only safe direction given seven importers of `findings-schema.ts` across five communities, but the
-  redundancy is real and should carry a `noldor:cut` naming the consolidation being declined.
+  where a finding is, and `signals` + `blockerIds` widen a ledger schema Q-0170 shipped a day ago.
+  Additive is the only safe direction given seven importers of `findings-schema.ts` across five
+  communities, but the redundancy is real and should carry a `noldor:cut` naming the consolidation
+  being declined.
+- **A second lexical scanner in the repo.** This module owns a comment/string/template/regex pass while
+  `src/clones/tokenize.ts` owns another, and they will drift. The alternative — teaching `tokenize()`
+  regex literals and comment retention — changes the token stream clone detection already depends on,
+  which is a behaviour change to a shipped feature and not this feature's risk to take. `tokenize()`'s
+  regex gap is a genuine defect for clone detection; it is filed separately rather than fixed here.
 - **The guard's fail-open leaves a known hole.** Deleting `.noldor/cr/autofix/<slug>-<kind>.json` still
   resets the cap, and now also disarms the override guard. This spec does not close that — it declines
   to widen it, and makes it audible. Closing it needs the ledger to live somewhere an operator cannot
@@ -367,15 +458,16 @@ pair. With no ledger at all the push proceeds and pre-push prints that it could 
    and mints no new bullet grammar; the prompt nudge raises the rate rather than creating the
    capability. A finding with no location produces no R2/R3 signal — silence, never a guess.
 
-3. *What is a `noldor:cut` marker's scope?*
-   -> **The marker line through the end of its enclosing brace block, resolved by brace-matching over
-   `tokenize()`.** (D3, ratified) `src/clones/tokenize.ts` is already pure, no-fs, skips comments and
-   collapses string/template literals, and carries 1-based `line`/`endLine` per token — so brace
-   matching cannot be fooled by a brace in a string, needs no parser and no new dependency, and reaches
-   the function body where re-flags land. Rejected: comment-block-plus-next-line (parse-free but silent
-   on any finding more than a line past the marker, which is most real re-flags) and `@swc/core`
-   `parseSync` (accurate, and already a production dependency, but it mints a new parsing surface in
-   noldor code and a slower scan for no extra signal here).
+3. *What is a `noldor:cut` marker's scope, and what resolves it?*
+   -> **The marker line through the end of its enclosing brace block, resolved by the scanner's own
+   lexical pass.** (D3, revised at CR round 1) The original answer reused `tokenize()`; the review
+   falsified it on two counts and the measurement confirmed both. `tokenize()` discards comments, so it
+   cannot find a marker at all, and it has no regex-literal case — brace depth over its output ends at
+   +1 for `src/core/ui-predicate.ts` and −1 for `src/invariants/public-api-tsdoc.ts` today. One
+   purpose-built pass that classifies code / line comment / block comment / string / template / regex
+   gives comment-aware discovery and correct brace depth together. Still rejected:
+   comment-block-plus-next-line (silent on most real re-flags) and `@swc/core` `parseSync` (accurate,
+   already a production dependency, but a new parsing surface and a slower scan for no extra signal).
 
 4. *Does the detector run every round, or only at the cap?*
    -> **Every round.** (D4) R1 needs the history it accumulates anyway, the module is pure and cheap,
@@ -407,7 +499,28 @@ pair. With no ledger at all the push proceeds and pre-push prints that it could 
    scan over every past round, and recovers nothing for a round whose archived sink is gone.
 
 9. *Who fetches the data the detector reasons over?*
-   -> **The caller, always.** (D9, ratified) Orchestrate resolves R3's changed-line set from
-   `fixHeadSha` / `diffRange` and U2's marker scopes, and passes both in. This is what makes every rule
-   testable from literals with no fixture repo, exactly as `split-suggestion.ts` is — and it keeps I/O
-   failure handling out of a module whose whole contract is that it cannot fail.
+   -> **The caller, always.** (D9, ratified) Orchestrate resolves R3's cumulative changed-line set and
+   U2's marker scopes, and passes both in. This is what makes every rule testable from literals with no
+   fixture repo, exactly as `split-suggestion.ts` is — and it keeps I/O failure handling out of a module
+   whose whole contract is that it cannot fail.
+
+10. *R1 says "a blocker repeated", but the ledger stores a whole-set digest. Which is it?*
+    -> **Per-blocker identity, added.** (D10, CR round 1) `fingerprintBlockers` stays as the set digest
+    the no-progress stop needs, and a sibling `fingerprintBlocker(b)` gives each finding a stable id
+    over the same `severity|file|message` tuple. `AutofixRound` carries the round's ids alongside its
+    signals. Set equality alone could never name a survivor, and would miss one entirely whenever the
+    surrounding set changed.
+
+11. *Which range does R3 measure "introduced" against?*
+    -> **Cumulatively, from the series' first round's `headSha` to current `HEAD`.** (D11, CR round 1)
+    A single prior round's `diffRange` is in that fix's coordinates and every later fix shifts them, so
+    from round 3 on a per-round range both misses and misfires. One cumulative range keeps introduced
+    lines in the same coordinate space as the finding's location.
+
+12. *When exactly does the pre-push guard fire, and how does it find the ledger?*
+    -> **Cap reached + last round red + no receipt for `HEAD^{tree}`; pair resolved from the tip's
+    `Noldor-FD` trailer, ledger read session-agnostically.** (D12, CR round 1) "Any red round" would
+    trap an operator whose loop converged green, or who is overriding for an unrelated reason. And
+    `readLedger`'s session scoping would make the guard fail open on every session rotation while
+    claiming to be loud — a push legitimately happens later than the rounds it arbitrates.
+
