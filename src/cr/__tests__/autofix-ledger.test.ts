@@ -10,6 +10,7 @@ import {
   NoRoundForHeadError,
   annotateRound,
   appendRound,
+  fingerprintBlocker,
   fingerprintBlockers,
   isSameSeries,
   ledgerDir,
@@ -387,5 +388,36 @@ describe('round identity when a head repeats', () => {
     const led = await readLedger(cwd, 'slug', 'spec', SESSION);
     expect(redRounds(led!.rounds)).toBe(1);
     expect(redRounds([])).toBe(0);
+  });
+});
+
+describe('fingerprintBlocker', () => {
+  const mk = (over: Partial<Finding> = {}): Finding => ({
+    severity: 'high',
+    file: 'a.md',
+    message: 'boom',
+    ...over,
+  });
+
+  it('is stable for the same finding', () => {
+    expect(fingerprintBlocker(mk())).toBe(fingerprintBlocker(mk()));
+  });
+
+  it('distinguishes severity, file and message', () => {
+    expect(fingerprintBlocker(mk())).not.toBe(fingerprintBlocker(mk({ severity: 'med' })));
+    expect(fingerprintBlocker(mk())).not.toBe(fingerprintBlocker(mk({ file: 'b.md' })));
+    expect(fingerprintBlocker(mk())).not.toBe(fingerprintBlocker(mk({ message: 'bang' })));
+  });
+
+  it('ignores line, matching the set-level digest', () => {
+    expect(fingerprintBlocker(mk())).toBe(fingerprintBlocker(mk({ line: 42 })));
+  });
+
+  // A plain `severity|file|message` join lets a `|` inside one field masquerade
+  // as the delimiter, so two different findings encode identically.
+  it('is unambiguous when a field contains the join character', () => {
+    const a = mk({ file: 'a|b.md', message: 'c' });
+    const b = mk({ file: 'a', message: 'b.md|c' });
+    expect(fingerprintBlocker(a)).not.toBe(fingerprintBlocker(b));
   });
 });

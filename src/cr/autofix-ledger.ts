@@ -281,6 +281,30 @@ export function roundsExcludingHead(
 }
 
 /**
+ * Stable id for a SINGLE blocker — what R1 compares, what a signal points at,
+ * and what an arbitration disposition keys on.
+ *
+ * Length-prefixed rather than `|`-joined: a message may itself contain `|`, so
+ * a plain join lets two different findings encode identically. (The set-level
+ * {@link fingerprintBlockers} below has the same latent ambiguity and is left
+ * alone deliberately — changing it would invalidate every digest already
+ * written to a ledger.)
+ *
+ * `line` is excluded for the same reason it is excluded there: an unrelated
+ * edit elsewhere in the file shifts it, and an unfixed blocker must not
+ * fingerprint as progress.
+ *
+ * The id identifies a LOGICAL finding, so the same blocker filed by two lanes
+ * shares one. That is intended: the operator arbitrates the finding once, not
+ * once per lane.
+ */
+export function fingerprintBlocker(b: Finding): string {
+  const parts = [b.severity, b.file, b.message];
+  const encoded = parts.map((p) => `${p.length}:${p}`).join('');
+  return createHash('sha1').update(encoded).digest('hex');
+}
+
+/**
  * Stable fingerprint of a blocker set, used for the no-progress stop.
  *
  * Sorted before hashing so lane ordering cannot change the value. `line` is
