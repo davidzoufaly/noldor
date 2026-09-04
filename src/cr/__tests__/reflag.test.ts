@@ -1,7 +1,7 @@
 // @tests: specs-cr-gate-multi-reviewer
 import { describe, expect, it } from 'vitest';
 
-import { ruleR1 } from '../reflag.js';
+import { ruleR1, ruleR3 } from '../reflag.js';
 
 const blocker = (id: string) => ({ id, severity: 'high' as const, message: 'boom' });
 
@@ -33,5 +33,35 @@ describe('ruleR1', () => {
     const r = ruleR1([blocker('x')], undefined);
     expect(r.outcome).toBe('omitted');
     if (r.outcome === 'omitted') expect(r.reason).toMatch(/no recorded blocker ids/i);
+  });
+});
+
+describe('ruleR3', () => {
+  const b = {
+    id: 'a',
+    severity: 'high' as const,
+    message: 'wrong',
+    locations: [{ file: 'src/x.ts', line: 12 }],
+  };
+
+  it('fires for a location on an introduced line', () => {
+    const r = ruleR3([b], new Map([['src/x.ts', new Set([11, 12, 13])]]));
+    expect(r.outcome).toBe('fired');
+    if (r.outcome === 'fired') expect(r.signals[0]!.message).toContain('src/x.ts:12');
+  });
+
+  it('is clear for a location on an untouched line', () => {
+    expect(ruleR3([b], new Map([['src/x.ts', new Set([40])]])).outcome).toBe('clear');
+  });
+
+  it('is clear for a file the range never touched', () => {
+    expect(ruleR3([b], new Map()).outcome).toBe('clear');
+  });
+
+  // The caller withholds the map when the range is not a fast-forward.
+  it('is omitted when the introduced-line map is unavailable', () => {
+    const r = ruleR3([b], undefined);
+    expect(r.outcome).toBe('omitted');
+    if (r.outcome === 'omitted') expect(r.reason).toMatch(/fast-forward|unavailable/i);
   });
 });

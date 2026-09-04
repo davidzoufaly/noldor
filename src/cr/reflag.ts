@@ -74,3 +74,43 @@ export function ruleR1(
       })),
   );
 }
+
+/**
+ * R3 — contradiction. A blocker located on a line the series introduced.
+ *
+ * `introducedByFile` is measured CUMULATIVELY by the caller, from the series'
+ * first round's `headSha` to current `HEAD`. A single prior round's range is
+ * expressed in that fix's coordinates and every later fix shifts them, so from
+ * round 3 on a per-round range both misses and misfires; one cumulative range
+ * keeps introduced lines in the same coordinate space as a finding's location.
+ *
+ * `undefined` means the caller could not produce a trustworthy range — most
+ * often because the series is not a fast-forward (a rebase onto a moved
+ * `origin/main` puts every upstream-added line inside it). That is `omitted`,
+ * never `clear`.
+ */
+export function ruleR3(
+  blockers: readonly RuleBlocker[],
+  introducedByFile: ReadonlyMap<string, ReadonlySet<number>> | undefined,
+): RuleResult {
+  if (introducedByFile === undefined)
+    return {
+      outcome: 'omitted',
+      reason: 'introduced-line range unavailable — the series is not a fast-forward',
+    };
+  const signals: ReflagSignal[] = [];
+  for (const b of blockers) {
+    for (const loc of b.locations ?? []) {
+      if (loc.line === undefined) continue;
+      if (introducedByFile.get(loc.file)?.has(loc.line)) {
+        signals.push({
+          rule: 'R3',
+          blockerId: b.id,
+          message: `blocker at ${loc.file}:${loc.line} is about a line this series introduced`,
+        });
+        break;
+      }
+    }
+  }
+  return fired(signals);
+}
