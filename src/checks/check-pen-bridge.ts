@@ -1,5 +1,5 @@
 // @tests: pendev-ui-design-phase
-// Is the pencil bridge wired up? Two questions a stuck UI-design session cannot
+// Is the pencil bridge wired up? Three questions a stuck UI-design session cannot
 // tell apart on its own.
 //
 // Every pencil MCP call fails with "A file needs to be open in the editor" both
@@ -9,6 +9,12 @@
 // talks past a perfectly healthy app forever. That second case reads to an
 // operator as a dead bridge, and the usual response is to waive the design step.
 // This check names it instead.
+//
+// The third question is which harness is asking. A perfectly-configured pencil
+// entry still yields no bridge when the session runs somewhere the server never
+// connects, and that failure looks nothing like the other two — the MCP tools are
+// simply absent, so there is no error message to match on and no config edit that
+// helps. Config alone cannot answer it, so the harness gets its own row.
 //
 // Reporting only: nothing here writes configuration, and no commit or push gate
 // consumes it.
@@ -27,7 +33,35 @@ export const EXPECTED_MCP_APP = 'desktop';
 /** Key of the pencil server under an `mcpServers` object. */
 const PENCIL_SERVER_KEY = 'pencil';
 
+/** Env var Claude Code stamps with the harness running the session. */
+export const ENTRYPOINT_VAR = 'CLAUDE_CODE_ENTRYPOINT';
+
+/** The entrypoint the terminal CLI stamps — the harness the bridge is known to work under. */
+export const WORKING_ENTRYPOINT = 'cli';
+
+/**
+ * Entrypoints observed to leave the pencil MCP server unreachable, mapped to the
+ * name an operator would recognise.
+ *
+ * Observed 2026-09-04 in this repo: under `claude-vscode` the pencil server
+ * reports `CONNECTION_CLOSED` at session start and none of its tools exist for
+ * the rest of the session, while the *same* `~/.claude.json` entry connects from
+ * a terminal `claude`. The mechanism is unknown and deliberately not guessed at
+ * here; only the observation drives the verdict.
+ *
+ * An allowlist would be the wrong shape. This file's standing rule is that an
+ * unfamiliar configuration reads as indeterminate rather than as a finding, so a
+ * harness must be *observed* broken to red — a future `claude-jetbrains` gets a
+ * named indeterminate row, not an invented failure.
+ */
+const BROKEN_ENTRYPOINTS: ReadonlyMap<string, string> = new Map([
+  ['claude-vscode', 'the Claude Code VS Code extension'],
+]);
+
 export type PenBridgeRow =
+  | { kind: 'harness-ok'; entrypoint: string }
+  | { kind: 'harness-unsupported'; entrypoint: string; harness: string }
+  | { kind: 'harness-indeterminate'; reason: string }
   | { kind: 'mcp-app-ok'; source: string }
   | { kind: 'mcp-app-mismatch'; source: string; found: string }
   | { kind: 'mcp-indeterminate'; reason: string }
@@ -41,12 +75,21 @@ export type BundleProbe = (bundleId: string) => 'ok' | 'missing' | 'indeterminat
 /**
  * Injectable seams. The filesystem is deliberately absent: config files are read
  * for real, and tests build real ones, per the repo's mocking-boundaries rule.
- * Only the platform, the home directory and the subprocess probe are faked.
+ * Only the platform, the home directory, the subprocess probe and the process
+ * environment are faked.
+ *
+ * `readEnv` is a reader rather than a plain `entrypoint` string because "unset"
+ * is a distinct, testable state: a bare `entrypoint?: string` dep could not tell
+ * an omitted override from a deliberate absence, so the unset case would fall
+ * through to the real `process.env` and pass or fail depending on which harness
+ * ran the suite — green in a terminal, red under the very extension this row
+ * exists to name.
  */
 export interface PenBridgeCheckDeps {
   readonly platform: string;
   readonly home: string;
   readonly probeBundle: BundleProbe;
+  readonly readEnv: (name: string) => string | undefined;
 }
 
 /**
@@ -195,6 +238,33 @@ function mcpRow(cwd: string, home: string): PenBridgeRow {
 }
 
 /**
+ * The harness row. Reads only {@link ENTRYPOINT_VAR}, which Claude Code sets in
+ * every session and which survives into spawned processes — so this command sees
+ * the harness that would make the MCP call, not the shell it happens to run in.
+ *
+ * An absent variable means nobody claimed a harness (a plain terminal, another
+ * agent runner, CI). That is not evidence of a working bridge, so it reports
+ * indeterminate rather than ok.
+ */
+function harnessRow(readEnv: (name: string) => string | undefined): PenBridgeRow {
+  const entrypoint = readEnv(ENTRYPOINT_VAR);
+  if (entrypoint === undefined || entrypoint.length === 0) {
+    return {
+      kind: 'harness-indeterminate',
+      reason: `${ENTRYPOINT_VAR} is unset — this is not a Claude Code session, so which harness will call pencil MCP is unknown`,
+    };
+  }
+  const harness = BROKEN_ENTRYPOINTS.get(entrypoint);
+  if (harness !== undefined) return { kind: 'harness-unsupported', entrypoint, harness };
+  return entrypoint === WORKING_ENTRYPOINT
+    ? { kind: 'harness-ok', entrypoint }
+    : {
+        kind: 'harness-indeterminate',
+        reason: `${ENTRYPOINT_VAR} is '${entrypoint}', which has never been checked against pencil MCP`,
+      };
+}
+
+/**
  * Does an application claim {@link PENCIL_BUNDLE_ID}?
  *
  * Spotlight, not `open -b`. `open` is the launcher's mechanism and it would
@@ -226,6 +296,7 @@ export function checkPenBridge(
 
   const home = deps.home ?? homedir();
   const probe = deps.probeBundle ?? probeBundleViaSpotlight;
+  const readEnv = deps.readEnv ?? ((name: string): string | undefined => process.env[name]);
   const app = probe(PENCIL_BUNDLE_ID);
   const appRow: PenBridgeRow =
     app === 'ok'
@@ -233,7 +304,10 @@ export function checkPenBridge(
       : app === 'missing'
         ? { kind: 'app-missing' }
         : { kind: 'app-indeterminate', reason: 'could not ask Spotlight for the pencil bundle' };
-  return [mcpRow(cwd, home), appRow];
+  // Harness first: it decides whether the other two rows can matter at all. A
+  // correct pin and an installed app describe a bridge that still will not carry
+  // a call from a harness the server never reaches.
+  return [harnessRow(readEnv), mcpRow(cwd, home), appRow];
 }
 
 /**
@@ -245,12 +319,15 @@ export function checkPenBridge(
  */
 export function penBridgeRowLevel(row: PenBridgeRow): 'finding' | 'healthy' | 'undetermined' {
   switch (row.kind) {
+    case 'harness-unsupported':
     case 'mcp-app-mismatch':
     case 'app-missing':
       return 'finding';
+    case 'harness-ok':
     case 'mcp-app-ok':
     case 'app-ok':
       return 'healthy';
+    case 'harness-indeterminate':
     case 'mcp-indeterminate':
     case 'app-indeterminate':
     case 'not-applicable':
@@ -271,6 +348,15 @@ export function penBridgeExitCode(rows: readonly PenBridgeRow[]): number {
 /** Operator-facing line per row, including the remedy where there is one. */
 export function renderPenBridgeRow(row: PenBridgeRow): string {
   switch (row.kind) {
+    case 'harness-ok':
+      return `pen-bridge: running under terminal Claude Code (${ENTRYPOINT_VAR}=${row.entrypoint}) — the harness pencil MCP connects from`;
+    case 'harness-unsupported':
+      return (
+        `pen-bridge: running under ${row.harness} (${ENTRYPOINT_VAR}=${row.entrypoint}), where the pencil MCP server does not connect\n` +
+        `  → no configuration change fixes this — do the \`.pen\` work from terminal Claude Code, or hand the UI-design step to the operator`
+      );
+    case 'harness-indeterminate':
+      return `pen-bridge: could not determine whether this harness reaches pencil MCP — ${row.reason}`;
     case 'mcp-app-ok':
       return `pen-bridge: pencil MCP is pinned to '${EXPECTED_MCP_APP}' — ${row.source}`;
     case 'mcp-app-mismatch':

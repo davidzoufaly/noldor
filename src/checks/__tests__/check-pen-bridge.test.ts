@@ -6,9 +6,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  ENTRYPOINT_VAR,
   EXPECTED_MCP_APP,
+  WORKING_ENTRYPOINT,
   checkPenBridge,
   penBridgeExitCode,
+  renderPenBridgeRow,
   type PenBridgeRow,
 } from '../check-pen-bridge.js';
 
@@ -68,12 +71,43 @@ function fixture(opts: {
   return { cwd, home };
 }
 
-/** Rows for a fixture, with the app probe pinned so only MCP rows vary. */
+/**
+ * An environment holding exactly the given entrypoint. `undefined` models the
+ * variable being unset, which is a distinct case from "the suite happened to run
+ * under some harness" — the real `process.env` is never consulted here.
+ */
+function env(entrypoint: string | undefined): (name: string) => string | undefined {
+  return (name) => (name === ENTRYPOINT_VAR ? entrypoint : undefined);
+}
+
+/**
+ * Rows for a fixture, with the app probe and the harness pinned so only MCP rows
+ * vary. The default entrypoint is the terminal CLI: the harness row must not
+ * colour the MCP and app cases below.
+ */
 function rows(
   f: { cwd: string; home: string },
   probe: 'ok' | 'missing' | 'indeterminate' = 'ok',
 ): readonly PenBridgeRow[] {
-  return checkPenBridge(f.cwd, { platform: 'darwin', home: f.home, probeBundle: () => probe });
+  return checkPenBridge(f.cwd, {
+    platform: 'darwin',
+    home: f.home,
+    probeBundle: () => probe,
+    readEnv: env(WORKING_ENTRYPOINT),
+  });
+}
+
+/** The single harness row from a run under `entrypoint`. */
+function harnessRow(entrypoint: string | undefined): PenBridgeRow {
+  const f = fixture({ user: pencil(['--app', 'desktop']) });
+  const row = checkPenBridge(f.cwd, {
+    platform: 'darwin',
+    home: f.home,
+    probeBundle: () => 'ok',
+    readEnv: env(entrypoint),
+  }).find((r) => r.kind.startsWith('harness-'));
+  if (row === undefined) throw new Error('no harness row');
+  return row;
 }
 
 /** The single MCP row from a run. */
@@ -204,6 +238,72 @@ describe('checkPenBridge — indeterminate never becomes a finding', () => {
   });
 });
 
+describe('checkPenBridge — the harness row', () => {
+  // The whole point: a machine whose config and app are both perfect still has no
+  // bridge under the VS Code extension, and nothing in the config could say so.
+  it('reds on the VS Code extension even with a perfect pin and an installed app', () => {
+    const f = fixture({ user: pencil(['--app', 'desktop']) });
+    const found = checkPenBridge(f.cwd, {
+      platform: 'darwin',
+      home: f.home,
+      probeBundle: () => 'ok',
+      readEnv: env('claude-vscode'),
+    });
+    expect(found).toContainEqual({ kind: 'mcp-app-ok', source: 'user (~/.claude.json)' });
+    expect(found).toContainEqual({ kind: 'app-ok' });
+    expect(found).toContainEqual({
+      kind: 'harness-unsupported',
+      entrypoint: 'claude-vscode',
+      harness: 'the Claude Code VS Code extension',
+    });
+    expect(penBridgeExitCode(found)).toBe(1);
+  });
+
+  it('reports the terminal CLI as ok', () => {
+    expect(harnessRow(WORKING_ENTRYPOINT)).toEqual({
+      kind: 'harness-ok',
+      entrypoint: WORKING_ENTRYPOINT,
+    });
+  });
+
+  // Same stance the MCP rows take: an unfamiliar value earns a named
+  // indeterminate, never an invented finding.
+  it.each([
+    ['an unset variable', undefined],
+    ['an empty variable', ''],
+    ['a harness nobody has measured', 'claude-jetbrains'],
+    ['the SDK', 'sdk-ts'],
+  ])('reports %s as indeterminate with a reason', (_label, entrypoint) => {
+    const row = harnessRow(entrypoint);
+    expect(row.kind).toBe('harness-indeterminate');
+    expect(row).toMatchObject({ reason: expect.stringMatching(/\S/) as unknown as string });
+  });
+
+  it('leads with the harness, because it decides whether the other rows matter', () => {
+    const f = fixture({ user: pencil(['--app', 'desktop']) });
+    const [first] = checkPenBridge(f.cwd, {
+      platform: 'darwin',
+      home: f.home,
+      probeBundle: () => 'ok',
+      readEnv: env('claude-vscode'),
+    });
+    expect(first?.kind).toBe('harness-unsupported');
+  });
+
+  // The remedy is the whole value of the row: an operator who reads "mismatch"
+  // goes and edits config, which cannot help here.
+  it('names the terminal as the remedy rather than a config edit', () => {
+    const rendered = renderPenBridgeRow({
+      kind: 'harness-unsupported',
+      entrypoint: 'claude-vscode',
+      harness: 'the Claude Code VS Code extension',
+    });
+    expect(rendered).toContain('the Claude Code VS Code extension');
+    expect(rendered).toContain('terminal Claude Code');
+    expect(rendered).toContain('no configuration change fixes this');
+  });
+});
+
 describe('checkPenBridge — the app row', () => {
   it.each([
     ['ok', 'app-ok'],
@@ -236,14 +336,30 @@ describe('checkPenBridge — platform gating', () => {
 });
 
 describe('penBridgeExitCode', () => {
-  it('reds only on a mismatch or a missing app', () => {
+  it('reds on a mismatch, a missing app or an unsupported harness', () => {
     expect(penBridgeExitCode([{ kind: 'mcp-app-mismatch', source: 's', found: 'x' }])).toBe(1);
     expect(penBridgeExitCode([{ kind: 'app-missing' }])).toBe(1);
+    expect(
+      penBridgeExitCode([{ kind: 'harness-unsupported', entrypoint: 'e', harness: 'h' }]),
+    ).toBe(1);
   });
 
   it.each([
-    ['a clean machine', [{ kind: 'mcp-app-ok', source: 's' }, { kind: 'app-ok' }]],
-    ['indeterminate rows', [{ kind: 'mcp-indeterminate', reason: 'r' }]],
+    [
+      'a clean machine',
+      [
+        { kind: 'harness-ok', entrypoint: 'cli' },
+        { kind: 'mcp-app-ok', source: 's' },
+        { kind: 'app-ok' },
+      ],
+    ],
+    [
+      'indeterminate rows',
+      [
+        { kind: 'harness-indeterminate', reason: 'r' },
+        { kind: 'mcp-indeterminate', reason: 'r' },
+      ],
+    ],
     ['an unsupported platform', [{ kind: 'not-applicable', platform: 'linux' }]],
   ] as [string, PenBridgeRow[]][])('stays green on %s', (_label, given) => {
     expect(penBridgeExitCode(given)).toBe(0);
