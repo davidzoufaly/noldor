@@ -281,5 +281,10 @@
   "Q-0170": {
     "slug": "cr-re-round-cap-enforcement-and-oscillation-detector",
     "retiredAt": "2026-09-03"
+  },
+  "Q-0209": {
+    "slug": "cr-oscillation-detector-and-arbitration-receipt",
+    "retiredInto": "cr-re-round-cap-enforcement-and-oscillation-detector",
+    "retiredAt": "2026-09-04"
   }
 }
