@@ -24,8 +24,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { runIfDirect } from '../core/cli-entry.js';
+import { PENCIL_EXTENSION_ID } from '../core/design-artifact-names.js';
 import { listVsCodeExtensions } from '../design/editor-launch.js';
-import { PENCIL_EXTENSION_ID } from '../design/pen-bridge.js';
 
 /**
  * The `--app` value the launcher needs, because it opens that editor and no

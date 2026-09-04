@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { PENCIL_VIEW_TYPE } from '../../design/pen-bridge.js';
+import { PENCIL_VIEW_TYPE } from '../design-artifact-names.js';
 import {
   EDITOR_ASSOCIATIONS_KEY,
   PEN_GLOB,

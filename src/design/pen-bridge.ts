@@ -12,38 +12,17 @@
 // render-compare export spike (2026-08-21) and lived only in that spec plus one
 // lane prompt string; the recipe below is the shared source.
 
-import { UI_BASELINE_DIR } from '../core/design-artifact-names.js';
+import {
+  PENCIL_EXTENSION_ID,
+  PENCIL_VIEW_TYPE,
+  UI_BASELINE_DIR,
+} from '../core/design-artifact-names.js';
 
-/**
- * The VS Code extension that edits `.pen`, as the id `code --list-extensions`
- * prints and `code --install-extension` accepts.
- *
- * `.pen` is back in VS Code. It briefly moved to the pen.dev desktop app
- * (`dev.pencil.desktop`) on the belief that a bug in this extension was what
- * kept pencil MCP from answering. That belief was wrong: the culprit was the
- * **Claude Code** VS Code extension, under which the pencil MCP server does not
- * connect at all — see the harness row in `checks pen-bridge`, and note that no
- * `.pen` editor can fix it, because the failure is upstream of every editor. So
- * the move bought nothing and cost the editor the operator actually works in.
- *
- * The desktop app is gone from this path entirely rather than kept as a
- * fallback: two editors mean two sockets
- * (`~/.pencil/socket/pencil-<app>.sock`), and a session whose file is open in
- * one while the MCP server is pinned to the other sees a permanently dead
- * bridge with no error that names the cause.
- */
-export const PENCIL_EXTENSION_ID = 'highagency.pencildev';
-
-/**
- * The custom-editor `viewType` the extension registers for `*.pen`, and the
- * value a `workbench.editorAssociations` entry must carry.
- *
- * Naming it matters because the fallback is silent and wrong: a `.pen` is plain
- * UTF-8 JSON, so with no association VS Code renders it happily in the text
- * editor — no binary warning, no custom editor, just the document's internals on
- * screen. `noldor init` seeds the association for this reason.
- */
-export const PENCIL_VIEW_TYPE = 'pencil.designEditor';
+// Re-exported so `.pen` callers reach the editor's identity through the module
+// that owns the bridge, while the constants themselves stay in the core leaf —
+// `noldor init` needs the view type and must not pull `src/design` into its
+// import closure to get it.
+export { PENCIL_EXTENSION_ID, PENCIL_VIEW_TYPE };
 
 /** The MCP error that means the bridge is down rather than the file is bad. */
 export const BRIDGE_DOWN_MESSAGE = 'A file needs to be open in the editor';

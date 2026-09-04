@@ -18,9 +18,8 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { PENCIL_VIEW_TYPE } from '../design/pen-bridge.js';
-
 import { atomicWriteFileSync } from './atomic-write.js';
+import { PENCIL_VIEW_TYPE } from './design-artifact-names.js';
 
 /** The consumer-relative settings file, as it appears in init's summary log. */
 export const VSCODE_SETTINGS_PATH = '.vscode/settings.json';

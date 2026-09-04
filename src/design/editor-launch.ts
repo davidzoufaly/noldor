@@ -95,17 +95,29 @@ function openInBackground(path: string, cwd: string): OpenResult | undefined {
   if (process.platform !== 'darwin') return undefined;
   const app = enclosingAppBundle(cwd);
   if (app === undefined) return undefined;
-  // `spawnSync`, not `execFileSync`: the latter RETURNS stdout, and the signal
-  // that matters here is stderr on a ZERO exit — which `execFileSync` only
-  // surfaces on a throw that never comes.
-  const run = spawnSync('open', ['-g', '-a', app, path], {
-    cwd,
-    encoding: 'utf8',
-    timeout: EDITOR_TIMEOUT_MS,
-  });
-  if (run.error !== undefined || run.status !== 0) return undefined;
+  const run = ranCleanly('open', ['-g', '-a', app, path], cwd);
+  if (run === undefined) return undefined;
   // Exit 0 proves nothing here — see above. Anything on stderr is a failure.
   return (run.stderr ?? '').trim().length === 0 ? { ok: true } : undefined;
+}
+
+/**
+ * A bounded spawn whose non-answers all collapse to `undefined`: a spawn error
+ * (no such binary, an expired {@link EDITOR_TIMEOUT_MS}) or a non-zero exit.
+ * Callers that need more — stderr on a ZERO exit, or stdout — read it off the
+ * returned run.
+ *
+ * `spawnSync`, not `execFileSync`: the latter RETURNS stdout and surfaces stderr
+ * only on a throw, which never comes for the zero-exit-with-stderr case
+ * {@link openInBackground} depends on.
+ */
+function ranCleanly(
+  cmd: string,
+  args: readonly string[],
+  cwd: string,
+): { stdout?: string; stderr?: string } | undefined {
+  const run = spawnSync(cmd, [...args], { cwd, encoding: 'utf8', timeout: EDITOR_TIMEOUT_MS });
+  return run.error === undefined && run.status === 0 ? run : undefined;
 }
 
 /**
@@ -122,12 +134,8 @@ function openInBackground(path: string, cwd: string): OpenResult | undefined {
  * has to keep being true.
  */
 export function listVsCodeExtensions(cwd: string): readonly string[] | undefined {
-  const run = spawnSync('code', ['--list-extensions'], {
-    cwd,
-    encoding: 'utf8',
-    timeout: EDITOR_TIMEOUT_MS,
-  });
-  if (run.error !== undefined || run.status !== 0) return undefined;
+  const run = ranCleanly('code', ['--list-extensions'], cwd);
+  if (run === undefined) return undefined;
   return (run.stdout ?? '')
     .split('\n')
     .map((l) => l.trim())

@@ -10,15 +10,11 @@ import { existsSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 
 import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
+import { PENCIL_EXTENSION_ID } from '../core/design-artifact-names.js';
 
 import { listVsCodeExtensions, openInEditor, type OpenResult } from './editor-launch.js';
 
-import {
-  BRIDGE_BOOTSTRAP_PATH,
-  PENCIL_EXTENSION_ID,
-  planPenBridge,
-  type PenBridgePlan,
-} from './pen-bridge.js';
+import { BRIDGE_BOOTSTRAP_PATH, planPenBridge, type PenBridgePlan } from './pen-bridge.js';
 
 /**
  * Tracked `.pen` files that are actually on disk, ordering left to the ranking.
