@@ -1,6 +1,6 @@
 ---
 name: Architecture Invariants
-phase: done
+phase: in-progress
 area: tooling
 category: Tooling
 packages:
@@ -29,7 +29,6 @@ introduced: 0.1.0
 updated: 1.6.0
 noldor-tier: full
 ---
-
 ## Summary
 
 Four architecture invariants enforced at pre-commit, with advisory mirror in `/noldor-garden`:
