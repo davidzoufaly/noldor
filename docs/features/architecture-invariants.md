@@ -1,6 +1,6 @@
 ---
 name: Architecture Invariants
-phase: in-progress
+phase: done
 area: tooling
 category: Tooling
 packages:
