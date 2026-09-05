@@ -742,13 +742,33 @@ export function reactFloorChecks(cfg: OxlintrcShape): FloorViolation[] {
  * successfully-parsed subset would emit a second `tsconfig-invalid` for it.
  *
  * Coverage is over *declared* `lib`s in *discovered* files, and deliberately no
- * further. Three shapes still escape, all silently: an `extends` into a
- * `node_modules` preset (`@tsconfig/strictest`), an in-repo base whose filename
- * does not match `tsconfig*.json`, and a config with no `lib` and no in-repo
- * `extends` whose library set comes from `target`'s default. Closing those needs
- * `extends` resolution plus a `target`-to-lib table — a separate and much larger
- * design — so the honest claim is that this closes the declared-nested-`lib`
- * hole and narrows nothing else.
+ * further. Four shapes still escape, all silently:
+ *
+ * 1. An `extends` into a `node_modules` preset (`@tsconfig/strictest`) — that
+ *    directory is in {@link SKIPPED_DIRS}, so the preset's `lib` is never read.
+ * 2. An in-repo base whose filename does not match `tsconfig*.json`
+ *    (`base.json`, `compiler-options.json`); discovery never finds it.
+ * 3. A config with no `lib` and no in-repo `extends`, whose library set comes
+ *    from `target`'s default.
+ * 4. A config deeper than {@link WORKSPACE_SCAN_DEPTH} — the walk's bound was
+ *    chosen for where a `package.json` lives, and the tsconfig harvest rides it
+ *    rather than carrying a second, differently-tuned depth. So
+ *    `apps/web/packages/ui/src/tsconfig.json` is never graded. Raising the bound
+ *    for tsconfigs alone would broaden the walk for every consumer with no case
+ *    yet asking for it, which is why this is named rather than closed.
+ *
+ * The first three need `extends` resolution plus a `target`-to-lib table — a
+ * separate and much larger design. The honest claim is that this closes the
+ * declared-nested-`lib` hole and narrows nothing else.
+ *
+ * One more consequence worth stating where it is felt: a waiver silences its id
+ * **repo-wide**, and this change widens what that means. Before, waiving
+ * `lib-es-builtins` silenced at most the two root candidates; now it silences
+ * the finding on every discovered tsconfig. A consumer waiving the floor for one
+ * legacy package therefore un-guards its root and every sibling too, with only
+ * the `warn` line to show for it. Waivers stay id-keyed by design (a
+ * `{ id, path? }` shape is its own config-schema change), so the widening is
+ * documented rather than narrowed — see `docs/noldor/rules.md`.
  *
  * @param root - Absolute repo root.
  * @param tsconfigs - Repo-relative tsconfig paths from the workspace scan.

@@ -866,6 +866,43 @@ describe('nested tsconfig lib floor', () => {
     expect(libFindings.every((v) => v.severity === 'warn')).toBeTruthy();
   });
 
+  it('applies one id-keyed waiver repo-wide, across every graded config', async () => {
+    // The widening this change buys: before, a lib-es-builtins waiver reached
+    // at most the two root candidates. Pinned so it cannot shift unnoticed —
+    // documented in docs/noldor/rules.md rather than narrowed.
+    writeFileSync(
+      join(root, 'tsconfig.json'),
+      `${JSON.stringify({ compilerOptions: { lib: ['ES2023', 'DOM'] } })}\n`,
+    );
+    nested(['packages', 'ui', 'tsconfig.json'], { compilerOptions: { lib: ['ES2023', 'DOM'] } });
+    mkdirSync(join(root, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(root, '.noldor', 'config.json'),
+      `${JSON.stringify({
+        consumer: {
+          name: 'x',
+          repoUrl: 'https://example.com/x',
+          lockstepPackages: ['package.json'],
+          e2ePrefix: 'e2e/',
+          samplesPath: 'samples',
+          packagePrefix: '@x/',
+          appPathPrefix: 'src',
+          toolchainFloor: {
+            waivers: [{ id: 'lib-es-builtins', reason: 'deploy target predates es2025' }],
+          },
+        },
+      })}\n`,
+    );
+    const result = await makeToolchainFloorInvariant(root).run();
+    const waived = result.violations.filter((v) => v.message.includes('[waived: lib-es-builtins'));
+    // Both files: the root candidate AND the nested package, from one waiver.
+    expect(waived.map((v) => v.file).toSorted()).toEqual([
+      join('packages', 'ui', 'tsconfig.json'),
+      'tsconfig.json',
+    ]);
+    expect(waived.every((v) => v.severity === 'warn')).toBeTruthy();
+  });
+
   it('reports the nested finding, and lib-inherited, independently', async () => {
     // A root with no declared lib still earns lib-inherited; a nested config
     // declaring a compliant one must not suppress it.
