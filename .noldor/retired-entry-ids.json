@@ -286,5 +286,10 @@
     "slug": "cr-oscillation-detector-and-arbitration-receipt",
     "retiredInto": "cr-re-round-cap-enforcement-and-oscillation-detector",
     "retiredAt": "2026-09-04"
+  },
+  "Q-0208": {
+    "slug": "toolchain-floor-reads-root-tsconfigs-only",
+    "retiredInto": "architecture-invariants",
+    "retiredAt": "2026-09-05"
   }
 }

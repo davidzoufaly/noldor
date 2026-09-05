@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Toolchain Floor Reads Root tsconfigs Only
-
-- id: Q-0208
-- area: tooling
-- type: fix
-- since: 2026-09-02
-- size: S
-- impact: med
-- confidence: high
-- parent: architecture-invariants
-
-`toolchain-floor` checks the root tsconfigs and nothing else — `TSCONFIG_CANDIDATES` is `['tsconfig.base.json', 'tsconfig.json']` in [`src/invariants/toolchain-floor.ts`](../src/invariants/toolchain-floor.ts) — so a nested config sitting below the lib floor passes unseen. Found live in this repo: `src/dashboard/static/tsconfig.json` sat at `lib: ["ES2023", "DOM"]` while the `platform-over-dependency` and `deterministic-cleanup` rules both bind `**/*.ts` (which covers `drag.ts` and `agents.ts`) and mandate `Set.prototype.union` and `Symbol.dispose` — each a TS2550 under that lib. So two *enforced* rules were directing agents to write code a real config in the same repo rejects, and no gate said a word. The `lib-inherited` guard cannot cover this: it stays quiet because the root config does declare a `lib`, and it is decided repo-wide by design. Two candidate fixes: walk every tsconfig the workspace scan already finds (the manifest walk is right there), or assert that a nested config either declares no `lib` at all — inheriting the base — or meets the floor itself. Worth carrying forward that `lib` **replaces** rather than merges across `extends`, so putting the floor in a base config protects only those children that omit `lib` entirely — which is why the second option is the stronger invariant. Deletion test: a nested tsconfig whose `lib` sits below the floor reds the invariant. (found 2026-08-26, CR on the tsconfig-shared-base refactor; absorbed from a lesson)
-
 ### Milestone-Queue Linking
 
 - id: Q-0083
