@@ -13,8 +13,29 @@ import type { Invariant, InvariantResult, InvariantViolation } from './types.js'
  * the strictness anchor: a monorepo declares shared compiler options in
  * `tsconfig.base.json` and every package config extends it, so asserting the
  * base covers the packages without walking the whole `extends` graph.
+ *
+ * These are the *anchor* candidates only. Since the nested-lib change the `lib`
+ * half is asserted against every discovered tsconfig, not only these two — see
+ * {@link findRepoConfigs}.
  */
 const TSCONFIG_CANDIDATES = ['tsconfig.base.json', 'tsconfig.json'] as const;
+
+/**
+ * Directories whose tsconfigs are test data rather than a repo's type surface.
+ *
+ * Fixture configs exist to be malformed or deliberately below the floor — this
+ * repo's own `src/indirection/__tests__/trees/**` holds about twenty — so
+ * grading them would red a repo's pre-commit on files that are working as
+ * intended. Excluded **by name rather than by depth**: `WORKSPACE_SCAN_DEPTH`
+ * happens to miss this repo's fixtures today, but that is arithmetic, not an
+ * expressed rule, and a fixture one level shallower would red the repo.
+ *
+ * The siblings are named alongside `__tests__` because consumers park fixtures
+ * under all of them just as often. The accepted cost is a false negative: a
+ * genuine package rooted under `test/` or `e2e/` goes ungraded, which is a far
+ * rarer shape than a fixture tree in one.
+ */
+const FIXTURE_DIRS = new Set(['__tests__', '__fixtures__', 'fixtures', 'test', 'tests', 'e2e']);
 
 const OXLINTRC = '.oxlintrc.json';
 const PACKAGE_JSON = 'package.json';
@@ -104,6 +125,12 @@ const DENYING_LEVELS = new Set(['error', 'deny']);
 /** What a manifest walk found, and where it could not look. */
 export interface ManifestScan {
   readonly manifests: readonly string[];
+  /**
+   * Repo-relative paths of every discovered `tsconfig*.json`, excluding those
+   * under a {@link FIXTURE_DIRS} directory. Root candidates are included; the
+   * caller is what skips them, so this stays a plain description of the tree.
+   */
+  readonly tsconfigs: readonly string[];
   readonly unreadableDirs: readonly string[];
 }
 
@@ -397,11 +424,18 @@ function declaredDependencies(pkg: PackageJsonShape): Set<string> {
  */
 export async function findPackageManifests(root: string): Promise<ManifestScan> {
   const found: string[] = [];
+  const tsconfigs: string[] = [];
   const unreadableDirs: string[] = [];
-  const queue: string[] = [root];
+  // `inFixtures` rides the queue rather than gating traversal: this is ONE walk
+  // with one queue, so "descend for package.json but not for tsconfigs" is not
+  // expressible as a skip. The flag suppresses the tsconfig harvest for a
+  // fixture directory and everything under it, while the manifest half — which
+  // answers a different question, whether `react` is declared anywhere — keeps
+  // seeing the whole tree exactly as it does today.
+  const queue: Array<{ dir: string; inFixtures: boolean }> = [{ dir: root, inFixtures: false }];
 
   while (queue.length > 0) {
-    const dir = queue.pop() as string;
+    const { dir, inFixtures } = queue.pop() as { dir: string; inFixtures: boolean };
     let entries;
     try {
       entries = await readdir(dir, { withFileTypes: true });
@@ -417,14 +451,36 @@ export async function findPackageManifests(root: string): Promise<ManifestScan> 
         if (SKIPPED_DIRS.has(entry.name)) continue;
         const child = join(dir, entry.name);
         // Depth is measured in path segments below the root.
-        if (relative(root, child).split(sep).length < WORKSPACE_SCAN_DEPTH) queue.push(child);
+        if (relative(root, child).split(sep).length < WORKSPACE_SCAN_DEPTH) {
+          queue.push({ dir: child, inFixtures: inFixtures || FIXTURE_DIRS.has(entry.name) });
+        }
         continue;
       }
-      if (entry.name === PACKAGE_JSON) found.push(relative(root, join(dir, entry.name)));
+      const rel = relative(root, join(dir, entry.name));
+      if (entry.name === PACKAGE_JSON) found.push(rel);
+      else if (!inFixtures && isTsconfigName(entry.name)) tsconfigs.push(rel);
     }
   }
 
-  return { manifests: found.toSorted(), unreadableDirs: unreadableDirs.toSorted() };
+  return {
+    manifests: found.toSorted(),
+    tsconfigs: tsconfigs.toSorted(),
+    unreadableDirs: unreadableDirs.toSorted(),
+  };
+}
+
+/**
+ * Whether a filename is a tsconfig.
+ *
+ * Matched by shape rather than against a fixed pair of names, mirroring what
+ * `src/indirection/detect.ts` already does for its alias scan: a package whose
+ * type surface lives in `tsconfig.app.json` must be discovered, not silently
+ * read as "holds no tsconfig". `package.json` is excluded by the caller's
+ * branch order, and `tsconfig` alone (no extension) is not a config TypeScript
+ * would load.
+ */
+function isTsconfigName(name: string): boolean {
+  return name.startsWith('tsconfig') && name.endsWith('.json');
 }
 
 /**
@@ -433,7 +489,10 @@ export async function findPackageManifests(root: string): Promise<ManifestScan> 
  * @returns The dependency names, and whether any manifest was readable at all —
  *   a repo whose manifests all failed to parse must not read as "no react".
  */
-async function workspaceDependencies(root: string): Promise<{
+async function workspaceDependencies(
+  root: string,
+  scan: ManifestScan,
+): Promise<{
   readonly names: Set<string>;
   readonly readAny: boolean;
   /** Manifests found but not parseable/validatable. */
@@ -442,7 +501,6 @@ async function workspaceDependencies(root: string): Promise<{
   readonly unreadableDirs: readonly string[];
 }> {
   const names = new Set<string>();
-  const scan = await findPackageManifests(root);
   const unreadableManifests: string[] = [];
   let readAny = false;
   for (const rel of scan.manifests) {
@@ -541,8 +599,13 @@ function libYear(entry: string): number | undefined {
  * i.e. one that has taken ownership of its type surface. Walking the `extends`
  * graph to compute the effective set is not available to do: TypeScript 7 ships
  * no in-process JS parser API, so there is no `ts.parseJsonConfigFileContent` to
- * call. Per-package configs below the root are likewise out of scope — the root
- * anchor is the documented approximation, not a claim of completeness.
+ * call.
+ *
+ * Per-package configs below the root are **not** out of scope: every discovered
+ * tsconfig is graded through this function by {@link nestedLibViolations}, which
+ * is what closes the case of a nested config declaring its own below-floor `lib`
+ * under a compliant root. What remains approximate is the inherited case — see
+ * that function for the three shapes that still escape.
  *
  * @param path - Repo-relative path of the tsconfig that was read (for reporting).
  * @param cfg - Its parsed contents.
@@ -659,6 +722,65 @@ export function reactFloorChecks(cfg: OxlintrcShape): FloorViolation[] {
 }
 
 /**
+ * The `lib` floor asserted against every non-root tsconfig the walk discovered.
+ *
+ * @remarks
+ * This is the half `TSCONFIG_CANDIDATES` cannot reach. Because `lib` **replaces**
+ * rather than merges across `extends`, a compliant `lib` in a base config
+ * protects only those children that omit `lib` entirely — a child declaring its
+ * own overrides the base outright. That is how `src/dashboard/static/tsconfig.json`
+ * sat at `lib: ["ES2023", "DOM"]` under a compliant root while the enforced
+ * `platform-over-dependency` and `deterministic-cleanup` rules mandated
+ * `Set.prototype.union` and `Symbol.dispose` over the very files it compiled —
+ * each a TS2550 under that `lib`, with no gate saying a word. `lib-inherited`
+ * cannot catch it: that guard is repo-level and stays quiet whenever a root
+ * candidate declares any `lib` at all.
+ *
+ * Root candidates are skipped **unconditionally**, by name, rather than by
+ * "already graded". An unparseable root candidate is reported by the anchor
+ * loop but never graded, and the walk discovers it too — so a skip keyed on the
+ * successfully-parsed subset would emit a second `tsconfig-invalid` for it.
+ *
+ * Coverage is over *declared* `lib`s in *discovered* files, and deliberately no
+ * further. Three shapes still escape, all silently: an `extends` into a
+ * `node_modules` preset (`@tsconfig/strictest`), an in-repo base whose filename
+ * does not match `tsconfig*.json`, and a config with no `lib` and no in-repo
+ * `extends` whose library set comes from `target`'s default. Closing those needs
+ * `extends` resolution plus a `target`-to-lib table — a separate and much larger
+ * design — so the honest claim is that this closes the declared-nested-`lib`
+ * hole and narrows nothing else.
+ *
+ * @param root - Absolute repo root.
+ * @param tsconfigs - Repo-relative tsconfig paths from the workspace scan.
+ */
+async function nestedLibViolations(
+  root: string,
+  tsconfigs: readonly string[],
+): Promise<FloorViolation[]> {
+  const out: FloorViolation[] = [];
+  const rootCandidates = new Set<string>(TSCONFIG_CANDIDATES);
+  for (const rel of tsconfigs) {
+    if (rootCandidates.has(rel)) continue;
+    const read = await readConfig(root, rel, TsConfigSchema);
+    if (!read.ok) {
+      // 'absent' cannot happen for a path the walk just listed, but a file
+      // deleted between the walk and this read would land here; reporting it as
+      // invalid is the safe read, since an ungraded config must not pass as a
+      // graded one.
+      out.push({
+        id: 'tsconfig-invalid',
+        file: rel,
+        severity: 'error',
+        message: `${rel}: ${read.detail}. The lib floor cannot be checked against a config the invariant cannot read, and an unchecked config must not read as a compliant one. Comments and trailing commas are tolerated; this is something else.`,
+      });
+      continue;
+    }
+    out.push(...libFloorChecks(rel, read.value));
+  }
+  return out;
+}
+
+/**
  * Resolve the whole floor for a repo root, before waivers are applied.
  *
  * @param root - Absolute repo root.
@@ -710,7 +832,7 @@ export async function collectFloorViolations(root: string): Promise<FloorViolati
       id: 'lib-inherited',
       file: anchorPath,
       severity: 'warn',
-      message: `no root tsconfig declares compilerOptions.lib, so the lib floor went unchecked — it resolves through \`extends\` or from \`target\`, and this floor reads root configs rather than the resolved graph. Declare a \`lib\` in one of them (\`["ESNext", "DOM"]\` satisfies both halves), or confirm by hand that the inherited set carries Explicit Resource Management and es${ES_BUILTINS_FLOOR_YEAR} built-ins.`,
+      message: `no root tsconfig declares compilerOptions.lib, so the lib floor went unchecked for the root — it resolves through \`extends\` or from \`target\`, and this floor grades declared \`lib\`s rather than the resolved graph. Declare a \`lib\` in one of them (\`["ESNext", "DOM"]\` satisfies both halves), or confirm by hand that the inherited set carries Explicit Resource Management and es${ES_BUILTINS_FLOOR_YEAR} built-ins.`,
     });
   }
   if (!sawCandidate) {
@@ -722,7 +844,10 @@ export async function collectFloorViolations(root: string): Promise<FloorViolati
     });
   }
 
-  const deps = await workspaceDependencies(root);
+  const scan = await findPackageManifests(root);
+  out.push(...(await nestedLibViolations(root, scan.tsconfigs)));
+
+  const deps = await workspaceDependencies(root, scan);
   // "Some manifest parsed" is not the same as "every manifest was seen": a root
   // manifest that reads while `apps/web/package.json` does not — or while
   // `apps/web/` itself cannot be entered — would conclude react is absent and

@@ -718,3 +718,159 @@ describe('makeToolchainFloorInvariant', () => {
     expect(blocking.some((v) => v.message.includes('rules-of-hooks'))).toBeTruthy();
   });
 });
+
+describe('nested tsconfig lib floor', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'toolchain-floor-nested-'));
+    writeFileSync(join(root, 'package.json'), '{"name":"x"}\n');
+    writeFileSync(join(root, 'tsconfig.json'), `${JSON.stringify(COMPLIANT_TSCONFIG)}\n`);
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  /** Write a tsconfig at a nested path, creating its directories. */
+  const nested = (rel: readonly string[], value: unknown): string => {
+    mkdirSync(join(root, ...rel.slice(0, -1)), { recursive: true });
+    writeFileSync(join(root, ...rel), `${JSON.stringify(value, null, 2)}\n`);
+    return join(...rel);
+  };
+
+  it('grades a nested config whose declared lib sits below the floor', async () => {
+    // The live case: a compliant root, and a nested config that overrides it —
+    // `lib` replaces rather than merges, so the root's compliance protects
+    // nothing here.
+    const path = nested(['packages', 'ui', 'tsconfig.json'], {
+      compilerOptions: { lib: ['ES2023', 'DOM'] },
+    });
+    const out = await collectFloorViolations(root);
+    expect(ids(out)).toEqual(['disposable-lib', 'lib-es-builtins']);
+    expect(out.every((v) => v.file === path)).toBeTruthy();
+    expect(out.every((v) => v.severity === 'error')).toBeTruthy();
+  });
+
+  it('stays silent for a nested config that declares no lib', async () => {
+    nested(['packages', 'ui', 'tsconfig.json'], {
+      extends: '../../tsconfig.json',
+      compilerOptions: { outDir: 'dist' },
+    });
+    expect(await collectFloorViolations(root)).toEqual([]);
+  });
+
+  it('stays silent for a nested config declaring an umbrella lib', async () => {
+    nested(['packages', 'ui', 'tsconfig.json'], { compilerOptions: { lib: ['ESNext'] } });
+    expect(await collectFloorViolations(root)).toEqual([]);
+  });
+
+  it('reports a nested lib that is a string rather than an array', async () => {
+    const path = nested(['packages', 'ui', 'tsconfig.json'], {
+      compilerOptions: { lib: 'ESNext' },
+    });
+    const out = await collectFloorViolations(root);
+    expect(out).toEqual([
+      expect.objectContaining({ id: 'lib-malformed', file: path, severity: 'error' }),
+    ]);
+  });
+
+  it('reports an unparseable nested tsconfig as an error', async () => {
+    mkdirSync(join(root, 'packages', 'ui'), { recursive: true });
+    const path = join('packages', 'ui', 'tsconfig.json');
+    writeFileSync(join(root, path), '{ "compilerOptions": { "lib": [ \n');
+    const out = await collectFloorViolations(root);
+    expect(out).toEqual([
+      expect.objectContaining({ id: 'tsconfig-invalid', file: path, severity: 'error' }),
+    ]);
+  });
+
+  it('discovers a tsconfig whose name is not tsconfig.json', async () => {
+    const path = nested(['apps', 'web', 'tsconfig.app.json'], {
+      compilerOptions: { lib: ['ES2023'] },
+    });
+    const out = await collectFloorViolations(root);
+    expect(out.every((v) => v.file === path)).toBeTruthy();
+    expect(ids(out)).toEqual(['disposable-lib', 'lib-es-builtins']);
+  });
+
+  it('does not report a root candidate twice when the walk also finds it', async () => {
+    // The root tsconfig is discovered by the walk as well as by the anchor loop.
+    // A compliant one must still produce nothing.
+    expect(await collectFloorViolations(root)).toEqual([]);
+  });
+
+  it('reports an unparseable root candidate once, not once per discovery path', async () => {
+    // The anchor loop reports it but never grades it, so a skip keyed on
+    // "already graded" would let the walk report it a second time.
+    writeFileSync(join(root, 'tsconfig.json'), '{ "compilerOptions": { \n');
+    const out = await collectFloorViolations(root);
+    expect(out.filter((v) => v.id === 'tsconfig-invalid')).toHaveLength(1);
+  });
+
+  it('skips tsconfigs under every fixture directory name', async () => {
+    // Each of these would otherwise red the repo's own pre-commit on a file
+    // that exists precisely to be below the floor.
+    for (const dir of ['__tests__', '__fixtures__', 'fixtures', 'test', 'tests', 'e2e']) {
+      nested([dir, 'trees', 'tsconfig.json'], { compilerOptions: { lib: ['ES2023'] } });
+    }
+    expect(await collectFloorViolations(root)).toEqual([]);
+  });
+
+  it('skips a tsconfig nested below a fixture directory, not just inside it', async () => {
+    nested(['__tests__', 'trees', 'tsconfig.json'], { compilerOptions: { lib: ['ES5'] } });
+    expect(await collectFloorViolations(root)).toEqual([]);
+  });
+
+  it('still collects a package.json inside a fixture directory', async () => {
+    // The exclusion suppresses the tsconfig harvest only; the manifest half
+    // answers a different question and must be unchanged.
+    mkdirSync(join(root, 'test', 'app'), { recursive: true });
+    writeFileSync(join(root, 'test', 'app', 'package.json'), '{"name":"fixture"}\n');
+    const scan = await findPackageManifests(root);
+    expect(scan.manifests).toContain(join('test', 'app', 'package.json'));
+  });
+
+  it('skips tsconfigs under node_modules and other skipped dirs', async () => {
+    nested(['node_modules', 'dep', 'tsconfig.json'], { compilerOptions: { lib: ['ES2023'] } });
+    nested(['dist', 'tsconfig.json'], { compilerOptions: { lib: ['ES2023'] } });
+    expect(await collectFloorViolations(root)).toEqual([]);
+  });
+
+  it('waives a nested finding by id, exactly as it does a root one', async () => {
+    nested(['packages', 'ui', 'tsconfig.json'], { compilerOptions: { lib: ['ES2023', 'DOM'] } });
+    mkdirSync(join(root, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(root, '.noldor', 'config.json'),
+      `${JSON.stringify({
+        consumer: {
+          name: 'x',
+          repoUrl: 'https://example.com/x',
+          lockstepPackages: ['package.json'],
+          e2ePrefix: 'e2e/',
+          samplesPath: 'samples',
+          packagePrefix: '@x/',
+          appPathPrefix: 'src',
+          toolchainFloor: {
+            waivers: [
+              { id: 'lib-es-builtins', reason: 'deploy target predates es2025' },
+              { id: 'disposable-lib', reason: 'deploy target predates Symbol.dispose' },
+            ],
+          },
+        },
+      })}\n`,
+    );
+    const result = await makeToolchainFloorInvariant(root).run();
+    const libFindings = result.violations.filter((v) => v.message.includes('[waived:'));
+    expect(libFindings).toHaveLength(2);
+    expect(libFindings.every((v) => v.severity === 'warn')).toBeTruthy();
+  });
+
+  it('reports the nested finding, and lib-inherited, independently', async () => {
+    // A root with no declared lib still earns lib-inherited; a nested config
+    // declaring a compliant one must not suppress it.
+    writeFileSync(join(root, 'tsconfig.json'), `${JSON.stringify({ compilerOptions: {} })}\n`);
+    nested(['packages', 'ui', 'tsconfig.json'], { compilerOptions: { lib: ['ESNext'] } });
+    expect(ids(await collectFloorViolations(root))).toContain('lib-inherited');
+  });
+});
