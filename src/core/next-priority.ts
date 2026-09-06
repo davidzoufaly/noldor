@@ -1,10 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { loadDocRoots, milestonePath } from './doc-roots.js';
+import { loadDocRoots, milestonePath, readQueueFile } from './doc-roots.js';
 import { pathErrorMessage, readFileNoFollow } from './slug-paths.js';
 import { parseSlug } from './slug.js';
 import { sizeToPath, type GatePath } from './size-routing.js';
@@ -372,7 +371,7 @@ async function main(): Promise<void> {
     );
   }
   const cwd = process.cwd();
-  const roadmapRaw = await readFile(loadDocRoots(cwd).roadmap, 'utf8').catch(() => '');
+  const roadmapRaw = await readQueueFile(loadDocRoots(cwd).roadmap);
 
   if (argv.has('--suggestions')) {
     const inProgressFds = loadInProgressFds(cwd);

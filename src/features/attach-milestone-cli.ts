@@ -1,9 +1,8 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { readQueueFile } from '../core/doc-roots.js';
+import { loadDocRoots, readQueueFile } from '../core/doc-roots.js';
 import { readFileNoFollow, resolveErrorMessage, resolveSlugPath } from '../core/slug-paths.js';
 import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
 import { resolveAttachMilestone } from './attach-milestone.js';
@@ -38,9 +37,10 @@ async function computeVerdict(
 ): Promise<
   { ok: true; verdict: string; line: string; adopt?: string } | { ok: false; why: string }
 > {
+  const roots = loadDocRoots(cwd);
   const entry = [
-    ...parseRoadmap(await readQueueFile(join(cwd, 'docs/roadmap.md'))),
-    ...parseBacklog(await readQueueFile(join(cwd, 'docs/backlog.md'))),
+    ...parseRoadmap(await readQueueFile(roots.roadmap)),
+    ...parseBacklog(await readQueueFile(roots.backlog)),
   ].find((e) => e.slug === entrySlug);
   if (!entry) {
     return {

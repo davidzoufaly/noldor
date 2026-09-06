@@ -22,7 +22,7 @@ import { extractUntriagedBullets } from '../triage/triage-list-untriaged.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 
 import type { ConsumerConfig } from '../core/consumer-config.js';
-import { docPresenceRoots, listDocMds, loadDocRoots } from '../core/doc-roots.js';
+import { docPresenceRoots, listDocMds, loadDocRoots, readQueueFile } from '../core/doc-roots.js';
 
 import { detectAdrFindings } from './detectors/adr.js';
 import { detectArchitectureFindings } from './detectors/architecture.js';
@@ -993,7 +993,7 @@ export function resolveReportOutPath(argv: string[], env: NodeJS.ProcessEnv): st
 async function main(): Promise<void> {
   const features = await loadSddFeatures(loadDocRoots().features);
   const ideasMd = await readFile(loadDocRoots().ideas, 'utf8').catch(() => '');
-  const backlogRaw = await readFile(loadDocRoots().backlog, 'utf8').catch(() => '');
+  const backlogRaw = await readQueueFile(loadDocRoots().backlog);
   const backlog = parseBacklog(backlogRaw);
   const specPaths = await listSpecs(loadDocRoots().specs);
   const planPaths = await listPlans(loadDocRoots().plans);
