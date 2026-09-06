@@ -86,14 +86,27 @@ consumer set, so widening the *type* is cheap and widening the *behaviour* is no
 consumer above keeps compiling against an added optional field, but any consumer that starts
 branching on `milestone` becomes a new edge across those community boundaries.
 
-Five consumers read the new field, and the list is exhaustive by design:
-`src/dashboard/data.ts` (c9, Unit 3), `src/core/next-priority.ts` (Unit 6), the triage
-validator (Unit 2), `src/prep/scaffold.ts` (Unit 5 — it writes the FD frontmatter key that
-`validateMilestoneRef` already reads), and `src/garden/detectors/milestone-shipped-incomplete.ts`
-(Unit 3's invariant owner). Every other god-node neighbour — `garden-detect.ts`,
-`dashboard/views.ts`, `sdd-report.ts`, `prep-promote.ts` — keeps reading the entry exactly as
-it does today. Unit 4's `src/milestones/cli.ts` and `src/cli/manifest.ts` edits are surface
-wiring rather than new branching on the field: the CLI renders the Unit 3 grouping.
+Seven sites read `BacklogEntry.milestone`, and the list is exhaustive by design:
+
+| Site | Unit | What it does with the field |
+| --- | --- | --- |
+| `src/triage/validate-triage.ts` | 2 | validates the reference |
+| `src/milestones/lib.ts` (grouping) | 3 | groups entries under their milestone |
+| `src/garden/detectors/milestone-shipped-incomplete.ts` | 3 | flags a shipped milestone with a live queue |
+| `src/prep/prep-promote.ts` (`toPrepEntry`) | 5 | copies it onto `PrepEntry` |
+| `src/prep/discover.ts` (`discoverPrepEntries`) | 5 | same, on the discovery path |
+| `src/prep/scaffold.ts` (`scaffoldFd`) | 5 | writes it into FD frontmatter |
+| `src/triage/remove-block-cli.ts` | 5 | records it in the retirement ledger |
+| `src/core/next-priority.ts` | 6 | ranks a declared entry above the overlap guess |
+
+`prep-promote.ts` is on that list, not off it: `toPrepEntry` is precisely the seam that has to
+carry the field from `BacklogEntry` onto `PrepEntry`. The god-node neighbours that genuinely do
+not change are `garden-detect.ts` (it dispatches detectors, it does not read entries),
+`dashboard/views.ts` and `sdd-report.ts`.
+
+`src/dashboard/data.ts` and `src/milestones/cli.ts` both *render* the Unit 3 grouping without
+reading the field themselves, and `src/cli/manifest.ts` plus `docs/noldor/script-catalog.md`
+are surface wiring. None of those branches on `milestone`.
 
 ### Unit 1 — the milestone field on the queue parser
 
@@ -115,23 +128,34 @@ correcting its "two in the schema's lifetime" count.
 
 ### Unit 2 — validation of the reference
 
-`validate triage` gains a cross-check reusing the exact shape of `validateMilestoneRef`
-(`src/features/validate-features.ts:294-310`). It is two checks, not one, and they have
-different trigger conditions:
+`validate triage` gains a cross-check enforcing the same contract as `validateMilestoneRef`
+(`src/features/validate-features.ts:294-310`). It is two checks, not one, and each needs its
+own literal in the closed `TriageIssue['rule']` union (`src/triage/validate-triage.ts:13-22`),
+without which the finding cannot name the entry at all:
 
-- **Syntax.** `parseSlug(entry.milestone)` then `milestonePath(cwd, slug)`. Runs whenever the
-  field is present, unconditionally — a traversal-shaped or otherwise malformed value is
-  refused before any path is built, in a repo with a `docs/milestones/` directory and in one
-  without.
-- **Existence.** `existsSync(built.path)`. Also runs whenever the field is present, and hard-
-  errors when the file is absent.
+- **Syntax** — rule `malformed-milestone-ref`. `parseSlug(entry.milestone)` fails. Runs
+  whenever the field is present, unconditionally, so a traversal-shaped value is refused in a
+  repo with a `docs/milestones/` directory and in one without.
+- **Existence** — rule `unknown-milestone-ref`. The parsed slug is not a known milestone. Also
+  runs whenever the field is present, and is a hard error.
 
-**There is no directory guard, on either side.** An earlier draft of this unit proposed
-skipping the whole check when `docs/milestones/` is absent, and claimed that mirrored the FD
-side. It does not: `validateMilestoneRef` has no such guard and hard-errors on any missing
-file, so an FD carrying `milestone: foo` in a repo with no milestones directory errors today.
-Adding a guard to the queue side alone would make identical input error on an FD and pass on
-an entry.
+**The validator stays pure; the filesystem stays in the CLI.** `validateTriageInputs`
+(`src/triage/validate-triage.ts:32-74`) takes no `cwd` and reads no disk — every filesystem
+fact it needs arrives as injected data (`counterExists`, `featureSlugs`, `featureEntryIds`,
+`retiredEntryIds`, each documented as "The CLI injects…; tests pass it directly"). This unit
+follows that pattern rather than breaking it: `ValidateTriageInputs` gains
+`milestoneSlugs: readonly string[]`, filled by the CLI from `loadMilestones(cwd)`, and the
+existence check is set membership. `parseSlug` is already pure, so the syntax check needs no
+injection at all.
+
+A repo with no `docs/milestones/` directory yields an empty `milestoneSlugs`, so every declared
+milestone is unknown — which is the intended outcome under "no directory guard" below, and is
+what makes the queue side agree with the FD side on identical input.
+
+**There is no directory guard, on either side.** `validateMilestoneRef` has none and
+hard-errors on any missing file, so an FD carrying `milestone: foo` in a repo with no
+milestones directory errors today. Adding a guard to the queue side alone would make identical
+input error on an FD and pass on an entry.
 
 Milestones stay optional through *absence of the field*, not through a guard: an entry that
 declares no `- milestone:` bullet is never checked, which is every entry in every repo that
@@ -140,9 +164,19 @@ be — it is a dangling reference either way.
 
 ### Unit 3 — the roll-up counts the queue
 
-`buildMilestoneGroups` (`src/dashboard/data.ts:860`) currently takes `(milestones, features)`
-and computes `doneCount / total` over features alone. This unit widens it to
+`buildMilestoneGroups` (`src/dashboard/data.ts:859-878`) currently takes `(milestones,
+features)` and computes `doneCount / total` over features alone. This unit widens it to
 `(milestones, features, entries)`, where `entries` is the parsed roadmap + backlog list.
+
+**The grouping moves out of the dashboard layer first.** `buildMilestoneGroups` calls
+`renderToHtml(m.body)` for its `bodyHtml` field, and `src/dashboard/data.ts:8-10` imports
+`marked`, `highlight.js` and `marked-highlight`. Unit 4's text-printing CLI must not drag an
+HTML renderer in to reach a grouping function, so the pure part — slug, name, status,
+description, feature members, `doneCount`, `total`, `incomplete`, queue members, `queuedCount`
+— is extracted into `src/milestones/lib.ts`, which already owns `loadMilestones` and imports
+nothing heavier than `gray-matter` and `zod`. `src/dashboard/data.ts` keeps
+`buildMilestoneGroups` as a thin wrapper that calls the extracted function and adds `bodyHtml`,
+so no dashboard consumer changes; `src/milestones/cli.ts` imports the pure one.
 
 Queue members are reported **separately**, never folded into the feature ratio. A queue entry
 carries no `phase`, so counting it as "not done" asserts a completion state that was never
@@ -174,7 +208,8 @@ Enumeration comes from two surfaces:
 
 - CLI: a new `pnpm noldor milestones show <slug>`, printing the milestone's features (by FD
   `milestone:`) and its queue entries (by entry `milestone:`), grouped by phase and by source
-  file. It reuses the Unit 3 grouping and only formats it, the way `fmtGroup` in
+  file. It calls the pure grouping Unit 3 extracts into `src/milestones/lib.ts` — never
+  `src/dashboard/data.ts` — and only formats the result, the way `fmtGroup` in
   `src/milestones/cli.ts` already formats `listMilestones()`.
 
   **`src/milestones/cli.ts` is not reachable through `pnpm noldor` today.** The `milestones`
@@ -213,13 +248,23 @@ nothing else has to stay in sync with it (D1).
 
 ### Unit 5 — carry-through at promotion
 
-`/noldor-promote` step 6 already specifies copying `- milestone:` into FD frontmatter, but the
-FD writer has no such key. `scaffoldFd` (`src/prep/scaffold.ts:83-93`) builds its frontmatter
-record from `area`, `category`, `deps`, `links`, `name`, `packages`, `phase` and
-`noldor-tier` — nothing else. So this unit is a code change, not prose alone: `scaffoldFd`
-sets `milestone` from `entry.milestone` when the entry carries one and omits the key otherwise
-(the FD schema already accepts `milestone`, which is what `validateMilestoneRef` reads). That
-is what makes the promotion criterion machine-testable rather than a claim about skill prose.
+`/noldor-promote` step 6 already specifies copying `- milestone:` into FD frontmatter, but no
+code on that path can see the value. `scaffoldFd` (`src/prep/scaffold.ts:74`) takes a
+`PrepEntry`, **not** a `BacklogEntry`, and `PrepEntry` (`src/prep/types.ts:6-15`) carries only
+`slug`, `name`, `size`, `tier`, `area`, `parent?`, `deps` and `body` — so `entry.milestone`
+does not even typecheck. The field has to be carried across that boundary in four edits:
+
+1. `src/prep/types.ts` — `PrepEntry` gains `readonly milestone?: string`.
+2. `src/prep/prep-promote.ts` (`toPrepEntry`, lines 109-123) — populates it from the parsed
+   `BacklogEntry`.
+3. `src/prep/discover.ts` (`discoverPrepEntries`, lines 42-51) — populates it on the discovery
+   path, which builds `PrepEntry` values independently.
+4. `src/prep/scaffold.ts` (`scaffoldFd`, lines 83-93) — writes `milestone` into the frontmatter
+   record when present, omits the key otherwise. The FD schema already accepts `milestone`;
+   this is the writer that never set it.
+
+Missing any of 2 or 3 produces a silent drop on one of the two entry-points, which is the same
+class of failure as the `FIELD_KEYS`-only edit in Unit 1.
 
 An entry leaves the queue by one of three paths, and each needs a stated destination —
 otherwise "membership follows the work" holds only on the path that happens to have an FD.
@@ -228,18 +273,32 @@ otherwise "membership follows the work" holds only on the path that happens to h
   verbatim.
 - **Attach to an existing parent FD.** The parent's frontmatter governs, because the parent is
   where the work now lives. Three cases: the parent declares the same milestone (no-op); the
-  parent declares none (the attach writes the entry's milestone onto the parent FD, since
-  nothing is being overwritten); the parent declares a *different* milestone (a conflict the
-  tooling must not resolve silently — `/noldor-promote`'s attach branch surfaces both values
-  and stops, leaving the source block in place for the operator to re-file or re-assign).
-  Refusing here is deliberate: the alternative is either dropping a stated assignment or
-  rewriting an unrelated feature's milestone, and both are worse than a stop.
+  parent declares none (adopt — write the entry's milestone onto the parent FD, since nothing
+  is overwritten); the parent declares a *different* milestone (conflict — surface both values
+  and stop, leaving the source block and the parent FD untouched). Refusing is deliberate: the
+  alternatives are dropping a stated assignment or rewriting an unrelated feature's milestone,
+  and both are worse than a stop.
+
+  **The decision is code; the application is skill prose.** There is no command today that
+  writes a parent FD's frontmatter — `/noldor-promote`'s attach branch
+  (`.claude/skills/noldor-promote/SKILL.md`, step 6.alt) is prose, and only
+  `remove-block --retired-into` is a command. Rather than build an FD-frontmatter writer for
+  this one field, the *choice* is extracted as a pure, tested helper —
+  `resolveAttachMilestone(entryMilestone, parentMilestone) → 'noop' | 'adopt' | 'conflict'` —
+  and the skill applies its verdict. That makes the branching machine-testable (criterion 11)
+  while the write itself remains an operator/skill step, stated as such rather than claimed as
+  automation (criterion 12).
+
 - **Fast-track retirement.** No FD is ever created, so nothing carries the field forward.
   `roadmap remove-block` records `milestone` in `.noldor/retired-entry-ids.json` alongside the
-  ID it already records, which keeps the assignment auditable — but the roll-up does not read
-  it. A retired entry has shipped and therefore left the queue; counting it would resurrect
-  completed work into a "queued" list. This is the one path where membership genuinely ends at
-  retirement, and saying so is the point.
+  ID it already records — but that ledger is keyed by `Q-NNNN` and its write is triple-gated
+  (`src/triage/remove-block-cli.ts:140-160`): the entry must carry an `id`, it must match
+  `ENTRY_ID_RE`, and `.noldor/` must exist. **The milestone audit inherits every one of those
+  gates.** A repo that has not adopted stable IDs — exactly the case `counterExists` exists to
+  support — retires the entry and loses the milestone with it, the same way it already loses
+  the ID. That is acceptable because the record is an audit trail, not an input: nothing reads
+  it back. The roll-up deliberately does not, because a retired entry has shipped and left the
+  queue, and counting it would resurrect completed work into a "queued" list.
 
 The sibling-emission recipe shared by `/noldor-promote` steps 1.7 and 6.5 carries `milestone:`
 onto split and residue blocks verbatim, alongside `area` and `type` — a slice of milestone
@@ -267,12 +326,20 @@ Three rules the earlier draft left unstated, each of which decides real cases:
   `high` or `critical` impact (`src/core/next-priority.ts:199`). That filter exists to stop a
   *guess* surfacing trivia; a declaration is not a guess, so a declared `impact: low` entry is
   eligible. Branch 2 keeps the filter unchanged.
-- **Branch 2 excludes entries declared elsewhere.** An entry carrying
-  `milestone: <some-other-slug>` is skipped by the overlap fallback entirely. Without this,
-  the fallback can surface an entry whose own frontmatter says it belongs to a different
-  milestone purely because its wording overlaps — a declaration losing to a word count, which
-  is what the unit forbids. Entries with no `milestone` at all remain fully eligible for
-  branch 2; that is today's behaviour and the reason the fallback still exists.
+- **Branch 2 excludes entries declared elsewhere — but only when there is an "elsewhere".**
+  When `activeMilestone` is a slug, an entry carrying `milestone: <some-other-slug>` is skipped
+  by the overlap fallback entirely; otherwise the fallback could surface an entry whose own
+  metadata says it belongs to a different milestone purely because its wording overlaps.
+  Entries with no `milestone` at all stay fully eligible.
+
+  When `activeMilestone` is **`null`**, the exclusion does not apply and branch 2 runs exactly
+  as it does today, over every entry including declared ones. `null` means "this repo has no
+  active milestone, or its `current-milestone` does not resolve" — not "the active milestone is
+  nothing", so there is no other-milestone comparison to make. Treating `null` as a value to
+  compare against would exclude every declared entry from a bucket that, with no active
+  milestone, is the only reason the gate reads the `## Gate` text at all. Note `null` can
+  co-occur with non-empty `milestoneGate` (the gate text is loaded independently), so this is a
+  reachable input and not a theoretical one.
 
 **The active slug is not currently available at that call site, and plumbing it is part of
 this unit.** `SuggestionsInput` (`src/core/next-priority.ts:98-101`) carries
@@ -304,16 +371,18 @@ above it, `null` when neither branch qualifies.
    parser paths (`parseRoadmap` and `parseBacklog`), and the bullet does not appear in the
    entry's `description`.
 2. An entry with no `- milestone:` bullet parses to `milestone === undefined` on both paths.
-3. `validate triage` exits non-zero and names the entry when `- milestone: nope` resolves to no
-   file, and does so identically whether or not `docs/milestones/` exists — matching what
-   `validateMilestoneRef` already does for the same value on an FD.
+3. `validateTriageInputs` returns an `unknown-milestone-ref` error naming the entry when its
+   `- milestone:` value is absent from the injected `milestoneSlugs`, and the same for an empty
+   `milestoneSlugs` — matching what `validateMilestoneRef` already does for the same value on
+   an FD.
 4. `validate triage` exits zero on a repo with no `docs/milestones/` directory whose entries
    declare no milestone.
-5. `validate triage` refuses a traversal-shaped milestone value without reading outside the
-   repo, with and without a `docs/milestones/` directory present.
-6. `buildMilestoneGroups` reports a milestone's queue entries in a member list distinct from
-   its feature members, and its feature `doneCount`, `total` and `incomplete` are all unchanged
-   by the presence of queue entries.
+5. `validateTriageInputs` returns a `malformed-milestone-ref` error for a traversal-shaped
+   value, and `validateTriageInputs` performs no filesystem access for any input.
+6. The grouping function in `src/milestones/lib.ts` reports a milestone's queue entries in a
+   member list distinct from its feature members, and its feature `doneCount`, `total` and
+   `incomplete` are all unchanged by the presence of queue entries. `src/milestones/lib.ts`
+   imports no HTML-rendering dependency.
 7. `detectMilestoneShippedIncomplete` flags a `shipped` milestone named by a live roadmap or
    backlog entry, under a `reason` distinct from the open-feature case.
 8. `pnpm noldor milestones show <slug>` exits zero and lists both the features and the queue
@@ -321,22 +390,29 @@ above it, `null` when neither branch qualifies.
    naming the slug.
 9. `pnpm noldor validate script-catalog` is green with the new `milestones show` manifest entry
    present.
-10. `scaffoldFd` writes `milestone: foo` into the FD frontmatter for an entry carrying
-    `- milestone: foo`, and omits the key entirely for an entry carrying none.
-11. Attaching an entry that declares a milestone to a parent FD that declares none writes the
-    milestone onto the parent FD.
-12. Attaching an entry that declares a milestone to a parent FD declaring a *different* one
-    stops with both values reported, and leaves the source block and the parent FD unchanged.
-13. `roadmap remove-block` records the entry's milestone in `.noldor/retired-entry-ids.json`,
-    and a retired entry does not appear in any milestone's `queued` list.
+10. A `BacklogEntry` carrying `- milestone: foo` produces an FD whose frontmatter carries
+    `milestone: foo` through both promotion entry-points (`toPrepEntry` and
+    `discoverPrepEntries` into `scaffoldFd`), and an entry carrying none produces an FD with no
+    `milestone` key.
+11. `resolveAttachMilestone` returns `noop` for equal values, `adopt` when the parent declares
+    none, and `conflict` when the two differ; `undefined` on the entry side is always `noop`.
+12. `/noldor-promote`'s attach branch documents the `adopt` write and the `conflict` stop, and
+    states that a `conflict` leaves the source block and the parent FD unchanged. (Prose
+    contract on the skill — the write itself is not automated; criterion 11 covers the
+    decision.)
+13. `roadmap remove-block` records the entry's milestone in `.noldor/retired-entry-ids.json`
+    whenever it records the entry's ID, and records neither when the entry has no valid `id` —
+    the milestone audit inherits the existing ID gate exactly. A retired entry appears in no
+    milestone's `queued` list.
 14. `getSuggestions` returns, as `milestoneAligned`, an entry declaring the active milestone in
     preference to a higher-word-overlap entry that declares none — including when the declaring
     entry's `impact` is `low`, and including when the milestone's gate text is empty.
-15. `getSuggestions`'s overlap fallback never returns an entry declaring a milestone other than
-    the active one, and returns `null` when the gate text is empty and no entry declares the
-    active milestone.
-16. `getSuggestions` behaviour is byte-identical to today's for a roadmap in which no entry
-    declares a milestone.
+15. With a non-null `activeMilestone`, `getSuggestions`'s overlap fallback never returns an
+    entry declaring a different milestone, and returns `null` when the gate text is empty and
+    no entry declares the active milestone.
+16. With `activeMilestone: null` and non-empty gate text, `getSuggestions` returns exactly what
+    it returns today, including for entries that declare a milestone. The same holds for any
+    roadmap in which no entry declares a milestone.
 17. `pnpm noldor validate features`, `pnpm noldor triage validate` and
     `pnpm noldor validate milestones` are green on this repo, which has no `docs/milestones/`
     directory.
@@ -345,7 +421,8 @@ above it, `null` when neither branch qualifies.
 
 - **God-node blast radius.** `parseBacklog()` is rank #7 with 28 edges, the most-read type in
   the queue layer. Widening `BacklogEntry` is additive and source-compatible; the mitigation is
-  that only three consumers read the new field.
+  that the eight sites reading the new field are enumerated in Structural context, and three of
+  them are the single `PrepEntry` carry-through chain rather than independent branching.
 - **The five-site fan-out is a known defect.** Adding the key makes the duplication worse
   before Q-0113 makes it better. Doing the grammar-module extraction first would turn this M
   into an L and block the linking work behind a parser rewrite.
@@ -475,3 +552,23 @@ manifest group exposes only `validate` — and wiring it is out of scope (Non-go
     -> **No — widen the garden detector instead** (D11). `detectMilestoneShippedIncomplete`
     already owns that invariant; adding a second trigger to the dashboard's local copy would
     let the two disagree about the same repo.
+
+12. *Does the triage validator read the filesystem for the milestone check?*
+    -> **No — the CLI injects `milestoneSlugs`** (D12). `validateTriageInputs` takes four
+    injected filesystem facts already and no `cwd`; adding disk reads would make a pure
+    function over raw strings impure for one rule.
+
+13. *What does `activeMilestone: null` mean for the fallback's other-milestone exclusion?*
+    -> **The exclusion is off** (D13). `null` is "no active milestone", not a milestone value
+    to compare against; excluding every declared entry would empty the one bucket that has
+    nothing else to go on.
+
+14. *Should the attach adopt/refuse behaviour be automated?*
+    -> **The decision, not the write** (D14). `resolveAttachMilestone` is a pure tested helper;
+    the FD write stays a skill step, because no FD-frontmatter writer exists on that path and
+    building one for a single field is not this feature's job.
+
+15. *Does the fast-track milestone audit work in a repo without stable entry IDs?*
+    -> **No, and that is stated rather than fixed** (D15). The retirement ledger is keyed by
+    `Q-NNNN`; the milestone record inherits the same gate the ID record already has. Nothing
+    reads the record back, so the loss is an audit gap, not a correctness one.
