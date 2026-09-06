@@ -138,10 +138,29 @@ The reverse direction is served as a **derived view, not stored state**. The mil
 untouched and `milestoneFrontmatterSchema` (`src/milestones/lib.ts:18`) stays `.strict()`.
 Enumeration comes from two surfaces:
 
-- CLI: a new `pnpm noldor milestones show <slug>` in `src/milestones/cli.ts`, printing the
-  milestone's features (by FD `milestone:`) and its queue entries (by entry `milestone:`),
-  grouped by phase and by source file. It reuses the Unit 3 grouping and only formats it, the
-  way `milestones list` already formats `listMilestones()`.
+- CLI: a new `pnpm noldor milestones show <slug>`, printing the milestone's features (by FD
+  `milestone:`) and its queue entries (by entry `milestone:`), grouped by phase and by source
+  file. It reuses the Unit 3 grouping and only formats it, the way `fmtGroup` in
+  `src/milestones/cli.ts` already formats `listMilestones()`.
+
+  **`src/milestones/cli.ts` is not reachable through `pnpm noldor` today.** The `milestones`
+  group in `src/cli/manifest.ts:250-254` exposes exactly one sub — `validate`, pointing at
+  `src/milestones/validate-milestones.ts`. `draft`, `activate` and `list` are invoked only as
+  `tsx src/milestones/cli.ts <cmd>` by the `/noldor-milestone` skill, so
+  `pnpm noldor milestones list` exits 1 with `Unknown subcommand` today, and
+  `docs/noldor/script-catalog.md:179` carries a row for the validator alone. This unit
+  therefore lands three edits, not one:
+
+  1. `src/milestones/cli.ts` — the `show` subcommand itself.
+  2. `src/cli/manifest.ts` — a `show` entry under the `milestones` group, pointing at
+     `milestones/cli.ts`. Without it the command is unreachable.
+  3. `docs/noldor/script-catalog.md` — a row for `pnpm noldor milestones show`, or
+     `pnpm noldor validate script-catalog` reds on the new manifest entry.
+
+  Wiring `draft` / `activate` / `list` into the manifest is **out of scope**, and so is the
+  adjacent defect it exposes: `tsx src/milestones/cli.ts` has no `src/` to resolve in an
+  installed consumer repo, so those three skill commands cannot work outside this checkout.
+  That is a real bug with a wider blast radius than this feature and belongs in its own entry.
 - Dashboard: the existing `/milestones` page (`src/dashboard/views.ts:366`) renders the
   `queued` list beneath the existing member list.
 
@@ -177,6 +196,22 @@ work is still milestone work.
 paragraph. This unit puts the explicit field first: among entries not already in
 `topPriority ∪ smallHighImpact`, an entry whose `milestone` names the active milestone wins;
 the overlap heuristic runs only when no such entry exists.
+
+**The active slug is not currently available at that call site, and plumbing it is part of
+this unit.** `SuggestionsInput` (`src/core/next-priority.ts:98-101`) carries
+`{ inProgressFds, milestoneGate: string }`, and `milestoneGate` is the `## Gate` *paragraph
+text* produced by `loadMilestoneGate` (`src/core/next-priority.ts:267-302`) — the slug is
+resolved inside that helper and discarded. Matching `entry.milestone === activeSlug` therefore
+requires four coordinated edits:
+
+1. `SuggestionsInput` gains `activeMilestone: string | null`.
+2. `loadMilestoneGate` returns the resolved slug alongside the gate text instead of dropping
+   it (or a sibling helper exposes it).
+3. `getSuggestions` passes it into the milestone-match step.
+4. The `src/autonomous/drain-source.ts:247` caller is updated for the widened input.
+
+A `null` active slug — no active milestone, or an unresolvable `current-milestone` — means the
+declaration branch is skipped and behaviour is exactly today's.
 
 Ordering matters and is the whole point of the unit. A declaration is ground truth and an
 overlap score is a guess, so ranking the guess first lets a coincidental word match outrank a
