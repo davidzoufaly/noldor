@@ -26,10 +26,9 @@ links:
     - src/garden/__tests__/garden-detect.test.ts
     - src/invariants/__tests__/toolchain-floor.test.ts
 introduced: 0.1.0
-updated: 1.6.0
+updated: 1.9.0
 noldor-tier: full
 ---
-
 ## Summary
 
 Four architecture invariants enforced at pre-commit, with advisory mirror in `/noldor-garden`:
@@ -87,6 +86,16 @@ Adding a new invariant:
 <!-- /generated: resources -->
 
 ## Changelog
+
+### 1.9.0
+
+#### Summary
+
+This release grades every discovered tsconfig against the lib floor (#436).
+
+#### PRs
+
+- #436: grade every discovered tsconfig against the lib floor ([link](https://github.com/davidzoufaly/noldor/pull/436))
 
 ### 1.6.0
 

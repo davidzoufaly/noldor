@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.9.0 — 2026-09-06
+
+### Features
+
+- feat(sync): scope the link projections with --slug (#441) ([8eba53d](https://github.com/davidzoufaly/noldor/commit/8eba53d0df58fe0a24c719853c8bdc7cce8eda6d)) ([#441](https://github.com/davidzoufaly/noldor/pull/441))
+- feat(triage): parse `- milestone:` on roadmap and backlog entries (#437) ([43f7a46](https://github.com/davidzoufaly/noldor/commit/43f7a464ac91a91053d3fe1f3f966f3643e1f4f2)) ([#437](https://github.com/davidzoufaly/noldor/pull/437))
+- feat(cr): add fingerprintBlocker for single-finding identity (#434) ([5c6da4d](https://github.com/davidzoufaly/noldor/commit/5c6da4d9547445e952d9a4933f1bec092de6002b)) ([#434](https://github.com/davidzoufaly/noldor/pull/434))
+- feat(cr): enforce the re-round cap in code and give codex the cut contract (#431) ([87b6c12](https://github.com/davidzoufaly/noldor/commit/87b6c12242f59478c030d2becb41795dfe4845ef)) ([#431](https://github.com/davidzoufaly/noldor/pull/431))
+
+### Fixes
+
+- fix(cr): refuse a lane sink the tree has moved past (#440) ([54438c8](https://github.com/davidzoufaly/noldor/commit/54438c8281c225682b825f46f33044fa169eb6cc)) ([#440](https://github.com/davidzoufaly/noldor/pull/440))
+- fix(invariants): grade every discovered tsconfig against the lib floor (#436) ([5d477e2](https://github.com/davidzoufaly/noldor/commit/5d477e2adacaa155093ba872b9cecbb300999aff)) ([#436](https://github.com/davidzoufaly/noldor/pull/436))
+- fix(design): return the .pen editor to VS Code (#433) ([61b03c6](https://github.com/davidzoufaly/noldor/commit/61b03c6e05222ed5ae7d198dd4064eb03e2dcc9b)) ([#433](https://github.com/davidzoufaly/noldor/pull/433))
+- fix(design): name the harness in checks pen-bridge (#432) ([f579bee](https://github.com/davidzoufaly/noldor/commit/f579bee81e07e621e1cbd8984d1a2d65be84df1d)) ([#432](https://github.com/davidzoufaly/noldor/pull/432))
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift (#442) ([e081d6a](https://github.com/davidzoufaly/noldor/commit/e081d6a875fc0c33f5256a165b505ed8491d9ad5)) ([#442](https://github.com/davidzoufaly/noldor/pull/442))
+- docs(triage): land the 2026-09-06 batch — Q-0210, Q-0211, Q-0212 (#439) ([8c9d9f6](https://github.com/davidzoufaly/noldor/commit/8c9d9f66f260838133f97cae363abe9d54674dd5)) ([#439](https://github.com/davidzoufaly/noldor/pull/439))
+- docs: rewrite the README around the gate, the hooks, and what they refuse (#438) ([5399985](https://github.com/davidzoufaly/noldor/commit/5399985db655f9968a13c178d95acdf64b8e9b6c)) ([#438](https://github.com/davidzoufaly/noldor/pull/438))
+- docs(features:cr-re-round-cap-enforcement-and-oscillation-detector): mark phase=done (#435) ([fba1083](https://github.com/davidzoufaly/noldor/commit/fba10838090091beee7201b46f208dde63d9d52e)) ([#435](https://github.com/davidzoufaly/noldor/pull/435))
+
 ## v1.8.0 — 2026-09-03
 
 ### Features

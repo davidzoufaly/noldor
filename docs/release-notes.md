@@ -1,5 +1,27 @@
 # Release Notes
 
+## v1.9.0 — 2026-09-06
+
+### Tooling
+
+#### Architecture Invariants *(updated)*
+
+This release grades every discovered tsconfig against the lib floor (#436).
+
+[Feature page](/features/architecture-invariants)
+
+#### CR Re-Round Cap Enforcement and Oscillation Detector
+
+This release adds `fingerprintBlocker` for single-finding identity (#434) and enforces the re-round cap in code while giving codex the cut contract (#431).
+
+[Feature page](/features/cr-re-round-cap-enforcement-and-oscillation-detector)
+
+#### Decouple Milestones from Semver *(updated)*
+
+Roadmap and backlog entries now support a `- milestone:` field, which is parsed from each entry (#437).
+
+[Feature page](/features/decouple-milestones-from-semver)
+
 ## v1.8.0 — 2026-09-03
 
 No user-facing feature changes in this release — internal work only.

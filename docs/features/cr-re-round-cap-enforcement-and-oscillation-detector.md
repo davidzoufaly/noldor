@@ -25,8 +25,8 @@ packages:
 phase: done
 since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.9.0
 ---
-
 ## Summary
 
 Q-0130's re-round cap (2) is enforced in one half of the loop and asserted in the other. `AUTOFIX_ROUND_CAP` is a real bound on the auto-fix seam, but only `cr autofix record` writes the ledger it reads — an operator-driven round writes nothing, `cr orchestrate` has no round counter at all, and the combined bound is prose in a skill file. The cost is measurable: of 41 unique `Noldor-Path-Override` trailers in this repo's history, 23 name a CR round or convergence failure. The Q-0146 code CR ran 12 rounds, the reviewer finding one new med per round indefinitely while codex oscillated against its own round-4 demand and re-flagged documented `noldor:cut` sites five times.
@@ -85,6 +85,17 @@ Committing a fix and re-running spends the closing round. Green mints the receip
 <!-- @prs-since-last-release: cr-re-round-cap-enforcement-and-oscillation-detector -->
 
 ## Changelog
+
+### Initial Release (v1.9.0)
+
+#### Summary
+
+This release adds `fingerprintBlocker` for single-finding identity (#434) and enforces the re-round cap in code while giving codex the cut contract (#431).
+
+#### PRs
+
+- #434: add fingerprintBlocker for single-finding identity ([link](https://github.com/davidzoufaly/noldor/pull/434))
+- #431: enforce the re-round cap in code and give codex the cut contract ([link](https://github.com/davidzoufaly/noldor/pull/431))
 
 <!-- generated: resources -->
 
