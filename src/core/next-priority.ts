@@ -98,6 +98,15 @@ export interface InProgressFd {
 export interface SuggestionsInput {
   inProgressFds: ReadonlyArray<InProgressFd>;
   milestoneGate: string;
+  /**
+   * Slug of the active milestone, or `null` when none resolves.
+   *
+   * `null` means "no active milestone", never "the active milestone is
+   * nothing": with no slug to compare against there is no other-milestone to
+   * exclude, so the fallback runs over every entry exactly as it did before
+   * this field existed.
+   */
+  activeMilestone?: string | null;
 }
 
 /**
@@ -124,13 +133,16 @@ export interface Suggestions {
  * - `smallHighImpact` — up to 2 entries with `size ∈ {XS, S}` AND
  *   `impact ∈ {high, critical}`, excluding anything already in `topPriority`.
  *   Ranked by file order (which is priority).
- * - `milestoneAligned` — at most 1 high/critical-impact entry, chosen by
- *   bag-of-words overlap against the active milestone's `## Gate` paragraph,
- *   excluding anything in `topPriority ∪ smallHighImpact`. Returns null
- *   when gate text is empty or no entry has any word overlap.
+ * - `milestoneAligned` — at most 1 entry, excluding anything in
+ *   `topPriority ∪ smallHighImpact`, picked in two branches: first an entry
+ *   whose `milestone` names the active milestone, then — only if there is none
+ *   — a high/critical-impact entry by bag-of-words overlap against that
+ *   milestone's `## Gate` paragraph. Returns null when neither branch
+ *   qualifies. See {@link findMilestoneMatch} for why the declared branch skips
+ *   the guards the overlap branch keeps.
  *
  * @param roadmapRaw - Raw contents of `docs/roadmap.md`.
- * @param input - In-progress FDs (caller-discovered) + active milestone's gate paragraph.
+ * @param input - In-progress FDs (caller-discovered) + the active milestone's slug and gate paragraph.
  * @returns 3 top + 2 small×high-impact (disjoint from top) + 1 milestone-aligned (disjoint) + inProgress (passed through verbatim). Each surfaced entry is stamped with a `suggestedPath` per the size→path policy ({@link sizeToPath}).
  */
 export function getSuggestions(
@@ -153,10 +165,20 @@ export function getSuggestions(
     .slice(0, 2);
   const smallSlugs = new Set(smallHighImpact.map((e) => e.slug));
 
+  // The empty-gate short-circuit guards the overlap branch only. Applied to the
+  // whole bucket, as it used to be, a milestone with a blank `## Gate` would
+  // silently suppress an entry that explicitly declares it — the exact
+  // guess-over-declaration inversion the declared branch exists to remove.
+  const activeMilestone = input.activeMilestone ?? null;
   const milestoneAligned =
-    input.milestoneGate.trim().length === 0
+    input.milestoneGate.trim().length === 0 && activeMilestone === null
       ? null
-      : findMilestoneMatch(sorted, input.milestoneGate, new Set([...topSlugs, ...smallSlugs]));
+      : findMilestoneMatch(
+          sorted,
+          input.milestoneGate,
+          new Set([...topSlugs, ...smallSlugs]),
+          activeMilestone,
+        );
 
   return {
     inProgress: input.inProgressFds,
@@ -185,7 +207,17 @@ function findMilestoneMatch(
   entries: ReadonlyArray<BacklogEntry>,
   gate: string,
   exclude: ReadonlySet<string>,
+  activeSlug: string | null = null,
 ): BacklogEntry | null {
+  // Branch 1 — a stated membership. It outranks the heuristic below, and skips
+  // both of that heuristic's guards on purpose: the impact filter and the
+  // empty-gate short-circuit exist to stop a *guess* surfacing the wrong entry,
+  // and a declaration is not a guess. An empty `## Gate` must not suppress it.
+  if (activeSlug !== null) {
+    const declared = entries.find((e) => !exclude.has(e.slug) && e.milestone === activeSlug);
+    if (declared) return declared;
+  }
+
   const gateWords = new Set(
     gate
       .toLowerCase()
@@ -196,6 +228,13 @@ function findMilestoneMatch(
   let best: { entry: BacklogEntry; score: number } | null = null;
   for (const entry of entries) {
     if (exclude.has(entry.slug)) continue;
+    // Branch 2 never overrules a declaration: an entry assigned to some *other*
+    // milestone is out, or a word count would beat its own frontmatter. With no
+    // active milestone there is no "other" to be assigned to, so the exclusion
+    // is off and this is exactly the pre-existing behaviour.
+    if (activeSlug !== null && entry.milestone !== undefined && entry.milestone !== activeSlug) {
+      continue;
+    }
     if (!HIGH_IMPACT.has(entry.impact ?? '')) continue;
     const text = `${entry.name} ${entry.description ?? ''}`.toLowerCase();
     const tokens = new Set(text.split(/\W+/).filter((w) => w.length > 3));
@@ -257,21 +296,43 @@ export function loadInProgressFds(cwd: string): InProgressFd[] {
 }
 
 /**
+ * The active milestone, as much of it as the gate's bucketing needs.
+ *
+ * Both halves, because both are used and they fail independently: a milestone
+ * can be set with no `## Gate` paragraph, which leaves `slug` usable and `gate`
+ * empty. Returning only the gate text — as this used to — made an explicitly
+ * declared `- milestone:` unmatchable, since nothing downstream could tell which
+ * milestone was active.
+ */
+export interface ActiveMilestone {
+  /** Slug of the active milestone, or `null` when none resolves. */
+  slug: string | null;
+  /** First paragraph under `## Gate`, or `''` when absent. */
+  gate: string;
+}
+
+const NO_MILESTONE: ActiveMilestone = { slug: null, gate: '' };
+
+/**
  * Resolve the active milestone (per `docs/vision.md` frontmatter
- * `current-milestone:`) and return its `## Gate` paragraph (first non-empty
- * paragraph under that heading). Returns empty string when no milestone is
- * set, milestone file is missing, or the `## Gate` section is absent/empty.
+ * `current-milestone:`) — its slug and its `## Gate` paragraph (first non-empty
+ * paragraph under that heading).
+ *
+ * Returns {@link NO_MILESTONE} when no milestone is set, the milestone file is
+ * missing, or the value is refused; `gate` alone is empty when the file exists
+ * but declares no `## Gate`.
  *
  * @param cwd - Repo root.
+ * @returns The active milestone's slug and gate paragraph.
  */
-export function loadMilestoneGate(cwd: string): string {
+export function loadMilestoneGate(cwd: string): ActiveMilestone {
   const visionPath = loadDocRoots(cwd).vision;
-  if (!existsSync(visionPath)) return '';
+  if (!existsSync(visionPath)) return NO_MILESTONE;
   const visionFm = matter(readFileSync(visionPath, 'utf8')).data as {
     'current-milestone'?: string;
   };
   const slug = visionFm['current-milestone'];
-  if (slug === undefined || slug === '') return '';
+  if (slug === undefined || slug === '') return NO_MILESTONE;
   // This reader casts vision's frontmatter rather than parsing it with
   // visionFrontmatterSchema, so no schema tightening binds here — the guarded
   // builder is the only thing standing between a hand-edited value and a read.
@@ -281,25 +342,26 @@ export function loadMilestoneGate(cwd: string): string {
   const parsed = parseSlug(slug);
   if (!parsed.ok) {
     process.stderr.write(`next-priority: ignoring current-milestone — ${parsed.error.message}\n`);
-    return '';
+    return NO_MILESTONE;
   }
   const built = milestonePath(cwd, parsed.slug);
   if (!built.ok) {
     process.stderr.write(
       `next-priority: ignoring current-milestone — ${pathErrorMessage(built.error)}\n`,
     );
-    return '';
+    return NO_MILESTONE;
   }
-  if (!existsSync(built.path)) return '';
+  if (!existsSync(built.path)) return NO_MILESTONE;
   const body = matter(readFileNoFollow(built.path)).content;
   const match = body.match(/##\s+Gate\s*\n+([\s\S]*?)(?=\n##\s|$)/);
-  if (match === null) return '';
-  return (
-    (match[1] ?? '')
-      .trim()
-      .split(/\n\s*\n/)[0]
-      ?.trim() ?? ''
-  );
+  const gate =
+    match === null
+      ? ''
+      : ((match[1] ?? '')
+          .trim()
+          .split(/\n\s*\n/)[0]
+          ?.trim() ?? '');
+  return { slug: parsed.slug, gate };
 }
 
 async function main(): Promise<void> {
@@ -314,9 +376,13 @@ async function main(): Promise<void> {
 
   if (argv.has('--suggestions')) {
     const inProgressFds = loadInProgressFds(cwd);
-    const milestoneGate = loadMilestoneGate(cwd);
+    const active = loadMilestoneGate(cwd);
     const skip = parseSkip(process.argv.slice(2));
-    const suggestions = getSuggestions(roadmapRaw, { inProgressFds, milestoneGate }, skip);
+    const suggestions = getSuggestions(
+      roadmapRaw,
+      { inProgressFds, milestoneGate: active.gate, activeMilestone: active.slug },
+      skip,
+    );
     process.stdout.write(`${JSON.stringify(suggestions, null, 2)}\n`);
     // Exit 2 = nothing actionable (no in-progress AND no roadmap entries).
     process.exit(
