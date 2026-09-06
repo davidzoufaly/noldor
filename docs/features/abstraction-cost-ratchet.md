@@ -24,6 +24,7 @@ phase: done
 noldor-tier: full
 introduced: 1.7.0
 ---
+
 ## Summary
 
 A counterweight to the clone ratchet. `noldor indirection` measures how many
@@ -135,6 +136,7 @@ This release adds a feature to measure per-module transitive import closure (#41
   - [`src/indirection/indirection-cli.ts`](../../src/indirection/indirection-cli.ts)
   - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
 - **Tests:**
+  - [`src/cli/__tests__/init-arms-indirection.test.ts`](../../src/cli/__tests__/init-arms-indirection.test.ts)
   - [`src/indirection/__tests__/baseline.test.ts`](../../src/indirection/__tests__/baseline.test.ts)
   - [`src/indirection/__tests__/detect.test.ts`](../../src/indirection/__tests__/detect.test.ts)
   - [`src/indirection/__tests__/indirection-cli.test.ts`](../../src/indirection/__tests__/indirection-cli.test.ts)
