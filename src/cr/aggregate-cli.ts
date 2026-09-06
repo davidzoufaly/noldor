@@ -1,6 +1,6 @@
 import { artifactKindSchema } from './findings-schema.js';
 import { parseSlug, type Slug } from '../core/slug.js';
-import { aggregate } from './aggregate.js';
+import { aggregate, describeStale } from './aggregate.js';
 
 interface Args {
   /** Branded: it names the sink paths this command reads. */
@@ -31,6 +31,13 @@ interface Args {
    * too. Deliberate: that sink was already surfaced by the artifact stage's own
    * aggregate at the Step 2.5 continue-dialog, which is where the artifact's
    * verdict is settled. A lane still WRITING is `unresolved`, so it keeps gating.
+   *
+   * A STALE round is muted for the same reason, and the kind-less call makes it
+   * load-bearing: by the time this step runs, implementation commits have moved
+   * the tree well past the one the spec and plan sinks were written against, so
+   * gating on staleness here would re-red every session that produced an
+   * artifact — the exact cost this flag exists to remove. The verdict that
+   * gates on a stale round is the kind-scoped one at Step 4.
    */
   unresolvedOnly?: boolean;
 }
@@ -79,11 +86,16 @@ async function main() {
       for (const b of r.blockers) {
         console.log(`  [${b.severity}] ${b.lane} ${b.file}: ${b.message}`);
       }
+      // Printed AFTER the findings it qualifies: the whole point is that the
+      // lines above are not about the current tree, and a caveat ahead of the
+      // thing it caveats reads as unrelated preamble.
+      for (const s of r.stale) console.log(`  ${describeStale(s)}`);
       if (args.unresolvedOnly) {
         console.log(
           `  --unresolved-only: ${r.blockers.length - integrity.length} lane finding(s) above ` +
             `do NOT gate; ${r.unresolved.length} unresolved lane(s) and ` +
-            `${integrity.length} integrity blocker(s) do`,
+            `${integrity.length} integrity blocker(s) do` +
+            (r.stale.length ? `; ${r.stale.length} stale round(s) above do NOT gate either` : ''),
         );
       }
       process.exit(ok ? 0 : 1);

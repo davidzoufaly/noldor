@@ -5,7 +5,7 @@ import { copyFile, mkdir, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
 import { writeExpectedLanes } from './expected-lanes.js';
-import { aggregate } from './aggregate.js';
+import { aggregate, describeStale } from './aggregate.js';
 import {
   AUTOFIX_ROUND_CAP,
   appendRound,
@@ -584,7 +584,19 @@ export async function writeSkeletonIfAbsent(
     }
     // `aggregate` already owns the sink glob and the per-lane blocker list, so
     // this reuses it rather than minting a second reader of the same files.
-    const { blockers } = await aggregate(slug, kind, { cwd });
+    const { blockers, stale } = await aggregate(slug, kind, { cwd });
+    // A skeleton built from a round the tree has moved past asks the operator to
+    // dispose of blockers that may already be fixed, and binds those
+    // dispositions to the CURRENT tree — the misleading artifact Q-0211 names.
+    //
+    // It is still WRITTEN, and loudly qualified instead. Refusing here would
+    // wedge the session it is meant to rescue: once `hasClosingRound` is spent
+    // `capVerdict` refuses terminally no matter how HEAD moves, and
+    // `decideArbitration` accepts neither a bare override nor a record bound to
+    // any tree but HEAD's — so with no skeleton for the new tree the push has no
+    // exit at all. The advisory record is the last way out, and `cr aggregate` is
+    // where staleness gates.
+    for (const s of stale) console.error(`arbitrating a stale round — ${describeStale(s)}`);
     const rec = buildSkeleton(slug, kind, tree, ledger?.rounds ?? [], blockers, fingerprintBlocker);
     if (!rec) {
       console.error(
@@ -599,6 +611,12 @@ export async function writeSkeletonIfAbsent(
     console.error(
       `  ${rec.blockers.length} unresolved blockers await a disposition; then commit with:`,
     );
+    if (stale.length > 0) {
+      console.error(
+        '  CHECK EACH ONE AGAINST THE CODE FIRST — the sinks they came from predate this tree, ' +
+          'so some may already be fixed.',
+      );
+    }
     console.error('  git commit --amend --no-edit --trailer \\');
     console.error('    "Noldor-Path-Override: cr-arbitration <digest> — <why>"');
   } catch (err) {
@@ -732,8 +750,13 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // and a synthetic-OK lane writes one — only a lane killed mid-run leaves the
   // expectation unmet. Empty set = interactive-mode "prompt the operator"
   // sentinel, not a resolved round — nothing to record.
+  // `headSha` rides along so `aggregate` can tell this round's sinks from ones
+  // the tree has moved past (Q-0211). It is stamped here, on the record written
+  // per DISPATCH, precisely because the cap refusal above returns before this
+  // line: a refused run leaves the previous round's stamp in place, which is
+  // what makes its sinks read as stale instead of as current.
   if (requested.length > 0) {
-    await writeExpectedLanes(cwd, opts.args.slug, opts.args.kind, requested);
+    await writeExpectedLanes(cwd, opts.args.slug, opts.args.kind, requested, headSha);
   }
 
   const input: LaneInput = {

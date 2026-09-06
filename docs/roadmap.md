@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Stale CR Sink Reported After the Round Cap Refuses
-
-- id: Q-0211
-- area: tooling
-- type: fix
-- since: 2026-09-06
-- size: S
-- impact: high
-- confidence: high
-- parent: cr-re-round-cap-enforcement-and-oscillation-detector
-
-Once `cr orchestrate` refuses at the round cap it exits 3 without dispatching, so nothing rewrites the sink — and `cr aggregate` then re-reads the *previous* round's sink and prints it as current. On PR #437 that meant 3 reported blockers of which 2 had already been fixed in a later commit. The arbitration skeleton `orchestrate` writes is built from those same stale findings, so the operator writes dispositions against a list that no longer matches the tree and has to hand-verify every blocker against the code before disposing of it — exactly the manual step the machine-readable arbitration record was supposed to remove. Worse, the failure is silent: a stale sink is indistinguishable from a fresh one in the aggregate output, so an operator who trusts it waives blockers that were never re-checked. Two candidate fixes, not exclusive: have the skeleton re-resolve each blocker's claim against `HEAD` before writing, or have `aggregate` refuse to report a sink whose `baseSha` is behind `HEAD` rather than printing it as current. The second is the cheaper guard and the one that fails closed. Deletion test: with a sink written at base-sha X and `HEAD` moved past X, `cr aggregate` refuses (or re-resolves) instead of printing the old findings as live. (found 2026-09-06 shipping Q-0083 / PR #437)
-
 ### Scoped Link Sync for the Projection Runners
 
 - id: Q-0182

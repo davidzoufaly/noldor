@@ -522,6 +522,32 @@ More sink/receipt traps:
   `git commit --amend --no-edit --trailer "Noldor-Path-Override: <reason>"`.
   A red round at the re-round cap therefore has exactly two exits: one more
   delta round, or that amend. (Q-0132, Q-0145)
+- **A refused round leaves its sinks on disk, and `cr aggregate` now says so.**
+  `cr orchestrate` returns at the round cap *before* it records the round, so
+  nothing rewrites the lane sinks and the previous round's findings sit there
+  reading as current — on PR #437 that was three reported blockers of which two
+  had already been fixed in a later commit, with nothing in the output to say
+  which. The expected-lanes record now stamps the `HEAD` each dispatch ran
+  against, and `aggregate` compares that commit's **tree** with `HEAD^{tree}` —
+  the same identity the push receipt is bound to, so the receipt amend and
+  `cr bootstrap`'s message rewrites do not trip it. A mismatch prints
+  `stale <kind> round:` and exits 1 even when every sink is green, and
+  `cr autofix plan` declines it as `reason: stale-round` rather than handing you
+  `M<n>` fixes for code that may already carry them. Re-run
+  `cr orchestrate --kind <kind>` (a changed `HEAD` earns one closing round at
+  the cap) or take the `Noldor-Path-Override` amend above. `--unresolved-only`
+  mutes it — by the gate's kind-less drain step the tree has moved past every
+  spec and plan sink by construction. Records written before this landed carry
+  no stamp and read as unknown, never stale. (Q-0211)
+- **The arbitration skeleton is still written for a stale round — loudly.** It
+  would be tidier to refuse it, and that refusal wedges the session: once
+  `hasClosingRound` is spent, `capVerdict` refuses terminally however `HEAD`
+  moves, and `decideArbitration` accepts neither a bare override nor a record
+  bound to any tree but `HEAD`'s — so with no skeleton for the new tree the push
+  has no exit at all. The skeleton is the last way out, so it is written with an
+  `arbitrating a stale round` warning and a `CHECK EACH ONE AGAINST THE CODE
+  FIRST` line above the disposition instructions. `cr aggregate` is where
+  staleness gates; the skeleton is where it is disclosed. (Q-0211)
 
 - **`--lanes reviewer` silently under-runs a configured `crLanes.code`.** The
   gate's Step 4 examples hardcode `--lanes reviewer`, but a repo whose
