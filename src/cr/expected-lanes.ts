@@ -5,6 +5,7 @@ import {
   slugPath,
   type SlugPathResult,
 } from '../core/slug-paths.js';
+import { isSha, SHA_RE } from '../core/sha.js';
 import { slugSchema, type Slug } from '../core/slug.js';
 import { dirname } from 'node:path';
 import { z } from 'zod';
@@ -37,8 +38,15 @@ export const expectedLanesSchema = z.object({
    * the staleness check for that round rather than failing it — a missing stamp
    * is "unknown", and reporting unknown as stale would red every pre-existing
    * round in the repo.
+   *
+   * Constrained to {@link SHA_RE} because the value is interpolated into a git
+   * ARGUMENT (`git rev-parse <headSha>^{tree}`). An unconstrained string is a
+   * revision expression, not an object name: a record holding `HEAD` would
+   * resolve to the current tree and report every stale round as current, which
+   * is the exact failure this field exists to catch. A record that fails the
+   * shape is corrupt and surfaces through `errors`, never as a silent skip.
    */
-  headSha: z.string().optional(),
+  headSha: z.string().regex(SHA_RE).optional(),
 });
 export type ExpectedLanes = z.infer<typeof expectedLanesSchema>;
 
@@ -64,9 +72,13 @@ export async function writeExpectedLanes(
     slug,
     kind,
     lanes,
-    // Omitted rather than stamped empty: `''` would parse as a recorded head and
-    // send the staleness check to `git rev-parse ^{tree}` on nothing.
-    ...(headSha ? { headSha } : {}),
+    // Omitted unless it is a real object name. `''` (git unreachable) would parse
+    // as a recorded head and send the check to `rev-parse ^{tree}` on nothing,
+    // and anything else off-shape would write a record the reader then reports as
+    // corrupt — an integrity blocker gating the whole session over a value this
+    // process produced. Dropping it degrades to "unknown", which is the direction
+    // that costs a check rather than a ship.
+    ...(headSha !== undefined && isSha(headSha) ? { headSha } : {}),
   } satisfies ExpectedLanes);
 }
 

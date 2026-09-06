@@ -588,11 +588,15 @@ export async function writeSkeletonIfAbsent(
     // A skeleton built from a round the tree has moved past asks the operator to
     // dispose of blockers that may already be fixed, and binds those
     // dispositions to the CURRENT tree — the misleading artifact Q-0211 names.
-    // Refuse instead: an arbitration is a claim about work as it stands.
-    if (stale.length > 0) {
-      for (const s of stale) console.error(`arbitration skeleton not written: ${describeStale(s)}`);
-      return;
-    }
+    //
+    // It is still WRITTEN, and loudly qualified instead. Refusing here would
+    // wedge the session it is meant to rescue: once `hasClosingRound` is spent
+    // `capVerdict` refuses terminally no matter how HEAD moves, and
+    // `decideArbitration` accepts neither a bare override nor a record bound to
+    // any tree but HEAD's — so with no skeleton for the new tree the push has no
+    // exit at all. The advisory record is the last way out, and `cr aggregate` is
+    // where staleness gates.
+    for (const s of stale) console.error(`arbitrating a stale round — ${describeStale(s)}`);
     const rec = buildSkeleton(slug, kind, tree, ledger?.rounds ?? [], blockers, fingerprintBlocker);
     if (!rec) {
       console.error(
@@ -607,6 +611,12 @@ export async function writeSkeletonIfAbsent(
     console.error(
       `  ${rec.blockers.length} unresolved blockers await a disposition; then commit with:`,
     );
+    if (stale.length > 0) {
+      console.error(
+        '  CHECK EACH ONE AGAINST THE CODE FIRST — the sinks they came from predate this tree, ' +
+          'so some may already be fixed.',
+      );
+    }
     console.error('  git commit --amend --no-edit --trailer \\');
     console.error('    "Noldor-Path-Override: cr-arbitration <digest> — <why>"');
   } catch (err) {

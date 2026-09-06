@@ -249,13 +249,23 @@ function staleRounds(cwd: string, heads: readonly DispatchedHead[]): StaleRound[
   return stale;
 }
 
-/** One line an operator can act on: what moved, and what re-earns a live verdict. */
+/**
+ * One line an operator can act on: what moved, and what re-earns a live verdict.
+ *
+ * Both exits are named, because the first is not always available: past the
+ * round cap with the closing round spent, `cr orchestrate` refuses terminally
+ * however HEAD moves, and an operator sent only there would loop.
+ */
 export function describeStale(s: StaleRound): string {
   const what =
     s.roundTree === null
       ? `commit ${s.headSha.slice(0, 7)} no longer resolves — history was rewritten under it`
       : `tree ${s.roundTree.slice(0, 7)} (commit ${s.headSha.slice(0, 7)}), HEAD is now tree ${s.currentTree.slice(0, 7)}`;
-  return `stale ${s.kind} round: sinks describe ${what}. Findings above are not about this tree — re-run \`pnpm noldor cr orchestrate --kind ${s.kind}\` before acting on them (${s.file})`;
+  return (
+    `stale ${s.kind} round: sinks describe ${what}. Findings above are not about this tree — ` +
+    `re-run \`pnpm noldor cr orchestrate --kind ${s.kind}\` before acting on them, or, where the ` +
+    `round cap refuses that, arbitrate the round instead (${s.file})`
+  );
 }
 
 async function templateShaFor(path: string): Promise<string | null> {

@@ -5,7 +5,7 @@ import {
   roundsExcludingHead,
 } from './autofix-ledger.js';
 import type { AutofixLedger } from './autofix-ledger.js';
-import type { LaneBlocker } from './aggregate.js';
+import type { LaneBlocker, StaleRound } from './aggregate.js';
 import { isSha } from '../core/sha.js';
 import type { Lane } from './findings-schema.js';
 
@@ -20,6 +20,7 @@ export type AutofixVerdict = 'auto-fix' | 'decline';
 export type DeclineReason =
   | 'knob-off'
   | 'lanes-in-flight'
+  | 'stale-round'
   | 'prior-deferred'
   | 'round-cap'
   | 'no-progress'
@@ -37,6 +38,13 @@ export interface DecideInput {
    * means the blocker set is still provisional, so the round must not run.
    */
   readonly unresolved: readonly Lane[];
+  /**
+   * `aggregate().stale` — rounds whose sinks describe a tree the checkout has
+   * moved past. Non-empty means the blocker set is not provisional but OBSOLETE,
+   * which is worse: planning against it hands the operator `M<n>` fixes for code
+   * that may already carry them.
+   */
+  readonly stale: readonly StaleRound[];
 }
 
 /**
@@ -176,6 +184,11 @@ export function decide(input: DecideInput): DecideResult {
   // `--autonomous`) — after which the late writer lands pre-fix findings over
   // the archive. Checked second: only the knob, a pure policy read, outranks it.
   if (input.unresolved.length > 0) return decline('lanes-in-flight');
+  // A stale round is the same class of problem one step further along: the
+  // sinks are finished, but they are about an older tree. Re-rounding cannot
+  // help either (the re-round is `--base-sha`-scoped to the fix diff), so this
+  // goes to the operator, who re-runs the round or arbitrates it (Q-0211).
+  if (input.stale.length > 0) return decline('stale-round');
   // A prior round that deferred a blocker must not be re-rounded, or the loop
   // launders an unfixed blocker into a green: the re-round is `--base-sha`-scoped
   // to the fix diff, the deferred blocker is not in that diff, so it never

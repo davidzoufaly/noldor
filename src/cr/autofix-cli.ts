@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process';
 import { loadConfig } from '../core/config.js';
 import { isSha } from '../core/sha.js';
 import { isSlug, type Slug } from '../core/slug.js';
-import { aggregate } from './aggregate.js';
+import { aggregate, describeStale } from './aggregate.js';
 import type { LaneBlocker } from './aggregate.js';
 import { decide, splitByClass } from './autofix.js';
 import type { NextAction } from './autofix.js';
@@ -166,6 +166,7 @@ async function runPlan(cwd: string, a: Args): Promise<never> {
     ledger,
     headSha,
     unresolved: agg.unresolved,
+    stale: agg.stale,
   });
 
   console.log(`verdict: ${r.verdict}`);
@@ -174,6 +175,7 @@ async function runPlan(cwd: string, a: Args): Promise<never> {
   console.log(`base-sha: ${r.baseSha || '-'}`);
   console.log(`round: ${roundLabel(r.round)}`);
   if (agg.unresolved.length > 0) console.log(`in-flight lanes: ${agg.unresolved.join(', ')}`);
+  for (const s of agg.stale) console.log(describeStale(s));
   console.log(`mechanical: ${r.mechanical.length}`);
   r.mechanical.forEach((b, i) => printBlocker(`M${i + 1}`, b));
   console.log(`design: ${r.design.length}`);

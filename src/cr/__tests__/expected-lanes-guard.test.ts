@@ -66,3 +66,46 @@ describe('writeExpectedLanes with an unusable sink', () => {
     );
   });
 });
+
+// The stamp is interpolated into `git rev-parse <headSha>^{tree}`, so it must be
+// an object name and not a revision expression — see `src/core/sha.ts`.
+describe('the dispatched-head stamp (Q-0211)', () => {
+  it('round-trips a real object name', async () => {
+    const sha = 'a'.repeat(40);
+    await writeExpectedLanes(cwd, slug('demo'), 'code', ['reviewer'], sha);
+    const r = await readExpectedLanes(cwd, slug('demo'), 'code');
+    expect(r.heads).toEqual([
+      {
+        kind: 'code',
+        headSha: sha,
+        file: join(cwd, '.noldor', 'cr', 'expected', 'demo-code.json'),
+      },
+    ]);
+  });
+
+  it('drops a stamp that is not an object name rather than writing a corrupt record', async () => {
+    // `HEAD` would resolve to the CURRENT tree and report every stale round as
+    // current — the exact failure the field exists to catch.
+    await writeExpectedLanes(cwd, slug('demo'), 'code', ['reviewer'], 'HEAD');
+    const r = await readExpectedLanes(cwd, slug('demo'), 'code');
+    expect(r.errors).toEqual([]);
+    expect(r.heads).toEqual([]);
+    expect(r.lanes).toEqual(['reviewer']);
+  });
+
+  it('rejects a hand-tampered stamp as a corrupt record', async () => {
+    writeFileSync(
+      join(cwd, '.noldor', 'cr', 'expected', 'demo-code.json'),
+      JSON.stringify({ slug: 'demo', kind: 'code', lanes: ['reviewer'], headSha: 'HEAD' }),
+    );
+    const r = await readExpectedLanes(cwd, slug('demo'), 'code');
+    expect(r.errors).toHaveLength(1);
+    expect(r.errors[0]?.message).toMatch(/corrupt/);
+  });
+
+  it('omits the stamp when git could not answer', async () => {
+    await writeExpectedLanes(cwd, slug('demo'), 'code', ['reviewer'], '');
+    const r = await readExpectedLanes(cwd, slug('demo'), 'code');
+    expect(r.heads).toEqual([]);
+  });
+});

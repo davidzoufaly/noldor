@@ -42,7 +42,20 @@ const base = {
   ledger: null,
   headSha: HEAD,
   unresolved: [],
+  stale: [],
 } as const;
+
+/** One round whose sinks describe a tree the checkout has moved past. */
+const staleRound = () =>
+  [
+    {
+      kind: 'code',
+      file: '.noldor/cr/expected/x-code.json',
+      headSha: 'a'.repeat(40),
+      roundTree: 'b'.repeat(40),
+      currentTree: 'c'.repeat(40),
+    },
+  ] as const;
 
 describe('decide — verdicts', () => {
   it('auto-fixes an all-mechanical round', () => {
@@ -125,6 +138,23 @@ describe('decide — verdicts', () => {
   it('declines lanes-in-flight even with zero blockers (aggregate is red on unresolved alone)', () => {
     const r = decide({ ...base, blockers: [], unresolved: ['reviewer'] });
     expect(r).toMatchObject({ verdict: 'decline', reason: 'lanes-in-flight' });
+  });
+
+  it('declines stale-round on an all-mechanical set the tree has moved past (Q-0211)', () => {
+    // Without the guard this is the auto-fix case, so the round is what decides.
+    expect(decide({ ...base, blockers: [mech()] }).verdict).toBe('auto-fix');
+    const r = decide({ ...base, blockers: [mech()], stale: staleRound() });
+    expect(r).toMatchObject({ verdict: 'decline', reason: 'stale-round', next: 'operator' });
+  });
+
+  it('stale-round wins over round-cap — the obsolete set is the reason to stop', () => {
+    const r = decide({
+      ...base,
+      blockers: [mech()],
+      stale: staleRound(),
+      ledger: ledgerWith([{ verdict: 'red' }, { verdict: 'red' }]),
+    });
+    expect(r.reason).toBe('stale-round');
   });
 
   it('declines no-base-sha when neither the prior headSha nor HEAD resolves', () => {
