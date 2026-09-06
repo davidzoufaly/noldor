@@ -300,5 +300,9 @@
   "Q-0211": {
     "slug": "stale-cr-sink-reported-after-the-round-cap-refuses",
     "retiredAt": "2026-09-06"
+  },
+  "Q-0182": {
+    "slug": "scoped-link-sync-for-the-projection-runners",
+    "retiredAt": "2026-09-06"
   }
 }

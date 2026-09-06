@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Scoped Link Sync for the Projection Runners
-
-- id: Q-0182
-- area: tooling
-- type: feat
-- since: 2026-08-25
-- size: S
-- impact: med
-- confidence: high
-- parent: feature-md-links-overhaul
-
-`pnpm noldor sync code-links` is repo-wide with no scope flag, so running it inside a feature worktree to populate one FD's links also rewrites every other FD the tag scan touches. On the liquid-glass-ui ship it reordered `coordinate-frame-and-measurement-tools.md` and added six entries to it, pulling unrelated FD churn into a feature PR that had to be reverted by hand. The gap is in `parseRunOptions()` (`src/sync/projection.ts`), which parses only `--check`, `--force` and `--quiet` — so all four projection runners (`code-links`, `test-links`, `doc-links`, `spec-links`) share it. Add `--slug <slug>` (repeatable, or comma-separated) that restricts the write set to the named FDs while still scanning the repo for their tags, since the tags themselves live outside the FD. Deletion test: a `sync code-links --slug <x>` run leaves every FD but `<x>` byte-identical. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
-
 ### writeJsonState Missing From the State-File Module
 
 - id: Q-0204
