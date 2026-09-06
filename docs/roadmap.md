@@ -16,6 +16,19 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Stale CR Sink Reported After the Round Cap Refuses
+
+- id: Q-0211
+- area: tooling
+- type: fix
+- since: 2026-09-06
+- size: S
+- impact: high
+- confidence: high
+- parent: cr-re-round-cap-enforcement-and-oscillation-detector
+
+Once `cr orchestrate` refuses at the round cap it exits 3 without dispatching, so nothing rewrites the sink — and `cr aggregate` then re-reads the *previous* round's sink and prints it as current. On PR #437 that meant 3 reported blockers of which 2 had already been fixed in a later commit. The arbitration skeleton `orchestrate` writes is built from those same stale findings, so the operator writes dispositions against a list that no longer matches the tree and has to hand-verify every blocker against the code before disposing of it — exactly the manual step the machine-readable arbitration record was supposed to remove. Worse, the failure is silent: a stale sink is indistinguishable from a fresh one in the aggregate output, so an operator who trusts it waives blockers that were never re-checked. Two candidate fixes, not exclusive: have the skeleton re-resolve each blocker's claim against `HEAD` before writing, or have `aggregate` refuse to report a sink whose `baseSha` is behind `HEAD` rather than printing it as current. The second is the cheaper guard and the one that fails closed. Deletion test: with a sink written at base-sha X and `HEAD` moved past X, `cr aggregate` refuses (or re-resolves) instead of printing the old findings as live. (found 2026-09-06 shipping Q-0083 / PR #437)
+
 ### Scoped Link Sync for the Projection Runners
 
 - id: Q-0182
@@ -96,6 +109,19 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 `clones check` printed `no clone group touches this change - green` and reddened in the same run on `duplicated tokens rose 27735 -> 27845 (+110)` — the standalone CLI disagreeing with itself. The rise came from a new test reusing its file's established 15-instance scaffold (`const commits: Commit[] = [...]` + `checkCrGate({...runGit: makeGitFake(commits)})`), i.e. exactly the idiom consistency the test rules ask for, so any PR that adds a case to a table-driven test file currently owes a baseline re-record commit. The check also declines to name what moved the total: the operator has to diff group lists between branches, and a green run prints no group list to diff against, so there is nothing to compare. Two candidate fixes, not exclusive: exempt `**/__tests__/**` from the token ratchet (or weight it separately from production code), and make `clones check` name the files that moved the total the way `microChoreOffenders` names its offenders. Related to Q-0165 (preflight vs hook disagreement) but distinct — that was two entry points diverging, this is one run contradicting itself. Deletion test: adding a case to a table-driven test file does not red the ratchet, and any ratchet rise names the files responsible. (found 2026-08-25 shipping Q-0164)
 
 - The ratchet also counts thin typed façades as duplication, and this one blocked a release sweep. On the 2026-08-30 sweep the whole-corpus ratchet redded at +112 tokens over the baseline PR #406 recorded, and the largest new group was `src/design/design-approval.ts:63-92` vs `src/design/ui-capture.ts:76-108` (82 tokens). Neither site holds copied logic: both are one-line delegations to the already-shared receipt store (`parseReceiptWith`, `writeReceiptFile`, `readReceiptFile`), each binding a *different* schema, dir-segment tuple and return type. The tokenizer skips comments but normalizes identifiers to `ID` for Type-2 matching, so two same-shaped one-line delegations match structurally. The rest of the delta was import blocks (`src/design/ledger.ts` vs `src/cr/orchestrate.ts`, `src/metrics/compute.ts`, `src/garden/garden-detect.ts`). Extracting is strictly worse here — one generic untyped wrapper, indirection added, zero logic shared. Two more candidate fixes on the same axis as the ones above: skip a group whose every span is a single `return <call>(…)` statement, and exclude leading import runs from the token stream. Rebaselined to 28844 by hand to unblock the sweep, which is now the second forced re-record on this entry — hence the move up the file. Deletion test: a file pair whose only overlap is imports plus a delegating one-liner produces no group. (found 2026-08-30, release sweep)
+
+### Oscillation Detector R3 Fires on Every Greenfield Finding
+
+- id: Q-0212
+- area: tooling
+- type: fix
+- since: 2026-09-06
+- size: S
+- impact: med
+- confidence: high
+- parent: cr-re-round-cap-enforcement-and-oscillation-detector
+
+R3 asks whether a blocker's line was introduced by the series under review, which is a real oscillation signal on a series that edits existing code and no signal at all on one that adds files. PR #437 drew nine R3 signals, every one of the form "blocker at `<file>:<line>` is about line N, which this series introduced" — on a greenfield feature *every* line is one the series introduced, so R3 fires on every finding and distinguishes nothing. Nine undifferentiated signals is worse than none: the operator has to read and dismiss each one, which trains the habit of skimming past R3 on the runs where it would have caught a genuine repair-the-last-repair loop. The predicate is asking the wrong question — what matters is not whether *the series* touched the line but whether a *prior round in the same series* did, since that is what oscillation means. Two candidate fixes: gate R3 on the file having existed at the series base sha (cheap, kills the greenfield case outright), or narrow the attribution window from the whole series to the rounds already recorded in the ledger (more precise, and the ledger is already the round counter's single writer). Deletion test: a CR round on a series that only adds new files emits zero R3 signals. (found 2026-09-06 shipping Q-0083 / PR #437)
 
 ### Main-Module Guard Fails on Percent-Encoded Paths
 

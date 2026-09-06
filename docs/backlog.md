@@ -198,6 +198,8 @@ Residue from the Q-0075 ship (PR #276, CR rounds 9–16): (a) `DecideResult.base
 
 - `cr autofix record --since` rejects a ref that `cr orchestrate --base-sha` accepts: `--since origin/main` exits 2 with `--since must be a hex sha (4-40 chars)`. The gate skill says to pass "the printed base-sha", so the asymmetry only bites a controller re-deriving the value — but then every caller needs `$(git rev-parse origin/main)` for one command and not the other. Accept any `git rev-parse`-able ref in `record` (resolve it, store the sha). (absorbed from a lesson, surfaced shipping Q-0107, PR #317)
 
+- The exit-2 `--deferred` cross-check in (e) has a second-order cost: when `record` refuses, the round ledger silently records zeros. On PR #437 round 1 at code stage had 4 fixes applied, but all four rounds show `0 applied, 0 deferred` — because `cr autofix record --applied 4 --deferred 1` exited non-zero with ``--deferred 1 disagrees with the sinks: 5 design + 0 unapplied mechanical = 5``, after which `orchestrate` recorded the round itself with zeros. The strict count has no escape hatch for "I applied some of the design blockers by hand too", which is the normal shape of an operator round, so the accounting the round cap reports back to the operator is wrong and nothing says so. Two candidate fixes: accept `--deferred` below the sink count when `--applied` covers the difference, or count applied design blockers as applied. Either way the zero-fallback in `orchestrate` should be distinguishable from a genuine `0 applied` round. (absorbed from a lesson, surfaced shipping Q-0083, PR #437)
+
 ### Upgrade Empty-Chain Dirty-Tree Guard
 
 - id: Q-0085
@@ -247,18 +249,6 @@ Multiagent operation already works in practice — several branches, several wor
 - confidence: med
 
 macOS ships no `timeout` and no `gtimeout` unless coreutils is installed, so any hand-written supervisor loop that copies the drain's per-iteration timeout gets `command not found` and — with `set -uo pipefail` but no `-e` — silently runs its children UNBOUNDED. The portable shape is to background the child, background a `( sleep N; kill -0 $child && pkill -P $child; kill -TERM $child )` watchdog, `wait $child`, then kill the watchdog. Two deliverables: audit whether `src/autonomous` (or any shipped script, hook or template) depends on a GNU-only binary for the same reason, and record the portable watchdog recipe in `docs/noldor/gotchas.md` so the next hand-rolled runner starts from it. Parked rather than queued because no framework code path is confirmed affected — the failure was in an ad-hoc runner. (surfaced draining the 2026-08-12 XS batch)
-
-### Caveman Output Mode in Noldor
-
-- id: Q-0128
-- area: tooling
-- type: feat
-- since: 2026-08-14
-- size: S
-- impact: low
-- confidence: low
-
-Open question — should the terse, article-free "caveman" response style become a Noldor-owned concern rather than one operator's user-level global skill? The argument for is reproducibility: the token-compression posture would survive a fresh machine, apply to any consumer, and hold across claude, codex and opencode instead of depending on private config. The argument against is that Noldor's posture is about discipline and traceability, not about an agent's voice, and presentation policy inside the framework invites every consumer to want their own. Speculative with no trigger — park until a consumer actually asks for it, or until the global-skill version demonstrably fails to carry into an autonomous drain.
 
 ### Single Static Binary Distribution
 
@@ -370,3 +360,16 @@ The M/L/XL mandatory codex round (Q-0091, PR #341) hardcodes `codex` as the seco
 - confidence: low
 
 PR #372 carried the same prose in several places at once — the skill, its `templates/` twin, the runner-neutral `docs/noldor/` page, and the FD — so one edit has four homes and three of them go stale silently. The twin-copy rule makes this structural rather than accidental: `doctor` reds when a skill and its template diverge, which enforces that the duplication STAYS in sync but does nothing about the fact that it exists. Worth deciding what the framework's answer is: a text-import/transclusion mechanism with a generated-file marker (the `sync` projections already establish the generated-from-source pattern), a single canonical page every twin links to instead of restating, or an accepted duplication with a stronger mechanical diff than `doctor`'s presence check. Parked rather than roadmapped because the answer changes the shape of every skill file — it wants a spike before a size. Deletion test: correcting a sentence about a rule touches exactly one file. (found 2026-08-25 reviewing PR #372)
+
+### Archify Diagrams in the Framework
+
+- id: Q-0210
+- area: tooling
+- type: feat
+- since: 2026-09-06
+- size: M
+- impact: low
+- confidence: low
+- parent: consumer-architecture-doc-surface
+
+Fold the `archify` skill — architecture, workflow, sequence, data-flow and lifecycle diagrams rendered as standalone HTML with inline SVG — into the framework, so the four-page architecture doc surface (Q-0093) and the FD C4 diagrams get their pictures from one owned generator rather than hand-authored mermaid. The pull is real: the framework already asks every FD to carry a C4 diagram and every architecture page to stay honest against the code, and `graphify-out/graph.json` already holds the node/edge data a generator would want. The reason this is parked and not roadmapped is that nothing here is decided — whether archify is vendored, invoked as an external skill, or reimplemented against the graph; whether the output is committed HTML or regenerated on demand; and how a generated diagram avoids the drift that hand-authored mermaid already suffers. That is a spike's worth of questions ahead of a size, and there is no live trigger forcing it. Deletion test: an FD's C4 diagram and an architecture page's data-flow diagram are both produced by one framework command from graph data, with no hand-authored mermaid in either. (raised 2026-09-06 from an untriaged ideas bullet)
