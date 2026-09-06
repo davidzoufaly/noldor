@@ -301,6 +301,28 @@ export interface MilestoneGroupBase {
 const STATUS_ORDER: Record<MilestoneStatus, number> = { active: 0, draft: 1, shipped: 2 };
 
 /**
+ * Read a queue file, treating "absent" as empty and everything else as a fault.
+ *
+ * A repo may legitimately carry only one of `docs/roadmap.md` /
+ * `docs/backlog.md`, so `ENOENT` is empty. A bare `catch { return '' }` would
+ * also swallow a permissions error or a directory in the file's place, and every
+ * caller would then report an accurate-looking empty queue — the garden
+ * detector's version of that hides unfinished work under a shipped milestone.
+ *
+ * @param absPath - Absolute path to the queue file.
+ * @returns The file's contents, or `''` when it does not exist.
+ * @throws When the file exists but cannot be read.
+ */
+export async function readQueueFile(absPath: string): Promise<string> {
+  try {
+    return await readFile(absPath, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return '';
+    throw new Error(`cannot read queue file ${absPath}`, { cause: err });
+  }
+}
+
+/**
  * Group features and queue entries under their declared milestone.
  *
  * Pure — milestones, features and entries are all injected — so the grouping is
@@ -365,16 +387,9 @@ export async function renderMilestoneShow(
     return { ok: false, message: `Milestone "${slug}" not found under docs/milestones/` };
   }
   const features = await loadSddFeatures(join(cwd, 'docs/features'));
-  const readQueue = async (rel: string): Promise<string> => {
-    try {
-      return await readFile(join(cwd, rel), 'utf8');
-    } catch {
-      return '';
-    }
-  };
   const entries = [
-    ...parseRoadmap(await readQueue('docs/roadmap.md')),
-    ...parseBacklog(await readQueue('docs/backlog.md')),
+    ...parseRoadmap(await readQueueFile(join(cwd, 'docs/roadmap.md'))),
+    ...parseBacklog(await readQueueFile(join(cwd, 'docs/backlog.md'))),
   ];
   const group = buildMilestoneGroupBases([target], features, entries)[0];
   if (!group) {

@@ -193,9 +193,7 @@ When the operator picks an existing parent FD at step 1.5:
 
 - Skip steps 3, 4, 5 (no FD scaffold, no category prompt, no packages prompt — parent already has these)
 - **Don't write a new feature MD file**
-- Step 6.4 (Touches extraction) still runs — extracted paths are surfaced to the operator and (on confirmation) merged into the parent FD's `links.code`. The parent FD's Summary is **not** mutated.
-- Step 6.5 (residue check) still runs — the source block may contain sub-items beyond what the parent FD already covers; residue must be disposed (fold into parent / write back as new entry / drop) before step 7.
-- **Step 6.6 (milestone carry-through) runs before step 7.** Do not read the two `milestone:` values and decide yourself — run the verdict:
+- **Step 6.05 (milestone carry-through) runs FIRST, before steps 6.4 and 6.5.** It can refuse the whole attach, and a refusal must find nothing already changed — 6.4 merges paths into the parent's `links.code` and 6.5 disposes residue, so running this after them would leave a "conflict" verdict standing over a parent that had already been mutated. Do not read the two `milestone:` values and decide yourself — run the verdict:
 
   `pnpm noldor features attach-milestone <entry-slug> <parent-slug>`
 
@@ -205,6 +203,8 @@ When the operator picks an existing parent FD at step 1.5:
   - **`conflict`** — the entry and the parent name *different* milestones. **Stop the promotion.** Report both values to the operator and leave the source block and the parent FD untouched. Do not pick one: the alternatives are dropping a stated assignment or rewriting an unrelated feature's milestone. The operator re-files the entry or re-assigns the parent, then re-runs `/noldor-promote`.
 
   The command exists so this decision is executed rather than remembered — a rule stated only in prose is one a busy session skips.
+- Step 6.4 (Touches extraction) still runs — extracted paths are surfaced to the operator and (on confirmation) merged into the parent FD's `links.code`. The parent FD's Summary is **not** mutated.
+- Step 6.5 (residue check) still runs — the source block may contain sub-items beyond what the parent FD already covers; residue must be disposed (fold into parent / write back as new entry / drop) before step 7.
 - Step 7 (remove source block) still runs — on this branch execute it via `pnpm noldor roadmap remove-block <slug> --retired-into <parent-slug>` (add `--backlog` when the source is `docs/backlog.md`): with no child FD to carry `entry-id:`, the CLI's record in `.noldor/retired-entry-ids.json` is what keeps `blocked-by:` refs to the attached entry resolving, and `--retired-into` records *which* parent FD absorbed it so a dangling-looking ref can be traced to live work (fast-track omits the flag — it has no FD). This skill never stages or commits, and the map is written outside `docs/`, so it must be staged by the caller or it never reaches `main` and the ref dangles regardless — `/noldor-gate`'s phase-revert Step 2 stages `.noldor/retired-entry-ids.json` alongside the parent FD for exactly this reason. Standalone invocations (not entered through the gate) must stage it by hand.
 - Step 8 is skipped (no roadmap-side tracker exists; the parent FD's `phase: in-progress` already covers discoverability).
 - Step 9 (`pnpm noldor validate features`) still runs — confirms parent FD wasn't accidentally corrupted.

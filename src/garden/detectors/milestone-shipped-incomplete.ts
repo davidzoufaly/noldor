@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import matter from 'gray-matter';
 
 import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
-import { loadMilestones } from '../../milestones/lib.js';
+import { loadMilestones, readQueueFile } from '../../milestones/lib.js';
 import { parseBacklog, parseRoadmap } from '../../utils/parse-blocks.js';
 
 export interface MilestoneShippedIncompleteFinding {
@@ -111,16 +111,15 @@ async function queuedEntryFindings(
   repo: string,
   shipped: ReadonlySet<string>,
 ): Promise<MilestoneShippedIncompleteFinding[]> {
-  const read = async (rel: string): Promise<string> => {
-    try {
-      return await readFile(join(repo, rel), 'utf8');
-    } catch {
-      return '';
-    }
-  };
   const sources = [
-    { path: 'docs/roadmap.md' as const, entries: parseRoadmap(await read('docs/roadmap.md')) },
-    { path: 'docs/backlog.md' as const, entries: parseBacklog(await read('docs/backlog.md')) },
+    {
+      path: 'docs/roadmap.md' as const,
+      entries: parseRoadmap(await readQueueFile(join(repo, 'docs/roadmap.md'))),
+    },
+    {
+      path: 'docs/backlog.md' as const,
+      entries: parseBacklog(await readQueueFile(join(repo, 'docs/backlog.md'))),
+    },
   ];
   return sources.flatMap(({ path, entries }) =>
     entries

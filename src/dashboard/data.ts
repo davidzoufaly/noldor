@@ -17,6 +17,7 @@ import { areaToCategory } from '../lib/area-category.js';
 import {
   buildMilestoneGroupBases,
   loadMilestoneBySlug,
+  readQueueFile,
   loadMilestones,
   milestoneRefusalMessage,
   type Milestone,
@@ -878,8 +879,8 @@ export function buildMilestoneGroups(
 export async function loadMilestoneGroups(): Promise<MilestoneGroup[]> {
   const features = await loadFeatures();
   const [roadmapRaw, backlogRaw] = await Promise.all([
-    readFile(getRoadmapPath(), 'utf8').catch(() => ''),
-    readFile(getBacklogPath(), 'utf8').catch(() => ''),
+    readQueueFile(getRoadmapPath()),
+    readQueueFile(getBacklogPath()),
   ]);
   const entries = [...parseRoadmapBlocks(roadmapRaw), ...parseBacklog(backlogRaw)];
   return buildMilestoneGroups(loadMilestones(), features, entries);
