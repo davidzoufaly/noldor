@@ -296,5 +296,9 @@
     "slug": "milestone-queue-linking",
     "retiredInto": "decouple-milestones-from-semver",
     "retiredAt": "2026-09-06"
+  },
+  "Q-0211": {
+    "slug": "stale-cr-sink-reported-after-the-round-cap-refuses",
+    "retiredAt": "2026-09-06"
   }
 }
