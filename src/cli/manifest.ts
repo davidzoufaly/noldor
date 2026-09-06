@@ -251,6 +251,10 @@ export const MANIFEST: Record<string, Group> = {
     desc: 'Milestone validators',
     subs: {
       validate: { src: 'milestones/validate-milestones.ts', desc: 'Validate milestones' },
+      show: {
+        src: 'milestones/show-cli.ts',
+        desc: "Print one milestone's features and its queued roadmap/backlog entries",
+      },
     },
   },
   sync: {

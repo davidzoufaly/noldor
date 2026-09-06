@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync, mkdirSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
@@ -10,9 +11,9 @@ import {
   resolveSlugPath,
   type ResolveError,
 } from '../core/slug-paths.js';
-import type { FeatureRecord } from '../core/fd-load.js';
+import { loadSddFeatures, type FeatureRecord } from '../core/fd-load.js';
 import type { Slug } from '../core/slug.js';
-import type { BacklogEntry } from '../utils/parse-blocks.js';
+import { parseBacklog, parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 
 export const milestoneStatusSchema = z.enum(['draft', 'active', 'shipped']);
 export type MilestoneStatus = z.infer<typeof milestoneStatusSchema>;
@@ -340,4 +341,67 @@ export function buildMilestoneGroupBases(
     .sort(
       (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name),
     );
+}
+
+/**
+ * Render one milestone's membership: its feature MDs and the queue entries that
+ * still name it.
+ *
+ * Reads through {@link buildMilestoneGroupBases} rather than re-deriving
+ * membership so this and the dashboard's `/milestones` page can never disagree
+ * about who belongs to a milestone.
+ *
+ * @param slug - Milestone slug to show.
+ * @param cwd - Repository root.
+ * @returns The rendered report, or the reason it could not be produced.
+ */
+export async function renderMilestoneShow(
+  slug: string,
+  cwd: string = process.cwd(),
+): Promise<{ ok: true; text: string } | { ok: false; message: string }> {
+  const milestones = loadMilestones(cwd);
+  const target = milestones.find((m) => m.slug === slug);
+  if (!target) {
+    return { ok: false, message: `Milestone "${slug}" not found under docs/milestones/` };
+  }
+  const features = await loadSddFeatures(join(cwd, 'docs/features'));
+  const readQueue = async (rel: string): Promise<string> => {
+    try {
+      return await readFile(join(cwd, rel), 'utf8');
+    } catch {
+      return '';
+    }
+  };
+  const entries = [
+    ...parseRoadmap(await readQueue('docs/roadmap.md')),
+    ...parseBacklog(await readQueue('docs/backlog.md')),
+  ];
+  const group = buildMilestoneGroupBases([target], features, entries)[0];
+  if (!group) {
+    return { ok: false, message: `Milestone "${slug}" could not be grouped` };
+  }
+
+  const featureLines =
+    group.members.length === 0
+      ? ['  (none)']
+      : group.members.map((f) => `  - ${f.slug} (${f.frontmatter.phase})`);
+  const queueLines =
+    group.queued.length === 0
+      ? ['  (none)']
+      : group.queued.map((e) => `  - ${e.slug}${e.size ? ` (${e.size})` : ''}`);
+
+  return {
+    ok: true,
+    text: [
+      `${group.name} — ${group.status}`,
+      ...(group.description ? [group.description] : []),
+      '',
+      `Features (${group.doneCount}/${group.total} done):`,
+      ...featureLines,
+      '',
+      `Queued (${group.queuedCount}):`,
+      ...queueLines,
+      '',
+    ].join('\n'),
+  };
 }
