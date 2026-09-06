@@ -559,6 +559,48 @@ export interface RunOptions {
   quiet?: boolean;
   cwd?: string;
   featuresDir?: string;
+  /**
+   * Restrict the run to these feature slugs. The scan still walks the whole repo
+   * — a slug's tags live in files anywhere, not inside its FD — but every FD not
+   * named here is left byte-identical, and `--check` reports only these.
+   *
+   * `undefined` is the unscoped run. A defined array is a filter that must
+   * select at least one existing FD: an empty one, or one naming only FDs that
+   * do not exist, is an error rather than "all of them", because a scoped run
+   * that quietly widened to the whole repo is the bug this option exists to
+   * prevent.
+   */
+  slugs?: readonly string[];
+}
+
+/**
+ * Read the `--slug` filter out of an argv slice. Repeatable, and each occurrence
+ * may carry a comma-separated list, so `--slug a --slug b,c` and `--slug a,b,c`
+ * name the same three FDs.
+ *
+ * @param argv - The raw argv slice
+ * @returns The named slugs, or `undefined` when the flag is absent
+ */
+function parseSlugFilter(argv: readonly string[]): string[] | undefined {
+  const slugs: string[] = [];
+  let seen = false;
+  for (const [i, arg] of argv.entries()) {
+    if (arg !== '--slug') continue;
+    seen = true;
+    const value = argv[i + 1];
+    // A missing or flag-shaped value voids the WHOLE filter rather than dropping
+    // just this occurrence: honouring the well-formed ones would write a wider
+    // set than the operator asked for, and `--slug --force` is exactly the typo
+    // that produces it. An empty filter is refused downstream by name.
+    if (value === undefined || value.startsWith('-')) return [];
+    slugs.push(
+      ...value
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
+    );
+  }
+  return seen ? [...new Set(slugs)] : undefined;
 }
 
 /** Parse the shared flag set from an argv slice. */
@@ -567,7 +609,37 @@ export function parseRunOptions(argv: readonly string[]): RunOptions {
     check: argv.includes('--check'),
     force: argv.includes('--force'),
     quiet: argv.includes('--quiet'),
+    slugs: parseSlugFilter(argv),
   };
+}
+
+/**
+ * Why a `--slug` filter cannot be honoured, in the operator's terms. A filter
+ * selecting nothing must not read as a clean no-op: `sync code-links --slug typo`
+ * writing zero FDs and exiting 0 is the silent green the option exists to make
+ * impossible.
+ *
+ * @param requested - Slugs the operator named, or `undefined` for no filter
+ * @param cached - slug → cached arrays, keyed by the FDs that exist
+ * @returns The message to print, or `undefined` when the filter is usable
+ */
+function slugFilterError(
+  requested: readonly string[] | undefined,
+  cached: ReadonlyMap<string, string[]>,
+): string | undefined {
+  if (requested === undefined) return undefined;
+  if (requested.length === 0) {
+    return (
+      '`--slug` was given no usable value — pass `--slug <feature-slug>` ' +
+      '(repeatable, or comma-separated). Nothing was written.'
+    );
+  }
+  const unmatched = requested.filter((slug) => !cached.has(slug));
+  if (unmatched.length === 0) return undefined;
+  return (
+    `\`--slug\` named ${unmatched.length} slug(s) with no feature MD: ${unmatched.toSorted().join(', ')}. ` +
+    'Nothing was written. Check them against the filenames in the feature MD directory.'
+  );
 }
 
 function reportTaglessKept(kept: string[], key: LinkAdapter['key'], quiet: boolean): void {
@@ -616,8 +688,9 @@ function reportFailures(failures: ScanFailure[]): boolean {
  * set, so callers (CLI main, tests) decide.
  *
  * @param adapter - The kind to project
- * @param opts - check / force / quiet plus root overrides
- * @returns 0 when the run is clean, 1 when it found drift or could not trust its scan
+ * @param opts - check / force / quiet / slugs plus root overrides
+ * @returns 0 when the run is clean, 1 when it found drift, could not trust its scan, or was
+ *   handed a `slugs` filter that selects no feature MD
  */
 export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {}): Promise<number> {
   const cwd = opts.cwd ?? process.cwd();
@@ -633,12 +706,31 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
   if (reportFailures(load.failures)) return 1;
   const cached = load.byKey.get(adapter.key) ?? new Map<string, string[]>();
 
+  const filterError = slugFilterError(opts.slugs, cached);
+  if (filterError !== undefined) {
+    console.error(filterError);
+    return 1;
+  }
+  // `--slug` narrows what the run ACTS on, never what it looked at. The full
+  // `cached` map still backs every comparison — `missingFdSlugs` asks which
+  // scanned slugs name no FD at all, and a narrowed map would answer "all the
+  // ones I was not asked about". So the results are filtered, not the inputs.
+  const only = opts.slugs === undefined ? undefined : new Set(opts.slugs);
+  const inScope = (slug: string): boolean => only === undefined || only.has(slug);
+  // A scoped run must not claim anything about the FDs it skipped, so every
+  // headline line carries the scope it was true of.
+  const scopeNote = only === undefined ? '' : ` (scoped to ${[...only].toSorted().join(', ')})`;
+
   if (opts.check) {
-    const drift = diffProjection(scanned, cached, adapter);
-    reportMissingFds(missingFdSlugs(scanned, cached), adapter, featuresDir);
-    reportTaglessKept(taglessKeptSlugs(scanned, cached, adapter), adapter.key, opts.quiet ?? false);
+    const drift = diffProjection(scanned, cached, adapter).filter((d) => inScope(d.slug));
+    reportMissingFds(missingFdSlugs(scanned, cached).filter(inScope), adapter, featuresDir);
+    reportTaglessKept(
+      taglessKeptSlugs(scanned, cached, adapter).filter(inScope),
+      adapter.key,
+      opts.quiet ?? false,
+    );
     if (drift.length === 0) {
-      console.log(`links.${adapter.key} is in sync with ${adapter.tagLabel} tags.`);
+      console.log(`links.${adapter.key} is in sync with ${adapter.tagLabel} tags${scopeNote}.`);
       return 0;
     }
     for (const d of drift) {
@@ -646,7 +738,7 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
       console.error(`  scanned: ${d.scanned.join(', ') || '(none)'}`);
       console.error(`  cached:  ${d.cached.join(', ') || '(none)'}`);
     }
-    console.error(`\n${drift.length} FD(s) have stale links.${adapter.key}.`);
+    console.error(`\n${drift.length} FD(s) have stale links.${adapter.key}${scopeNote}.`);
     return 1;
   }
 
@@ -657,6 +749,7 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
   let updated = 0;
   const writeFailures: ScanFailure[] = [];
   for (const slug of [...cached.keys()].toSorted()) {
+    if (!inScope(slug)) continue;
     const featureMd = join(featuresDir, `${slug}.md`);
     const paths = scanned.get(slug) ?? [];
     try {
@@ -697,11 +790,11 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
     }
   }
   console.log(
-    `Scanned ${scan.tagged.length} file(s), wrote links.${adapter.key} on ${updated} feature MD(s).`,
+    `Scanned ${scan.tagged.length} file(s), wrote links.${adapter.key} on ${updated} feature MD(s)${scopeNote}.`,
   );
-  reportMissingFds(missingFdSlugs(scanned, cached), adapter, featuresDir);
+  reportMissingFds(missingFdSlugs(scanned, cached).filter(inScope), adapter, featuresDir);
   reportTaglessKept(
-    taglessKeptSlugs(scanned, cached, adapter, opts.force ?? false),
+    taglessKeptSlugs(scanned, cached, adapter, opts.force ?? false).filter(inScope),
     adapter.key,
     opts.quiet ?? false,
   );

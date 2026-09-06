@@ -88,12 +88,23 @@ pnpm noldor sync doc-links             # write links.docs from <!-- @feature: --
 pnpm noldor sync <kind>-links --check  # report drift, exit 1 if stale, write nothing
 pnpm noldor sync <kind>-links --force  # clear entries a tagless scan would otherwise keep
 pnpm noldor sync <kind>-links --quiet  # suppress the tagless-kept report (used by the hooks)
+pnpm noldor sync <kind>-links --slug a --slug b,c   # act on these FDs only
 ```
 
 A run whose scan could not read a consumer-configured root clears nothing and exits
 non-zero rather than reading as "no tags anywhere". Without `--force`, an FD whose scan
 matched nothing keeps its cached entries and is named in the tagless-kept report.
 `garden detect` reports drift for all three kinds.
+
+`--slug` is what makes the commands usable from a feature worktree. The default run is
+repo-wide, so populating one FD's links also rewrites every other FD the tag scan
+touches — which has pulled unrelated FD churn into a feature PR and had to be undone by
+hand. The flag is repeatable and accepts a comma-separated list; it narrows what the run
+*acts on* (writes, and the `--check` verdict), never what it scans, because a slug's tags
+live in files anywhere in the repo. Every headline line names the scope it was true of,
+so a scoped clean check cannot read as a repo-wide all-clear. A filter that selects no
+feature MD — a typo, or a `--slug` that swallowed the next flag — exits 1 and writes
+nothing rather than silently widening back to the whole repo.
 
 <!-- generated: resources -->
 
