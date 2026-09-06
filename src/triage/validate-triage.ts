@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { parseSlug } from '../core/slug.js';
 import { parseBacklog, parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 import { COUNTER_PATH_DEFAULT, ENTRY_ID_RE } from './entry-id.js';
 import { RETIRED_IDS_PATH_DEFAULT, loadRetiredIds, retiredRefs } from './retired-ids.js';
@@ -19,6 +20,8 @@ export interface TriageIssue {
     | 'malformed-entry-id'
     | 'duplicate-entry-id'
     | 'unknown-blocked-by-ref'
+    | 'malformed-milestone-ref'
+    | 'unknown-milestone-ref'
     | 'empty-group-heading';
   message: string;
   entryName: string;
@@ -71,6 +74,25 @@ export interface ValidateTriageInputs {
    * validation stays advisory by default.
    */
   strictRefs?: boolean;
+  /**
+   * Slugs of the milestone files under `docs/milestones/` — the known set an
+   * entry's `milestone:` must name.
+   *
+   * The CLI fills this from the *directory listing*, not from
+   * `loadMilestones`: that helper maps `readMilestone` over every file and
+   * `readMilestone` throws on malformed frontmatter, so one broken milestone
+   * would kill triage validation over a file it does not own (`validate
+   * milestones` reports that, with `safeParse`). This check needs slugs and
+   * never reads frontmatter, so a basename listing is both sufficient and
+   * total — and a milestone whose frontmatter is broken still counts as
+   * present here, which is the intended split of responsibility.
+   *
+   * Empty (the default, and what a repo with no `docs/milestones/` yields)
+   * means every declared milestone is unknown — deliberately, so the queue side
+   * agrees with `validateMilestoneRef` on identical input. Milestones stay
+   * optional through absence of the field, not through a directory guard.
+   */
+  milestoneSlugs?: readonly string[];
 }
 
 const REQUIRED_FIELDS_BACKLOG: ReadonlyArray<keyof BacklogEntry> = ['area', 'type', 'since'];
@@ -126,6 +148,8 @@ export function validateTriageInputs(input: ValidateTriageInputs): TriageValidat
     errors,
     advisories,
   );
+
+  pushMilestoneIssues(roadmap, backlog, input.milestoneSlugs ?? [], errors);
 
   return { errors, advisories };
 }
@@ -204,6 +228,56 @@ function pushEmptyGroupIssues(raw: string, file: TriageIssue['file'], errors: Tr
  * and promoted to errors under `--strict` (all advisories) or `--strict-refs`
  * (this rule alone), mirroring the missing-optional-field policy.
  */
+/**
+ * Validate every entry's `milestone:` against the known milestone slugs.
+ *
+ * Two rules with one trigger: the field being present. `malformed-milestone-ref`
+ * catches a value that is not slug-shaped (a traversal attempt included) before
+ * any path is built; `unknown-milestone-ref` catches a well-formed slug that
+ * names no milestone file. Both are hard errors, matching
+ * `validateMilestoneRef` on the feature-MD side, which has no directory guard
+ * either — a guard here alone would make identical input error on an FD and pass
+ * on a queue entry.
+ *
+ * @param roadmap - Parsed roadmap entries.
+ * @param backlog - Parsed backlog entries.
+ * @param milestoneSlugs - Known milestone slugs, injected by the CLI.
+ * @param errors - Error sink, appended in place.
+ */
+function pushMilestoneIssues(
+  roadmap: BacklogEntry[],
+  backlog: BacklogEntry[],
+  milestoneSlugs: readonly string[],
+  errors: TriageIssue[],
+): void {
+  const known = new Set(milestoneSlugs);
+  const scan = (entries: BacklogEntry[], file: TriageIssue['file']): void => {
+    for (const entry of entries) {
+      if (entry.milestone === undefined) continue;
+      const parsed = parseSlug(entry.milestone);
+      if (!parsed.ok) {
+        errors.push({
+          file,
+          rule: 'malformed-milestone-ref',
+          message: `milestone: ${parsed.error.message}`,
+          entryName: entry.name,
+        });
+        continue;
+      }
+      if (!known.has(parsed.slug)) {
+        errors.push({
+          file,
+          rule: 'unknown-milestone-ref',
+          message: `milestone: "${parsed.slug}" names no file under docs/milestones/`,
+          entryName: entry.name,
+        });
+      }
+    }
+  };
+  scan(roadmap, 'docs/roadmap.md');
+  scan(backlog, 'docs/backlog.md');
+}
+
 function pushBlockedByIssues(
   roadmap: BacklogEntry[],
   backlog: BacklogEntry[],
@@ -388,6 +462,23 @@ async function loadFeatureRefs(
   return { featureSlugs, featureEntryIds };
 }
 
+/**
+ * Milestone slugs from the `docs/milestones/` *directory listing* — basenames
+ * only, no frontmatter read.
+ *
+ * `loadMilestones` is deliberately not used: it maps `readMilestone` over every
+ * file and that helper `parse`s frontmatter, so a single malformed milestone
+ * would abort triage validation with a ZodError over a file this command does
+ * not own. A basename listing is total, and the check never needs frontmatter.
+ *
+ * @param milestonesDir - Absolute `docs/milestones` path.
+ * @returns Slugs present, or an empty array when the directory is absent.
+ */
+async function loadMilestoneSlugs(milestonesDir: string): Promise<string[]> {
+  if (!existsSync(milestonesDir)) return [];
+  return (await readdir(milestonesDir)).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
+}
+
 async function main(): Promise<void> {
   const opts = parseArgv(process.argv.slice(2));
   const [roadmapRaw, backlogRaw] = await Promise.all([
@@ -396,6 +487,7 @@ async function main(): Promise<void> {
   ]);
   const counterExists = existsSync(`${opts.cwd}/${COUNTER_PATH_DEFAULT}`);
   const { featureSlugs, featureEntryIds } = await loadFeatureRefs(`${opts.cwd}/docs/features`);
+  const milestoneSlugs = await loadMilestoneSlugs(`${opts.cwd}/docs/milestones`);
   const retiredMap = loadRetiredIds(`${opts.cwd}/${RETIRED_IDS_PATH_DEFAULT}`);
   const retiredEntryIds = [...retiredRefs(retiredMap)];
   const result = validateTriageInputs({
@@ -407,6 +499,7 @@ async function main(): Promise<void> {
     featureSlugs,
     featureEntryIds,
     retiredEntryIds,
+    milestoneSlugs,
   });
   for (const advisory of result.advisories) {
     console.warn(`advisory [${advisory.rule}] ${advisory.file}: ${advisory.message}`);
