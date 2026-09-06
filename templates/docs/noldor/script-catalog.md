@@ -648,6 +648,7 @@ FD phase + pointer maintenance used by `/noldor-gate` Step 4 and `/noldor-draft-
 | ----------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------- |
 | `pnpm noldor features phase-flip-done`    | [`src/features/phase-flip-done-cli.ts`](../../src/features/phase-flip-done-cli.ts) | Flip an FD phase `in-progress → done` (gate Step 4).          |
 | `pnpm noldor features phase-revert`       | [`src/features/phase-revert-cli.ts`](../../src/features/phase-revert-cli.ts) | Revert an FD phase `done → in-progress` (attach scaffold).    |
+| `pnpm noldor features attach-milestone` | [`src/features/attach-milestone-cli.ts`](../../src/features/attach-milestone-cli.ts) | Attach verdict for an entry vs its parent FD (exit 0 noop/adopt, 1 conflict). |
 | `pnpm noldor features propose-pointers`   | [`src/features/propose-pointers.ts`](../../src/features/propose-pointers.ts) | Propose initial `// @fd:` pointers for a new FD.              |
 
 ## Dev surfaces

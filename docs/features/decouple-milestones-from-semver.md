@@ -9,7 +9,9 @@ links:
     - src/milestones/lib.ts
     - src/milestones/validate-milestones.ts
   tests:
+    - src/features/__tests__/attach-milestone.test.ts
     - src/milestones/__tests__/lib.test.ts
+    - src/milestones/__tests__/show.test.ts
     - src/milestones/__tests__/validate-milestones.test.ts
 name: Decouple Milestones from Semver
 packages:

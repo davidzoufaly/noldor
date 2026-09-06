@@ -117,6 +117,7 @@ function toPrepEntry(roadmapRaw: string, slug: string): PrepEntry | null {
     tier: sizeToTier(size),
     area: r.area,
     ...(r.parent !== undefined ? { parent: r.parent } : {}),
+    ...(r.milestone !== undefined ? { milestone: r.milestone } : {}),
     deps: r.deps ?? [],
     body: r.description,
   };

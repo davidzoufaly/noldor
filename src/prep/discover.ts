@@ -46,6 +46,7 @@ export function discoverPrepEntries(
       tier: sizeToTier(size),
       area: e.area,
       ...(e.parent !== undefined ? { parent: e.parent } : {}),
+      ...(e.milestone !== undefined ? { milestone: e.milestone } : {}),
       deps: e.deps ?? [],
       body: e.description,
     });

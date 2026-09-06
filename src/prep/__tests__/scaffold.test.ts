@@ -108,3 +108,21 @@ describe('section helpers', () => {
     expect(out).not.toContain('<!-- TODO: As a user');
   });
 });
+
+// @tests: decouple-milestones-from-semver
+describe('scaffoldFd milestone carry-through', () => {
+  it('writes the milestone the source entry declared', () => {
+    const fd = scaffoldFd(
+      { ...entry, milestone: 'public-beta' },
+      { specRel: 's', planRel: null, cwd: process.cwd() },
+    );
+    expect(fd).toContain('milestone: public-beta');
+  });
+
+  // An FD carrying `milestone: undefined` would serialize the key and then fail
+  // validateMilestoneRef against a file that does not exist.
+  it('omits the key entirely when the entry declares none', () => {
+    const fd = scaffoldFd(entry, { specRel: 's', planRel: null, cwd: process.cwd() });
+    expect(fd).not.toContain('milestone');
+  });
+});

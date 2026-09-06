@@ -91,6 +91,9 @@ export function scaffoldFd(entry: PrepEntry, opts: ScaffoldOpts): string {
     phase: 'in-progress',
     'noldor-tier': entry.tier,
   };
+  // Only when the source entry declared one: an FD carrying `milestone: undefined`
+  // would serialize the key and fail validateMilestoneRef against no file.
+  if (entry.milestone !== undefined) data.milestone = entry.milestone;
   const body = [
     '## Summary',
     '',
