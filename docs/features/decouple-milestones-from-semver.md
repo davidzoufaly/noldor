@@ -16,7 +16,7 @@ links:
 name: Decouple Milestones from Semver
 packages:
   - tooling
-phase: in-progress
+phase: done
 noldor-tier: full
 introduced: 0.5.0
 ---
@@ -52,6 +52,31 @@ Runs automatically via pre-commit hook on changes to `docs/milestones/**` or `do
 
 - `docs/milestones/<slug>.md` — per-milestone definition. Frontmatter: `name` (matches filename stem), `status` (`draft` / `active` / `shipped`), optional `description`. Body: `## Gate`, `## Success Criteria`, `## Out of Scope`.
 - `docs/vision.md` frontmatter — optional `current-milestone: <slug>` pointer to the active milestone file.
+
+**Linking the queue to a milestone**
+
+A roadmap or backlog entry declares its milestone the same way a feature MD does, with a `- milestone: <slug>` bullet:
+
+```markdown
+### Some Entry
+
+- id: Q-0210
+- area: tooling
+- type: feat
+- since: 2026-09-06
+- size: S
+- impact: med
+- milestone: public-beta
+```
+
+- `pnpm noldor triage validate` — fails when the value is not slug-shaped, or names no file under `docs/milestones/`. Identical severity to the feature-MD side; a repo that declares no milestones is unaffected.
+- `pnpm noldor milestones show <slug>` — print one milestone's feature MDs and the queue entries still naming it. The only enumeration surface that needs no running dashboard.
+- `pnpm noldor features attach-milestone <entry> <parent>` — the attach verdict (`noop` / `adopt` / `conflict`); exits non-zero on conflict. Run by `/noldor-promote`'s attach branch, rarely by hand.
+- Dashboard `/milestones` — each milestone gains a queued-entries expander beneath its features. The `done/total` ratio stays feature-only: a queue entry has no phase, and folding it in would make progress fall whenever work is triaged into the milestone.
+- `/noldor-gate` Step 0 — the `[milestone]` bucket offers an entry that declares the active milestone ahead of its word-overlap guess.
+- `pnpm noldor garden detect` — flags a `shipped` milestone still named by a live queue entry (`shipped-milestone-queued-entry`).
+
+Promotion carries the declaration onto the new FD. On an attach, a parent with no milestone adopts it and a parent with a different one stops the promotion; on fast-track the value is recorded in `.noldor/retired-entry-ids.json` for audit, inheriting that map's entry-ID gate.
 
 ## PRs
 
