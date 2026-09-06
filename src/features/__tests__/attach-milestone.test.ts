@@ -107,11 +107,16 @@ describe('features attach-milestone CLI guards', () => {
     expect(run('parent').status).toBe(2);
   });
 
-  it('exits 2, not 1, when a queue path is a directory rather than a file', async () => {
+  // The message matters as much as the code: "entry not found" also exits 2, so
+  // asserting the code alone passes even with readQueueFile's throw branch
+  // deleted — which is the branch under test.
+  it('exits 2 naming the unreadable file when a queue path is a directory', async () => {
     await rm(join(repo, 'docs/roadmap.md'));
     await mkdir(join(repo, 'docs/roadmap.md'), { recursive: true });
     await writeParent('parent');
-    expect(run('parent').status).toBe(2);
+    const r = run('parent');
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('cannot read queue file');
   });
 
   it('refuses a parent whose milestone frontmatter is not a string', async () => {

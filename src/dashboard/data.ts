@@ -418,7 +418,7 @@ export function parseBacklogFromString(raw: string): BacklogEntry[] {
  * rawHash: sha256('') }` so callers can still compute a combined etag.
  */
 export async function loadBacklogWithHash(): Promise<LoadedBacklog> {
-  const raw = await readFile(getBacklogPath(), 'utf8').catch(() => '');
+  const raw = await readQueueFile(getBacklogPath());
   return { entries: parseBacklogFromString(raw), rawHash: sha256Hex(raw) };
 }
 
@@ -1241,7 +1241,7 @@ export async function loadGaps(): Promise<Gap[]> {
 export async function loadSddInput(): Promise<ReportInput> {
   const features = await loadSddFeatures('docs/features');
   const ideasMd = await readFile('ideas.md', 'utf8').catch(() => '');
-  const backlogRaw = await readFile('docs/backlog.md', 'utf8').catch(() => '');
+  const backlogRaw = await readQueueFile('docs/backlog.md');
   const backlog = parseBacklog(backlogRaw);
   const specPaths = await listSpecs('docs/design/specs');
   const planPaths = await listPlans('docs/design/plans');

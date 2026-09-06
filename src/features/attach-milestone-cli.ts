@@ -20,12 +20,16 @@ frontmatter), so /noldor-promote's attach branch can branch on the code.`);
 /**
  * Compute the verdict, or explain why it cannot be computed.
  *
- * Every failure funnels through the `ok: false` branch rather than throwing,
- * because an escaping throw exits **1** — the code this command defines as
- * `conflict`. The skill stops the promotion and tells the operator the entry and
- * its parent name different milestones, so a corrupt FD or an unreadable queue
- * file would be reported as a stated disagreement that does not exist.
- * `src/triage/has-block-cli.ts` guards the same collision the same way.
+ * Every failure this function *detects* returns `ok: false` rather than
+ * throwing. It does not catch what its callees throw — `readQueueFile` and
+ * `matter()` both throw straight out — so the caller's `try/catch` is load-
+ * bearing, not belt-and-braces: **do not delete it.**
+ *
+ * All of it exists because an escaping throw exits **1**, the code this command
+ * defines as `conflict`. The skill stops the promotion and tells the operator
+ * the entry and its parent name different milestones, so a corrupt FD or an
+ * unreadable queue file would be reported as a stated disagreement that does not
+ * exist. `src/triage/has-block-cli.ts` guards the same collision the same way.
  */
 async function computeVerdict(
   entrySlug: string,
@@ -45,9 +49,10 @@ async function computeVerdict(
     };
   }
 
-  // Through the repo-wide choke point, never a bare join: `join(cwd,
-  // 'docs/features', '../vision.md')` escapes to docs/vision.md, and this
-  // command would then rule on a document that is not an FD.
+  // Through the repo-wide choke point, never a bare path join: an unparsed
+  // parent slug of `../vision` escapes the features directory and resolves to
+  // the vision document, and this command would then rule on a file that is not
+  // an FD at all.
   const parent = resolveSlugPath(cwd, ['docs', 'features'], parentSlug, { suffix: '.md' });
   if (!parent.ok) return { ok: false, why: `parent: ${resolveErrorMessage(parent.error)}` };
   if (!existsSync(parent.path)) {
