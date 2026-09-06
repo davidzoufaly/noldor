@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
 import { walkRepo } from './fd-load.js';
@@ -159,4 +160,31 @@ export function featurePath(cwd: string, slug: Slug): SlugPathResult {
 /** Absolute path of a milestone MD, guarded. See {@link docSlugPath}. */
 export function milestonePath(cwd: string, slug: Slug): SlugPathResult {
   return docSlugPath(cwd, ['docs', 'milestones'], slug);
+}
+
+/**
+ * Read a queue document (`docs/roadmap.md` / `docs/backlog.md`), treating
+ * "absent" as empty and every other failure as a fault.
+ *
+ * A repo may legitimately carry only one of the two, so `ENOENT` is `''`. A bare
+ * `catch { return '' }` also swallows a permissions error or a directory in the
+ * file's place, and every caller then reports an accurate-looking empty queue —
+ * in `detectMilestoneShippedIncomplete` that hides unfinished work under a
+ * shipped milestone, and in the dashboard's blocked-by graph it hides a cycle.
+ *
+ * Lives here rather than beside the parsers because this module already owns
+ * where the queue documents are; `parse-blocks.ts` is pure string work and
+ * touches no filesystem.
+ *
+ * @param absPath - Absolute path to the queue document.
+ * @returns The file's contents, or `''` when it does not exist.
+ * @throws When the file exists but cannot be read.
+ */
+export async function readQueueFile(absPath: string): Promise<string> {
+  try {
+    return await readFile(absPath, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return '';
+    throw new Error(`cannot read queue file ${absPath}`, { cause: err });
+  }
 }

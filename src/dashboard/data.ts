@@ -17,7 +17,6 @@ import { areaToCategory } from '../lib/area-category.js';
 import {
   buildMilestoneGroupBases,
   loadMilestoneBySlug,
-  readQueueFile,
   loadMilestones,
   milestoneRefusalMessage,
   type Milestone,
@@ -25,7 +24,7 @@ import {
 } from '../milestones/lib.js';
 import { slugSchema } from '../core/slug.js';
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
-import { docPresenceRoots, listDocMds, loadDocRoots } from '../core/doc-roots.js';
+import { docPresenceRoots, listDocMds, loadDocRoots, readQueueFile } from '../core/doc-roots.js';
 import {
   ARCHITECTURE_PAGES,
   PLACEHOLDER_MARKER,
@@ -2209,20 +2208,13 @@ export interface BlockedByGraphView {
  * Nodes/edges and cycles all derive from the garden detector's
  * `buildBlockedByGraph` construction (single source of truth — the page can
  * never disagree with `garden detect`'s `circularBlockedBy` findings).
- * Missing roadmap/backlog files read as empty (fail-open, consistent with the
- * other loaders).
+ * A missing roadmap/backlog file reads as empty; an unreadable one throws, so a
+ * permissions fault cannot render as a graph with no cycles.
  */
 export async function loadBlockedByGraph(): Promise<BlockedByGraphView> {
-  const readOr = async (path: string): Promise<string> => {
-    try {
-      return await readFile(path, 'utf8');
-    } catch {
-      return '';
-    }
-  };
   const [roadmapRaw, backlogRaw] = await Promise.all([
-    readOr(getRoadmapPath()),
-    readOr(getBacklogPath()),
+    readQueueFile(getRoadmapPath()),
+    readQueueFile(getBacklogPath()),
   ]);
   const build = buildBlockedByGraph(roadmapRaw, backlogRaw);
   const cycles = findCyclesInBuild(build);

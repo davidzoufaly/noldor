@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import matter from 'gray-matter';
 
 import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
-import { loadMilestones, readQueueFile } from '../../milestones/lib.js';
+import { readQueueFile } from '../../core/doc-roots.js';
+import { loadMilestones } from '../../milestones/lib.js';
 import { parseBacklog, parseRoadmap } from '../../utils/parse-blocks.js';
 
 export interface MilestoneShippedIncompleteFinding {

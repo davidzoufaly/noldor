@@ -1,5 +1,4 @@
 import { existsSync, readFileSync, readdirSync, mkdirSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
@@ -11,6 +10,7 @@ import {
   resolveSlugPath,
   type ResolveError,
 } from '../core/slug-paths.js';
+import { readQueueFile } from '../core/doc-roots.js';
 import { loadSddFeatures, type FeatureRecord } from '../core/fd-load.js';
 import type { Slug } from '../core/slug.js';
 import { parseBacklog, parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
@@ -299,28 +299,6 @@ export interface MilestoneGroupBase {
 }
 
 const STATUS_ORDER: Record<MilestoneStatus, number> = { active: 0, draft: 1, shipped: 2 };
-
-/**
- * Read a queue file, treating "absent" as empty and everything else as a fault.
- *
- * A repo may legitimately carry only one of `docs/roadmap.md` /
- * `docs/backlog.md`, so `ENOENT` is empty. A bare `catch { return '' }` would
- * also swallow a permissions error or a directory in the file's place, and every
- * caller would then report an accurate-looking empty queue — the garden
- * detector's version of that hides unfinished work under a shipped milestone.
- *
- * @param absPath - Absolute path to the queue file.
- * @returns The file's contents, or `''` when it does not exist.
- * @throws When the file exists but cannot be read.
- */
-export async function readQueueFile(absPath: string): Promise<string> {
-  try {
-    return await readFile(absPath, 'utf8');
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return '';
-    throw new Error(`cannot read queue file ${absPath}`, { cause: err });
-  }
-}
 
 /**
  * Group features and queue entries under their declared milestone.

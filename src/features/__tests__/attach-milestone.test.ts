@@ -96,6 +96,24 @@ describe('features attach-milestone CLI guards', () => {
     expect(r.stdout).not.toContain('adopt');
   });
 
+  // Exit 1 means "conflict" to /noldor-promote, which stops the promotion and
+  // tells the operator the two named different milestones. An IO or YAML fault
+  // must never wear that code.
+  it('exits 2, not 1, when the parent FD frontmatter is unparseable', async () => {
+    await writeFile(
+      join(repo, 'docs/features/parent.md'),
+      ['---', 'name: "unclosed', '---', 'body'].join('\n'),
+    );
+    expect(run('parent').status).toBe(2);
+  });
+
+  it('exits 2, not 1, when a queue path is a directory rather than a file', async () => {
+    await rm(join(repo, 'docs/roadmap.md'));
+    await mkdir(join(repo, 'docs/roadmap.md'), { recursive: true });
+    await writeParent('parent');
+    expect(run('parent').status).toBe(2);
+  });
+
   it('refuses a parent whose milestone frontmatter is not a string', async () => {
     await writeFile(
       join(repo, 'docs/features/parent.md'),
