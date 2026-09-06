@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { readQueueFile } from '../../core/doc-roots.js';
 import { parseBacklog, parseRoadmap, type BacklogEntry } from '../../utils/parse-blocks.js';
 
 /**
@@ -145,15 +145,6 @@ function tarjanCycles(adj: Map<string, string[]>): string[][] {
   return cycles;
 }
 
-/** Read a file, returning `''` when it is absent (a repo may lack backlog.md). */
-async function readOr(path: string): Promise<string> {
-  try {
-    return await readFile(path, 'utf8');
-  } catch {
-    return '';
-  }
-}
-
 /**
  * Detector entrypoint: read `docs/roadmap.md` + `docs/backlog.md` under `repo`
  * and return one {@link CircularBlockedByFinding} per circular `blocked-by`
@@ -163,8 +154,8 @@ async function readOr(path: string): Promise<string> {
  */
 export async function detectCircularBlockedBy(repo: string): Promise<CircularBlockedByFinding[]> {
   const [roadmapRaw, backlogRaw] = await Promise.all([
-    readOr(join(repo, 'docs/roadmap.md')),
-    readOr(join(repo, 'docs/backlog.md')),
+    readQueueFile(join(repo, 'docs/roadmap.md')),
+    readQueueFile(join(repo, 'docs/backlog.md')),
   ]);
   return findBlockedByCycles(roadmapRaw, backlogRaw).map((cycle) => ({
     detector: 'circular-blocked-by',

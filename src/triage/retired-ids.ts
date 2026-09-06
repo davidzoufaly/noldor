@@ -35,6 +35,17 @@ export interface RetiredIdRecord {
    * each record's slug.
    */
   splitInto?: string[];
+  /**
+   * Milestone the entry declared when it was retired.
+   *
+   * Audit only — nothing reads it back, and the milestone roll-up deliberately
+   * does not: a retired entry has shipped and left the queue, so counting it
+   * would resurrect finished work into a "queued" list. It inherits this map's
+   * existing gates (a valid `Q-NNNN` id and a `.noldor/` directory), so a repo
+   * that never adopted stable IDs loses the milestone exactly as it already
+   * loses the ID.
+   */
+  milestone?: string;
   /** ISO date (yyyy-mm-dd) the entry was retired. */
   retiredAt?: string;
 }

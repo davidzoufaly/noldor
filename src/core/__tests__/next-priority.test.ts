@@ -342,7 +342,7 @@ links:
 });
 
 describe(loadMilestoneGate, () => {
-  it('returns the ## Gate paragraph from the active milestone', () => {
+  it('returns the active slug and its ## Gate paragraph', () => {
     const dir = mkdtempSync(join(tmpdir(), 'milestone-'));
     try {
       mkdirSync(join(dir, 'docs/milestones'), { recursive: true });
@@ -371,24 +371,27 @@ Gate paragraph one.
 other.
 `,
       );
-      expect(loadMilestoneGate(dir)).toBe('Gate paragraph one.');
+      expect(loadMilestoneGate(dir)).toEqual({
+        slug: 'public-release',
+        gate: 'Gate paragraph one.',
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('returns empty string when no current-milestone is set', () => {
+  it('returns a null slug when no current-milestone is set', () => {
     const dir = mkdtempSync(join(tmpdir(), 'no-milestone-'));
     try {
       mkdirSync(join(dir, 'docs'), { recursive: true });
       writeFileSync(join(dir, 'docs/vision.md'), `# Vision\nbody\n`);
-      expect(loadMilestoneGate(dir)).toBe('');
+      expect(loadMilestoneGate(dir)).toEqual({ slug: null, gate: '' });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('returns empty string when milestone file is missing', () => {
+  it('returns a null slug when the milestone file is missing', () => {
     const dir = mkdtempSync(join(tmpdir(), 'missing-milestone-'));
     try {
       mkdirSync(join(dir, 'docs'), { recursive: true });
@@ -400,7 +403,7 @@ current-milestone: ghost
 body
 `,
       );
-      expect(loadMilestoneGate(dir)).toBe('');
+      expect(loadMilestoneGate(dir)).toEqual({ slug: null, gate: '' });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -439,5 +442,104 @@ describe('parseSkip', () => {
   });
   it('returns an empty set when --skip has no value', () => {
     expect(parseSkip(['--skip']).size).toBe(0);
+  });
+});
+
+// @tests: decouple-milestones-from-semver
+describe('getSuggestions milestone declaration', () => {
+  // Four filler entries push the interesting ones out of topPriority (first 3)
+  // and away from smallHighImpact (XS/S + high/critical), so what reaches
+  // milestoneAligned is decided by the branches under test and nothing else.
+  const block = (
+    name: string,
+    opts: { milestone?: string; impact?: string; body?: string } = {},
+  ): string =>
+    [
+      `### ${name}`,
+      '',
+      '- area: tooling',
+      '- type: feat',
+      '- since: 2026-09-06',
+      '- size: M',
+      `- impact: ${opts.impact ?? 'high'}`,
+      ...(opts.milestone ? [`- milestone: ${opts.milestone}`] : []),
+      '',
+      opts.body ?? 'Body.',
+      '',
+    ].join('\n');
+
+  const FILLER = block('Filler One') + block('Filler Two') + block('Filler Three');
+
+  it('prefers a declared entry over a higher-overlap entry that declares none', () => {
+    const roadmap =
+      FILLER +
+      block('Word Overlap', { body: 'quantum ledger widget synthesis' }) +
+      block('Declared', { milestone: 'mvp' });
+    const result = getSuggestions(roadmap, {
+      inProgressFds: [],
+      milestoneGate: 'quantum ledger widget synthesis',
+      activeMilestone: 'mvp',
+    });
+    expect(result.milestoneAligned?.slug).toBe('declared');
+  });
+
+  // The impact filter and the empty-gate short-circuit guard a guess. A
+  // declaration is not a guess, so neither applies to it.
+  it('honours a declared entry whose impact is low', () => {
+    const roadmap = FILLER + block('Declared Low', { milestone: 'mvp', impact: 'low' });
+    const result = getSuggestions(roadmap, {
+      inProgressFds: [],
+      milestoneGate: 'unrelated words entirely',
+      activeMilestone: 'mvp',
+    });
+    expect(result.milestoneAligned?.slug).toBe('declared-low');
+  });
+
+  it('honours a declared entry when the gate paragraph is empty', () => {
+    const roadmap = FILLER + block('Declared', { milestone: 'mvp' });
+    const result = getSuggestions(roadmap, {
+      inProgressFds: [],
+      milestoneGate: '',
+      activeMilestone: 'mvp',
+    });
+    expect(result.milestoneAligned?.slug).toBe('declared');
+  });
+
+  it('never lets the overlap fallback return an entry declared elsewhere', () => {
+    const roadmap = FILLER + block('Elsewhere', { milestone: 'other', body: 'quantum ledger' });
+    const result = getSuggestions(roadmap, {
+      inProgressFds: [],
+      milestoneGate: 'quantum ledger',
+      activeMilestone: 'mvp',
+    });
+    expect(result.milestoneAligned).toBeNull();
+  });
+
+  it('returns null when the gate is empty and nothing declares the active milestone', () => {
+    const roadmap = FILLER + block('Plain');
+    const result = getSuggestions(roadmap, {
+      inProgressFds: [],
+      milestoneGate: '',
+      activeMilestone: 'mvp',
+    });
+    expect(result.milestoneAligned).toBeNull();
+  });
+
+  // A null active milestone means "none is active", not "the active one is
+  // nothing" — so there is no other-milestone to exclude and the fallback runs
+  // exactly as it did before this field existed.
+  it('leaves the fallback unfiltered when no milestone is active', () => {
+    const roadmap = FILLER + block('Elsewhere', { milestone: 'other', body: 'quantum ledger' });
+    const withNull = getSuggestions(roadmap, {
+      inProgressFds: [],
+      milestoneGate: 'quantum ledger',
+      activeMilestone: null,
+    });
+    const withoutField = getSuggestions(roadmap, {
+      inProgressFds: [],
+      milestoneGate: 'quantum ledger',
+    });
+    expect(withNull.milestoneAligned?.slug).toBe('elsewhere');
+    expect(withoutField.milestoneAligned?.slug).toBe('elsewhere');
   });
 });

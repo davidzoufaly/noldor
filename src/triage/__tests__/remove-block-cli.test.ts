@@ -1,3 +1,9 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { parseRemoveBlockArgs } from '../remove-block-cli.js';
 
 /** Unwrap a parse expected to succeed, failing loudly instead of silently passing. */
@@ -129,5 +135,65 @@ describe(parseRemoveBlockArgs, () => {
     ])('rejects the %s form too', (_label, argv) => {
       expect(parseRemoveBlockArgs(argv).success).toBe(false);
     });
+  });
+});
+
+// @tests: decouple-milestones-from-semver
+describe('remove-block milestone audit', () => {
+  let repo: string;
+
+  beforeEach(async () => {
+    repo = await mkdtemp(join(tmpdir(), 'remove-block-milestone-'));
+    await mkdir(join(repo, 'docs'), { recursive: true });
+    await mkdir(join(repo, '.noldor'), { recursive: true });
+    await writeFile(
+      join(repo, 'docs/roadmap.md'),
+      [
+        '### With Milestone',
+        '',
+        '- id: Q-0999',
+        '- area: tooling',
+        '- milestone: mvp',
+        '',
+        'Body.',
+        '',
+        '### Without Milestone',
+        '',
+        '- id: Q-0998',
+        '- area: tooling',
+        '',
+        'Body.',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(join(repo, 'docs/backlog.md'), '# Backlog\n');
+  });
+
+  afterEach(async () => {
+    await rm(repo, { recursive: true, force: true });
+  });
+
+  const run = (slug: string): void => {
+    execFileSync(
+      process.execPath,
+      [join(process.cwd(), 'bin/noldor.mjs'), 'roadmap', 'remove-block', slug],
+      { cwd: repo, env: { ...process.env, NOLDOR_RUNTIME: 'source' }, stdio: 'pipe' },
+    );
+  };
+
+  const ledger = (): Record<string, { milestone?: string }> =>
+    JSON.parse(readFileSync(join(repo, '.noldor/retired-entry-ids.json'), 'utf8')) as Record<
+      string,
+      { milestone?: string }
+    >;
+
+  it('records the milestone alongside the entry id', () => {
+    run('with-milestone');
+    expect(ledger()['Q-0999']?.milestone).toBe('mvp');
+  });
+
+  it('omits the key for an entry that declared none', () => {
+    run('without-milestone');
+    expect(ledger()['Q-0998']).not.toHaveProperty('milestone');
   });
 });

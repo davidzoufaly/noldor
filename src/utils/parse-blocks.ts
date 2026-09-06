@@ -66,6 +66,13 @@ export interface BacklogEntry {
   impact?: string;
   /** Confidence in the size + impact estimate. Bullet field `- confidence: <value>`. Validated downstream; parser accepts any string. Default at scoring time: `med`. */
   confidence?: string;
+  /**
+   * Milestone this entry belongs to (`- milestone: <slug>`), the queue-side twin of the
+   * feature MD's `milestone:` frontmatter. Validated downstream against the milestone
+   * slugs the CLI injects; the parser accepts any string, as it does for {@link
+   * BacklogEntry.size} and {@link BacklogEntry.impact}.
+   */
+  milestone?: string;
   /** Lifecycle phase. Bullet field `- phase: <value>`. Today only `later` is written (stale backlog auto-demotion); parser accepts any string. */
   phase?: string;
 }
@@ -179,6 +186,7 @@ export function parseRoadmap(raw: string): BacklogEntry[] {
       phase: parsed.phase,
       splitFrom: parsed.splitFrom,
       recovered: parsed.recovered,
+      milestone: parsed.milestone,
     });
     pending = null;
   };
@@ -232,7 +240,7 @@ export function parseRoadmap(raw: string): BacklogEntry[] {
  * 3. `parseEntries` — its own `fields` record and entry literal (backlog path)
  * 4. {@link BacklogEntry} — the field itself
  *
- * noldor:cut 4-site field harvest, fine while keys are added ~yearly (two in the
+ * noldor:cut 4-site field harvest, fine while keys are added ~yearly (three in the
  * schema's lifetime) — collapse 1–3 onto one kebab→camel record harvest under
  * Q-0113 "Queue-Document Grammar Module" (docs/roadmap.md), which owns the
  * canonical field vocabulary for both parsers. Until then this list is the
@@ -240,7 +248,7 @@ export function parseRoadmap(raw: string): BacklogEntry[] {
  * summarized.
  */
 const FIELD_KEYS =
-  'area|id|type|since|parent|size|impact|confidence|deps|blocked-by|phase|split-from|recovered';
+  'area|id|type|since|parent|size|impact|confidence|deps|blocked-by|phase|split-from|recovered|milestone';
 
 /**
  * Split a comma-separated ref list into trimmed, non-empty refs. Each ref is a
@@ -285,6 +293,7 @@ function parseBlockBody(lines: string[]): {
   phase?: string;
   splitFrom?: string;
   recovered?: string;
+  milestone?: string;
   body: string;
 } {
   let area = '';
@@ -300,6 +309,7 @@ function parseBlockBody(lines: string[]): {
   let phase: string | undefined;
   let splitFrom: string | undefined;
   let recovered: string | undefined;
+  let milestone: string | undefined;
   const bodyLines: string[] = [];
   for (const line of lines) {
     const fieldMatch = new RegExp(`^-\\s+(${FIELD_KEYS}):\\s*(.+?)\\s*$`).exec(line);
@@ -316,6 +326,7 @@ function parseBlockBody(lines: string[]): {
       else if (key === 'phase') phase = value;
       else if (key === 'split-from') splitFrom = value;
       else if (key === 'recovered') recovered = value;
+      else if (key === 'milestone') milestone = value;
       else if (key === 'deps') deps = parseRefList(value);
       else if (key === 'blocked-by') blockedBy = parseRefList(value);
       continue;
@@ -329,6 +340,7 @@ function parseBlockBody(lines: string[]): {
     deps: mergeDepFields(deps, blockedBy),
     id,
     impact,
+    milestone,
     parent,
     phase,
     recovered,
@@ -389,6 +401,7 @@ function parseEntries(raw: string): BacklogEntry[] {
       phase: fields.phase,
       splitFrom: fields['split-from'],
       recovered: fields.recovered,
+      milestone: fields.milestone,
       deps: mergeDepFields(
         fields.deps !== undefined ? parseRefList(fields.deps) : undefined,
         fields['blocked-by'] !== undefined ? parseRefList(fields['blocked-by']) : undefined,

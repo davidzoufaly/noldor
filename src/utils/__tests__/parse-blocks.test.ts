@@ -654,3 +654,46 @@ Body.
     expect(entry?.description).toContain('- split-from-scratch: not a field');
   });
 });
+
+describe('milestone field', () => {
+  it.each([
+    ['parseRoadmap', parseRoadmap],
+    ['parseBacklog', parseBacklog],
+  ])('%s surfaces milestone as a field and strips it from the description', (_label, parse) => {
+    const raw = `### Milestone Entry
+
+- area: tooling
+- milestone: public-beta
+
+Body prose.
+`;
+    const entry = parse(raw)[0];
+    expect(entry?.milestone).toBe('public-beta');
+    expect(entry?.description).not.toContain('milestone');
+  });
+
+  it.each([
+    ['parseRoadmap', parseRoadmap],
+    ['parseBacklog', parseBacklog],
+  ])('%s leaves milestone undefined when the bullet is absent', (_label, parse) => {
+    const raw = `### Plain Entry
+
+- area: tooling
+
+Body.
+`;
+    expect(parse(raw)[0]?.milestone).toBeUndefined();
+  });
+
+  it('does not harvest a lookalike milestone bullet', () => {
+    const raw = `### Lookalike
+
+- area: tooling
+
+- milestone-planning: not a field
+`;
+    const entry = parseRoadmap(raw)[0];
+    expect(entry?.milestone).toBeUndefined();
+    expect(entry?.description).toContain('- milestone-planning: not a field');
+  });
+});

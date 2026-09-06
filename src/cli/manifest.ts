@@ -200,6 +200,10 @@ export const MANIFEST: Record<string, Group> = {
     desc: 'Feature MD validators + migrations',
     subs: {
       validate: { src: 'features/validate-features.ts', desc: 'Validate all feature MDs' },
+      'attach-milestone': {
+        src: 'features/attach-milestone-cli.ts',
+        desc: "Attach verdict for an entry's milestone vs its parent FD's (exit 0 noop/adopt, 1 conflict)",
+      },
       'fill-links-code-gaps': {
         src: 'features/fill-links-code-gaps.ts',
         desc: 'Fill links.code gaps',
@@ -251,6 +255,10 @@ export const MANIFEST: Record<string, Group> = {
     desc: 'Milestone validators',
     subs: {
       validate: { src: 'milestones/validate-milestones.ts', desc: 'Validate milestones' },
+      show: {
+        src: 'milestones/show-cli.ts',
+        desc: "Print one milestone's features and its queued roadmap/backlog entries",
+      },
     },
   },
   sync: {

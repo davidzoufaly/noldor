@@ -91,3 +91,66 @@ describe('detectMilestoneShippedIncomplete', () => {
     expect(await detectMilestoneShippedIncomplete(repo)).toEqual([]);
   });
 });
+
+// @tests: decouple-milestones-from-semver
+describe('detectMilestoneShippedIncomplete — queued entries', () => {
+  let repo: string;
+  beforeEach(async () => {
+    repo = await makeRepo();
+  });
+  afterEach(async () => {
+    await rm(repo, { recursive: true, force: true });
+  });
+
+  const block = (name: string, milestone?: string): string =>
+    [
+      `### ${name}`,
+      '',
+      '- area: tooling',
+      '- type: feat',
+      '- since: 2026-09-06',
+      ...(milestone ? [`- milestone: ${milestone}`] : []),
+      '',
+      'Body.',
+      '',
+    ].join('\n');
+
+  it('flags a roadmap entry naming a shipped milestone', async () => {
+    await writeMilestone(repo, 'mvp', 'shipped');
+    await writeFile(join(repo, 'docs/roadmap.md'), block('Still Queued', 'mvp'));
+    const findings = await detectMilestoneShippedIncomplete(repo);
+    expect(findings).toEqual([
+      {
+        slug: 'still-queued',
+        path: 'docs/roadmap.md',
+        milestone: 'mvp',
+        phase: 'queued',
+        reason: 'shipped-milestone-queued-entry',
+      },
+    ]);
+  });
+
+  it('flags a backlog entry the same way', async () => {
+    await writeMilestone(repo, 'mvp', 'shipped');
+    await writeFile(join(repo, 'docs/backlog.md'), block('Parked', 'mvp'));
+    const findings = await detectMilestoneShippedIncomplete(repo);
+    expect(findings[0]?.path).toBe('docs/backlog.md');
+    expect(findings[0]?.reason).toBe('shipped-milestone-queued-entry');
+  });
+
+  it('ignores entries naming a milestone that is not shipped, or none at all', async () => {
+    await writeMilestone(repo, 'mvp', 'shipped');
+    await writeMilestone(repo, 'next', 'active');
+    await writeFile(
+      join(repo, 'docs/roadmap.md'),
+      block('Other Milestone', 'next') + block('No Milestone'),
+    );
+    expect(await detectMilestoneShippedIncomplete(repo)).toEqual([]);
+  });
+
+  // Queue files are optional: a repo may carry only one, or neither.
+  it('returns no queue findings when the queue files are absent', async () => {
+    await writeMilestone(repo, 'mvp', 'shipped');
+    expect(await detectMilestoneShippedIncomplete(repo)).toEqual([]);
+  });
+});

@@ -244,7 +244,14 @@ export function roadmapSource(cwd: string, selection?: SelectionFilter): DrainSo
     nextItem(skip) {
       const sugg = getSuggestions(
         read(),
-        { inProgressFds: loadInProgressFds(cwd), milestoneGate: loadMilestoneGate(cwd) },
+        (() => {
+          const active = loadMilestoneGate(cwd);
+          return {
+            inProgressFds: loadInProgressFds(cwd),
+            milestoneGate: active.gate,
+            activeMilestone: active.slug,
+          };
+        })(),
         skip,
       );
       const top = sugg.topPriority[0];

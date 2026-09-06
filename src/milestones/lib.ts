@@ -10,7 +10,10 @@ import {
   resolveSlugPath,
   type ResolveError,
 } from '../core/slug-paths.js';
+import { readQueueFile } from '../core/doc-roots.js';
+import { loadSddFeatures, type FeatureRecord } from '../core/fd-load.js';
 import type { Slug } from '../core/slug.js';
+import { parseBacklog, parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 
 export const milestoneStatusSchema = z.enum(['draft', 'active', 'shipped']);
 export type MilestoneStatus = z.infer<typeof milestoneStatusSchema>;
@@ -247,5 +250,151 @@ export function listMilestones(cwd: string = process.cwd()): ListResult {
     active: all.filter((m) => m.frontmatter.status === 'active'),
     draft: all.filter((m) => m.frontmatter.status === 'draft'),
     shipped: all.filter((m) => m.frontmatter.status === 'shipped'),
+  };
+}
+
+/**
+ * One milestone plus the work that names it, with a phase roll-up.
+ *
+ * Deliberately renderer-free: this lives in `src/milestones/lib.ts` rather than
+ * in `src/dashboard/data.ts` so a text-printing CLI can group milestones
+ * without importing the dashboard's markdown/HTML stack. The dashboard extends
+ * it with a rendered body (`MilestoneGroup`), which is the only part that needs
+ * a renderer.
+ */
+export interface MilestoneGroupBase {
+  slug: string;
+  name: string;
+  status: MilestoneStatus;
+  description: string | null;
+  /** Feature MDs whose `milestone:` frontmatter names this milestone. */
+  members: FeatureRecord[];
+  /** How many of {@link MilestoneGroupBase.members} are `phase: done`. */
+  doneCount: number;
+  /** Size of {@link MilestoneGroupBase.members}. */
+  total: number;
+  /**
+   * Roadmap/backlog entries whose `- milestone:` names this milestone — work
+   * that has not been promoted to a feature MD yet.
+   *
+   * Kept apart from {@link MilestoneGroupBase.members} rather than folded into
+   * `total`: a queue entry records no phase, so counting it as "not done"
+   * asserts a state nobody wrote, and a combined ratio would fall every time
+   * work is triaged into the milestone — the signal inverting exactly when the
+   * milestone grows.
+   */
+  queued: BacklogEntry[];
+  /** Size of {@link MilestoneGroupBase.queued}. */
+  queuedCount: number;
+  /**
+   * True when status is `shipped` but at least one *feature* member is not
+   * done.
+   *
+   * Queue entries deliberately do not set this. "A shipped milestone still has
+   * open work" is owned by `detectMilestoneShippedIncomplete`
+   * (`src/garden/detectors/milestone-shipped-incomplete.ts`); adding a second
+   * trigger here would let the dashboard and garden disagree about one repo.
+   */
+  incomplete: boolean;
+}
+
+const STATUS_ORDER: Record<MilestoneStatus, number> = { active: 0, draft: 1, shipped: 2 };
+
+/**
+ * Group features and queue entries under their declared milestone.
+ *
+ * Pure — milestones, features and entries are all injected — so the grouping is
+ * unit-testable and shared by the dashboard and the CLI. Members are matched by
+ * `milestone === milestone.slug` on either side; work naming no milestone, or
+ * one that is not declared, is omitted. Order: active → draft → shipped, then
+ * by name within each status.
+ *
+ * @param milestones - Every declared milestone.
+ * @param features - Every feature MD.
+ * @param entries - Roadmap + backlog entries, unfiltered.
+ * @returns One group per milestone, ordered by status then name.
+ */
+export function buildMilestoneGroupBases(
+  milestones: readonly Milestone[],
+  features: readonly FeatureRecord[],
+  entries: readonly BacklogEntry[] = [],
+): MilestoneGroupBase[] {
+  return milestones
+    .map((m): MilestoneGroupBase => {
+      const members = features.filter((f) => f.frontmatter.milestone === m.slug);
+      const queued = entries.filter((e) => e.milestone === m.slug);
+      const doneCount = members.filter((f) => f.frontmatter.phase === 'done').length;
+      const status = m.frontmatter.status;
+      return {
+        slug: m.slug,
+        name: m.frontmatter.name,
+        status,
+        description: m.frontmatter.description ?? null,
+        members: [...members],
+        doneCount,
+        total: members.length,
+        queued: [...queued],
+        queuedCount: queued.length,
+        incomplete: status === 'shipped' && doneCount < members.length,
+      };
+    })
+    .sort(
+      (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name),
+    );
+}
+
+/**
+ * Render one milestone's membership: its feature MDs and the queue entries that
+ * still name it.
+ *
+ * Reads through {@link buildMilestoneGroupBases} rather than re-deriving
+ * membership so this and the dashboard's `/milestones` page can never disagree
+ * about who belongs to a milestone.
+ *
+ * @param slug - Milestone slug to show.
+ * @param cwd - Repository root.
+ * @returns The rendered report, or the reason it could not be produced.
+ */
+export async function renderMilestoneShow(
+  slug: string,
+  cwd: string = process.cwd(),
+): Promise<{ ok: true; text: string } | { ok: false; message: string }> {
+  const milestones = loadMilestones(cwd);
+  const target = milestones.find((m) => m.slug === slug);
+  if (!target) {
+    return { ok: false, message: `Milestone "${slug}" not found under docs/milestones/` };
+  }
+  const features = await loadSddFeatures(join(cwd, 'docs/features'));
+  const entries = [
+    ...parseRoadmap(await readQueueFile(join(cwd, 'docs/roadmap.md'))),
+    ...parseBacklog(await readQueueFile(join(cwd, 'docs/backlog.md'))),
+  ];
+  const group = buildMilestoneGroupBases([target], features, entries)[0];
+  if (!group) {
+    return { ok: false, message: `Milestone "${slug}" could not be grouped` };
+  }
+
+  const featureLines =
+    group.members.length === 0
+      ? ['  (none)']
+      : group.members.map((f) => `  - ${f.slug} (${f.frontmatter.phase})`);
+  const queueLines =
+    group.queued.length === 0
+      ? ['  (none)']
+      : group.queued.map((e) => `  - ${e.slug}${e.size ? ` (${e.size})` : ''}`);
+
+  return {
+    ok: true,
+    text: [
+      `${group.name} — ${group.status}`,
+      ...(group.description ? [group.description] : []),
+      '',
+      `Features (${group.doneCount}/${group.total} done):`,
+      ...featureLines,
+      '',
+      `Queued (${group.queuedCount}):`,
+      ...queueLines,
+      '',
+    ].join('\n'),
   };
 }

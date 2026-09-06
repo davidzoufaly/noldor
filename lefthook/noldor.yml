@@ -90,7 +90,7 @@ pre-commit:
             glob: 'docs/{roadmap,backlog}.md'
             run: pnpm noldor triage validate
           - name: milestones
-            glob: '{docs/milestones/**/*.md,docs/vision.md}'
+            glob: '{docs/milestones/*.md,docs/milestones/**/*.md,docs/vision.md}'
             run: pnpm noldor milestones validate
           - name: rules
             glob: '.noldor/rules/**/*.md'

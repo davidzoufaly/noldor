@@ -11,6 +11,8 @@ export interface PrepEntry {
   readonly area: string;
   readonly parent?: string;
   readonly deps: readonly string[];
+  /** Milestone the source entry declared, carried onto the FD by `scaffoldFd`. */
+  readonly milestone?: string;
   readonly body: string;
 }
 

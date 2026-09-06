@@ -150,6 +150,7 @@ function main(): void {
           slug,
           ...(retiredInto !== undefined ? { retiredInto } : {}),
           ...(splitInto !== undefined ? { splitInto } : {}),
+          ...(entry.milestone !== undefined ? { milestone: entry.milestone } : {}),
           retiredAt: new Date().toISOString().slice(0, 10),
         },
         mapPath,

@@ -387,6 +387,18 @@ export function renderMilestones(groups: MilestoneGroup[]): string {
                   `<li><a href="/features/${escapeHtml(f.slug)}">${escapeHtml(f.frontmatter.name)}</a> <span class="chip">${escapeHtml(f.frontmatter.phase)}</span></li>`,
               )
               .join('')}</ul>`;
+      // Queued entries render as their own list with their own count, never
+      // folded into `doneCount/total`: an entry has no phase, and a combined
+      // ratio would fall every time work is triaged into the milestone.
+      const queued =
+        g.queuedCount === 0
+          ? ''
+          : `<details class="milestone-queue"><summary>${g.queuedCount} queued ${g.queuedCount === 1 ? 'entry' : 'entries'}</summary><ul>${g.queued
+              .map(
+                (e) =>
+                  `<li>${escapeHtml(e.name)}${e.size ? ` <span class="chip">${escapeHtml(e.size)}</span>` : ''}</li>`,
+              )
+              .join('')}</ul></details>`;
       const desc = g.description ? ` — ${escapeHtml(g.description)}` : '';
       const bodyExpander = g.bodyHtml
         ? `<details class="milestone-body"><summary>Milestone details</summary><div class="body">${g.bodyHtml}</div></details>`
@@ -396,6 +408,7 @@ export function renderMilestones(groups: MilestoneGroup[]): string {
         <h3>${escapeHtml(g.name)} <span class="chip">${g.doneCount}/${g.total} done</span></h3>
         ${desc ? `<p>${desc.slice(3)}</p>` : ''}
         ${members}
+        ${queued}
         ${bodyExpander}
       </section>`;
     })

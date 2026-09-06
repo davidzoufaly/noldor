@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildMilestoneGroups, type FeatureRecord } from '../data.js';
 import { renderMilestones } from '../views.js';
 import type { Milestone } from '../../milestones/lib.js';
+import type { BacklogEntry } from '../../utils/parse-blocks.js';
 
 // @tests: dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, dynamic-fd-changelog, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 
@@ -101,5 +102,45 @@ describe('renderMilestones', () => {
     const groups = buildMilestoneGroups([milestone('mvp', 'active', '')], []);
     const html = renderMilestones(groups);
     expect(html).not.toContain('<details class="milestone-body">');
+  });
+});
+
+// @tests: decouple-milestones-from-semver
+describe('buildMilestoneGroups queue members', () => {
+  const entry = (slug: string, ms?: string): BacklogEntry => ({
+    name: slug,
+    slug,
+    area: 'tooling',
+    description: '',
+    ...(ms ? { milestone: ms } : {}),
+  });
+
+  it('collects entries naming the milestone into a list distinct from features', () => {
+    const groups = buildMilestoneGroups(
+      [milestone('mvp', 'active')],
+      [feature('a', 'done', 'mvp')],
+      [entry('q1', 'mvp'), entry('q2', 'other'), entry('q3')],
+    );
+    expect(groups[0]?.queued.map((e) => e.slug)).toEqual(['q1']);
+    expect(groups[0]?.queuedCount).toBe(1);
+    expect(groups[0]?.members.map((f) => f.slug)).toEqual(['a']);
+  });
+
+  // The feature ratio is the honest one: a queue entry records no phase, so
+  // folding it in would assert a completion state nobody wrote.
+  it('leaves doneCount, total and incomplete untouched by queue entries', () => {
+    const args = [[milestone('mvp', 'shipped')], [feature('a', 'done', 'mvp')]] as const;
+    const without = buildMilestoneGroups(...args)[0];
+    const with_ = buildMilestoneGroups(...args, [entry('q1', 'mvp')])[0];
+    expect(with_?.doneCount).toBe(without?.doneCount);
+    expect(with_?.total).toBe(without?.total);
+    expect(with_?.incomplete).toBe(without?.incomplete);
+    expect(with_?.incomplete).toBe(false);
+  });
+
+  it('defaults to an empty queue when no entries are passed', () => {
+    const groups = buildMilestoneGroups([milestone('mvp', 'active')], []);
+    expect(groups[0]?.queued).toEqual([]);
+    expect(groups[0]?.queuedCount).toBe(0);
   });
 });

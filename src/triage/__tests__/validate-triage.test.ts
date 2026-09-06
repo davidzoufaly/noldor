@@ -557,3 +557,71 @@ Body.
     ).toEqual([]);
   });
 });
+
+// @tests: decouple-milestones-from-semver
+describe('milestone reference validation', () => {
+  const entry = (milestone: string): string => `### Milestone Entry
+
+- area: tooling
+- type: feat
+- since: 2026-09-06
+- size: M
+- impact: high
+- milestone: ${milestone}
+
+Body.
+`;
+
+  const run = (
+    roadmapRaw: string,
+    milestoneSlugs: readonly string[] = [],
+  ): TriageValidationResult =>
+    validateTriageInputs({
+      roadmapRaw,
+      backlogRaw: '',
+      strict: false,
+      counterExists: false,
+      milestoneSlugs,
+    });
+
+  const milestoneErrors = (r: TriageValidationResult): TriageIssue[] =>
+    r.errors.filter((e) => e.rule.endsWith('-milestone-ref'));
+
+  it('accepts a milestone that names a known slug', () => {
+    expect(milestoneErrors(run(entry('public-beta'), ['public-beta']))).toEqual([]);
+  });
+
+  it('errors with unknown-milestone-ref when the slug names no file', () => {
+    const errs = milestoneErrors(run(entry('nope'), ['public-beta']));
+    expect(errs).toHaveLength(1);
+    expect(errs[0]?.rule).toBe('unknown-milestone-ref');
+    expect(errs[0]?.entryName).toBe('Milestone Entry');
+  });
+
+  // No directory guard: an empty milestoneSlugs is what a repo with no
+  // docs/milestones/ yields, and validateMilestoneRef errors on the FD side for
+  // the same input. Guarding here alone would make the two disagree.
+  it('errors on an empty milestone set, matching the feature-MD side', () => {
+    expect(milestoneErrors(run(entry('public-beta'), []))[0]?.rule).toBe('unknown-milestone-ref');
+  });
+
+  it('errors with malformed-milestone-ref on a traversal-shaped value', () => {
+    const errs = milestoneErrors(run(entry('../../etc/passwd'), ['public-beta']));
+    expect(errs).toHaveLength(1);
+    expect(errs[0]?.rule).toBe('malformed-milestone-ref');
+  });
+
+  it('stays silent for an entry that declares no milestone', () => {
+    const raw = `### Plain Entry
+
+- area: tooling
+- type: feat
+- since: 2026-09-06
+- size: M
+- impact: high
+
+Body.
+`;
+    expect(milestoneErrors(run(raw, []))).toEqual([]);
+  });
+});
