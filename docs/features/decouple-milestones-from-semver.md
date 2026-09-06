@@ -14,11 +14,10 @@ links:
 name: Decouple Milestones from Semver
 packages:
   - tooling
-phase: done
+phase: in-progress
 noldor-tier: full
 introduced: 0.5.0
 ---
-
 ## Summary
 
 `docs/vision.md`'s `current-milestone: 1.0.0` ties milestone identity to semver. The two have different cadences: a milestone is a strategic gate ("public release with house-modeling agent"); semver tracks API/format compatibility. Conflating them forces premature version commitments and leaks strategic naming into the changelog. Proposal: introduce a separate milestone-naming taxonomy (codenames? phases?) and a new skill (`/noldor-milestone` or similar) for crafting milestone definitions independent of releases. Vision keeps a milestone reference; release notes keep semver. Trigger: live now — milestone vs version drift already confuses `/noldor-triage` decisions ("is this v1.0 or post-MVP?").

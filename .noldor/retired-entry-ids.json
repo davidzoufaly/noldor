@@ -291,5 +291,10 @@
     "slug": "toolchain-floor-reads-root-tsconfigs-only",
     "retiredInto": "architecture-invariants",
     "retiredAt": "2026-09-05"
+  },
+  "Q-0083": {
+    "slug": "milestone-queue-linking",
+    "retiredInto": "decouple-milestones-from-semver",
+    "retiredAt": "2026-09-06"
   }
 }
