@@ -13,6 +13,7 @@ import {
   collectTaggedMany,
   diffProjection,
   loadCachedAll,
+  parseRunOptions,
   project,
   runProjection,
   taglessKeptSlugs,
@@ -493,5 +494,99 @@ describe('diffProjection', () => {
   it('excludes FDs the write path would skip', () => {
     const cached = new Map<string, string[]>([['feat', ['docs/user/how-to/gone.md']]]);
     expect(diffProjection(new Map(), cached, docsAdapter)).toEqual([]);
+  });
+});
+
+/** A test file whose `// @tests:` tag names `slug`. */
+function writeTagged(slug: string): void {
+  writeFileSync(join(repo, 'src', `${slug}.test.ts`), `// @tests: ${slug}\n`, 'utf8');
+}
+
+describe('the --slug filter', () => {
+  it('leaves every feature MD but the named one byte-identical', async () => {
+    writeFd('wanted', { tests: ['src/old-wanted.test.ts'] });
+    writeFd('bystander', { tests: ['src/old-bystander.test.ts'] });
+    writeTagged('wanted');
+    writeTagged('bystander');
+    const bystanderMd = join(repo, 'docs', 'features', 'bystander.md');
+    const before = readFileSync(bystanderMd, 'utf8');
+
+    const exit = await runProjection(rooted(testsAdapter, ['src'], 'default'), {
+      cwd: repo,
+      slugs: ['wanted'],
+    });
+
+    expect(exit).toBe(0);
+    await expect(cachedFor('wanted', 'tests')).resolves.toEqual(['src/wanted.test.ts']);
+    expect(readFileSync(bystanderMd, 'utf8')).toBe(before);
+    // The headline must not claim a repo-wide write it did not perform.
+    expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain('(scoped to wanted)');
+  });
+
+  it('narrows --check to the named FD while an unscoped run still goes red', async () => {
+    writeFd('clean', { tests: ['src/clean.test.ts'] });
+    writeFd('stale', { tests: ['src/old-stale.test.ts'] });
+    writeTagged('clean');
+    writeTagged('stale');
+    const adapter = rooted(testsAdapter, ['src'], 'default');
+
+    const scoped = await runProjection(adapter, { cwd: repo, check: true, slugs: ['clean'] });
+    const whole = await runProjection(adapter, { cwd: repo, check: true });
+
+    expect(scoped).toBe(0);
+    expect(whole).toBe(1);
+  });
+
+  it('does not warn about a dangling tag outside the scope', async () => {
+    writeFd('wanted', { tests: ['src/old-wanted.test.ts'] });
+    writeTagged('wanted');
+    writeTagged('ghost');
+
+    await runProjection(rooted(testsAdapter, ['src'], 'default'), { cwd: repo, slugs: ['wanted'] });
+
+    expect(vi.mocked(console.warn).mock.calls.flat().join('\n')).not.toContain('ghost');
+  });
+
+  it('refuses a filter naming no feature MD rather than exiting 0 having written nothing', async () => {
+    writeFd('feat', { tests: ['src/old-feat.test.ts'] });
+    writeTagged('feat');
+
+    const exit = await runProjection(rooted(testsAdapter, ['src'], 'default'), {
+      cwd: repo,
+      slugs: ['typo'],
+    });
+
+    expect(exit).toBe(1);
+    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('no feature MD: typo');
+    await expect(cachedFor('feat', 'tests')).resolves.toEqual(['src/old-feat.test.ts']);
+  });
+
+  it('refuses an empty filter rather than reading it as every FD', async () => {
+    writeFd('feat', { tests: ['src/old-feat.test.ts'] });
+    writeTagged('feat');
+
+    const exit = await runProjection(rooted(testsAdapter, ['src'], 'default'), {
+      cwd: repo,
+      slugs: [],
+    });
+
+    expect(exit).toBe(1);
+    await expect(cachedFor('feat', 'tests')).resolves.toEqual(['src/old-feat.test.ts']);
+  });
+});
+
+describe('parseRunOptions', () => {
+  it('reads the filter repeated and comma-separated as one set', () => {
+    expect(parseRunOptions(['--slug', 'a,b', '--slug', 'c']).slugs).toEqual(['a', 'b', 'c']);
+  });
+
+  it('leaves the filter absent when the flag is not given', () => {
+    expect(parseRunOptions(['--check', '--force']).slugs).toBeUndefined();
+  });
+
+  it('voids the whole filter when an occurrence swallows the next flag', () => {
+    // `--slug --force` must not narrow to `a` alone and then write repo-wide on
+    // a filter the operator thinks named two FDs.
+    expect(parseRunOptions(['--slug', 'a', '--slug', '--force']).slugs).toEqual([]);
   });
 });
