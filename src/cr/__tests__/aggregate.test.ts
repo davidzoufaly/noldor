@@ -1,11 +1,21 @@
 // @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { aggregate } from '../aggregate.js';
+import { parseSlug, type Slug } from '../../core/slug.js';
+import { aggregate, describeStale } from '../aggregate.js';
+import { writeExpectedLanes } from '../expected-lanes.js';
 
 const FIX = resolve(__dirname, 'fixtures');
+
+function slugOf(value: string): Slug {
+  const parsed = parseSlug(value);
+  if (!parsed.ok) throw new Error(`fixture slug is invalid: ${value}`);
+  return parsed.slug;
+}
 
 let root: string;
 let crDir: string;
@@ -180,6 +190,135 @@ describe('aggregate', () => {
       const r = await aggregate('x', 'spec', { cwd: root });
       expect(r.blockers.filter((b) => b.integrity === true)).toHaveLength(1);
       expect(r.blockers.filter((b) => b.integrity === undefined)).toHaveLength(1);
+    });
+  });
+
+  // A sink is only as current as the round that wrote it. `orchestrate` refuses
+  // at the round cap BEFORE it records the round, so nothing rewrites the sinks
+  // and the previous round's findings read as live (PR #437: three blockers
+  // reported, two already fixed in a later commit).
+  describe('stale round detection (Q-0211)', () => {
+    const SLUG = slugOf('x');
+    let repo: string;
+
+    const git = (args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+    const head = () => git(['rev-parse', 'HEAD']).trim();
+    const sink = (fixture: string, name: string) =>
+      copyFile(join(FIX, fixture), join(repo, '.noldor', 'cr', name));
+    /** The clean fixture's payload lane is `manual`; the sink name must agree. */
+    const cleanCodeSink = () => sink('findings-clean.json', 'x-code-manual.json');
+    /** A commit that changes content — the thing a re-review would be about. */
+    const commitEdit = (body: string) => {
+      writeFileSync(join(repo, 'a.txt'), body);
+      git(['commit', '-aqm', `edit: ${body.trim()}`]);
+    };
+
+    beforeEach(() => {
+      repo = mkdtempSync(join(tmpdir(), 'agg-stale-'));
+      git(['init', '-q', '-b', 'main']);
+      git(['config', 'user.email', 't@example.com']);
+      git(['config', 'user.name', 'T']);
+      writeFileSync(join(repo, 'a.txt'), 'one\n');
+      git(['add', '-A']);
+      git(['commit', '-qm', 'base']);
+      // After the commit, so the sinks stay out of the tree the check reads —
+      // matching the real repo, where `.noldor/` is ignored.
+      mkdirSync(join(repo, '.noldor', 'cr', 'expected'), { recursive: true });
+    });
+    afterEach(() => rmSync(repo, { recursive: true, force: true }));
+
+    it('a round dispatched against the current tree is not stale', async () => {
+      await writeExpectedLanes(repo, SLUG, 'code', ['manual'], head());
+      await cleanCodeSink();
+      const r = await aggregate(SLUG, 'code', { cwd: repo });
+      expect(r.stale).toEqual([]);
+      expect(r.ok).toBe(true);
+    });
+
+    it('a commit after the round reds an otherwise-green verdict', async () => {
+      await writeExpectedLanes(repo, SLUG, 'code', ['manual'], head());
+      await cleanCodeSink();
+      // Green first, so staleness is the only thing that can flip it below.
+      expect((await aggregate(SLUG, 'code', { cwd: repo })).ok).toBe(true);
+
+      const dispatched = head();
+      commitEdit('two\n');
+
+      const r = await aggregate(SLUG, 'code', { cwd: repo });
+      expect(r.ok).toBe(false);
+      expect(r.stale).toHaveLength(1);
+      expect(r.stale[0]?.kind).toBe('code');
+      expect(r.stale[0]?.headSha).toBe(dispatched);
+      expect(r.stale[0]?.currentTree).toBe(git(['rev-parse', 'HEAD^{tree}']).trim());
+    });
+
+    it('keeps stale rounds out of `blockers`, which the round ledger fingerprints', async () => {
+      await writeExpectedLanes(repo, SLUG, 'code', ['reviewer'], head());
+      await sink('findings-blockers.json', 'x-code-reviewer.json');
+      const before = await aggregate(SLUG, 'code', { cwd: repo });
+      commitEdit('two\n');
+      const after = await aggregate(SLUG, 'code', { cwd: repo });
+
+      expect(after.stale).toHaveLength(1);
+      expect(after.blockers).toEqual(before.blockers);
+    });
+
+    it('a message-only amend leaves the round current', async () => {
+      // The receipt amend orchestrate performs after its lanes run is
+      // tree-preserving, so a commit-sha comparison would call every green round
+      // stale. This is the test that pins the comparison to the TREE.
+      const dispatched = head();
+      await writeExpectedLanes(repo, SLUG, 'code', ['manual'], dispatched);
+      await cleanCodeSink();
+
+      git(['commit', '--amend', '-qm', 'base + Noldor-Reviewed-Subagent trailer']);
+      expect(head()).not.toBe(dispatched);
+
+      const r = await aggregate(SLUG, 'code', { cwd: repo });
+      expect(r.stale).toEqual([]);
+      expect(r.ok).toBe(true);
+    });
+
+    it('a round whose commit no longer resolves is stale, not unknown', async () => {
+      await writeExpectedLanes(repo, SLUG, 'code', ['manual'], '0'.repeat(40));
+      await cleanCodeSink();
+      const r = await aggregate(SLUG, 'code', { cwd: repo });
+      expect(r.ok).toBe(false);
+      expect(r.stale[0]?.roundTree).toBeNull();
+      expect(describeStale(r.stale[0]!)).toMatch(/no longer resolves/);
+    });
+
+    it('a record with no head stamp is unknown, never stale', async () => {
+      // Pre-Q-0211 records carry no stamp. Reporting those as stale would red
+      // every round already on disk in a consumer repo.
+      await writeExpectedLanes(repo, SLUG, 'code', ['manual']);
+      await cleanCodeSink();
+      commitEdit('two\n');
+      const r = await aggregate(SLUG, 'code', { cwd: repo });
+      expect(r.stale).toEqual([]);
+      expect(r.ok).toBe(true);
+    });
+
+    it('disables itself where git cannot resolve HEAD', async () => {
+      // `root` is a bare tmpdir from the outer setup — asserted, not assumed.
+      expect(spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root }).status).not.toBe(0);
+      await mkdir(join(root, '.noldor', 'cr', 'expected'), { recursive: true });
+      await writeExpectedLanes(root, SLUG, 'code', ['manual'], '0'.repeat(40));
+      await copy('findings-clean.json', 'x-code-manual.json');
+      const r = await aggregate(SLUG, 'code', { cwd: root });
+      expect(r.stale).toEqual([]);
+      expect(r.ok).toBe(true);
+    });
+
+    it('reports each kind separately when kind is omitted', async () => {
+      const dispatched = head();
+      await writeExpectedLanes(repo, SLUG, 'spec', ['manual'], dispatched);
+      await writeExpectedLanes(repo, SLUG, 'code', ['manual'], dispatched);
+      await sink('findings-clean.json', 'x-spec-manual.json');
+      await cleanCodeSink();
+      commitEdit('two\n');
+      const r = await aggregate(SLUG, undefined, { cwd: repo });
+      expect(r.stale.map((s) => s.kind).toSorted()).toEqual(['code', 'spec']);
     });
   });
 

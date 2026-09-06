@@ -1,5 +1,5 @@
 // @tests: noldor
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -80,6 +80,61 @@ describe('aggregate CLI', () => {
       await expect(
         exec(TSX, [CLI, '--slug', 'x', '--unresolved-only'], { cwd: root }),
       ).rejects.toMatchObject({ code: 1 });
+    });
+  });
+
+  // The deletion test for Q-0211: a green sink written against a tree the
+  // checkout has moved past must not exit 0 as if it were current.
+  describe('stale round (Q-0211)', () => {
+    let repo: string;
+    const git = (args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+
+    beforeEach(async () => {
+      repo = await mkdtemp(join(tmpdir(), 'agg-cli-stale-'));
+      git(['init', '-q', '-b', 'main']);
+      git(['config', 'user.email', 't@example.com']);
+      git(['config', 'user.name', 'T']);
+      await writeFile(join(repo, 'a.txt'), 'one\n', 'utf8');
+      git(['add', '-A']);
+      git(['commit', '-qm', 'base']);
+
+      const expectedDir = join(repo, '.noldor', 'cr', 'expected');
+      await mkdir(expectedDir, { recursive: true });
+      await writeFile(
+        join(expectedDir, 'x-code.json'),
+        JSON.stringify({
+          slug: 'x',
+          kind: 'code',
+          lanes: ['manual'],
+          headSha: git(['rev-parse', 'HEAD']).trim(),
+        }),
+        'utf8',
+      );
+      await copyFile(
+        join(FIX, 'findings-clean.json'),
+        join(repo, '.noldor', 'cr', 'x-code-manual.json'),
+      );
+      // The commit the round never saw.
+      await writeFile(join(repo, 'a.txt'), 'two\n', 'utf8');
+      git(['commit', '-aqm', 'fix applied after the round']);
+    });
+    afterEach(async () => {
+      await rm(repo, { recursive: true, force: true });
+    });
+
+    it('exits 1 and names the drift, though every sink is green', async () => {
+      await expect(
+        exec(TSX, [CLI, '--slug', 'x', '--kind', 'code'], { cwd: repo }),
+      ).rejects.toMatchObject({ code: 1, stdout: expect.stringContaining('stale code round') });
+    });
+
+    it('exits 0 under --unresolved-only, still printing it', async () => {
+      // The gate's kind-less drain step runs long after implementation commits
+      // moved the tree — gating there would re-red every session.
+      const r = await exec(TSX, [CLI, '--slug', 'x', '--unresolved-only'], { cwd: repo });
+      expect(r.stdout).toMatch(/stale code round/);
+      expect(r.stdout).toMatch(/ok=true/);
+      expect(r.stdout).toMatch(/1 stale round\(s\) above do NOT gate either/);
     });
   });
 });

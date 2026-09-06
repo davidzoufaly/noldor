@@ -25,6 +25,20 @@ export const expectedLanesSchema = z.object({
   slug: slugSchema,
   kind: artifactKindSchema,
   lanes: z.array(laneSchema),
+  /**
+   * `HEAD` when orchestrate dispatched this round. The sinks the round wrote
+   * describe THAT commit's tree, so `aggregate` compares it against the current
+   * tree to tell a live verdict from one the working tree has moved past
+   * (Q-0211).
+   *
+   * Optional in the additive posture the rest of the CR schemas take: records
+   * written before this field existed still parse, and a run with no resolvable
+   * `HEAD` (unit tmpdir, bare checkout) records none. An absent value disables
+   * the staleness check for that round rather than failing it — a missing stamp
+   * is "unknown", and reporting unknown as stale would red every pre-existing
+   * round in the repo.
+   */
+  headSha: z.string().optional(),
 });
 export type ExpectedLanes = z.infer<typeof expectedLanesSchema>;
 
@@ -37,6 +51,7 @@ export async function writeExpectedLanes(
   slug: Slug,
   kind: ArtifactKind,
   lanes: Lane[],
+  headSha?: string,
 ): Promise<void> {
   const resolved = expectedLanesPath(cwd, slug, kind);
   // The writer has no error channel and a refusal here means the sink dir is
@@ -45,11 +60,32 @@ export async function writeExpectedLanes(
   if (!resolved.ok)
     throw new Error(`cannot write expected-lanes: ${pathErrorMessage(resolved.error)}`);
   await mkdir(dirname(resolved.path), { recursive: true });
-  await writeJsonAtomic(resolved.path, { slug, kind, lanes } satisfies ExpectedLanes);
+  await writeJsonAtomic(resolved.path, {
+    slug,
+    kind,
+    lanes,
+    // Omitted rather than stamped empty: `''` would parse as a recorded head and
+    // send the staleness check to `git rev-parse ^{tree}` on nothing.
+    ...(headSha ? { headSha } : {}),
+  } satisfies ExpectedLanes);
+}
+
+/** The head one recorded round was dispatched against, and the record that named it. */
+export interface DispatchedHead {
+  kind: ArtifactKind;
+  /** Non-empty by construction — a record with no stamp yields no entry. */
+  headSha: string;
+  file: string;
 }
 
 export interface ReadExpectedResult {
   lanes: Lane[];
+  /**
+   * One entry per record that stamped a `headSha`, so a caller can ask whether
+   * the round is still current. Empty for pre-Q-0211 records — "unknown", never
+   * "stale".
+   */
+  heads: DispatchedHead[];
   /** Files that exist but could not be trusted (unreadable / corrupt / wrong shape). */
   errors: Array<{ file: string; message: string }>;
 }
@@ -69,6 +105,7 @@ export async function readExpectedLanes(
 ): Promise<ReadExpectedResult> {
   const kinds: ArtifactKind[] = kind ? [kind] : [...artifactKindSchema.options];
   const lanes = new Set<Lane>();
+  const heads: DispatchedHead[] = [];
   const errors: ReadExpectedResult['errors'] = [];
   for (const k of kinds) {
     // A symlinked or permission-locked `.noldor/cr/expected/` is an
@@ -102,9 +139,10 @@ export async function readExpectedLanes(
     try {
       const parsed = expectedLanesSchema.parse(JSON.parse(raw));
       for (const l of parsed.lanes) lanes.add(l);
+      if (parsed.headSha) heads.push({ kind: k, headSha: parsed.headSha, file });
     } catch (err) {
       errors.push({ file, message: `expected-lanes record corrupt: ${(err as Error).message}` });
     }
   }
-  return { lanes: [...lanes], errors };
+  return { lanes: [...lanes], heads, errors };
 }

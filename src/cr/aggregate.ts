@@ -1,10 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import type { Slug } from '../core/slug.js';
 import { join } from 'node:path';
 import type { ArtifactKind, Finding, Lane } from './findings-schema.js';
 import { laneFindingsSchema } from './findings-schema.js';
 import { inferLaneFromFilename } from './filename.js';
-import { readExpectedLanes } from './expected-lanes.js';
+import { readExpectedLanes, type DispatchedHead } from './expected-lanes.js';
 import { PROMPT_TEMPLATE_PATH } from './deep-review-spawn.js';
 
 /**
@@ -27,10 +28,40 @@ export type LaneBlocker = Finding & {
   integrity?: true;
 };
 
+/**
+ * A round whose sinks describe a tree the checkout has moved past (Q-0211).
+ *
+ * `orchestrate` refuses at the round cap by returning BEFORE it records the
+ * round, so nothing rewrites the sinks — and the previous round's findings then
+ * read as current. On PR #437 that meant three reported blockers of which two
+ * had already been fixed in a later commit, with nothing in the output to say
+ * so. A stale sink must be distinguishable from a fresh one.
+ */
+export interface StaleRound {
+  kind: ArtifactKind;
+  /** The expected-lanes record that named the round. */
+  file: string;
+  /** `HEAD` when the round was dispatched. */
+  headSha: string;
+  /** That commit's tree — `null` when the commit no longer resolves (history rewritten). */
+  roundTree: string | null;
+  /** `HEAD^{tree}` now. */
+  currentTree: string;
+}
+
 export interface AggregateResult {
   ok: boolean;
   blockers: LaneBlocker[];
   unresolved: Lane[];
+  /**
+   * Rounds whose findings are no longer about this tree. A separate channel from
+   * {@link AggregateResult.blockers} on purpose: the ledger fingerprints that
+   * array (`orchestrate` hashes it to decide a round's verdict, and
+   * `buildSkeleton` re-derives the hash to prove the sinks still describe the
+   * arbitrated round), so a synthesized entry there would change what every
+   * existing round hashes to.
+   */
+  stale: StaleRound[];
   summaries: Partial<Record<Lane, string>>;
   notes: Partial<Record<Lane, string[]>>;
 }
@@ -161,13 +192,70 @@ export async function aggregate(
     if (!seen.has(lane) && !unresolved.includes(lane)) unresolved.push(lane);
   }
 
+  const stale = staleRounds(opts.cwd ?? process.cwd(), expected.heads);
+
   return {
-    ok: blockers.length === 0 && unresolved.length === 0,
+    ok: blockers.length === 0 && unresolved.length === 0 && stale.length === 0,
     blockers,
     unresolved,
+    stale,
     summaries,
     notes,
   };
+}
+
+/**
+ * `rev^{tree}`, or `null` when git cannot answer — no repo, no such commit, no
+ * git on PATH. The subprocess is the boundary this converts at (expected
+ * failures do not throw past it); the caller disambiguates the two meanings by
+ * resolving `HEAD` first.
+ */
+function treeOf(cwd: string, rev: string): string | null {
+  try {
+    return execFileSync('git', ['rev-parse', `${rev}^{tree}`], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Which of the recorded rounds no longer describe this tree.
+ *
+ * TREES, not commits: `orchestrate` amends the review receipt onto the tip after
+ * its lanes run and `cr bootstrap` rewrites commit messages later, both
+ * tree-preserving — comparing commit shas would call every green round stale.
+ * It is the same `HEAD^{tree}` identity the push-gate receipt is bound to, so a
+ * sink counts as current exactly when the receipt earned beside it does.
+ *
+ * Unresolvable `HEAD` disables the check rather than failing it: a tmpdir with
+ * no repo has nothing to be stale against. A round whose own commit is gone
+ * (rebased away, gc'd) IS stale — history was rewritten under it — and the
+ * resolved `HEAD` is what tells those two apart.
+ */
+function staleRounds(cwd: string, heads: readonly DispatchedHead[]): StaleRound[] {
+  if (heads.length === 0) return [];
+  const currentTree = treeOf(cwd, 'HEAD');
+  if (currentTree === null) return [];
+  const stale: StaleRound[] = [];
+  for (const h of heads) {
+    const roundTree = treeOf(cwd, h.headSha);
+    if (roundTree === currentTree) continue;
+    stale.push({ kind: h.kind, file: h.file, headSha: h.headSha, roundTree, currentTree });
+  }
+  return stale;
+}
+
+/** One line an operator can act on: what moved, and what re-earns a live verdict. */
+export function describeStale(s: StaleRound): string {
+  const what =
+    s.roundTree === null
+      ? `commit ${s.headSha.slice(0, 7)} no longer resolves — history was rewritten under it`
+      : `tree ${s.roundTree.slice(0, 7)} (commit ${s.headSha.slice(0, 7)}), HEAD is now tree ${s.currentTree.slice(0, 7)}`;
+  return `stale ${s.kind} round: sinks describe ${what}. Findings above are not about this tree — re-run \`pnpm noldor cr orchestrate --kind ${s.kind}\` before acting on them (${s.file})`;
 }
 
 async function templateShaFor(path: string): Promise<string | null> {
