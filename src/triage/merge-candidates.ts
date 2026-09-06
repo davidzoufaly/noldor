@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { loadDocRoots } from '../core/doc-roots.js';
+import { loadDocRoots, readQueueFile } from '../core/doc-roots.js';
 import { extractSummary, loadSddFeatures } from '../core/fd-load.js';
 import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
 
@@ -21,16 +21,6 @@ export interface MergeCandidate {
   disposition: 'merge' | 'parent';
 }
 
-/** Read a doc file, treating a missing file (ENOENT) as empty; rethrow every other error. */
-async function readOrEmpty(path: string): Promise<string> {
-  try {
-    return await readFile(path, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
-    throw error;
-  }
-}
-
 /**
  * Enumerate every merge target — roadmap blocks, backlog blocks, and FDs — as a
  * flat corpus. Deterministic for a fixed doc tree. `docRoot` is injected
@@ -44,7 +34,7 @@ async function readOrEmpty(path: string): Promise<string> {
 export async function buildMergeCandidates(docRoot: string): Promise<MergeCandidate[]> {
   const roots = loadDocRoots(docRoot);
 
-  const roadmap = parseRoadmap(await readOrEmpty(roots.roadmap)).map(
+  const roadmap = parseRoadmap(await readQueueFile(roots.roadmap)).map(
     (e): MergeCandidate => ({
       kind: 'roadmap',
       slug: e.slug,
@@ -56,7 +46,7 @@ export async function buildMergeCandidates(docRoot: string): Promise<MergeCandid
     }),
   );
 
-  const backlog = parseBacklog(await readOrEmpty(roots.backlog)).map(
+  const backlog = parseBacklog(await readQueueFile(roots.backlog)).map(
     (e): MergeCandidate => ({
       kind: 'backlog',
       slug: e.slug,
