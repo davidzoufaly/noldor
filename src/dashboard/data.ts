@@ -15,10 +15,12 @@ import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { loadCategories, loadConsumerConfig } from '../core/consumer-config.js';
 import { areaToCategory } from '../lib/area-category.js';
 import {
+  buildMilestoneGroupBases,
   loadMilestoneBySlug,
   loadMilestones,
   milestoneRefusalMessage,
   type Milestone,
+  type MilestoneGroupBase,
 } from '../milestones/lib.js';
 import { slugSchema } from '../core/slug.js';
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
@@ -834,57 +836,53 @@ export async function loadActiveMilestone(vision: Vision): Promise<ActiveMilesto
   };
 }
 
-/** One milestone plus its member features + a phase roll-up, for the /milestones page. */
-export interface MilestoneGroup {
-  slug: string;
-  name: string;
-  status: 'draft' | 'active' | 'shipped';
-  description: string | null;
-  members: FeatureRecord[];
-  doneCount: number;
-  total: number;
-  /** True when status is `shipped` but at least one member is not `done` (warn row). */
-  incomplete: boolean;
+/**
+ * A {@link MilestoneGroupBase} plus its body rendered to HTML, for the
+ * /milestones page.
+ *
+ * The grouping itself lives in `src/milestones/lib.ts`; only `bodyHtml` needs a
+ * markdown renderer, and that is the whole reason this type extends rather than
+ * redeclares.
+ */
+export interface MilestoneGroup extends MilestoneGroupBase {
   /** The milestone's full body markdown rendered to HTML for the expandable row. Empty when the milestone has no body. */
   bodyHtml: string;
 }
 
 /**
- * Group features under their declared `milestone` slug and compute a per-milestone
- * phase roll-up. Pure (milestones + features injected) so the grouping is unit-
- * testable. Members are matched by `frontmatter.milestone === milestone.slug`;
- * features with no milestone (or one with no matching declared milestone) are
- * omitted. Order: active → draft → shipped, then by name within each status.
+ * {@link buildMilestoneGroupBases} plus a rendered body per milestone.
+ *
+ * Ordering, membership and the roll-up all come from the base function; this
+ * adds `bodyHtml` and nothing else, so the dashboard and
+ * `pnpm noldor milestones show` can never disagree about who belongs to a
+ * milestone.
+ *
+ * @param milestones - Every declared milestone.
+ * @param features - Every feature MD.
+ * @param entries - Roadmap + backlog entries, unfiltered.
+ * @returns One group per milestone, ordered by status then name.
  */
 export function buildMilestoneGroups(
   milestones: readonly Milestone[],
   features: readonly FeatureRecord[],
+  entries: readonly BacklogEntry[] = [],
 ): MilestoneGroup[] {
-  const statusOrder: Record<MilestoneGroup['status'], number> = { active: 0, draft: 1, shipped: 2 };
-  return milestones
-    .map((m): MilestoneGroup => {
-      const members = features.filter((f) => f.frontmatter.milestone === m.slug);
-      const doneCount = members.filter((f) => f.frontmatter.phase === 'done').length;
-      const status = m.frontmatter.status;
-      return {
-        slug: m.slug,
-        name: m.frontmatter.name,
-        status,
-        description: m.frontmatter.description ?? null,
-        members,
-        doneCount,
-        total: members.length,
-        incomplete: status === 'shipped' && doneCount < members.length,
-        bodyHtml: m.body.trim() === '' ? '' : renderToHtml(m.body),
-      };
-    })
-    .sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || a.name.localeCompare(b.name));
+  const bodies = new Map(milestones.map((m) => [m.slug, m.body]));
+  return buildMilestoneGroupBases(milestones, features, entries).map((group) => {
+    const body = bodies.get(group.slug) ?? '';
+    return { ...group, bodyHtml: body.trim() === '' ? '' : renderToHtml(body) };
+  });
 }
 
-/** Load all milestones + features and group them for the /milestones page. */
+/** Load all milestones + features + queue entries and group them for the /milestones page. */
 export async function loadMilestoneGroups(): Promise<MilestoneGroup[]> {
   const features = await loadFeatures();
-  return buildMilestoneGroups(loadMilestones(), features);
+  const [roadmapRaw, backlogRaw] = await Promise.all([
+    readFile(getRoadmapPath(), 'utf8').catch(() => ''),
+    readFile(getBacklogPath(), 'utf8').catch(() => ''),
+  ]);
+  const entries = [...parseRoadmapBlocks(roadmapRaw), ...parseBacklog(backlogRaw)];
+  return buildMilestoneGroups(loadMilestones(), features, entries);
 }
 
 export interface ReleaseNotes {

@@ -5,26 +5,41 @@ import matter from 'gray-matter';
 
 import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
 import { loadMilestones } from '../../milestones/lib.js';
+import { parseBacklog, parseRoadmap } from '../../utils/parse-blocks.js';
 
 export interface MilestoneShippedIncompleteFinding {
   readonly slug: string;
   readonly path: string;
   readonly milestone: string;
-  readonly phase: 'in-progress';
-  readonly reason: 'shipped-milestone-incomplete-feature';
+  /**
+   * The feature's phase, or `queued` for a roadmap/backlog entry — which has no
+   * phase at all, and whose openness is precisely that it was never promoted.
+   */
+  readonly phase: 'in-progress' | 'queued';
+  /**
+   * Which kind of open work was found. Two reasons rather than one because the
+   * remedies differ: an open feature is finished or reassigned, while a queued
+   * entry is promoted, dropped, or moved to another milestone.
+   */
+  readonly reason: 'shipped-milestone-incomplete-feature' | 'shipped-milestone-queued-entry';
 }
 
 /**
- * Flag features whose declared `milestone` resolves to a `status: shipped`
- * milestone while the feature's own `phase` is not `done` — the drift that
- * signals a falsely-declared "shipped" milestone with open work behind it.
+ * Flag open work under a `status: shipped` milestone — the drift that signals a
+ * falsely-declared "shipped" milestone with work still behind it.
  *
- * No-op invariant: returns `[]` when no FD carries a `milestone` field (and,
+ * Two kinds of open work, one owner. A feature whose `milestone` names a shipped
+ * milestone while its own `phase` is not `done`; and a roadmap or backlog entry
+ * whose `- milestone:` names one, which is open by virtue of never having been
+ * promoted. Both live here rather than one here and one in the dashboard's
+ * roll-up, so the two surfaces cannot disagree about the same repo.
+ *
+ * No-op invariant: returns `[]` when nothing declares a milestone (and,
  * trivially, when no milestone is shipped). The inverse case — a done feature
  * under a not-yet-shipped milestone — is normal and never flagged (spec D3).
  *
  * @param repo - Repository root.
- * @returns One finding per shipped-milestone-with-open-feature FD.
+ * @returns One finding per open feature and per queued entry under a shipped milestone.
  */
 export async function detectMilestoneShippedIncomplete(
   repo: string,
@@ -75,5 +90,49 @@ export async function detectMilestoneShippedIncomplete(
     }
   }
 
+  findings.push(...(await queuedEntryFindings(repo, shipped)));
+
   return findings;
+}
+
+/**
+ * Flag live roadmap/backlog entries that name a `shipped` milestone.
+ *
+ * This lives beside the feature scan rather than in the dashboard's roll-up so
+ * that "a shipped milestone still has open work" keeps exactly one definition.
+ * The dashboard reports a milestone's queue as a count; whether that queue makes
+ * the milestone dishonest is decided here.
+ *
+ * @param repo - Repository root.
+ * @param shipped - Slugs of milestones whose status is `shipped`.
+ * @returns One finding per queued entry naming a shipped milestone.
+ */
+async function queuedEntryFindings(
+  repo: string,
+  shipped: ReadonlySet<string>,
+): Promise<MilestoneShippedIncompleteFinding[]> {
+  const read = async (rel: string): Promise<string> => {
+    try {
+      return await readFile(join(repo, rel), 'utf8');
+    } catch {
+      return '';
+    }
+  };
+  const sources = [
+    { path: 'docs/roadmap.md' as const, entries: parseRoadmap(await read('docs/roadmap.md')) },
+    { path: 'docs/backlog.md' as const, entries: parseBacklog(await read('docs/backlog.md')) },
+  ];
+  return sources.flatMap(({ path, entries }) =>
+    entries
+      .filter((e) => e.milestone !== undefined && shipped.has(e.milestone))
+      .map(
+        (e): MilestoneShippedIncompleteFinding => ({
+          slug: e.slug,
+          path,
+          milestone: e.milestone ?? '',
+          phase: 'queued',
+          reason: 'shipped-milestone-queued-entry',
+        }),
+      ),
+  );
 }

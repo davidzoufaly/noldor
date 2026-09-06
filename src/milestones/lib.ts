@@ -10,7 +10,9 @@ import {
   resolveSlugPath,
   type ResolveError,
 } from '../core/slug-paths.js';
+import type { FeatureRecord } from '../core/fd-load.js';
 import type { Slug } from '../core/slug.js';
+import type { BacklogEntry } from '../utils/parse-blocks.js';
 
 export const milestoneStatusSchema = z.enum(['draft', 'active', 'shipped']);
 export type MilestoneStatus = z.infer<typeof milestoneStatusSchema>;
@@ -248,4 +250,94 @@ export function listMilestones(cwd: string = process.cwd()): ListResult {
     draft: all.filter((m) => m.frontmatter.status === 'draft'),
     shipped: all.filter((m) => m.frontmatter.status === 'shipped'),
   };
+}
+
+/**
+ * One milestone plus the work that names it, with a phase roll-up.
+ *
+ * Deliberately renderer-free: this lives in `src/milestones/lib.ts` rather than
+ * in `src/dashboard/data.ts` so a text-printing CLI can group milestones
+ * without importing the dashboard's markdown/HTML stack. The dashboard extends
+ * it with a rendered body (`MilestoneGroup`), which is the only part that needs
+ * a renderer.
+ */
+export interface MilestoneGroupBase {
+  slug: string;
+  name: string;
+  status: MilestoneStatus;
+  description: string | null;
+  /** Feature MDs whose `milestone:` frontmatter names this milestone. */
+  members: FeatureRecord[];
+  /** How many of {@link MilestoneGroupBase.members} are `phase: done`. */
+  doneCount: number;
+  /** Size of {@link MilestoneGroupBase.members}. */
+  total: number;
+  /**
+   * Roadmap/backlog entries whose `- milestone:` names this milestone — work
+   * that has not been promoted to a feature MD yet.
+   *
+   * Kept apart from {@link MilestoneGroupBase.members} rather than folded into
+   * `total`: a queue entry records no phase, so counting it as "not done"
+   * asserts a state nobody wrote, and a combined ratio would fall every time
+   * work is triaged into the milestone — the signal inverting exactly when the
+   * milestone grows.
+   */
+  queued: BacklogEntry[];
+  /** Size of {@link MilestoneGroupBase.queued}. */
+  queuedCount: number;
+  /**
+   * True when status is `shipped` but at least one *feature* member is not
+   * done.
+   *
+   * Queue entries deliberately do not set this. "A shipped milestone still has
+   * open work" is owned by `detectMilestoneShippedIncomplete`
+   * (`src/garden/detectors/milestone-shipped-incomplete.ts`); adding a second
+   * trigger here would let the dashboard and garden disagree about one repo.
+   */
+  incomplete: boolean;
+}
+
+const STATUS_ORDER: Record<MilestoneStatus, number> = { active: 0, draft: 1, shipped: 2 };
+
+/**
+ * Group features and queue entries under their declared milestone.
+ *
+ * Pure — milestones, features and entries are all injected — so the grouping is
+ * unit-testable and shared by the dashboard and the CLI. Members are matched by
+ * `milestone === milestone.slug` on either side; work naming no milestone, or
+ * one that is not declared, is omitted. Order: active → draft → shipped, then
+ * by name within each status.
+ *
+ * @param milestones - Every declared milestone.
+ * @param features - Every feature MD.
+ * @param entries - Roadmap + backlog entries, unfiltered.
+ * @returns One group per milestone, ordered by status then name.
+ */
+export function buildMilestoneGroupBases(
+  milestones: readonly Milestone[],
+  features: readonly FeatureRecord[],
+  entries: readonly BacklogEntry[] = [],
+): MilestoneGroupBase[] {
+  return milestones
+    .map((m): MilestoneGroupBase => {
+      const members = features.filter((f) => f.frontmatter.milestone === m.slug);
+      const queued = entries.filter((e) => e.milestone === m.slug);
+      const doneCount = members.filter((f) => f.frontmatter.phase === 'done').length;
+      const status = m.frontmatter.status;
+      return {
+        slug: m.slug,
+        name: m.frontmatter.name,
+        status,
+        description: m.frontmatter.description ?? null,
+        members: [...members],
+        doneCount,
+        total: members.length,
+        queued: [...queued],
+        queuedCount: queued.length,
+        incomplete: status === 'shipped' && doneCount < members.length,
+      };
+    })
+    .sort(
+      (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name),
+    );
 }
