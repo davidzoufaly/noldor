@@ -16,6 +16,31 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### R3's Window Includes the First Round's Own Commit
+
+- id: Q-0220
+- area: tooling
+- type: fix
+- since: 2026-09-07
+- size: XS
+- impact: med
+- confidence: high
+
+`resolveIntroducedLines` diffs `firstHeadSha^..HEAD`, and on an empty ledger `firstHeadSha` falls back to *this* round's head — so the range is `HEAD^..HEAD`, the last commit, not the empty range the call-site comment claimed (the comment was corrected in PR #447). Q-0212's pre-existence filter hides this for greenfield series, but on a series that EDITS existing code, round 1 still gets R3 signals about lines its own pre-review commit added, and "the series introduced it" is not oscillation when nothing has been reviewed yet. The fix is to narrow the window to the rounds actually recorded in the ledger: drop the `^` so the window is `firstHeadSha..HEAD` — lines added *after* the first reviewed head, which is exactly "a prior round touched this line". Deletion test: a first CR round on an edit-only series emits zero R3 signals. (surfaced 2026-09-07 shipping Q-0212)
+
+### Release-Sweep Skill Prose Contradicts the Working Recipe
+
+- id: Q-0216
+- area: tooling
+- type: fix
+- since: 2026-09-07
+- size: XS
+- impact: med
+- confidence: high
+- parent: release-sweep-process-hardening
+
+Two places where `/noldor-release-sweep` documents an order a controller cannot follow. **Step order:** the v1.7.0 → v1.8.0 lesson was "run the garden pass BEFORE `garden sdd-report --release`, because the garden regen chain dirties `docs/features/**` and re-drifts the report" — but the skill was never reordered, so step 5.5 is still the sdd-report pre-empt and step 6.5 the garden pass. On v1.9.0 it did not bite (the garden pass produced no sdd-report delta), which is exactly why it keeps surviving reviews. Either swap 5.5 and 6.5, or make 5.5's prose say "re-run after the garden pass and commit any further drift". **Clean preflight:** `pnpm release --preflight` came back 16-ok / 0-blocking on the first try for v1.9.0 only because the operator stamped `pnpm noldor garden receipt` by hand after the last HEAD-moving commit and cleared `.noldor/session.json` before running it. Step 9 says to clear the mechanical rows with `--preflight --fix`, which cannot stamp the receipt in this repo (it needs zero `garden detect` findings; the repo permanently has ~190), and step 10 clears the session marker *after* step 9 — so a literal reading always hits a red `session-marker` row first. Fold both by-hand steps into step 9's preamble. Deletion test: a controller following the skill top-to-bottom reaches a green preflight without an undocumented manual step. (surfaced 2026-09-06 releasing v1.9.0)
+
 ### Clone Ratchet Counts Test Scaffolds, Facades and Import Runs as Duplication
 
 - id: Q-0214
@@ -182,6 +207,8 @@ Neither UI-design review lane is enabled anywhere, four days after the second on
 
 A commit touching `src/**` and `docs/noldor/**` needs a `Noldor-Sibling-Scope: noldor:<page>` trailer, and the `noldor-scope` hook only says so after the commit has already been rejected. The mechanism is fully documented in [git-and-commits.md](noldor/git-and-commits.md#sibling-doc-sync-commits-noldor-sibling-scope) — this is purely about when the operator meets it: every change whose fix spans code plus its runner-neutral doc twin hits the rejection first and reads the doc second. Pre-empt it in the gate prose for mixed-diff paths, or suggest the trailer at stage time from the staged file set rather than at reject time (the hook already computes the exact line it prints). Deletion test: an operator committing a code + `docs/noldor/` change is told about the trailer before the commit is attempted. (found 2026-08-24 shipping Q-0158)
 
+- Same class, different missing step: the micro-chore recipe never says to check out the temp branch, and `pr-flow` reads `HEAD`. Step 2's handoff ends at `git stash pop` on rewound `main`, then hands off to "Step 4 end-of-flow takes over: `pr-flow.ts openAndAutoMerge()` pushes the temp branch" — which reads as though pr-flow resolves the branch from the session marker. It does not: `pr-flow-cli.ts:411` derives the branch from `git rev-parse --abbrev-ref HEAD` and exits at line 437 with `no commits ahead of origin/main on current branch` when run from `main`. A controller following the prose literally gets that error with a committed, pushed-nowhere temp branch and no obvious next move. Add `git checkout <temp-branch>` as an explicit step 5.5 in the micro-chore recipe, noting that the popped dirty files travel along harmlessly. (surfaced 2026-09-07 splitting Q-0193)
+
 ### noldor commit SIGKILLed on a Long Message Body
 
 - id: Q-0183
@@ -193,3 +220,41 @@ A commit touching `src/**` and `docs/noldor/**` needs a `Noldor-Sibling-Scope: n
 - confidence: low
 
 `pnpm noldor commit` was SIGKILLed (exit 137) on a commit carrying a long multi-paragraph `-m` body, with no output at all before the kill; plain `git commit -F <file>` with the identical message succeeded and every hook ran green. The wrapper (`src/core/commit-cli.ts`) is the documented path and its failure mode is silent, so an operator reads it as a hook failure and starts debugging the wrong layer. Reproduce first — whether the kill is the wrapper OOMing on large argv, the harness truncating it, or the platform's argv limit is unknown — then either fix the handling or spool a long body through a temp file the way `-F` does. Deletion test: a commit with a multi-kilobyte body succeeds through the wrapper, or fails with a message that names the cause. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
+
+### Heading Slugifier Drops Non-ASCII Letters
+
+- id: Q-0218
+- area: tooling
+- type: fix
+- since: 2026-09-07
+- size: S
+- impact: med
+- confidence: high
+
+The heading slugifier DELETES non-ASCII letters rather than transliterating them, and `remove-block --split-into` cannot detect the resulting mismatch. Splitting Q-0193 (PR #448) a sibling heading containing `Façades` derived the slug `...-faades-...`, not `...-facades-...`. The cost was not the ugly slug — the *guessed* slug had already been passed to `roadmap remove-block --split-into`, which accepts any string and records it verbatim in `.noldor/retired-entry-ids.json`, so the retired-ID map pointed at a slug no entry had. `split-check --entry <guess>` caught it (`no roadmap/backlog entry with slug`) by accident. Two fixes, both cheap: transliterate in the slugifier (`ç → c`, `é → e`) so a heading a human would write round-trips, and have `--split-into` verify each named slug resolves to a block that now exists — it is called immediately after the siblings are written, so the check is free and a typo'd slug is otherwise invisible until a `blocked-by:` ref dangles. Deletion test: a heading with a non-ASCII letter yields a slug containing its ASCII fold, and `--split-into` with an unresolvable slug exits non-zero. (surfaced 2026-09-07 splitting Q-0193)
+
+### pr-flow Leaves a Stale Remote Branch per Micro-Chore
+
+- id: Q-0219
+- area: tooling
+- type: fix
+- since: 2026-09-07
+- size: XS
+- impact: low
+- confidence: high
+- parent: framework-pr-flow-agent-auto-merge
+
+18 stale `origin/micro/*` branches on the remote, one per micro-chore PR ever shipped. `pr-flow` deletes the *local* temp branch after the direct squash-merge but never the remote one, so every micro-chore since PR #318-ish has left an `origin/micro/<epoch>` behind — `origin/micro/changelog-node24-breaking` among them, so the leak predates the epoch naming. Harmless in itself, but it makes `git branch -r` unreadable and any branch-shaped audit noisy. Add a `git push origin --delete <branch>` to pr-flow's post-merge cleanup, guarded on the merge having actually happened (a failed merge must keep the branch), plus a one-off sweep of the existing 18. Deletion test: after a micro-chore PR merges, no `origin/micro/*` branch for it remains. (surfaced 2026-09-07 splitting Q-0193)
+
+### Release-Sweep Refactor Pass Needs a Precondition
+
+- id: Q-0217
+- area: tooling
+- type: chore
+- since: 2026-09-07
+- size: S
+- impact: med
+- confidence: med
+- parent: release-sweep-process-hardening
+
+The `/noldor-release-sweep` refactor pass has been a no-op for the seventh release running. v1.9.0 produced an identical god-node profile again — `loadDocRoots` 86 edges, `parseSlug` 41, `loadConsumerConfig` 40, `parseBacklog` 35, `detectAll` 32, `atomicWriteFileSync` 30, `escapeHtml` 28 — all deliberate single-source-of-truth utilities, and the Surprising Connections were again all `INFERRED` test-file → CLI edges. Seven releases of a step that has never once produced a change is not a step, it is a ritual that costs a full graph read and a refactor-skill invocation every release. Either give the sweep a cheap precondition (skip the refactor pass unless the god-node set or a cohesion score moved since the last tagged graph) or drop it to an explicit `--refactor` opt-in. Deletion test: a sweep on a release whose graph shape is unchanged since the last tag does not invoke the refactor skill. (surfaced 2026-09-06 releasing v1.9.0)

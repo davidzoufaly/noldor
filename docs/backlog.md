@@ -373,3 +373,15 @@ PR #372 carried the same prose in several places at once — the skill, its `tem
 - parent: consumer-architecture-doc-surface
 
 Fold the `archify` skill — architecture, workflow, sequence, data-flow and lifecycle diagrams rendered as standalone HTML with inline SVG — into the framework, so the four-page architecture doc surface (Q-0093) and the FD C4 diagrams get their pictures from one owned generator rather than hand-authored mermaid. The pull is real: the framework already asks every FD to carry a C4 diagram and every architecture page to stay honest against the code, and `graphify-out/graph.json` already holds the node/edge data a generator would want. The reason this is parked and not roadmapped is that nothing here is decided — whether archify is vendored, invoked as an external skill, or reimplemented against the graph; whether the output is committed HTML or regenerated on demand; and how a generated diagram avoids the drift that hand-authored mermaid already suffers. That is a spike's worth of questions ahead of a size, and there is no live trigger forcing it. Deletion test: an FD's C4 diagram and an architecture page's data-flow diagram are both produced by one framework command from graph data, with no hand-authored mermaid in either. (raised 2026-09-06 from an untriaged ideas bullet)
+
+### UI Annotation Boolean for Roadmap Entries
+
+- id: Q-0215
+- area: tooling
+- type: feat
+- since: 2026-09-07
+- size: M
+- impact: med
+- confidence: low
+
+Let more roadmap entries — ideally any of them — carry a UI-design pass, rather than only the ones an operator remembers to route there. Two parts sketched: a new schema-C frontmatter boolean (`ui:`) on roadmap/backlog entries that declares an entry wants the UI-design stage, and a bottom-of-canvas annotation notation for marking UI elements against the entry that owns them, shaped `{{ task-id }}: {{ task-title }}`. The UI-design stage and its baseline/waiver machinery already exist (Q-0144, Q-0145), so this is about opting entries in declaratively and tying rendered elements back to entry IDs. Parked rather than roadmapped because neither half is designed: what the boolean does at gate time (force the stage? suggest it?), where the annotation lives, and whether it round-trips through `.pen` are all open. Deletion test: an entry marked `ui: true` reaches the UI-design stage without an operator naming it, and each annotated element resolves to the entry ID that owns it. (raised 2026-09-07 from an untriaged ideas bullet)
