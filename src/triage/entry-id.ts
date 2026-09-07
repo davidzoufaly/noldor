@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { atomicWriteFileSync } from '../core/atomic-write.js';
+import { writeJsonState } from '../core/state-file.js';
 import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
 
 /**
@@ -61,8 +61,9 @@ export interface MintEntryIdsOptions {
  * out-of-band: `.noldor/id-counter.json` is a real merge conflict under parallel
  * branches and `duplicate-entry-id` is the pre-commit backstop (see the spec's
  * Risks section) — no file lock here. The write goes through
- * {@link atomicWriteFileSync} so an interrupted mint cannot leave a torn
- * counter that the next `readNext` rejects as corrupt.
+ * {@link writeJsonState} so an interrupted mint cannot leave a torn counter
+ * that the next `readNext` rejects as corrupt, and so the very first mint in a
+ * repo with no `.noldor/` yet creates the directory instead of throwing ENOENT.
  *
  * The sequence starts at `max(counter, liveMax + 1)`: nothing reads the corpus
  * when the counter is bumped, so it drifts behind and its first number collides
@@ -85,7 +86,7 @@ export function mintEntryIds(count: number, opts: MintEntryIdsOptions): string[]
   const next = Math.max(readNext(counterPath), opts.liveMax + 1);
   const ids: string[] = [];
   for (let i = 0; i < count; i++) ids.push(formatEntryId(next + i));
-  atomicWriteFileSync(counterPath, `${JSON.stringify({ next: next + count }, null, 2)}\n`);
+  writeJsonState(counterPath, { next: next + count });
   return ids;
 }
 

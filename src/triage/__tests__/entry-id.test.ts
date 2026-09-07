@@ -43,6 +43,16 @@ describe(mintEntryIds, () => {
     expect(JSON.parse(readFileSync(counter, 'utf8'))).toEqual({ next: 4 });
   });
 
+  it('mints into a repo whose .noldor/ directory does not exist yet', () => {
+    // The counter write used to go straight through `atomicWriteFileSync`,
+    // which does not create directories — so the very first mint in a
+    // freshly-adopting repo threw ENOENT on the `.tmp.<pid>` sibling.
+    const virgin = join(dir, '.noldor', 'id-counter.json');
+
+    expect(mintEntryIds(1, { counterPath: virgin, liveMax: 0 })).toEqual(['Q-0001']);
+    expect(JSON.parse(readFileSync(virgin, 'utf8'))).toEqual({ next: 2 });
+  });
+
   it('resumes from the persisted counter', () => {
     writeFileSync(counter, JSON.stringify({ next: 10 }));
     expect(mintEntryIds(2, { counterPath: counter, liveMax: 0 })).toEqual(['Q-0010', 'Q-0011']);
