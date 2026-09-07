@@ -119,7 +119,14 @@ export function ruleR1(
 }
 
 /**
- * R3 — contradiction. A blocker located on a line the series introduced.
+ * R3 — contradiction. A blocker located on a line the series introduced into a
+ * file that already existed.
+ *
+ * The pre-existence half is the caller's to enforce, and it is not a detail: a
+ * file born inside the series has no line the series did NOT introduce, so
+ * without it R3 fires on every located finding of a greenfield feature and
+ * separates nothing (Q-0212). A file absent from `introducedByFile` is `clear`
+ * here, which is exactly how that exclusion reaches this rule.
  *
  * `introducedByFile` is measured CUMULATIVELY by the caller, from the series'
  * first round's `headSha` to current `HEAD`. A single prior round's range is
