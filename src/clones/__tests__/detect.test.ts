@@ -136,6 +136,7 @@ describe('detectClones', () => {
       filesScanned: 0,
       totalTokens: 0,
       duplicatedTokens: 0,
+      perFile: {},
       duplicationPct: 0,
     });
   });
@@ -294,5 +295,40 @@ describe('chained-builder schema declarations', () => {
     const pairs = crossFile(report);
     expect(pairs.length).toBeGreaterThan(0);
     expect(pairs[0]!.instances.map((i) => i.file).sort()).toEqual(['a.ts', 'b.ts']);
+  });
+});
+
+describe('per-file attribution', () => {
+  it('splits the duplicated tokens across the files carrying them, summing to the total', () => {
+    const report = detectClones(
+      new Map([
+        ['a.ts', fn('first')],
+        ['b.ts', fn('second')],
+        ['clean.ts', 'export const answer = 42;\n'],
+      ]),
+      OPTS,
+    );
+
+    // Both copies are covered, so each carries a real share of the total.
+    expect(Object.keys(report.perFile).sort()).toEqual(['a.ts', 'b.ts']);
+    expect(report.perFile['a.ts']).toBeGreaterThan(0);
+    expect(report.perFile['b.ts']).toBeGreaterThan(0);
+
+    // The attribution is the same merged coverage the ratchet number is built
+    // from, not a second estimate of it.
+    const summed = Object.values(report.perFile).reduce((acc, n) => acc + n, 0);
+    expect(summed).toBe(report.duplicatedTokens);
+  });
+
+  it('leaves a corpus with no clones with nothing attributed', () => {
+    const report = detectClones(
+      new Map([
+        ['a.ts', 'export const one = 1;\n'],
+        ['b.ts', 'export function other(x: string): string {\n  return x.trim();\n}\n'],
+      ]),
+      OPTS,
+    );
+    expect(report.duplicatedTokens).toBe(0);
+    expect(report.perFile).toEqual({});
   });
 });

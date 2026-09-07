@@ -41,6 +41,14 @@ export const cloneBaselineSchema = z
   .object({
     /** The ratchet number: clone-covered tokens across the whole corpus. */
     duplicatedTokens: measured,
+    /**
+     * `duplicatedTokens` split by file, so a later rise can name what moved it
+     * instead of only how far. Optional because a baseline recorded before
+     * attribution existed must keep parsing — a schema bump that turned every
+     * such file `unreadable` would take the ratchet down across every consumer
+     * repo to gain a reporting nicety.
+     */
+    perFile: z.record(z.string(), measured).optional(),
     /** Recorded for the human reading the file; never compared. */
     duplicationPct: z.number().nonnegative(),
     totalTokens: measured,
@@ -61,6 +69,7 @@ export function buildBaseline(
 ): CloneBaseline {
   return {
     duplicatedTokens: report.duplicatedTokens,
+    perFile: report.perFile,
     duplicationPct: report.duplicationPct,
     totalTokens: report.totalTokens,
     groups: report.groups.length,
@@ -124,6 +133,56 @@ const sameOptions = (a: BaselineOptions, b: BaselineOptions): boolean =>
 const describeOptions = (o: BaselineOptions): string =>
   `min-tokens ${o.minTokens}, min-lines ${o.minLines}, gap-tokens ${o.gapTokens}, include-tests ${o.includeTests}`;
 
+/** One file whose clone-covered token count grew between two runs. */
+export interface RatchetOffender {
+  readonly file: string;
+  readonly from: number;
+  readonly to: number;
+  readonly delta: number;
+}
+
+/**
+ * Files whose clone coverage grew, largest rise first (ties by path, so the
+ * list is stable across runs).
+ *
+ * Empty when `before` is absent: a baseline recorded before attribution
+ * existed cannot answer which files moved, and the honest answer is to say so
+ * rather than to list every duplicated file in the current run as though each
+ * were new.
+ *
+ * Because the two maps each sum to their run's `duplicatedTokens`, a rise in
+ * the total guarantees at least one entry here — the caller never has to
+ * handle "it went up but nothing grew".
+ */
+export function ratchetOffenders(
+  before: Readonly<Record<string, number>> | undefined,
+  after: Readonly<Record<string, number>>,
+): readonly RatchetOffender[] {
+  if (before === undefined) return [];
+  const risen: RatchetOffender[] = [];
+  for (const [file, to] of Object.entries(after)) {
+    const from = before[file] ?? 0;
+    if (to > from) risen.push({ file, from, to, delta: to - from });
+  }
+  return risen.sort((a, b) => b.delta - a.delta || a.file.localeCompare(b.file));
+}
+
+/**
+ * Cap on the named files. A rise is normally a handful of files, but an
+ * options change or a large refactor can move dozens, and a wall of them
+ * buries the top offenders that actually explain the number.
+ */
+const OFFENDER_CAP = 10;
+
+const renderOffenders = (offenders: readonly RatchetOffender[]): string => {
+  const lines = offenders
+    .slice(0, OFFENDER_CAP)
+    .map((o) => `    ${o.file} ${o.from} -> ${o.to} (+${o.delta})`);
+  const hidden = offenders.length - lines.length;
+  if (hidden > 0) lines.push(`    ... and ${hidden} more file(s)`);
+  return lines.join('\n');
+};
+
 /**
  * Compare `report` against `baseline`. Red on any increase in duplicated
  * tokens; green on equal; green with a re-record hint on a decrease, since
@@ -148,11 +207,19 @@ export function compareToBaseline(
   }
   const delta = report.duplicatedTokens - baseline.duplicatedTokens;
   if (delta > 0) {
+    const offenders = ratchetOffenders(baseline.perFile, report.perFile);
+    // A number with no evidence behind it forces the operator to diff group
+    // lists between branches by hand; naming the files is the whole remedy.
+    const attribution =
+      baseline.perFile === undefined
+        ? `\n  baseline predates per-file attribution - re-record with 'noldor clones baseline' ` +
+          `so the next rise can name its files`
+        : `\n  files that moved the total:\n${renderOffenders(offenders)}`;
     return {
       kind: 'red',
       message:
         `duplicated tokens rose ${baseline.duplicatedTokens} -> ${report.duplicatedTokens} (+${delta}) ` +
-        `above the baseline recorded ${baseline.recordedAt}`,
+        `above the baseline recorded ${baseline.recordedAt}${attribution}`,
     };
   }
   if (delta < 0) {

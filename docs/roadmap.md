@@ -16,21 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Clones Check Won't Name the Files That Moved the Token Total
-
-- id: Q-0213
-- area: tooling
-- type: fix
-- since: 2026-09-07
-- size: S
-- impact: med
-- confidence: high
-- parent: code-clone-detector
-- split-from: Q-0193
-- recovered: 2026-09-07
-
-`clones check` reddens on `duplicated tokens rose 27735 -> 27845 (+110)` without naming what moved the total, so the operator has to diff group lists between branches by hand — and a green run prints no group list at all, so there is nothing to diff against. The same run also printed `no clone group touches this change - green` alongside that red ratchet line: one CLI contradicting itself, because the group-attribution check and the whole-corpus token ratchet answer different questions and only one of them reports its evidence. Wanted: any ratchet rise names the files responsible, the way `microChoreOffenders` names its offenders, and a green run still prints the group list so a later rise has a baseline to diff against. Reporting only — what the tokenizer *counts* is Q-0214's question, and this slice must not move the number. Related to Q-0165 (preflight vs hook disagreement) but distinct: that was two entry points diverging, this is one run contradicting itself. Deletion test: a ratchet rise names the files that moved the total, and a green run prints the group list. (split from Q-0193 on 2026-09-07; originally found 2026-08-25 shipping Q-0164)
-
 ### Clone Ratchet Counts Test Scaffolds, Facades and Import Runs as Duplication
 
 - id: Q-0214

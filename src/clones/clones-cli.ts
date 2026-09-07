@@ -238,10 +238,19 @@ function checkRatchet(
   includeTests: boolean,
   cwd: string,
 ): RatchetOutcome {
-  const { outcome, message, loud } = ratchetOutcome(report, ratchet, opts, includeTests, cwd);
-  // Red also lists the corpus so the number has spans behind it; the other
-  // outcomes are one line each.
-  const detail = outcome === 'red' ? `\n${renderSummary(report)}` : '';
+  const { outcome, message, loud, compared } = ratchetOutcome(
+    report,
+    ratchet,
+    opts,
+    includeTests,
+    cwd,
+  );
+  // Every run that actually compared lists the corpus, green included: a rise
+  // is only readable against the group list the previous run printed, and a
+  // green run that printed nothing leaves the next red with nothing to diff.
+  // The outcomes that never compared (disabled, no baseline, unreadable) stay
+  // one line each — there is no comparison for the list to support.
+  const detail = compared ? `\n${renderSummary(report)}` : '';
   const stream = loud ? process.stderr : process.stdout;
   stream.write(`clones check: ${message}${detail}\n`);
   return outcome;
@@ -262,6 +271,13 @@ interface RatchetLine {
    * stderr.
    */
   readonly loud: boolean;
+  /**
+   * True when a recorded baseline was actually compared against this run
+   * (including the not-comparable `stale` case, which still has both corpora
+   * in hand). Distinct from `outcome`: green covers both a real comparison and
+   * the states where the ratchet never ran.
+   */
+  readonly compared: boolean;
 }
 
 /** Decide the ratchet outcome and the line that explains it; writes nothing. */
@@ -277,6 +293,7 @@ function ratchetOutcome(
       outcome: 'green',
       message: 'ratchet disabled (clones.ratchet) - skipped',
       loud: false,
+      compared: false,
     };
   }
   const read = readBaseline(join(cwd, BASELINE_FILE));
@@ -286,6 +303,7 @@ function ratchetOutcome(
         outcome: 'green',
         message: `no ${BASELINE_FILE} - ratchet skipped (record one with 'noldor clones baseline')`,
         loud: true,
+        compared: false,
       };
     case 'unreadable':
       return {
@@ -294,6 +312,7 @@ function ratchetOutcome(
           `${BASELINE_FILE} unreadable (${read.reason}) - cannot ratchet\n` +
           `  fix or delete the file, then re-record with 'noldor clones baseline'`,
         loud: true,
+        compared: false,
       };
     case 'ok': {
       const verdict = compareToBaseline(report, read.baseline, opts, includeTests);
@@ -301,6 +320,7 @@ function ratchetOutcome(
         outcome: verdict.kind === 'red' ? 'red' : 'green',
         message: verdict.message,
         loud: verdict.kind !== 'green',
+        compared: true,
       };
     }
   }
