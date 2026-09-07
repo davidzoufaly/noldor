@@ -1,7 +1,7 @@
-import { readFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
+import { readFileSync, existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { atomicWriteFileSync } from './atomic-write.js';
+import { writeJsonState } from './state-file.js';
 
 export const PATHS = [
   'micro-chore',
@@ -110,9 +110,7 @@ export function readSession(cwd: string = process.cwd()): SessionMarker | null {
 }
 
 export function writeSession(cwd: string, m: SessionMarker): void {
-  const dir = join(cwd, '.noldor');
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  atomicWriteFileSync(join(cwd, FILE), JSON.stringify(m, null, 2) + '\n');
+  writeJsonState(join(cwd, FILE), m);
 }
 
 /**
@@ -161,7 +159,7 @@ export function touchSession(cwd: string, nowMs: number): void {
  * Union, not overwrite — a session briefs once per file and the field should
  * accumulate. The read-union-write is not atomic, so two concurrent briefs can
  * lose an id; accepted because sessions are per-worktree and single-author,
- * `atomicWriteFileSync` still rules out a torn file, and an exposure record that
+ * `writeJsonState` still rules out a torn file, and an exposure record that
  * understates is not misleading.
  */
 export function stampInjectedRules(

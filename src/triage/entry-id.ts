@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { atomicWriteFileSync } from '../core/atomic-write.js';
+import { readJsonState, writeJsonState } from '../core/state-file.js';
 import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
 
 /**
@@ -28,10 +28,17 @@ export function formatEntryId(n: number): string {
  * Read the persisted `next` counter. Missing file ⇒ 1 (a fresh repo starts at
  * `Q-0001`). A present-but-corrupt counter throws — a garbage counter must fail
  * loudly rather than silently reset the sequence and re-mint used IDs.
+ *
+ * Both halves go through `state-file.ts` now: {@link readJsonState} owns the
+ * absent-vs-unreadable split (so an unparseable or EACCES counter raises a
+ * `StateFileCorruptError` naming the file rather than a bare `SyntaxError`),
+ * and it reads once instead of `existsSync`-then-read, closing that TOCTOU
+ * window. The `next`-shape check below stays here: it is this module's own
+ * schema, not a state-file concern.
  */
 function readNext(counterPath: string): number {
-  if (!existsSync(counterPath)) return 1;
-  const parsed = JSON.parse(readFileSync(counterPath, 'utf8')) as { next?: unknown };
+  const parsed = readJsonState<{ next?: unknown }>(counterPath);
+  if (parsed === undefined) return 1;
   const next = parsed.next;
   if (typeof next !== 'number' || !Number.isInteger(next) || next < 1) {
     throw new Error(
@@ -61,8 +68,9 @@ export interface MintEntryIdsOptions {
  * out-of-band: `.noldor/id-counter.json` is a real merge conflict under parallel
  * branches and `duplicate-entry-id` is the pre-commit backstop (see the spec's
  * Risks section) — no file lock here. The write goes through
- * {@link atomicWriteFileSync} so an interrupted mint cannot leave a torn
- * counter that the next `readNext` rejects as corrupt.
+ * {@link writeJsonState} so an interrupted mint cannot leave a torn counter
+ * that the next `readNext` rejects as corrupt, and so the very first mint in a
+ * repo with no `.noldor/` yet creates the directory instead of throwing ENOENT.
  *
  * The sequence starts at `max(counter, liveMax + 1)`: nothing reads the corpus
  * when the counter is bumped, so it drifts behind and its first number collides
@@ -85,7 +93,7 @@ export function mintEntryIds(count: number, opts: MintEntryIdsOptions): string[]
   const next = Math.max(readNext(counterPath), opts.liveMax + 1);
   const ids: string[] = [];
   for (let i = 0; i < count; i++) ids.push(formatEntryId(next + i));
-  atomicWriteFileSync(counterPath, `${JSON.stringify({ next: next + count }, null, 2)}\n`);
+  writeJsonState(counterPath, { next: next + count });
   return ids;
 }
 

@@ -1,8 +1,6 @@
-import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { atomicWriteFileSync } from '../core/atomic-write.js';
-import { readJsonState } from '../core/state-file.js';
+import { readJsonState, writeJsonState } from '../core/state-file.js';
 import type { DrainResult } from './drain-loop.js';
 
 export interface WatchState {
@@ -67,8 +65,7 @@ export function loadWatchState(cwd: string, todayKey: string): WatchState {
 /** Best-effort write, mirroring drain-state.ts. */
 export function saveWatchState(cwd: string, state: WatchState): void {
   try {
-    mkdirSync(join(cwd, '.noldor'), { recursive: true });
-    atomicWriteFileSync(join(cwd, STATE_REL), `${JSON.stringify(state, null, 2)}\n`);
+    writeJsonState(join(cwd, STATE_REL), state);
   } catch (err) {
     process.stderr.write(`watch-state write failed (non-fatal): ${String(err)}\n`);
   }

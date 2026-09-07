@@ -304,5 +304,9 @@
   "Q-0182": {
     "slug": "scoped-link-sync-for-the-projection-runners",
     "retiredAt": "2026-09-06"
+  },
+  "Q-0204": {
+    "slug": "writejsonstate-missing-from-the-state-file-module",
+    "retiredAt": "2026-09-07"
   }
 }

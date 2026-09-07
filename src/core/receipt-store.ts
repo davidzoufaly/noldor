@@ -5,11 +5,10 @@
 // reproduced `ui-capture.ts`'s shapes verbatim — two copies of a containment
 // choke point is how one of them drifts.
 
-import { mkdirSync, readFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { readFileSync } from 'node:fs';
 
-import { atomicWriteFileSync } from './atomic-write.js';
 import { errMessage } from './err-message.js';
+import { writeJsonState } from './state-file.js';
 import { parseSlug } from './slug.js';
 import { slugPath, pathErrorMessage } from './slug-paths.js';
 
@@ -67,10 +66,7 @@ export function writeReceiptFile(
   const path = receiptFilePath(repoRoot, segments, name);
   if (!path.ok) return path;
   try {
-    // The atomic write puts its temp file beside the target, so the directory
-    // has to exist first — on a store's first write it does not.
-    mkdirSync(dirname(path.path), { recursive: true });
-    atomicWriteFileSync(path.path, `${JSON.stringify(value, null, 2)}\n`);
+    writeJsonState(path.path, value);
   } catch (err) {
     // The filesystem is the boundary this function owns and it advertises a
     // result type: EACCES or ENOSPC surface as a failed write, not a crash.

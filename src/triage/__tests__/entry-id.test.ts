@@ -43,6 +43,16 @@ describe(mintEntryIds, () => {
     expect(JSON.parse(readFileSync(counter, 'utf8'))).toEqual({ next: 4 });
   });
 
+  it('mints into a repo whose .noldor/ directory does not exist yet', () => {
+    // The counter write used to go straight through `atomicWriteFileSync`,
+    // which does not create directories — so the very first mint in a
+    // freshly-adopting repo threw ENOENT on the `.tmp.<pid>` sibling.
+    const virgin = join(dir, '.noldor', 'id-counter.json');
+
+    expect(mintEntryIds(1, { counterPath: virgin, liveMax: 0 })).toEqual(['Q-0001']);
+    expect(JSON.parse(readFileSync(virgin, 'utf8'))).toEqual({ next: 2 });
+  });
+
   it('resumes from the persisted counter', () => {
     writeFileSync(counter, JSON.stringify({ next: 10 }));
     expect(mintEntryIds(2, { counterPath: counter, liveMax: 0 })).toEqual(['Q-0010', 'Q-0011']);
@@ -52,6 +62,15 @@ describe(mintEntryIds, () => {
   it('throws on a corrupt counter rather than silently resetting', () => {
     writeFileSync(counter, JSON.stringify({ next: 'oops' }));
     expect(() => mintEntryIds(1, { counterPath: counter, liveMax: 0 })).toThrow(/corrupt counter/);
+  });
+
+  it('names the offending file when the counter is not even valid JSON', () => {
+    writeFileSync(counter, '{"next": 3');
+    // Substring match, not a regex: the tmpdir path is a value, and building a
+    // pattern from one is the escaping bug the repo's regex rule warns about.
+    expect(() => mintEntryIds(1, { counterPath: counter, liveMax: 0 })).toThrow(
+      `state file corrupt: ${counter}`,
+    );
   });
 
   it('rejects a non-positive count', () => {

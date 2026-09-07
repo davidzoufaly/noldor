@@ -14,13 +14,9 @@
  * moves, which is the thing being ratcheted. The ratio dimension is already
  * covered by `thresholdPct`.
  */
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-
 import { z } from 'zod';
 
-import { atomicWriteFileSync } from '../core/atomic-write.js';
-import { readJsonState } from '../core/state-file.js';
+import { readJsonState, writeJsonState } from '../core/state-file.js';
 import type { CloneOptions, CloneReport } from './detect.js';
 
 /** Baseline location, relative to the repo root. Tracked, not transient. */
@@ -106,8 +102,7 @@ export function readBaseline(path: string): BaselineRead {
 
 /** Write `baseline` atomically, creating its parent directory if needed. */
 export function writeBaseline(path: string, baseline: CloneBaseline): void {
-  mkdirSync(dirname(path), { recursive: true });
-  atomicWriteFileSync(path, `${JSON.stringify(baseline, null, 2)}\n`);
+  writeJsonState(path, baseline);
 }
 
 /**

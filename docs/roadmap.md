@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### writeJsonState Missing From the State-File Module
-
-- id: Q-0204
-- area: tooling
-- type: refactor
-- since: 2026-09-02
-- size: S
-- impact: med
-- confidence: high
-- parent: state-file-fail-open-hardening
-
-`src/core/state-file.ts` owns the read half of JSON state (`readJsonState<T>`) and not the write half, so ten modules hand-roll the same two lines — `mkdirSync(dirname(p), { recursive: true })` then `atomicWriteFileSync(p, JSON.stringify(v, null, 2) + '\n')`. The sites: `src/design/ledger.ts`, `src/clones/baseline.ts`, `src/core/rollout-marker.ts`, `src/core/receipt-store.ts`, `src/core/session.ts`, `src/indirection/baseline.ts`, `src/autonomous/watch-state.ts`, `src/autonomous/escalations.ts`, `src/milestones/lib.ts`, and `atomic-write.ts` itself. The asymmetry is the whole bug: the module that exists to own this pattern owns one direction of it. Ten instances is far past rule-of-3, and the extraction costs no indirection — every one of those modules already imports from `src/core/`, so the closure count does not move; `indirection check` held at 882 across the abstraction-cost-ratchet branch. Deletion test: after the extraction, `grep -l atomicWriteFileSync src | xargs grep -l mkdirSync` returns only `state-file.ts`. Surfaced while judging the clone-ratchet rebaseline on the abstraction-cost-ratchet branch, where two of six new clone groups were real and four were façades. (found 2026-08-31)
-
 ### pr-flow Cannot Reuse an Existing Open PR
 
 - id: Q-0166
