@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { writeJsonState } from '../core/state-file.js';
+import { readJsonState, writeJsonState } from '../core/state-file.js';
 import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
 
 /**
@@ -28,10 +28,17 @@ export function formatEntryId(n: number): string {
  * Read the persisted `next` counter. Missing file ⇒ 1 (a fresh repo starts at
  * `Q-0001`). A present-but-corrupt counter throws — a garbage counter must fail
  * loudly rather than silently reset the sequence and re-mint used IDs.
+ *
+ * Both halves go through `state-file.ts` now: {@link readJsonState} owns the
+ * absent-vs-unreadable split (so an unparseable or EACCES counter raises a
+ * `StateFileCorruptError` naming the file rather than a bare `SyntaxError`),
+ * and it reads once instead of `existsSync`-then-read, closing that TOCTOU
+ * window. The `next`-shape check below stays here: it is this module's own
+ * schema, not a state-file concern.
  */
 function readNext(counterPath: string): number {
-  if (!existsSync(counterPath)) return 1;
-  const parsed = JSON.parse(readFileSync(counterPath, 'utf8')) as { next?: unknown };
+  const parsed = readJsonState<{ next?: unknown }>(counterPath);
+  if (parsed === undefined) return 1;
   const next = parsed.next;
   if (typeof next !== 'number' || !Number.isInteger(next) || next < 1) {
     throw new Error(

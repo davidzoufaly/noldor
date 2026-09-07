@@ -64,6 +64,15 @@ describe(mintEntryIds, () => {
     expect(() => mintEntryIds(1, { counterPath: counter, liveMax: 0 })).toThrow(/corrupt counter/);
   });
 
+  it('names the offending file when the counter is not even valid JSON', () => {
+    writeFileSync(counter, '{"next": 3');
+    // Substring match, not a regex: the tmpdir path is a value, and building a
+    // pattern from one is the escaping bug the repo's regex rule warns about.
+    expect(() => mintEntryIds(1, { counterPath: counter, liveMax: 0 })).toThrow(
+      `state file corrupt: ${counter}`,
+    );
+  });
+
   it('rejects a non-positive count', () => {
     expect(() => mintEntryIds(0, { counterPath: counter, liveMax: 0 })).toThrow();
   });
