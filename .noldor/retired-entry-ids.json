@@ -312,5 +312,9 @@
   "Q-0166": {
     "slug": "pr-flow-cannot-reuse-an-existing-open-pr",
     "retiredAt": "2026-09-07"
+  },
+  "Q-0167": {
+    "slug": "stale-specs-detector-is-blind-to-attach-flow-orphan-specs",
+    "retiredAt": "2026-09-07"
   }
 }
