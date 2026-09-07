@@ -16,20 +16,35 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Clones Ratchet and Clone-Group Check Disagree on Attribution
+### Clones Check Won't Name the Files That Moved the Token Total
 
-- id: Q-0193
+- id: Q-0213
 - area: tooling
 - type: fix
-- since: 2026-08-25
+- since: 2026-09-07
 - size: S
 - impact: med
 - confidence: high
 - parent: code-clone-detector
+- split-from: Q-0193
+- recovered: 2026-09-07
 
-`clones check` printed `no clone group touches this change - green` and reddened in the same run on `duplicated tokens rose 27735 -> 27845 (+110)` — the standalone CLI disagreeing with itself. The rise came from a new test reusing its file's established 15-instance scaffold (`const commits: Commit[] = [...]` + `checkCrGate({...runGit: makeGitFake(commits)})`), i.e. exactly the idiom consistency the test rules ask for, so any PR that adds a case to a table-driven test file currently owes a baseline re-record commit. The check also declines to name what moved the total: the operator has to diff group lists between branches, and a green run prints no group list to diff against, so there is nothing to compare. Two candidate fixes, not exclusive: exempt `**/__tests__/**` from the token ratchet (or weight it separately from production code), and make `clones check` name the files that moved the total the way `microChoreOffenders` names its offenders. Related to Q-0165 (preflight vs hook disagreement) but distinct — that was two entry points diverging, this is one run contradicting itself. Deletion test: adding a case to a table-driven test file does not red the ratchet, and any ratchet rise names the files responsible. (found 2026-08-25 shipping Q-0164)
+`clones check` reddens on `duplicated tokens rose 27735 -> 27845 (+110)` without naming what moved the total, so the operator has to diff group lists between branches by hand — and a green run prints no group list at all, so there is nothing to diff against. The same run also printed `no clone group touches this change - green` alongside that red ratchet line: one CLI contradicting itself, because the group-attribution check and the whole-corpus token ratchet answer different questions and only one of them reports its evidence. Wanted: any ratchet rise names the files responsible, the way `microChoreOffenders` names its offenders, and a green run still prints the group list so a later rise has a baseline to diff against. Reporting only — what the tokenizer *counts* is Q-0214's question, and this slice must not move the number. Related to Q-0165 (preflight vs hook disagreement) but distinct: that was two entry points diverging, this is one run contradicting itself. Deletion test: a ratchet rise names the files that moved the total, and a green run prints the group list. (split from Q-0193 on 2026-09-07; originally found 2026-08-25 shipping Q-0164)
 
-- The ratchet also counts thin typed façades as duplication, and this one blocked a release sweep. On the 2026-08-30 sweep the whole-corpus ratchet redded at +112 tokens over the baseline PR #406 recorded, and the largest new group was `src/design/design-approval.ts:63-92` vs `src/design/ui-capture.ts:76-108` (82 tokens). Neither site holds copied logic: both are one-line delegations to the already-shared receipt store (`parseReceiptWith`, `writeReceiptFile`, `readReceiptFile`), each binding a *different* schema, dir-segment tuple and return type. The tokenizer skips comments but normalizes identifiers to `ID` for Type-2 matching, so two same-shaped one-line delegations match structurally. The rest of the delta was import blocks (`src/design/ledger.ts` vs `src/cr/orchestrate.ts`, `src/metrics/compute.ts`, `src/garden/garden-detect.ts`). Extracting is strictly worse here — one generic untyped wrapper, indirection added, zero logic shared. Two more candidate fixes on the same axis as the ones above: skip a group whose every span is a single `return <call>(…)` statement, and exclude leading import runs from the token stream. Rebaselined to 28844 by hand to unblock the sweep, which is now the second forced re-record on this entry — hence the move up the file. Deletion test: a file pair whose only overlap is imports plus a delegating one-liner produces no group. (found 2026-08-30, release sweep)
+### Clone Ratchet Counts Test Scaffolds, Facades and Import Runs as Duplication
+
+- id: Q-0214
+- area: tooling
+- type: fix
+- since: 2026-09-07
+- size: M
+- impact: med
+- confidence: high
+- parent: code-clone-detector
+- split-from: Q-0193
+- recovered: 2026-09-07
+
+The whole-corpus token ratchet counts three things that are not copied logic, and it has forced a hand re-record twice. **Test scaffolds:** a new case in a table-driven test file reuses that file's established 15-instance scaffold (`const commits: Commit[] = [...]` + `checkCrGate({...runGit: makeGitFake(commits)})`) — exactly the idiom consistency the test rules ask for — so any such PR owes a baseline re-record commit. **Thin typed façades:** on the 2026-08-30 sweep the largest new group was `src/design/design-approval.ts:63-92` vs `src/design/ui-capture.ts:76-108` (82 tokens), both one-line delegations to the already-shared receipt store, each binding a *different* schema, dir-segment tuple and return type; the tokenizer normalizes identifiers to `ID` for Type-2 matching, so two same-shaped delegations match structurally. Extracting is strictly worse here — one generic untyped wrapper, indirection added, zero logic shared. **Import runs:** the rest of that delta was import blocks (`src/design/ledger.ts` vs `src/cr/orchestrate.ts`, `src/metrics/compute.ts`, `src/garden/garden-detect.ts`). Rebaselined to 28844 by hand to unblock the sweep. Sized M because deciding what counts as duplication is a policy call across three independent axes — exempt or separately weight `**/__tests__/**`, skip a group whose every span is a single `return <call>(…)` statement, exclude leading import runs from the token stream — not a mechanical fix. Deletion test: a file pair whose only overlap is imports plus a delegating one-liner produces no group, and adding a case to a table-driven test file does not red the ratchet. (split from Q-0193 on 2026-09-07; found 2026-08-25 and 2026-08-30)
 
 ### Main-Module Guard Fails on Percent-Encoded Paths
 

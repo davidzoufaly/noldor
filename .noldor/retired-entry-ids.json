@@ -324,5 +324,13 @@
   "Q-0212": {
     "slug": "oscillation-detector-r3-fires-on-every-greenfield-finding",
     "retiredAt": "2026-09-07"
+  },
+  "Q-0193": {
+    "slug": "clones-ratchet-and-clone-group-check-disagree-on-attribution",
+    "splitInto": [
+      "clones-check-wont-name-the-files-that-moved-the-token-total",
+      "clone-ratchet-counts-test-scaffolds-facades-and-import-runs-as-duplication"
+    ],
+    "retiredAt": "2026-09-07"
   }
 }
