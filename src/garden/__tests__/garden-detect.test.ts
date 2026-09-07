@@ -254,13 +254,11 @@ describe.each(ARTIFACT_KINDS)('stale design artifacts — $label', (kind) => {
       expect(result[0]).toMatchObject({ reason: 'feature-done', slug: 'parent-feat' });
     });
 
-    it('emits no finding when the plausible parent FD is malformed', async () => {
-      const path = await writeArtifact('2024-01-01', 'parent-feat-extra');
-      await utimes(path, OLD_DATE, OLD_DATE);
-      await writeFile(join(repo, 'docs/features/parent-feat.md'), 'no frontmatter here\n');
-
-      expect(await kind.detect(repo)).toEqual([]);
-    });
+    // No malformed-parent case belongs here: `resolveByLinksField`'s `couldOwn`
+    // prefix check already returns `unreadable` for any prefix-parent FD, so
+    // step 2 short-circuits and this resolver never runs. That policy is owned
+    // by `unreadable owner FD` → `emits no finding when an unparseable FD could
+    // be the links.* owner` below, which sets up the identical fixture.
   });
 
   it('flags an ownerless artifact older than the stale-days threshold', async () => {
