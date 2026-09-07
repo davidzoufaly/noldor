@@ -320,5 +320,9 @@
   "Q-0198": {
     "slug": "garden-skill-checklist-enumerates-a-fixed-section-list",
     "retiredAt": "2026-09-07"
+  },
+  "Q-0212": {
+    "slug": "oscillation-detector-r3-fires-on-every-greenfield-finding",
+    "retiredAt": "2026-09-07"
   }
 }

@@ -1347,6 +1347,33 @@ describe('resolveIntroducedLines', () => {
     const map = await resolveIntroducedLines('FIRST', git);
     expect([...(map?.get('src/x.ts') ?? [])].sort((a, b) => a - b)).toEqual([11, 12]);
   });
+
+  // Q-0212's deletion test: a series that only ADDS files must introduce no
+  // lines at all, because on such a series every line is one the series added
+  // and R3 would fire on every finding. The fake honours `--diff-filter`'s
+  // exclusion the way git itself would, so what is asserted is the range the
+  // caller asks git for.
+  it('excludes files the series added, keeping the ones that existed at the base', async () => {
+    const hunk = (path: string) =>
+      [
+        `diff --git a/${path} b/${path}`,
+        `--- a/${path}`,
+        `+++ b/${path}`,
+        '@@ -10,0 +11,1 @@',
+        '+x',
+      ].join('\n');
+    const git = async (args: string[]) => {
+      if (args[0] === 'merge-base') return '';
+      const filter = args.find((a) => a.startsWith('--diff-filter=')) ?? '';
+      const keptAdds = !filter.includes('a');
+      return keptAdds
+        ? [hunk('src/greenfield.ts'), hunk('src/old.ts')].join('\n')
+        : hunk('src/old.ts');
+    };
+    const map = await resolveIntroducedLines('FIRST', git);
+    expect(map?.has('src/greenfield.ts')).toBe(false);
+    expect([...(map?.get('src/old.ts') ?? [])]).toEqual([11]);
+  });
 });
 
 describe('runReflagRules', () => {

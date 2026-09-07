@@ -385,7 +385,21 @@ export function priorBlockerIds(
 }
 
 /**
- * Lines this series ADDED, per file, in current coordinates — R3's input.
+ * Lines this series ADDED **to files that already existed**, per file, in
+ * current coordinates — R3's input.
+ *
+ * The pre-existence filter is what keeps R3 a signal rather than noise. R3 asks
+ * whether a blocker sits on a line the series introduced, which distinguishes
+ * something only where the series EDITED code that was already there. On a
+ * series that adds files, every line in them is one the series introduced, so
+ * every located finding fires: PR #437 drew nine undifferentiated R3 signals,
+ * and nine signals that separate nothing are worse than none — they train the
+ * operator to skim past R3 on the runs where it would catch a real
+ * repair-the-last-repair loop. `--diff-filter=ad` drops the added files (and,
+ * as before, the deleted ones) so a file born inside the series contributes no
+ * introduced lines at all. Files that existed at the base keep firing, whether
+ * they arrive as `M`, a detected rename, or a typechange — the filter EXCLUDES
+ * rather than allow-lists, so a status git adds later stays covered.
  *
  * The fast-forward guard is the whole reason this returns `undefined` rather
  * than an empty map. The cumulative range is a tree diff and nothing inside it
@@ -408,7 +422,7 @@ export async function resolveIntroducedLines(
   let diff: string;
   try {
     await git(['merge-base', '--is-ancestor', `${firstHeadSha}^`, 'HEAD']);
-    diff = await git(['diff', '--unified=0', '--diff-filter=d', '-M', `${firstHeadSha}^`, 'HEAD']);
+    diff = await git(['diff', '--unified=0', '--diff-filter=ad', '-M', `${firstHeadSha}^`, 'HEAD']);
   } catch {
     return undefined;
   }
@@ -981,8 +995,10 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         ...(b.locations ? { locations: b.locations } : {}),
       }));
       // The series' FIRST reviewed head, not this round's — R3 measures
-      // cumulatively. Falls back to this round's head on an empty ledger, where
-      // the range is empty and R3 is correctly clear.
+      // cumulatively. Falls back to this round's head on an empty ledger, which
+      // makes the range this round's own commit rather than an empty one; what
+      // keeps a first round quiet is the pre-existence filter in
+      // `resolveIntroducedLines`, not the range.
       const firstHead = (ledger?.rounds ?? [])[0]?.headSha ?? headSha;
       // Only the files this round's blockers actually point at get opened.
       const located = [
