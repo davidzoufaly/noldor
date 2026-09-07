@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { atomicWriteFileSync } from './atomic-write.js';
 
 /**
  * Thrown by {@link readJsonState} when a state file is present but cannot be
@@ -27,8 +29,8 @@ export class StateFileCorruptError extends Error {
  *     back to a permissive default on a file that exists but is unreadable.
  *
  * This is the read-side half of state-file fail-open hardening; its write-side
- * twin is {@link ./atomic-write.atomicWriteFileSync}, which prevents the torn
- * file in the first place.
+ * twin is {@link writeJsonState}, which prevents the torn file in the first
+ * place.
  */
 export function readJsonState<T>(path: string): T | undefined {
   let raw: string;
@@ -43,4 +45,28 @@ export function readJsonState<T>(path: string): T | undefined {
   } catch (err) {
     throw new StateFileCorruptError(path, err);
   }
+}
+
+/**
+ * Write-side twin of {@link readJsonState}: ensure `path`'s parent directory
+ * exists, then serialize `value` as pretty-printed JSON with a trailing newline
+ * and land it through {@link atomicWriteFileSync}, so a concurrent reader sees
+ * either the old bytes or the complete new ones — never a torn file.
+ *
+ * The directory create is part of the contract precisely because
+ * `atomicWriteFileSync` deliberately does not do it: its `.tmp.<pid>` sibling
+ * needs a home, so every caller writing under `.noldor/` had to pair the two
+ * calls by hand. Owning both directions here is what keeps the read and write
+ * halves of a state file from drifting apart (a writer that skipped the
+ * trailing newline, or emitted compact JSON, still parses — it just churns the
+ * diff of a committed state file forever).
+ *
+ * Throws rather than returning a result type: a failing `mkdirSync` or rename
+ * on a path the process owns is an environment/invariant failure, not an
+ * expected branch a caller could meaningfully recover from. Callers whose write
+ * is genuinely best-effort (`saveWatchState`) keep their own `try`.
+ */
+export function writeJsonState(path: string, value: unknown): void {
+  mkdirSync(dirname(path), { recursive: true });
+  atomicWriteFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }

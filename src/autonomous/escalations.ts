@@ -1,8 +1,7 @@
 import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { atomicWriteFileSync } from '../core/atomic-write.js';
-import { readJsonState } from '../core/state-file.js';
+import { readJsonState, writeJsonState } from '../core/state-file.js';
 import type { DrainResult } from './drain-loop.js';
 import type { DrainSource, SourceId } from './drain-source.js';
 
@@ -174,8 +173,7 @@ export function loadPark(cwd: string): ParkMap {
 
 function savePark(cwd: string, map: ParkMap): void {
   try {
-    mkdirSync(join(cwd, '.noldor'), { recursive: true });
-    atomicWriteFileSync(join(cwd, PARK_REL), `${JSON.stringify(map, null, 2)}\n`);
+    writeJsonState(join(cwd, PARK_REL), map);
   } catch (err) {
     process.stderr.write(`drain-park write failed (non-fatal): ${String(err)}\n`);
   }

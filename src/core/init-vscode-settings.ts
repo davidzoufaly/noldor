@@ -27,11 +27,11 @@
 // template — copied only when absent — would skip exactly the repos that have
 // been worked in, which are the repos with `.pen` files in them.
 
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-import { atomicWriteFileSync } from './atomic-write.js';
 import { PENCIL_VIEW_TYPE } from './design-artifact-names.js';
+import { writeJsonState } from './state-file.js';
 
 /** The consumer-relative settings file, as it appears in init's summary log. */
 export const VSCODE_SETTINGS_PATH = '.vscode/settings.json';
@@ -141,9 +141,8 @@ function write(
   onSuccess: 'created' | 'added',
 ): VscodeSettingsOutcome {
   try {
-    mkdirSync(dirname(path), { recursive: true });
     // Two-space JSON with a trailing newline — the shape VS Code itself writes.
-    atomicWriteFileSync(path, `${JSON.stringify(settings, null, 2)}\n`);
+    writeJsonState(path, settings);
   } catch (e) {
     return {
       kind: 'blocked',

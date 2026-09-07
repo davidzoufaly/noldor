@@ -9,13 +9,11 @@
  * edited `scanPaths`, and no framework migration can ship for a knob the
  * framework does not own.
  */
-import { mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 import { z } from 'zod';
 
-import { atomicWriteFileSync } from '../core/atomic-write.js';
-import { readJsonState } from '../core/state-file.js';
+import { readJsonState, writeJsonState } from '../core/state-file.js';
 import type { MeasuredIndirection } from './detect.js';
 
 /** Baseline location, relative to the repo root. Tracked, not transient. */
@@ -117,8 +115,7 @@ export function readBaseline(path: string): BaselineRead {
 }
 
 export function writeBaseline(path: string, baseline: IndirectionBaseline): void {
-  mkdirSync(dirname(path), { recursive: true });
-  atomicWriteFileSync(path, `${JSON.stringify(baseline, null, 2)}\n`);
+  writeJsonState(path, baseline);
 }
 
 /**
@@ -179,7 +176,8 @@ export async function seedBaselineIfAbsent(
     code = await record(cwd);
   } catch (e) {
     // The recorder is a filesystem boundary as well as a parser one: recording
-    // ends in `writeBaseline`, which does `mkdirSync` + an atomic rename, so
+    // ends in `writeBaseline`, whose `writeJsonState` does `mkdirSync` + an
+    // atomic rename, so
     // EACCES or ENOSPC on `.noldor/` throws instead of returning an exit code.
     // Converting it here is what keeps the no-throw guarantee above true — for
     // `init` a propagated throw aborts the scaffold part-way, before the

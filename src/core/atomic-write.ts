@@ -15,16 +15,18 @@ import { dirname, basename, join } from 'node:path';
  * every enforcement/rail writer through this helper prevents the torn file at
  * the source.
  *
- * Does NOT create directories: `target`'s parent must already exist (callers
- * that write under `.noldor/` keep their own `mkdirSync('.noldor', { recursive:
- * true })` so the `.tmp.<pid>` sibling has a home). On rename failure the tmp
- * file is intentionally left in place for postmortem, and the error bubbles to
- * the caller — mirroring {@link atomicWriteFile}.
+ * Does NOT create directories: `target`'s parent must already exist, so the
+ * `.tmp.<pid>` sibling has a home. JSON state files get both halves from
+ * `state-file.ts`'s `writeJsonState`, which pairs the `mkdirSync` with this
+ * call; reach for this helper directly only for a non-JSON payload
+ * (`ensureRolloutMarker`, `writeLedger`, the milestone writers). On rename
+ * failure the tmp file is intentionally left in place for postmortem, and the
+ * error bubbles to the caller — mirroring {@link atomicWriteFile}.
  *
  * Sync twin of that async helper, kept synchronous because its callers
- * (`writeSession`, `ensureRolloutMarker`, `saveWatchState`, `savePark`) are all
- * synchronous; threading `async` through their non-async call sites would ripple
- * widely for no benefit.
+ * (`writeJsonState`, `ensureRolloutMarker`, `writeLedger`) are all synchronous;
+ * threading `async` through their non-async call sites would ripple widely for
+ * no benefit.
  */
 export function atomicWriteFileSync(target: string, content: string): void {
   const tmp = join(dirname(target), `${basename(target)}.tmp.${process.pid}`);

@@ -1,10 +1,10 @@
 {
-  "excessSum": 905,
-  "flaggedModules": 39,
+  "excessSum": 915,
+  "flaggedModules": 40,
   "modulesScanned": 418,
   "percentiles": {
     "p50": 4,
-    "p75": 11,
+    "p75": 12,
     "p90": 30,
     "p99": 94,
     "max": 103
@@ -15,5 +15,5 @@
     "includeTests": false
   },
   "algorithmVersion": 1,
-  "recordedAt": "2026-09-06T19:35:36.054Z"
+  "recordedAt": "2026-09-07T12:46:33.022Z"
 }

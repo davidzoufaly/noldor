@@ -10,6 +10,7 @@ links:
   tests:
     - src/core/__tests__/atomic-write.test.ts
     - src/core/__tests__/rollout-marker.test.ts
+    - src/core/__tests__/state-file.test.ts
     - src/dashboard/__tests__/dashboard-server.test.ts
     - src/dashboard/__tests__/host.test.ts
     - src/hooks/__tests__/noldor-pre-edit-guard.test.ts
@@ -23,7 +24,6 @@ since: 2026-07-13T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.0.0
 ---
-
 ## Summary
 
 Deep-audit finding (batch `.noldor/research/2026-07-13-184850`): state-file handling consistently fails *open* — corruption or a torn write silently resets toward permissive. Confirmed: crash-path `releaseLock` deletes a drain lock it doesn't own (two concurrent drains possible); corrupt rollout-marker lets every commit pass unchecked; torn `session.json` makes the pre-edit-guard exit 1 instead of 2 (gate silently bypassed); torn `watch-state.json` resets the daily cap + trip rail; torn `drain-park.json` unparks all known-failing entries. Root cause shared: plain `writeFileSync` + parse-error → permissive default, while `atomicWriteFile` and the O_EXCL lock primitive already exist but callers bypass them. Fix: ownership check in `releaseLock`, route state writers through `atomicWriteFile`, make enforcement-file corruption loud and fail toward enforcement, and bind the dashboard to 127.0.0.1 (today 0.0.0.0 no-auth composes with `bypassPermissions` drain agents into a LAN roadmap-inject → RCE chain).
