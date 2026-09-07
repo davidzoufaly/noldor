@@ -332,5 +332,9 @@
       "clone-ratchet-counts-test-scaffolds-facades-and-import-runs-as-duplication"
     ],
     "retiredAt": "2026-09-07"
+  },
+  "Q-0213": {
+    "slug": "clones-check-wont-name-the-files-that-moved-the-token-total",
+    "retiredAt": "2026-09-07"
   }
 }
