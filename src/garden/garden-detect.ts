@@ -109,6 +109,37 @@ async function loadFeatureBySlug(repo: string, slug: string): Promise<OwnerResol
 }
 
 /**
+ * Last ownership step: read the artifact's filename slug as the attach flow's
+ * `<parent>-<enhancement>` shape and resolve the FD at `<parent>.md`.
+ *
+ * This step exists because the three before it all miss the same artifact. The
+ * attach flow names a spec `<date>-<parent>-<enhancement>-design.md`, so no
+ * `<parent>-<enhancement>.md` FD exists; the parent FD keeps pointing
+ * `links.spec` at its own original spec, so the verbatim links scan finds
+ * nothing; and the graph edge only helps while `graphify-out/graph.json` is
+ * fresh. What was left was the age-out secondary signal, which a clone or a
+ * fresh checkout defeats outright — every file gets a current mtime — so a
+ * shipped parent's orphan specs sat live indefinitely and the detector reported
+ * zero (Q-0167: eleven such specs, the oldest from 2026-06-07).
+ *
+ * Longest prefix first, so `parent-feat-extra` resolves to `parent-feat` rather
+ * than to a `parent` FD that owns something else. The match is on the filename
+ * alone and is therefore a heuristic — the same one {@link resolveByLinksField}
+ * already applies when scoping its `unreadable` verdict. Placing it last in the
+ * chain is what bounds the cost of a wrong guess: it only ever speaks where
+ * every stronger signal was silent, and its output is a `/noldor-garden`
+ * proposal an operator confirms, never an automatic move.
+ */
+async function resolveByParentSlug(repo: string, slug: string): Promise<OwnerResolution> {
+  const segments = slug.split('-');
+  for (let cut = segments.length - 1; cut > 0; cut--) {
+    const resolved = await loadFeatureBySlug(repo, segments.slice(0, cut).join('-'));
+    if (resolved.outcome !== 'none') return resolved;
+  }
+  return { outcome: 'none' };
+}
+
+/**
  * Everything that differs between plan staleness and spec staleness. The
  * detection policy itself — enumerate, derive a slug, resolve an owner by
  * filename then `links.*` then graph adjacency, then apply phase-and-age
@@ -146,9 +177,13 @@ const SPEC_KIND: DesignArtifactKind = {
 /**
  * Resolve the FD that owns one design artifact, first non-`none` step wins:
  * filename slug → the FD whose `links.plan` / `links.spec` names it → the
- * `plan-of` / `spec-of` edge in the enriched graph. An `unreadable` step stops
- * the chain: ownership is claimed and its phase is unknown, so a later step
- * must not overrule it with a weaker signal.
+ * `plan-of` / `spec-of` edge in the enriched graph → the attach flow's
+ * `<parent>-<enhancement>` filename shape (see {@link resolveByParentSlug}).
+ * An `unreadable` step stops the chain: ownership is claimed and its phase is
+ * unknown, so a later step must not overrule it with a weaker signal.
+ *
+ * The steps are ordered strongest evidence first, so the filename-shape guess
+ * only speaks once every declared and derived signal has come back empty.
  */
 async function resolveOwner(
   repo: string,
@@ -167,23 +202,34 @@ async function resolveOwner(
   });
   if (byLinks.outcome !== 'none') return byLinks;
 
-  return resolveByGraphAdjacency({ docPath: relPath, relation: kind.relation, repo });
+  const byGraph = await resolveByGraphAdjacency({
+    docPath: relPath,
+    relation: kind.relation,
+    repo,
+  });
+  if (byGraph.outcome !== 'none') return byGraph;
+
+  return resolveByParentSlug(repo, slug);
 }
 
 /**
  * Shared staleness detection for dated design artifacts.
  *
  * Primary signal: the owning feature MD has `phase: done`. Ownership resolves
- * in three steps, first hit wins — filename slug → `docs/features/<slug>.md`,
+ * in four steps, first hit wins — filename slug → `docs/features/<slug>.md`,
  * then the FD whose `links.plan` / `links.spec` names the artifact verbatim
- * (this is what covers attach-path artifacts, whose filename slug matches no
- * FD but whose parent FD still owns them), then the `plan-of` / `spec-of` edge
- * in the enriched `graphify-out/graph.json`. A live owner at any step
- * suppresses the age-out signal; a done owner archives as `feature-done`.
+ * (this is what covers attach-path artifacts whose parent FD links them back),
+ * then the `plan-of` / `spec-of` edge in the enriched `graphify-out/graph.json`,
+ * then the attach flow's `<parent>-<enhancement>` filename shape (this is what
+ * covers attach-path artifacts whose parent FD never linked them — see
+ * {@link resolveByParentSlug}). A live owner at any step suppresses the age-out
+ * signal; a done owner archives as `feature-done`.
  *
  * Secondary signal: no owner resolves at all AND the file mtime is older than
  * `staleDays`. A missing or stale graph therefore degrades to age-out, never
- * to a wrong-direction block.
+ * to a wrong-direction block — and because mtime is reset by any fresh
+ * checkout, that fallback is the weakest of the signals, not a safety net the
+ * steps above may lean on.
  *
  * @param repo - Repository root.
  * @param staleDays - Age threshold in days for the secondary signal.

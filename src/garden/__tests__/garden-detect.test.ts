@@ -212,6 +212,57 @@ describe.each(ARTIFACT_KINDS)('stale design artifacts — $label', (kind) => {
     });
   });
 
+  // The attach flow files an artifact as `<date>-<parent>-<enhancement>` and
+  // never writes it back into the parent FD's `links.*`, so the three steps
+  // above all miss it: no `<parent>-<enhancement>.md` FD, no verbatim links
+  // entry, and no graph edge unless the graph happens to be fresh. Before this
+  // step existed the artifact could only surface via the age-out secondary
+  // signal — which a `git clone` defeats outright, since checkout stamps every
+  // file with a fresh mtime.
+  describe('parent-slug fallback', () => {
+    it('flags an attach-shaped artifact whose parent FD is done and links nothing', async () => {
+      await writeArtifact('2026-04-19', 'parent-feat-extra');
+      await writeFd('parent-feat', 'done');
+
+      const result = await kind.detect(repo);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        action: 'archive',
+        reason: 'feature-done',
+        slug: 'parent-feat',
+      });
+      expect(result[0].path).toBe(
+        join(kind.relDir, kind.fileName('2026-04-19', 'parent-feat-extra')),
+      );
+    });
+
+    it('does not age-flag an old attach-shaped artifact whose parent FD is in-progress', async () => {
+      const path = await writeArtifact('2024-01-01', 'parent-feat-extra');
+      await utimes(path, OLD_DATE, OLD_DATE);
+      await writeFd('parent-feat', 'in-progress');
+
+      expect(await kind.detect(repo)).toHaveLength(0);
+    });
+
+    it('resolves the longest parent prefix, not the shortest', async () => {
+      await writeArtifact('2026-04-19', 'parent-feat-extra');
+      await writeFd('parent', 'in-progress');
+      await writeFd('parent-feat', 'done');
+
+      const result = await kind.detect(repo);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ reason: 'feature-done', slug: 'parent-feat' });
+    });
+
+    it('emits no finding when the plausible parent FD is malformed', async () => {
+      const path = await writeArtifact('2024-01-01', 'parent-feat-extra');
+      await utimes(path, OLD_DATE, OLD_DATE);
+      await writeFile(join(repo, 'docs/features/parent-feat.md'), 'no frontmatter here\n');
+
+      expect(await kind.detect(repo)).toEqual([]);
+    });
+  });
+
   it('flags an ownerless artifact older than the stale-days threshold', async () => {
     const path = await writeArtifact('2024-01-01', 'orphan');
     await utimes(path, OLD_DATE, OLD_DATE);
