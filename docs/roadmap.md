@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### pr-flow Cannot Reuse an Existing Open PR
-
-- id: Q-0166
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: S
-- impact: med
-- confidence: high
-- parent: framework-pr-flow-agent-auto-merge
-
-`pnpm noldor pr-flow` cannot reuse an existing open PR: it always runs `gh pr create` and throws `gh pr create failed: exit 1` when one exists for the branch, leaving a green, receipted, mergeable branch unshipped until someone runs `gh pr merge <n> --squash` by hand. Hit on 2026-08-20 (Q-0134) after a stale-base rebase — the first `pr-flow` pushed and opened PR #353, died at the merge on a roadmap conflict, and every subsequent `pr-flow` then died earlier still, at create. The state is common precisely when it matters (a re-run after a failed ship), and the fallback is undocumented. Detect an open PR for the head branch and proceed to the merge step, updating its body rather than recreating it. Deletion test: `pr-flow` run twice on the same branch merges on the second run instead of erroring. (found 2026-08-20 draining the XS batch)
-
 ### Stale-Specs Detector Is Blind to Attach-Flow Orphan Specs
 
 - id: Q-0167
