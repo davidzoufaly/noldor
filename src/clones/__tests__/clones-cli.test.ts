@@ -399,3 +399,76 @@ describe('runClones', () => {
     expect([...loadCorpus(dir, true).keys()]).toContain('src/a.test.ts');
   });
 });
+
+describe('clones check — ratchet evidence', () => {
+  /** Capture both streams; returns getters so a case can reset between runs. */
+  const capture = () => {
+    const state = { out: '', err: '' };
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      state.out += String(chunk);
+      return true;
+    });
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      state.err += String(chunk);
+      return true;
+    });
+    return state;
+  };
+
+  it('names the file that moved the total when the ratchet reds', async () => {
+    const state = capture();
+    const dir = fixtureRepo();
+    expect(await runClones(['baseline', '--min-tokens', '30'], dir)).toBe(0);
+
+    // A third copy of the same body: `src/c.ts` is the only file that gained
+    // clone coverage, so it is the file the rise has to name.
+    writeFileSync(join(dir, 'src', 'c.ts'), fn('third'), 'utf8');
+    state.err = '';
+    expect(await runClones(['check', '--min-tokens', '30'], dir)).toBe(1);
+    expect(state.err).toContain('duplicated tokens rose');
+    expect(state.err).toContain('files that moved the total');
+    expect(state.err).toMatch(/ {4}src\/c\.ts 0 -> \d+ \(\+\d+\)/);
+  });
+
+  it('prints the group list on a green compare so the next rise has a diff base', async () => {
+    const state = capture();
+    const dir = fixtureRepo();
+    expect(await runClones(['baseline', '--min-tokens', '30'], dir)).toBe(0);
+
+    state.out = '';
+    expect(await runClones(['check', '--min-tokens', '30'], dir)).toBe(0);
+    expect(state.out).toContain('duplicated tokens at baseline');
+    // The corpus summary plus its spans — the same evidence a red run prints.
+    expect(state.out).toMatch(/clones: \d+ group\(s\)/);
+    expect(state.out).toContain('src/a.ts:');
+    expect(state.out).toContain('src/b.ts:');
+  });
+
+  it('keeps the group list off a run that never compared', async () => {
+    const state = capture();
+    // No baseline recorded: there is no comparison for a group list to support,
+    // and printing one would read as ratchet evidence that does not exist.
+    const dir = fixtureRepo();
+    expect(await runClones(['check', '--min-tokens', '30'], dir)).toBe(0);
+    expect(state.err).toContain('ratchet skipped');
+    expect(state.out).not.toMatch(/clones: \d+ group\(s\)/);
+  });
+
+  it('asks for a re-record instead of guessing when the baseline predates attribution', async () => {
+    const state = capture();
+    const dir = fixtureRepo();
+    expect(await runClones(['baseline', '--min-tokens', '30'], dir)).toBe(0);
+
+    // A baseline written by an older Noldor: same shape, no attribution.
+    const path = join(dir, '.noldor', 'clones-baseline.json');
+    const legacy = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+    delete legacy.perFile;
+    writeFileSync(path, JSON.stringify(legacy), 'utf8');
+
+    writeFileSync(join(dir, 'src', 'c.ts'), fn('third'), 'utf8');
+    state.err = '';
+    expect(await runClones(['check', '--min-tokens', '30'], dir)).toBe(1);
+    expect(state.err).toContain('predates per-file attribution');
+    expect(state.err).not.toContain('files that moved the total');
+  });
+});

@@ -24,6 +24,13 @@ export interface CloneReport {
   readonly totalTokens: number;
   /** Tokens covered by at least one clone instance (coverage-deduped). */
   readonly duplicatedTokens: number;
+  /**
+   * The same coverage split by file (repo-relative path -> covered tokens),
+   * so a caller can say *which* files carry the duplication instead of only
+   * how much there is. Sums exactly to `duplicatedTokens`; files carrying no
+   * clone are absent rather than zero. Key order is path-sorted.
+   */
+  readonly perFile: Readonly<Record<string, number>>;
   /** duplicatedTokens / totalTokens * 100 (0 when the corpus is empty). */
   readonly duplicationPct: number;
 }
@@ -440,21 +447,29 @@ export function detectClones(
       coverage.set(r.file, list);
     }
   }
+  // Attribution falls out of the same merge: the coverage map is already keyed
+  // by file, so recording each file's merged total costs nothing and is exact
+  // by construction rather than a second estimate of the same quantity.
+  const perFile: Record<string, number> = {};
   let duplicatedTokens = 0;
-  for (const ranges of coverage.values()) {
+  for (const file of [...coverage.keys()].sort((a, b) => a.localeCompare(b))) {
+    const ranges = coverage.get(file)!;
     ranges.sort((a, b) => a[0] - b[0]);
+    let covered = 0;
     let curS = -1;
     let curE = -2;
     for (const [s, e] of ranges) {
       if (s > curE + 1) {
-        duplicatedTokens += curE - curS + 1;
+        covered += curE - curS + 1;
         curS = s;
         curE = e;
       } else {
         curE = Math.max(curE, e);
       }
     }
-    duplicatedTokens += curE - curS + 1;
+    covered += curE - curS + 1;
+    perFile[file] = covered;
+    duplicatedTokens += covered;
   }
 
   const groups: CloneGroup[] = classes
@@ -478,6 +493,7 @@ export function detectClones(
     filesScanned: streams.length,
     totalTokens,
     duplicatedTokens,
+    perFile,
     duplicationPct: totalTokens === 0 ? 0 : (duplicatedTokens / totalTokens) * 100,
   };
 }
