@@ -177,6 +177,12 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   silently extracts **zero** dependencies from a `.ts` tree — a false green,
   not an error. `@swc/core` restores its parsing; the boundaries invariant
   fails loudly via `allExtensions` when neither parser is installed. (PR #358)
+- **An unquoted `--include=*.ts` aborts the command before it runs.** zsh
+  globs the flag's *value* against the cwd, and `grep -rn foo src
+  --include=*.ts` dies with `zsh: no matches found: --include=*.ts` — the
+  whole line fails, grep never executes, and the failure reads like a broken
+  search rather than a quoting bug. Always `--include='*.ts'`. Same class as
+  the `$var` word-splitting trap.
 
 ## Pencil / UI design
 
