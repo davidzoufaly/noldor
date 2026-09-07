@@ -743,6 +743,139 @@ export async function checkRedundantDelivery(opts: {
   return { skipped: true, reason };
 }
 
+/** An open PR that already exists on the head branch — what {@link findOpenPrForBranch} answers. */
+export interface ExistingOpenPr {
+  prUrl: string;
+  prNumber: number;
+}
+
+/**
+ * The open PR already on `branch` for `base`, or `null` when there is none.
+ *
+ * `gh pr create` refuses a head branch that already has an open PR (`a pull request
+ * for branch … already exists`), so an unconditional create turns every *re-run* of
+ * a delivery into a hard failure — precisely the state a re-run implies. Q-0134 hit
+ * it: the first `pr-flow` pushed and opened PR #353, died at the merge on a roadmap
+ * conflict, and every subsequent `pr-flow` then died one step *earlier*, at create,
+ * leaving a green, receipted, mergeable branch unshipped until someone ran
+ * `gh pr merge <n> --squash` by hand. {@link openAndAutoMerge} consults this and
+ * merges the PR it finds instead of trying to open a second one.
+ *
+ * GitHub permits at most one open PR per head+base pair, so a match is unique and the
+ * first row is the row; `--base` scopes the query so a PR targeting some other base off
+ * the same branch is not mistaken for this delivery's.
+ *
+ * Fail-open, matching {@link checkRedundantDelivery}: a `gh` failure, unparseable
+ * stdout, or an unexpected row shape answers `null` after warning, which restores the
+ * pre-existing create-unconditionally behaviour. A best-effort lookup must never be the
+ * thing that blocks a first delivery.
+ *
+ * Not reusing `openPrExistsFor` (`src/autonomous/drain-io.ts`): that one is a synchronous
+ * `execFileSync` probe answering a boolean and throwing fail-closed for the drain's
+ * duplicate-spawn guard. This seam needs the PR's number and URL, an injected async
+ * {@link SpawnFn}, and the opposite failure posture.
+ */
+export async function findOpenPrForBranch(opts: {
+  branch: string;
+  base: string;
+  spawn: SpawnFn;
+}): Promise<ExistingOpenPr | null> {
+  const list = await opts.spawn('gh', [
+    'pr',
+    'list',
+    '--state',
+    'open',
+    '--head',
+    opts.branch,
+    '--base',
+    opts.base,
+    '--json',
+    'number,url',
+  ]);
+  if (list.exitCode !== 0) {
+    process.stderr.write(
+      `pr-flow: could not check for an existing open PR on ${opts.branch} ` +
+        `('gh pr list' exit ${list.exitCode}); proceeding to 'gh pr create'.\n`,
+    );
+    return null;
+  }
+  let rows: unknown;
+  try {
+    rows = JSON.parse(list.stdout);
+  } catch (err) {
+    process.stderr.write(
+      `pr-flow: could not parse 'gh pr list' output for ${opts.branch} ` +
+        `(${err instanceof Error ? err.message : String(err)}); proceeding to 'gh pr create'.\n`,
+    );
+    return null;
+  }
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const [first] = rows as Array<{ number?: unknown; url?: unknown }>;
+  if (typeof first?.number !== 'number' || typeof first.url !== 'string') {
+    process.stderr.write(
+      `pr-flow: 'gh pr list' returned an unexpected row shape for ${opts.branch}; ` +
+        `proceeding to 'gh pr create'.\n`,
+    );
+    return null;
+  }
+  return { prUrl: first.url, prNumber: first.number };
+}
+
+/**
+ * Bring an existing open PR's title and body up to date with what this delivery would
+ * have created. Best-effort by design: a stale body is cosmetic, while refusing to
+ * continue would reinstate the unshipped-mergeable-branch failure this path exists to
+ * remove — so an edit failure warns and the merge proceeds with whatever body the PR has.
+ */
+async function refreshExistingPr(opts: {
+  pr: ExistingOpenPr;
+  input: PrFlowInput;
+  spawn: SpawnFn;
+}): Promise<void> {
+  const edit = await opts.spawn('gh', [
+    'pr',
+    'edit',
+    opts.pr.prUrl,
+    '--title',
+    composeTitle(opts.input),
+    '--body',
+    composeBody(opts.input),
+  ]);
+  if (edit.exitCode !== 0) {
+    process.stderr.write(
+      `pr-flow: could not refresh PR #${opts.pr.prNumber} ('gh pr edit' exit ${edit.exitCode}); ` +
+        'merging it with its existing title and body.\n',
+    );
+    return;
+  }
+  process.stderr.write(`pr-flow: refreshed PR #${opts.pr.prNumber} title + body.\n`);
+}
+
+/** Open a new PR for the branch and read its number back off the URL gh prints. */
+async function createPr(input: PrFlowInput, spawn: SpawnFn): Promise<ExistingOpenPr> {
+  const create = await spawn('gh', [
+    'pr',
+    'create',
+    '--base',
+    input.base,
+    '--head',
+    input.branch,
+    '--title',
+    composeTitle(input),
+    '--body',
+    composeBody(input),
+  ]);
+  if (create.exitCode !== 0) {
+    throw new Error(`gh pr create failed: exit ${create.exitCode}; stdout: ${create.stdout}`);
+  }
+  const prUrl = create.stdout.trim();
+  const prMatch = prUrl.match(/\/pull\/(\d+)/);
+  if (!prMatch) {
+    throw new Error(`gh pr create returned unparseable URL: ${prUrl}`);
+  }
+  return { prUrl, prNumber: Number(prMatch[1]) };
+}
+
 export async function openAndAutoMerge(
   input: OpenAndAutoMergeInput,
 ): Promise<PrFlowResult | RedundantDelivery> {
@@ -780,27 +913,23 @@ export async function openAndAutoMerge(
     throw new Error(`git push failed for branch ${input.branch}: exit ${push.exitCode}`);
   }
 
-  const create = await input.spawn('gh', [
-    'pr',
-    'create',
-    '--base',
-    input.base,
-    '--head',
-    input.branch,
-    '--title',
-    composeTitle(input),
-    '--body',
-    composeBody(input),
-  ]);
-  if (create.exitCode !== 0) {
-    throw new Error(`gh pr create failed: exit ${create.exitCode}; stdout: ${create.stdout}`);
+  // Re-run safety at the PR seam: when the branch already carries an open PR, refresh it
+  // and fall through to the merge rather than running `gh pr create`, which would fail and
+  // strand a mergeable branch (see findOpenPrForBranch). The lookup runs after the push so
+  // the PR it finds describes the tree that was just delivered.
+  const existing = await findOpenPrForBranch({
+    branch: input.branch,
+    base: input.base,
+    spawn: input.spawn,
+  });
+  if (existing !== null) {
+    process.stderr.write(
+      `pr-flow: an open PR (#${existing.prNumber}) already exists for ${input.branch} — ` +
+        'reusing it instead of opening a second one.\n',
+    );
+    await refreshExistingPr({ pr: existing, input, spawn: input.spawn });
   }
-  const prUrl = create.stdout.trim();
-  const prMatch = prUrl.match(/\/pull\/(\d+)/);
-  if (!prMatch) {
-    throw new Error(`gh pr create returned unparseable URL: ${prUrl}`);
-  }
-  const prNumber = Number(prMatch[1]);
+  const { prUrl, prNumber } = existing ?? (await createPr(input, input.spawn));
 
   // Parallel drain (K>1): the child's job ends at PR-open. The supervisor's serialized merge
   // coordinator merges it (one at a time, rebased on the prior) — never merge here or two

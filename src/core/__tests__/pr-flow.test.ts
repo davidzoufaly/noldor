@@ -8,6 +8,7 @@ import {
   pollAutoMerge,
   openAndAutoMerge,
   checkRedundantDelivery,
+  findOpenPrForBranch,
   mergePrWithFallback,
   isLinkedWorktree,
   pollChecksBeforeMerge,
@@ -668,6 +669,11 @@ const shipInput: PrFlowInput = {
   },
 };
 
+/** `git push` → `git push`, but `gh pr list` → `gh pr list`: the `gh pr` subcommand is
+ *  what distinguishes a lookup from a create, so sequence assertions need it spelled out. */
+const stepLabel = (c: { cmd: string; args: string[] }): string =>
+  c.args[0] === 'pr' ? `${c.cmd} pr ${c.args[1]}` : `${c.cmd} ${c.args[0]}`;
+
 describe('openAndAutoMerge', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -688,6 +694,9 @@ describe('openAndAutoMerge', () => {
       // `+ ` ⇒ genuine new content ⇒ idempotency guard lets delivery proceed.
       if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ deadbeef\n', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
+      // No open PR on the branch yet ⇒ the delivery creates one.
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'list')
+        return { stdout: '[]', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/42', exitCode: 0 };
       }
@@ -706,15 +715,18 @@ describe('openAndAutoMerge', () => {
     expect(result.prUrl).toBe('https://github.com/davidzoufaly/acme/pull/42');
     expect(result.prNumber).toBe(42);
     expect(result.mergedAt).toBe('2026-05-15T10:01:00Z');
-    expect(calls.map((c) => `${c.cmd} ${c.args[0]}`)).toEqual([
+    // `gh pr` subcommands are spelled out: the existing-PR lookup must precede the
+    // create, or a re-run would fail at create with a PR already on the branch.
+    expect(calls.map(stepLabel)).toEqual([
       'gh --version',
       'gh auth',
       'git fetch',
       'git cherry',
       'git push',
-      'gh pr',
-      'gh pr',
-      'gh pr',
+      'gh pr list',
+      'gh pr create',
+      'gh pr merge',
+      'gh pr view',
     ]);
   });
 
@@ -729,6 +741,8 @@ describe('openAndAutoMerge', () => {
       if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ deadbeef\n', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'list')
+        return { stdout: '[]', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create')
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/7', exitCode: 0 };
       return { stdout: '', exitCode: 1 };
@@ -761,6 +775,8 @@ describe('openAndAutoMerge', () => {
       if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ deadbeef\n', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'list')
+        return { stdout: '[]', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/77', exitCode: 0 };
       }
@@ -806,6 +822,8 @@ describe('openAndAutoMerge', () => {
       if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ deadbeef\n', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'list')
+        return { stdout: '[]', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/88', exitCode: 0 };
       }
@@ -838,6 +856,8 @@ describe('openAndAutoMerge', () => {
       if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ deadbeef\n', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'list')
+        return { stdout: '[]', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/99', exitCode: 0 };
       }
@@ -893,6 +913,8 @@ describe('openAndAutoMerge', () => {
       if (cmd === 'git' && args[0] === 'cherry')
         return { stdout: '- 1111111\n+ 3333333\n', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'list')
+        return { stdout: '[]', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create')
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/50', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'merge')
@@ -920,6 +942,8 @@ describe('openAndAutoMerge', () => {
       // Fetch fails (e.g. offline) — guard must fail-open and let delivery proceed.
       if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 128 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'list')
+        return { stdout: '[]', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create')
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/51', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'merge')
@@ -936,6 +960,176 @@ describe('openAndAutoMerge', () => {
     expect(result.prNumber).toBe(51);
     // Fetch failed ⇒ `git cherry` is never attempted.
     expect(calls.some((c) => c.cmd === 'git' && c.args[0] === 'cherry')).toBe(false);
+  });
+
+  /**
+   * A fully green delivery whose branch ALREADY carries open PR #353 — the Q-0134
+   * state: the first `pr-flow` opened it and died at the merge. `gh pr create` and
+   * every other unscripted command answer exit 1 on purpose, so a case that falls
+   * through to create fails loudly instead of quietly opening a second PR.
+   */
+  const reuseSpawn = (opts: {
+    calls?: Array<{ cmd: string; args: string[] }>;
+    editExitCode?: number;
+  }): SpawnFn =>
+    vi.fn(async (cmd, args) => {
+      opts.calls?.push({ cmd, args });
+      if (cmd === 'gh' && args[0] === '--version')
+        return { stdout: 'gh version 2.50', exitCode: 0 };
+      if (cmd === 'gh' && args.join(' ') === 'auth status')
+        return { stdout: 'Logged in', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ deadbeef\n', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'list')
+        return {
+          stdout: JSON.stringify([
+            { number: 353, url: 'https://github.com/davidzoufaly/acme/pull/353' },
+          ]),
+          exitCode: 0,
+        };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'edit')
+        return { stdout: '', exitCode: opts.editExitCode ?? 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'merge')
+        return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'view')
+        return {
+          stdout: JSON.stringify({ mergedAt: '2026-08-20T09:00:00Z', state: 'MERGED' }),
+          exitCode: 0,
+        };
+      return { stdout: '', exitCode: 1 };
+    });
+
+  it('MERGES an existing open PR on a re-run instead of running `gh pr create`', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const result = await openAndAutoMerge({ ...shipInput, spawn: reuseSpawn({ calls }) });
+    if ('skipped' in result) throw new Error('expected delivery, got skip');
+    expect(result.prUrl).toBe('https://github.com/davidzoufaly/acme/pull/353');
+    expect(result.prNumber).toBe(353);
+    expect(result.mergedAt).toBe('2026-08-20T09:00:00Z');
+    // `gh pr edit` in place of `gh pr create`: the second run ships the branch rather
+    // than dying at create and stranding a green, receipted, mergeable branch.
+    expect(calls.map(stepLabel)).toEqual([
+      'gh --version',
+      'gh auth',
+      'git fetch',
+      'git cherry',
+      'git push',
+      'gh pr list',
+      'gh pr edit',
+      'gh pr merge',
+      'gh pr view',
+    ]);
+  });
+
+  it('refreshes the reused PR with the title + body this delivery would have created', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    await openAndAutoMerge({ ...shipInput, spawn: reuseSpawn({ calls }) });
+    const edit = calls.find((c) => c.cmd === 'gh' && c.args[1] === 'edit');
+    if (edit === undefined) throw new Error('expected a gh pr edit call');
+    expect(edit.args).toContain('https://github.com/davidzoufaly/acme/pull/353');
+    expect(edit.args[edit.args.indexOf('--title') + 1]).toBe(
+      'feat(scripts:test-feature): scaffold',
+    );
+    const body = edit.args[edit.args.indexOf('--body') + 1];
+    expect(body).toContain('Why — the scaffold was missing');
+    expect(body).toContain('How — a generator renders the template');
+    expect(body).toContain('What — src/scripts/scaffold.ts');
+  });
+
+  it('still merges the reused PR when `gh pr edit` fails (a stale body must not strand a ship)', async () => {
+    const result = await openAndAutoMerge({
+      ...shipInput,
+      spawn: reuseSpawn({ editExitCode: 1 }),
+    });
+    if ('skipped' in result) throw new Error('expected delivery, got skip');
+    expect(result.prNumber).toBe(353);
+    expect(result.mergedAt).toBe('2026-08-20T09:00:00Z');
+  });
+
+  it('openOnly: returns the reused PR without merging it', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const result = await openAndAutoMerge({
+      ...shipInput,
+      spawn: reuseSpawn({ calls }),
+      openOnly: true,
+    });
+    if ('skipped' in result) throw new Error('expected delivery, got skip');
+    expect(result.prNumber).toBe(353);
+    expect(result.mergedAt).toBeNull();
+    expect(calls.some((c) => c.cmd === 'gh' && c.args[1] === 'merge')).toBe(false);
+  });
+});
+
+describe('findOpenPrForBranch', () => {
+  it('answers the open PR gh reports for the head branch', async () => {
+    const spawn: SpawnFn = vi.fn(async () => ({
+      stdout: JSON.stringify([{ number: 353, url: 'https://github.com/x/y/pull/353' }]),
+      exitCode: 0,
+    }));
+    expect(await findOpenPrForBranch({ branch: 'fast/q-0166', base: 'main', spawn })).toEqual({
+      prUrl: 'https://github.com/x/y/pull/353',
+      prNumber: 353,
+    });
+  });
+
+  it('scopes the query to this head branch AND this base', async () => {
+    // The fake answers a PR only for the exact head+base pair; every other query is
+    // empty. So a lookup that dropped either scope would read back `null` here.
+    const spawn: SpawnFn = vi.fn(async (_cmd, args) => {
+      const scoped =
+        args.includes('--head') &&
+        args[args.indexOf('--head') + 1] === 'fast/q-0166' &&
+        args.includes('--base') &&
+        args[args.indexOf('--base') + 1] === 'release/1.9' &&
+        args.includes('--state') &&
+        args[args.indexOf('--state') + 1] === 'open';
+      return {
+        stdout: scoped
+          ? JSON.stringify([{ number: 7, url: 'https://github.com/x/y/pull/7' }])
+          : '[]',
+        exitCode: 0,
+      };
+    });
+    expect(
+      await findOpenPrForBranch({ branch: 'fast/q-0166', base: 'release/1.9', spawn }),
+    ).toEqual({ prUrl: 'https://github.com/x/y/pull/7', prNumber: 7 });
+    expect(
+      await findOpenPrForBranch({ branch: 'fast/other', base: 'release/1.9', spawn }),
+    ).toBeNull();
+    expect(await findOpenPrForBranch({ branch: 'fast/q-0166', base: 'main', spawn })).toBeNull();
+  });
+
+  it('answers null when the branch carries no open PR', async () => {
+    const spawn: SpawnFn = vi.fn(async () => ({ stdout: '[]\n', exitCode: 0 }));
+    expect(await findOpenPrForBranch({ branch: 'fast/q-0166', base: 'main', spawn })).toBeNull();
+  });
+
+  it('fail-open: answers null when gh exits non-zero, so a first delivery still creates', async () => {
+    const spawn: SpawnFn = vi.fn(async () => ({ stdout: '', exitCode: 4 }));
+    expect(await findOpenPrForBranch({ branch: 'fast/q-0166', base: 'main', spawn })).toBeNull();
+  });
+
+  it('fail-open: answers null on unparseable gh stdout', async () => {
+    const spawn: SpawnFn = vi.fn(async () => ({ stdout: 'not json', exitCode: 0 }));
+    expect(await findOpenPrForBranch({ branch: 'fast/q-0166', base: 'main', spawn })).toBeNull();
+  });
+
+  it('fail-open: answers null when the row lacks a numeric number or a string url', async () => {
+    const noUrl: SpawnFn = vi.fn(async () => ({
+      stdout: JSON.stringify([{ number: 353 }]),
+      exitCode: 0,
+    }));
+    expect(
+      await findOpenPrForBranch({ branch: 'fast/q-0166', base: 'main', spawn: noUrl }),
+    ).toBeNull();
+    const stringNumber: SpawnFn = vi.fn(async () => ({
+      stdout: JSON.stringify([{ number: '353', url: 'https://github.com/x/y/pull/353' }]),
+      exitCode: 0,
+    }));
+    expect(
+      await findOpenPrForBranch({ branch: 'fast/q-0166', base: 'main', spawn: stringNumber }),
+    ).toBeNull();
   });
 });
 

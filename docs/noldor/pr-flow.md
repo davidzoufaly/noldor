@@ -15,7 +15,7 @@ gate end-of-flow (any path)
   ├─ pnpm noldor pr-flow → openAndAutoMerge (src/core/pr-flow-cli.ts → pr-flow.ts):
   │    1. preflight: gh --version + gh auth status
   │    2. git push --force-with-lease --set-upstream origin <branch>
-  │    3. gh pr create --base main --head <branch> --title <…> --body <…>
+  │    3. gh pr list --state open --head <branch> --base main → reuse that PR (gh pr edit refreshes its title + body) OR gh pr create --base main --head <branch> --title <…> --body <…>
   │    4. gh pr merge <pr> --auto --squash
   │       └─ on failure (e.g. repo doesn't have auto-merge enabled): retry `gh pr merge --squash` synchronously (`--delete-branch` only outside a linked worktree), verify via `gh pr view --json mergedAt,state,headRefName`
   │    5. poll gh pr view --json mergedAt,state,mergeStateStatus until merged (10min timeout; 20min if BEHIND) — streams a throttled status line per cycle (Auto-merge: state=…, mergeStateStatus=…, elapsed=…s) to stderr; skipped on the fallback path because the synchronous merge has already completed
@@ -121,6 +121,21 @@ gh pr merge "$(gh pr view --json url --jq .url)" --auto --squash
 
 You lose the composed PR body (CR result table, scope block, spec/plan links) but the merge mechanics are identical. File the CLI regression as a follow-up against `framework-pr-flow-agent-auto-merge`. Do NOT skip the gate's review steps in the fallback path — the code-stage CR + receipt amend still run before this point.
 
+## Re-running a delivery (existing open PR)
+
+`gh pr create` refuses a head branch that already carries an open PR, so an unconditional create turned every *re-run* of a delivery into a hard failure at step 3 — precisely the state a re-run implies. Q-0134 (2026-08-20) is the recorded case: the first `pr-flow` pushed and opened PR #353, died at step 4 on a roadmap conflict, and every subsequent `pr-flow` then died one step *earlier*, leaving a green, receipted, mergeable branch unshipped until an operator ran `gh pr merge <n> --squash` by hand.
+
+Step 3 now looks first — `findOpenPrForBranch` ([`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)) runs `gh pr list --state open --head <branch> --base <base> --json number,url` immediately after the push:
+
+- **A PR exists** → `gh pr edit` refreshes its title and body with what this delivery would have composed, then the flow falls through to step 4 and merges it. The refresh is best-effort: an edit failure warns (`could not refresh PR #<n> ('gh pr edit' exit N); merging it with its existing title and body.`) and the merge proceeds, because a stale body must never be the thing that strands a mergeable branch.
+- **No PR exists** → `gh pr create`, exactly as before.
+
+`--base` scopes the query, so a PR opened off the same branch against a different base is not mistaken for this delivery's. GitHub permits at most one open PR per head+base pair, so a match is unique and the first row is the row.
+
+The lookup is **fail-open**, matching the idempotency guard beside it: a `gh` failure, unparseable stdout, or an unexpected row shape warns to stderr and proceeds to `gh pr create`, restoring the pre-existing behaviour. A best-effort lookup must never be the thing that blocks a *first* delivery.
+
+Either branch names itself on stderr (`an open PR (#N) already exists for <branch> — reusing it instead of opening a second one.`), so the operator can tell a reuse from a create without opening the PR.
+
 ## Auto-merge fallback
 
 `gh pr merge --auto` requires the repo to have auto-merge enabled (Settings → General → Pull Requests → "Allow auto-merge"). When it's disabled, the API returns `enablePullRequestAutoMerge` and the auto attempt exits non-zero. `openAndAutoMerge` handles this transparently:
@@ -141,7 +156,7 @@ The fallback prints `pr-flow: gh pr merge --auto failed; falling back to direct 
 | `Direct push to origin/main is blocked …`          | Pre-push hook rejected a non-release push.                                            | Ensure `/noldor-gate` end-of-flow is invoked; or set `NOLDOR_RELEASE_PUSH=1` if this IS a release push (`pnpm release` should set it automatically).               |
 | `GhPreflightError: gh CLI not installed`           | `gh` binary missing from PATH.                                                        | `brew install gh` then `gh auth login`.                                                                                                                     |
 | `GhPreflightError: gh CLI is unauthenticated`      | `gh auth status` returned non-zero.                                                   | `gh auth login`.                                                                                                                                            |
-| `gh pr create failed: exit N`                      | Network, 403 (scope), or pre-receive hook rejection on origin.                        | `gh auth status` to check scopes; check origin's pre-receive logs in repo settings → Hooks.                                                                 |
+| `gh pr create failed: exit N`                      | Network, 403 (scope), or pre-receive hook rejection on origin. **Not** the "a pull request for branch … already exists" case any more — step 3 detects an existing open PR and reuses it, see [Re-running a delivery](#re-running-a-delivery-existing-open-pr). | `gh auth status` to check scopes; check origin's pre-receive logs in repo settings → Hooks.                                                                 |
 | `direct merge fallback exit N; PR state is "OPEN"` | Both auto and direct merge failed — usually merge conflict or required-check failure. | Resolve via `gh pr view <pr-url>` — if `MERGEABLE: CONFLICTING`, rebase the worktree branch on `origin/main`; if checks are red, fix them and re-trigger.   |
 | `MergeTimeoutError`                                | Auto-merge didn't complete within 10min (or 20min if `BEHIND`).                       | `gh pr view <pr-url>` to check state. If `BEHIND` and base is moving fast: wait + manual merge. If `BLOCKED`: required checks failing — fix and re-trigger. |
 | `PrClosedWithoutMergeError`                        | Operator or external action closed the PR without merging.                            | Investigate via `gh pr view`. Re-open and re-invoke gate end-of-flow if appropriate.                                                                        |
