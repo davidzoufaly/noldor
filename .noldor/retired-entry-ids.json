@@ -316,5 +316,9 @@
   "Q-0167": {
     "slug": "stale-specs-detector-is-blind-to-attach-flow-orphan-specs",
     "retiredAt": "2026-09-07"
+  },
+  "Q-0198": {
+    "slug": "garden-skill-checklist-enumerates-a-fixed-section-list",
+    "retiredAt": "2026-09-07"
   }
 }
