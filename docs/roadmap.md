@@ -31,19 +31,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 - The ratchet also counts thin typed façades as duplication, and this one blocked a release sweep. On the 2026-08-30 sweep the whole-corpus ratchet redded at +112 tokens over the baseline PR #406 recorded, and the largest new group was `src/design/design-approval.ts:63-92` vs `src/design/ui-capture.ts:76-108` (82 tokens). Neither site holds copied logic: both are one-line delegations to the already-shared receipt store (`parseReceiptWith`, `writeReceiptFile`, `readReceiptFile`), each binding a *different* schema, dir-segment tuple and return type. The tokenizer skips comments but normalizes identifiers to `ID` for Type-2 matching, so two same-shaped one-line delegations match structurally. The rest of the delta was import blocks (`src/design/ledger.ts` vs `src/cr/orchestrate.ts`, `src/metrics/compute.ts`, `src/garden/garden-detect.ts`). Extracting is strictly worse here — one generic untyped wrapper, indirection added, zero logic shared. Two more candidate fixes on the same axis as the ones above: skip a group whose every span is a single `return <call>(…)` statement, and exclude leading import runs from the token stream. Rebaselined to 28844 by hand to unblock the sweep, which is now the second forced re-record on this entry — hence the move up the file. Deletion test: a file pair whose only overlap is imports plus a delegating one-liner produces no group. (found 2026-08-30, release sweep)
 
-### Oscillation Detector R3 Fires on Every Greenfield Finding
-
-- id: Q-0212
-- area: tooling
-- type: fix
-- since: 2026-09-06
-- size: S
-- impact: med
-- confidence: high
-- parent: cr-re-round-cap-enforcement-and-oscillation-detector
-
-R3 asks whether a blocker's line was introduced by the series under review, which is a real oscillation signal on a series that edits existing code and no signal at all on one that adds files. PR #437 drew nine R3 signals, every one of the form "blocker at `<file>:<line>` is about line N, which this series introduced" — on a greenfield feature *every* line is one the series introduced, so R3 fires on every finding and distinguishes nothing. Nine undifferentiated signals is worse than none: the operator has to read and dismiss each one, which trains the habit of skimming past R3 on the runs where it would have caught a genuine repair-the-last-repair loop. The predicate is asking the wrong question — what matters is not whether *the series* touched the line but whether a *prior round in the same series* did, since that is what oscillation means. Two candidate fixes: gate R3 on the file having existed at the series base sha (cheap, kills the greenfield case outright), or narrow the attribution window from the whole series to the rounds already recorded in the ledger (more precise, and the ledger is already the round counter's single writer). Deletion test: a CR round on a series that only adds new files emits zero R3 signals. (found 2026-09-06 shipping Q-0083 / PR #437)
-
 ### Main-Module Guard Fails on Percent-Encoded Paths
 
 - id: Q-0126
