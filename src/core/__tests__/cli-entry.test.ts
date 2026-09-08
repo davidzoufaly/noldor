@@ -32,13 +32,25 @@ describe('invokedDirectly', () => {
 // every row would pass for any encoder — the reverted `file://${argv[1]}`
 // template included, which is exactly the defect these rows exist to catch.
 describe('isEntrypoint', () => {
-  it('matches a path needing percent-encoding, which the file:// template did not', () => {
-    expect(isEntrypoint('file:///repo/my%20dir/m.ts', '/repo/my dir/m.ts')).toBe(true);
-    expect(isEntrypoint('file:///repo/a%23b/m.ts', '/repo/a#b/m.ts')).toBe(true);
-    expect(isEntrypoint('file:///repo/caf%C3%A9/m.ts', '/repo/café/m.ts')).toBe(true);
-  });
+  // The true-asserting rows below carry POSIX absolute literals. `pathToFileURL`
+  // resolves a rootless Windows path against the current drive, so on win32 the
+  // real answer is `file:///C:/repo/…` and the literal would be wrong for a
+  // reason that has nothing to do with this predicate. Skipping there keeps the
+  // expectations independent of the implementation's encoder, which is the whole
+  // point of the rows; the false-asserting rows need no guard, since a drive
+  // prefix only makes two different paths differ more.
+  const onPosix = process.platform !== 'win32';
 
-  it('matches a plain path, and one whose characters need no encoding', () => {
+  it.skipIf(!onPosix)(
+    'matches a path needing percent-encoding, which the file:// template did not',
+    () => {
+      expect(isEntrypoint('file:///repo/my%20dir/m.ts', '/repo/my dir/m.ts')).toBe(true);
+      expect(isEntrypoint('file:///repo/a%23b/m.ts', '/repo/a#b/m.ts')).toBe(true);
+      expect(isEntrypoint('file:///repo/caf%C3%A9/m.ts', '/repo/café/m.ts')).toBe(true);
+    },
+  );
+
+  it.skipIf(!onPosix)('matches a plain path, and one whose characters need no encoding', () => {
     expect(isEntrypoint('file:///repo/src/m.ts', '/repo/src/m.ts')).toBe(true);
     expect(isEntrypoint('file:///repo/a+b/m.ts', '/repo/a+b/m.ts')).toBe(true);
   });

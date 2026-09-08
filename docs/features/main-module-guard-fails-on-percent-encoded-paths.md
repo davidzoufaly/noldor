@@ -43,6 +43,7 @@ No new command surface — existing behaviour becomes correct where it was silen
 **Agent/Programmatic API**
 
 - `isEntrypoint(moduleUrl: string, argv1?: string): boolean` from `src/core/cli-entry.ts` — the direct-invocation guard every entrypoint under `src/` gates on. Write the tail as `if (isEntrypoint(import.meta.url)) { … }`; pass `argv1` only from tests, and pass `''` rather than `undefined` for the no-entrypoint case, since an explicit `undefined` selects the `process.argv[1]` default. Prefer it over the sibling `invokedDirectly(stem)`, which matches on basename and so cannot separate `release/index.ts` from `cli/index.ts`.
+- `invokedDirectly(stem)` **stays a sanctioned second spelling**, reached by 22 modules — 21 through `runIfDirect(stem, label, main)` and one calling it directly (`src/checks/check-invariants.ts`). Deliberately not swept: re-signing `runIfDirect` to take `import.meta.url` is a change at every one of those call sites, which is a different feature with a different risk profile, and no stem among them currently collides with a second same-named file under `src/` — so nothing is broken today. The cost is recorded rather than hidden: "one spelling" holds for the 42 sites that compared by hand, not for the whole repo, and Q-0221 inherits two sanctioned spellings to allow for rather than one.
 
 **CLI**
 
