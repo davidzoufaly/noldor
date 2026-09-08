@@ -115,14 +115,34 @@ match one of the two excluded declaration shapes. A match consumes and discards
 its tokens; a failure emits the tokens it inspected verbatim and ends the
 header, which never resumes.
 
-The two shapes are matched positionally, and both end at the **module
-specifier** — a `LIT` token — optionally followed by `;`:
+A **leading shebang is skipped before matching begins.** `src/clones/tokenize.ts`
+emits `#` and `!` as ordinary punctuation (`:308-310`), so a `#!/usr/bin/env …`
+first line otherwise fails the match at token one, ends the header immediately,
+and leaves the file's whole import block counted. That is not hypothetical:
+`src/graphify/graph-to-toon.ts:1` is exactly this file, with its imports at
+`:15-16`. Everything from a leading `#` to the first newline is dropped, the
+same way the existing comment handling drops a `//` run.
+
+The two shapes are then matched positionally, and both end at the **module
+specifier** — a `LIT` token — followed by an optional import-attributes clause
+and an optional `;`:
 
 - **Static import** — `import`, an optional `type`, then either a bare `LIT`
   (side-effect import), or a clause (`*` `as` ID | `{` … `}` | ID, optionally
   `,` then one of those) followed by `from` and a `LIT`.
 - **Re-export** — `export`, an optional `type`, then `*` (optionally `as` ID)
   or `{` … `}`, followed by `from` and a `LIT`.
+- **Attributes tail (both shapes)** — after the `LIT`, an optional
+  `with` `{` … `}` (also the legacy `assert` `{` … `}`), consumed as part of
+  the declaration.
+
+Consuming the attributes tail is required, not thoroughness. Terminating at the
+`LIT` alone *succeeds* on `import data from './data.json' with { type: 'json' }`
+and discards the declaration, leaving the orphan `with { type: 'json' }` tokens
+at the next statement start; those fail the match, get emitted, and **end the
+header** — so every later import in that file silently stops being excluded.
+The failure is not that the attribute tokens are counted, it is that the header
+closes early and the rest of the block is counted too.
 
 **The module specifier is the terminator, so no statement-boundary rule is
 needed at all.** This is what makes the unit implementable in a scanner rather
@@ -168,49 +188,74 @@ statement that is not a delegation. A span is *pure delegation* when **both**
 of these hold:
 
 - it contains **no disqualifying keyword** — none of `if`, `for`, `while`,
-  `switch`, `try`, `const`, `let`, `var`, `interface`, `type`, `enum`, `class`
-  — and
-- it contains **at least one `return` not immediately followed by `:`**.
+  `switch`, `try`, `const`, `let`, or `var` — and
+- it contains **at least one real return statement**, per the token test below.
 
 That is the signature-plus-`return <call>(…)` shape of a thin typed façade. A
 class whose every span is pure delegation is dropped; a class with even one
 span failing the predicate is kept in full, at full weight.
 
-**The positive `return` requirement is load-bearing**, and stating the
-predicate as an absence alone would be a defect rather than a shorthand: a span
-with *no* keyword at all vacuously satisfies "none of the above". A copied
-object-literal body, or a match landing mid-declaration so its `const` falls
-outside the span, carries no keyword whatsoever and would be classified as
-delegation and silently dropped — a genuinely copied declaration disappearing
-from the report, which contradicts the Goals outright, and the `minTokens: 50`
-floor does not protect against it. Requiring a `return` also keeps a copied
-sequence of side-effect calls or property assignments reported, since such a
-span has neither a `return` nor another keyword.
+**The positive requirement is load-bearing**, and stating the predicate as an
+absence alone would be a defect rather than a shorthand: a span with *no*
+keyword at all vacuously satisfies "none of the above". A copied
+object-literal body, a copied `interface` or `enum`, or a match landing
+mid-declaration so its `const` falls outside the span, carries no keyword
+whatsoever and would be classified as delegation and silently dropped — a
+genuinely copied declaration disappearing from the report, which contradicts
+the Goals outright, and the `minTokens: 50` floor does not protect against it.
+The positive requirement also keeps a copied sequence of side-effect calls or
+property assignments reported, since such a span has neither a return statement
+nor another keyword.
 
-**The declaration keywords do the work `return`-position analysis cannot.**
-`return` is a legal member name in TypeScript, so `interface I { return(v: T): T }`
-puts a `return` in what looks like statement position — preceded by `{`,
-followed by `(` — and no test on its neighbours separates it from the legal
-return statement `return (foo)`. Rather than adjudicate that, the predicate
-disqualifies the *container*: `interface`, `type`, `enum` and `class` are all
-already in `KEYWORDS` (`src/clones/tokenize.ts:24-88`), so a copied declaration
-of any of those four is kept because it says so in its own tokens. Only the
-`return:` **property** case needs a neighbour test, and one suffices — a
-following `:` — because a property key is always followed by its colon.
+**A real return statement is identified by three local token tests, not by its
+container.** `return` is a legal member name and a legal property key in
+TypeScript, so the token alone proves nothing. A `return` counts only when all
+three hold:
 
-`function` and `export` are deliberately **not** disqualifying. The measured
-façade group (`src/design/design-approval.ts:63-92`) is a run of
-`export function … { return … }`, so disqualifying either keyword would empty
-Unit 2 of its only real subject. The four that are disqualifying are the ones
-that cannot appear in a delegation body.
+1. The preceding token is not `.` — excludes a method call such as
+   `iterator.return()`.
+2. The following token is not `:` — excludes an object-literal or type-member
+   property key such as `{ return: 1 }`.
+3. If the following token *is* `(`, the token after that parenthesis group's
+   matching `)` is not `:` — excludes a method signature such as
+   `return(v: T): T`, while keeping the legal statements `return (foo)` and
+   `return (a, b)`, whose `)` is followed by `;` or the span's end.
+
+All three are **local to the `return` token**, which is the property that
+matters here. Clone spans are raw token-index ranges produced by window
+matching and greedy extension (`src/clones/detect.ts:271-274`) with no
+declaration alignment, so a copied `interface I { … }` frequently matches from
+*inside* the braces — the `interface` keyword falls outside the span entirely.
+Any guard that disqualified the container would therefore not fire on exactly
+the spans that need it, whereas test 3 examines the `return(v: T): T` member
+itself and fires wherever the span happens to start.
+
+For the same reason `interface`, `type`, `enum` and `class` are **not** in the
+disqualifying keyword list. Beyond being unsound mid-span, `type` and `class`
+are ordinary object-literal property keys (`{ type: 'json' }`, `{ class: 'btn' }`)
+that this scanner keeps verbatim in `norm` because both are in `KEYWORDS`
+(`src/clones/tokenize.ts:24-88`) — so including them would disqualify genuine
+delegation bodies that forward such a literal, costing recall to buy a guard
+that test 3 already provides.
+
+`function` and `export` are likewise not disqualifying: the measured façade
+group (`src/design/design-approval.ts:63-92`) is a run of
+`export function … { return … }`, so either would empty Unit 2 of its only real
+subject.
 
 Everything here is computable from the normalized stream with no source
-re-read: every keyword named stays verbatim in `norm` rather than folding to
-`ID`, and `:` is single-character punctuation the scanner keeps as-is
-(`src/clones/tokenize.ts:308-310`). No preceding-token test is used, so the
-predicate is unaffected by whether the source carries semicolons — a
+re-read: the keywords stay verbatim in `norm`, and `.`, `:`, `(` and `)` are
+single-character punctuation the scanner keeps as-is
+(`src/clones/tokenize.ts:308-310`). No test depends on a preceding `{` or `;`,
+so the predicate is unaffected by whether the source carries semicolons — a
 `semi: false` delegation body reading `doThing()` newline `return g(a)` matches
 exactly like its semicolon-terminated form.
+
+**The 1.7% figure is a pre-implementation measurement and is expected to move.**
+It was taken with a coarser predicate than the one specified here; the eight
+measured groups must be re-checked against the final predicate during
+implementation, and criterion 14 asserts only that `duplicatedTokens` falls,
+not by how much.
 
 The filter is a class-level pass in `detectClones`, placed after the step-10
 coarser-family dedup and **before** the coverage math at
@@ -284,7 +329,7 @@ do nothing at all, with no compiler diagnostic and no visible symptom — the
 number would simply look like an improvement. So `compareToBaseline` must
 construct `now` as `{ ...opts, includeTests, noisePolicy: CURRENT_NOISE_POLICY }`,
 and `buildBaseline` (`src/clones/baseline.ts:66-84`) must stamp the same
-constant into the options block it writes. Criterion 12 exists to pin exactly
+constant into the options block it writes. Criterion 13 exists to pin exactly
 this: a legacy baseline must come back `stale`, and a test that only checks
 "parses without error" would pass while the bug is live.
 
@@ -307,7 +352,7 @@ and this is a settled fact about shipped behavior.
 
 ## Acceptance criteria
 
-Fixture files for criteria 1-11 must clear both detection floors
+Fixture files for criteria 1-12 must clear both detection floors
 (`minTokens: 50`, `minLines: 5`), or the assertion passes for the wrong reason.
 
 1. A file pair whose only structural overlap is a head-of-file import block
@@ -323,30 +368,39 @@ Fixture files for criteria 1-11 must clear both detection floors
    and a semicolon-free final import with no trailing newline all yield the
    same non-import token count as the single-line semicolon-terminated
    equivalent, and a copied body following such an import is still reported.
-6. A truncated import that never reaches its module specifier is emitted, not
+6. A file opening with a `#!/usr/bin/env …` line has its import block excluded
+   exactly as the same file without the shebang does — pinned against
+   `src/graphify/graph-to-toon.ts`, the one such file in the corpus.
+7. An import carrying an attributes clause (`with { type: 'json' }`) is
+   excluded whole, and a *second* import later in the same file is still
+   excluded — the header does not close on the attribute tokens.
+8. A truncated import that never reaches its module specifier is emitted, not
    discarded, so `totalTokens` never collapses on malformed input.
-7. `export const from = startOfDay(x)` in header position is emitted at full
+9. `export const from = startOfDay(x)` in header position is emitted at full
    token weight and ends the header, so the statement following it is counted
    too.
-8. A top-level `import('./x.js')` call and a top-level `import.meta.url`
-   reference each contribute their full token weight, as does an `import()`
-   inside a function body.
-9. A copied `interface` is still reported, including one whose only member is a
-   `return(v: T): T` method; the same holds for a copied `type` alias, `enum`
-   and `class`.
-10. A copied object-literal body carrying a `return:` property is still
-    reported, as is a copied sequence of side-effect calls or property
-    assignments with no `return` at all.
-11. A class in which one span carries control flow and another is pure
-    delegation is still reported, at full weight; and a `semi: false`
-    delegation body is dropped exactly as its semicolon-terminated form is.
-12. A baseline whose `options` omits `noisePolicy` parses successfully and
+10. A top-level `import('./x.js')` call and a top-level `import.meta.url`
+    reference each contribute their full token weight, as does an `import()`
+    inside a function body.
+11. The delegation predicate does not over-fire. Each of these is still
+    reported: a copied `interface` whose only member is `return(v: T): T`
+    **with the span beginning after the `interface` keyword** (so the case
+    does not rely on the container being in-span); a copied object-literal
+    body carrying a `return:` property; a span whose only `return` is an
+    `iterator.return()` call; a copied sequence of side-effect calls with no
+    `return`; and a class in which one span carries control flow while
+    another is pure delegation.
+12. The delegation predicate does not under-fire. A span returning
+    `return (foo)` or `return (a, b)` is still recognised as delegation, and
+    a `semi: false` delegation body is dropped exactly as its
+    semicolon-terminated form is.
+13. A baseline whose `options` omits `noisePolicy` parses successfully and
     `compareToBaseline` returns `stale` — not `unreadable`, and not green —
     even when `duplicatedTokens` fell, and its message renders
     `noise-policy 0`.
-13. `duplicatedTokens` after the change is lower than before on the repo's own
+14. `duplicatedTokens` after the change is lower than before on the repo's own
     corpus, and `perFile` still sums exactly to `duplicatedTokens`.
-14. `pnpm noldor clones check` exits 0 against the re-recorded baseline at the
+15. `pnpm noldor clones check` exits 0 against the re-recorded baseline at the
     shipping commit, and adding a case to a table-driven test file does not
     change `duplicatedTokens`.
 
@@ -374,6 +428,25 @@ identical pasted import block stop being reported. Accepted: a copied import
 block is not a refactoring target, and the header restriction bounds the blast
 radius to exactly the region where that holds.
 
+**Unit 1 recognises an enumerated grammar, so an unlisted import form ends the
+header early.** `tokenize` is a scanner by design
+(`src/clones/tokenize.ts:1-11`), and the forward match enumerates the static
+import and re-export shapes explicitly. A future syntax the enumeration does
+not cover fails the match, is emitted, and — because a failure is also what
+ends the header — stops the remaining imports in that file from being excluded
+too. So the residual failure mode is a ratchet number that is too high, never
+one that is too low: the match is positional and bounded by the module
+specifier plus its attributes tail, so it cannot discard a statement that is
+not one of the enumerated shapes, and it cannot run past the declaration it is
+matching.
+
+That asymmetry is the reason the shebang and import-attribute cases are handled
+in the unit rather than accepted as gaps. Both looked like "a few extra tokens
+counted" and were in fact "the header ends at line 1" and "every import after
+the first attributed one is counted" — a single unhandled form disables the
+exclusion for a whole file, so the cost of a missed form scales with the file,
+not with the form.
+
 **Unit 2's predicate is syntactic, not semantic.** A span whose only statements
 are `return`s but which does real work inside its call arguments — a nested
 ternary, a long expression — reads as pure delegation and is dropped. The
@@ -381,22 +454,6 @@ ternary, a long expression — reads as pure delegation and is dropped. The
 mostly signature) but not impossible. The positive-`return` requirement bounds
 the class: a keyword-free span can no longer qualify, so the residual risk is
 confined to spans that genuinely do return something.
-
-**Unit 1 recognises a grammar, so an unlisted import form is missed rather
-than mishandled.** `tokenize` is a scanner by design
-(`src/clones/tokenize.ts:1-11`), and the forward match enumerates the static
-import and re-export shapes explicitly. A form the enumeration does not cover —
-an import attribute clause (`with { type: 'json' }`), some future syntax — fails
-the match and is emitted, so its tokens keep counting and the header ends
-early. That is a missed exclusion, visible as a ratchet number that is slightly
-too high, and it is the only residual failure the unit has: because the match
-is positional and bounded by the module specifier, it cannot discard a
-statement that is not one of the two shapes, and it cannot run past the
-statement it is matching.
-
-Import attributes are the known gap and are deliberately out of scope: the repo
-uses none, and adding the clause to the match is a one-line extension if a
-consumer ever needs it.
 
 **The two units are independently sized.** Unit 1 is 8.2% of the number,
 Unit 2 is 1.7%. They ship together because they share one test fixture and one
@@ -445,19 +502,22 @@ pnpm noldor clones check      # green
    reason to turn off. The options block already makes the boundary auditable.
 
 4. *What positively identifies a delegation span?*
-   -> **No `if`/`for`/`while`/`switch`/`try`/`const`/`let`/`var`/`interface`/
-   `type`/`enum`/`class`, plus at least one `return` not followed by `:`.**
-   (D4) An absence-only rule is vacuously satisfied by a keyword-free span, so
-   a copied object-literal body or a match landing mid-declaration would be
-   dropped; the positive `return` closes that. The mirror hole — `return` is a
-   legal TS member name, and `interface I { return(v: T): T }` sits in what
-   looks exactly like statement position — is closed by disqualifying the four
-   declaration keywords rather than by analysing the `return`'s neighbours,
-   because no neighbour test separates that member from the legal statement
-   `return (foo)`. `function` and `export` are not disqualifying: the measured
-   façade run is `export function … { return … }`, so either would empty the
-   unit. A single following-`:` test then covers the `return:` property case,
-   since a property key always carries its colon.
+   -> **No `if`/`for`/`while`/`switch`/`try`/`const`/`let`/`var`, plus at
+   least one `return` passing three local tests: not preceded by `.`, not
+   followed by `:`, and — when followed by `(` — that group's matching `)` not
+   followed by `:`.** (D4) An absence-only rule is vacuously satisfied by a
+   keyword-free span, so a copied object-literal body or a match landing
+   mid-declaration would be dropped; the positive requirement closes that. The
+   three tests then separate a return statement from `return` as a member name
+   or property key. They are deliberately local: spans are raw token ranges
+   with no declaration alignment (`src/clones/detect.ts:271-274`), so a copied
+   `interface` routinely matches from inside its braces and a
+   container-keyword guard would not fire on the spans that need it. That is
+   also why `interface`/`type`/`enum`/`class` are *not* disqualifying — and
+   `type` and `class` are ordinary property keys this scanner keeps verbatim,
+   so listing them would drop real delegations. `function` and `export` are
+   not disqualifying either: the measured façade run is
+   `export function … { return … }`.
 
 5. *How does Unit 1 know where an excluded import ends?*
    -> **It does not need to: the match is a bounded forward match on the import
@@ -471,7 +531,11 @@ pnpm noldor clones check      # green
    `import('./x.js')`, `import.meta.url` and `export const from = …` counted —
    the first two fail at their second token, the third at `const`. A search for
    a depth-0 `from` would have discarded that last one, since `from` is a
-   keyword in this scanner (`src/clones/tokenize.ts:49`).
+   keyword in this scanner (`src/clones/tokenize.ts:49`). Two forms must be
+   handled inside the match rather than left to fail, because a failure also
+   ends the header and so costs the whole file's remaining imports: a leading
+   shebang (skipped before matching) and an import-attributes tail
+   (`with { … }`, consumed after the specifier).
 
 6. *What exactly is persisted in the baseline options?*
    -> **`noisePolicy`, `z.number().int().nonnegative().optional()`, value `1`
