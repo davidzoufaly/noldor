@@ -251,11 +251,11 @@ so the predicate is unaffected by whether the source carries semicolons — a
 `semi: false` delegation body reading `doThing()` newline `return g(a)` matches
 exactly like its semicolon-terminated form.
 
-**The 1.7% figure is a pre-implementation measurement and is expected to move.**
-It was taken with a coarser predicate than the one specified here; the eight
-measured groups must be re-checked against the final predicate during
-implementation, and criterion 14 asserts only that `duplicatedTokens` falls,
-not by how much.
+**The per-axis figures were pre-implementation estimates.** They were taken
+with coarser predicates than the ones specified here, so criterion 14 asserts
+only that `duplicatedTokens` falls, not by how much. Measured after
+implementation, the two units together take the corpus from 28841 duplicated
+tokens across 289 groups to 25796 across 233 — 3045 tokens and 56 groups.
 
 The filter is a class-level pass in `detectClones`, placed after the step-10
 coarser-family dedup and **before** the coverage math at
@@ -335,11 +335,11 @@ this: a legacy baseline must come back `stale`, and a test that only checks
 
 ### Unit 4 — re-record the baseline in the shipping commit
 
-The change removes roughly 2880 duplicated tokens on the current corpus
-(2377 + 503, less any overlap where a span is both import-dominated and
-delegation-only). A decrease is green with a "lock the improvement in" hint, so
-nothing forces a re-record — which is exactly how ~2880 tokens of silent slack
-would survive into the next change. The shipping commit re-records
+The change removes 3045 duplicated tokens on the current corpus, taking the
+recorded number from 28841 to 25796 and the group count from 289 to 233. A
+decrease is green with a "lock the improvement in" hint, so nothing forces a
+re-record — which is exactly how 3045 tokens of silent slack would survive into
+the next change. The shipping commit re-records
 `.noldor/clones-baseline.json`.
 
 ### Unit 5 — correct the record on test scaffolds
@@ -407,7 +407,7 @@ Fixture files for criteria 1-12 must clear both detection floors
 ## Risks / trade-offs
 
 **Suppression and improvement look identical in the number.** The ratchet
-records one integer, so a 2880-token drop means "the policy changed", not
+records one integer, so the 3045-token drop means "the policy changed", not
 "someone deleted a clone", and only the commit distinguishes them. The `stale`
 verdict plus the recorded policy field is the mitigation: the number is
 explicitly marked incomparable across the boundary rather than quietly
@@ -415,8 +415,9 @@ improved.
 
 **`totalTokens` moves too, so `duplicationPct` shifts.** Unit 1 removes tokens
 from the denominator as well as the numerator, and the two do not move
-proportionally, so the reported percentage changes by an amount this spec does
-not predict. That matters only for `clones.thresholdPct`, an independent
+proportionally. Measured on this corpus the ratio falls, 8.48% to 7.92%
+(`totalTokens` 340064 to 325874), but the direction is a property of the corpus
+rather than of the change. That matters only for `clones.thresholdPct`, an independent
 verdict from the ratchet — unset in this repo, so permanently green here, but a
 consumer running close to its threshold could flip in either direction on
 upgrade. The `stale` verdict does not cover this: `thresholdPct` compares
@@ -559,5 +560,5 @@ pnpm noldor clones check      # green
 8. *Does the shipping commit re-record the baseline, or is that left to the
    operator?*
    -> **The shipping commit re-records it.** (D8) A decrease is green, so
-   nothing forces the re-record — which is exactly how ~2880 tokens of silent
+   nothing forces the re-record — which is exactly how 3045 tokens of silent
    slack would survive into the next change.

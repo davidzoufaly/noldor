@@ -69,6 +69,80 @@ interface Stream {
 const overlaps = (aS: number, aE: number, bS: number, bE: number): boolean => aS <= bE && bS <= aE;
 
 /**
+ * Statement keywords whose presence proves a span holds more than a
+ * delegation. Deliberately only control flow and bindings.
+ *
+ * `interface` / `type` / `enum` / `class` are NOT here even though a copied
+ * declaration of one must survive: spans are raw token ranges with no
+ * declaration alignment (see `toInstance` below), so a copied `interface`
+ * routinely matches from inside its braces and the keyword falls outside the
+ * span — a container guard would not fire on exactly the spans needing it.
+ * {@link isReturnStatement} covers that case instead. `type` and `class` are
+ * also ordinary object-literal keys the scanner keeps verbatim, so listing
+ * them would disqualify genuine delegations that forward such a literal.
+ *
+ * `function` and `export` are likewise absent: the façade runs this filter
+ * exists for are `export function … { return … }`.
+ */
+const NON_DELEGATION_KEYWORDS = new Set([
+  'if',
+  'for',
+  'while',
+  'switch',
+  'try',
+  'const',
+  'let',
+  'var',
+]);
+
+/**
+ * Whether the `return` token at `r` is a return statement rather than a
+ * member name or property key. `return` is legal as both in TypeScript, so
+ * the token alone proves nothing.
+ *
+ * Every test is local to the token, which is what makes the predicate
+ * independent of where a span happens to begin.
+ */
+const isReturnStatement = (toks: readonly Token[], r: number): boolean => {
+  // `iterator.return()` — a method call, not a statement.
+  if (r > 0 && toks[r - 1]!.norm === '.') return false;
+  const next = toks[r + 1]?.norm;
+  // `{ return: 1 }` — a property key always carries its colon.
+  if (next === ':') return false;
+  if (next !== '(') return true;
+  // `return(v: T): T` — a method signature. The legal statements
+  // `return (foo)` and `return (a, b)` close on `;`, `}` or the stream end.
+  let depth = 0;
+  for (let j = r + 1; j < toks.length; j++) {
+    const norm = toks[j]!.norm;
+    if (norm === '(') depth++;
+    else if (norm === ')' && --depth === 0) return toks[j + 1]?.norm !== ':';
+  }
+  return false; // unbalanced: keep the class rather than guess
+};
+
+/**
+ * Whether the token range `[s, e]` of `toks` is pure delegation — the
+ * signature-plus-`return <call>(…)` shape of a thin typed façade.
+ *
+ * A run of such façades matches structurally under Type-2 normalization
+ * (identifiers fold to `ID`) even though each binds a different schema and
+ * return type, and extracting a shared wrapper would add indirection while
+ * sharing no logic. The positive return requirement is load-bearing: an
+ * absence-only rule is vacuously satisfied by a keyword-free span, which would
+ * silently drop a copied object literal or a match landing mid-declaration.
+ */
+const isPureDelegation = (toks: readonly Token[], s: number, e: number): boolean => {
+  let sawReturn = false;
+  for (let j = s; j <= e; j++) {
+    const norm = toks[j]!.norm;
+    if (NON_DELEGATION_KEYWORDS.has(norm)) return false;
+    if (norm === 'return' && !sawReturn && isReturnStatement(toks, j)) sawReturn = true;
+  }
+  return sawReturn;
+};
+
+/**
  * Detect Type-1/2 clones (Type-3 approximated via gap-merge) across `files`
  * (path → source). Pipeline per the design spec: window hash → verify →
  * seed-disjointness guard → greedy extension → post-extension disjointness
@@ -435,9 +509,25 @@ export function detectClones(
     }
   }
 
+  // 11. Delegation filter: drop a class whose EVERY span is pure delegation.
+  // One span holding real control flow keeps the class at full weight. Runs
+  // here, before the coverage math, because duplicatedTokens / perFile /
+  // duplicationPct are all computed from surviving spans — filtering after
+  // would report fewer groups while still charging their tokens to the
+  // ratchet. Clearing members+spans is how steps 9 and 10 drop a class too, so
+  // one mechanism removes it from both the coverage map and the group list.
+  for (const c of live) {
+    if (c.members.size === 0) continue;
+    const spans = [...c.spans.values()];
+    if (spans.every((r) => isPureDelegation(streamByFile.get(r.file)!.tokens, r.s, r.e))) {
+      c.members.clear();
+      c.spans.clear();
+    }
+  }
+
   // Coverage-deduped duplication math — computed from SURVIVING class spans
-  // (after the step-9/10 family collapses), so duplicationPct never counts
-  // tokens that no reported group covers.
+  // (after the step-9/10 family collapses and the step-11 delegation filter),
+  // so duplicationPct never counts tokens that no reported group covers.
   const coverage = new Map<string, Array<[number, number]>>();
   for (const c of classes) {
     if (c.members.size === 0) continue;

@@ -34,6 +34,8 @@ introduced: 1.0.0
 
 Token/AST-based Type-1/2/3 clone detection (copy-paste dups, à la `jscpd`). Deterministic corpus over `scanPaths`, no LLM. Surface duplicate blocks as a new signal in `sdd-report` + feed `/refactor`; optional CR-gate block above a configurable clone threshold. Fits the "deterministic detector + optional LLM triage" pattern (same shape as detector-5 idea-merge). Distinct from existing pieces: `/refactor` finds consolidation opportunities from god-nodes/cohesion but doesn't do line/token clone matching; `graphify` AST graph has structural similarity signal but no clone report. Semantic (Type-4) clones out of scope — that's the embeddings-infra entry.
 
+Test files have never been in the corpus: `walkCodeFiles` skips `*.test.*`, `*.spec.*` and `__tests__/` unless `includeTests` is set, that flag defaults to `false`, and the pre-push job runs `clones check` without `--include-tests`. Adding a case to a table-driven test file therefore cannot move the ratchet — recorded here because the opposite was reported and filed as a defect (Q-0214) before being measured.
+
 ## User Story
 
 As a framework maintainer, I want a deterministic token-based clone report over the configured source roots, so that copy-paste duplication surfaces in sdd-report and refactor sessions target real duplicate blocks instead of guessing from file sizes.
