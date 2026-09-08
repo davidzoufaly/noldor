@@ -178,7 +178,7 @@ If the ff-only fails — **most likely cause is a concurrent PR merging to `orig
    pnpm noldor garden receipt
    ```
 
-   `--preflight --fix` re-stamps only when `pnpm noldor garden detect` comes back clean (`restampGardenReceipt`, [`src/release/preflight-fix.ts`](../../../src/release/preflight-fix.ts)), and this repo permanently carries a large standing findings count (~190 at v1.9.0), so that path never fires here. The receipt must postdate the newest commit or the `garden-receipt` row reads stale — which is why this comes *after* step 8's merge and fast-forward, not before.
+   `--preflight --fix` re-stamps only when `pnpm noldor garden detect` comes back clean — `fixGardenReceipt` in [`src/release/preflight-fix.ts`](../../../src/release/preflight-fix.ts) delegates to `autoStampOnCleanDetect` in [`src/release/auto-restamp.ts`](../../../src/release/auto-restamp.ts) — and this repo carries a standing set of gating findings, so that path never fires here. "Clean" is narrower than the report's headline total: only the categories in `FINDING_CATEGORIES` ([`src/garden/garden-detect-runner.ts`](../../../src/garden/garden-detect-runner.ts)) plus a `WARN`-severity `overrideAudit` gate the stamp. On 2026-09-08 that gating count was **14** (`sddGaps` 13 + `invariantViolations` 1), against a far larger overall finding count — so do not read a big headline number as the thing to clear. The receipt must postdate the newest commit or the `garden-receipt` row reads stale — which is why this comes *after* step 8's merge and fast-forward, not before.
 
 2. **Clear the session marker now** — not at step 10:
 
