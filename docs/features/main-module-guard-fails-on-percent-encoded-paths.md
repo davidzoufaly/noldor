@@ -4,16 +4,20 @@ category: Tooling
 deps: []
 entry-id: Q-0126
 links:
-  code: []
-  tests: []
+  code:
+    - src/core/cli-entry.ts
+    - src/invariants/entrypoint-guard-choke-point.ts
+  tests:
+    - src/core/__tests__/cli-entry.test.ts
+    - src/core/__tests__/entrypoint-guard-spaced-path.test.ts
+    - src/invariants/__tests__/entrypoint-guard-choke-point.test.ts
 name: Main-Module Guard Fails on Percent-Encoded Paths
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-08-14T00:00:00.000Z
 noldor-tier: specs-only
 ---
-
 ## Summary
 
 35 module entrypoints gate their CLI body by comparing `import.meta.url` against a hand-built string of `file://` concatenated with `process.argv[1]`. That comparison is false whenever the repository path needs percent-encoding — one space in a directory name is enough — so the module exits 0 having run nothing, with no diagnostic. For the hook and validator entrypoints among them, that is a silently disabled gate: the framework reports success precisely when it checked nothing. `src/cli/index.ts` and `src/hooks/noldor-pre-push.ts` already use the correct `pathToFileURL(process.argv[1] ?? '').href` form; sweep every remaining site to it.
@@ -27,17 +31,26 @@ noldor-tier: specs-only
 
 ## Diagram
 
-<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
-     two beside it for readers that do not render mermaid. No shape worth drawing?
-     Replace this comment with: noldor:cut <reason> -->
+noldor:cut 42 leaf call sites delegating to one four-line predicate is a fan-in, not a structure; the count is the only fact a diagram would carry and it is already in the Summary.
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an agent or operator running Noldor from a checkout whose path contains a space, I want every CLI entrypoint, hook, and validator to execute its body, so that a green gate means the gate actually ran rather than that it silently did nothing.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+No new command surface — existing behaviour becomes correct where it was silently absent.
+
+**Agent/Programmatic API**
+
+- `isEntrypoint(moduleUrl: string, argv1?: string): boolean` from `src/core/cli-entry.ts` — the direct-invocation guard every entrypoint under `src/` gates on. Write the tail as `if (isEntrypoint(import.meta.url)) { … }`; pass `argv1` only from tests, and pass `''` rather than `undefined` for the no-entrypoint case, since an explicit `undefined` selects the `process.argv[1]` default. Prefer it over the sibling `invokedDirectly(stem)`, which matches on basename and so cannot separate `release/index.ts` from `cli/index.ts`.
+- `scanSource(relPath, text)` from `src/invariants/entrypoint-guard-choke-point.ts` — the blocking scan, exported so its two failure directions can be tabled directly.
+
+**CLI**
+
+1. `pnpm noldor <any routed command>` from a checkout whose path needs percent-encoding (`~/code/my repo/`) runs the dispatched module's body, instead of exiting 0 having done nothing.
+2. The commit and push hooks — `noldor-pre-commit`, `noldor-validate-trailer`, `noldor-enforce-review-receipt`, `noldor-enforce-arbitration`, `noldor-pre-edit-guard` — enforce on such a checkout rather than passing vacuously.
+3. `pnpm noldor checks invariants` gains an `entrypoint-guard-choke-point` row that exits non-zero when any file under `src/` compares `import.meta.url` outside `src/core/cli-entry.ts` (test trees exempt).
 
 ## PRs
 
