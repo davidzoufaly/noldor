@@ -28,17 +28,20 @@ export type SourceScan = (relPath: string, text: string) => InvariantViolation[]
  *
  * It also clears the rule's own bar for reason 1, hiding complexity a caller
  * should not see. Scanning a source tree means a recursive walk, an extension
- * filter, and reads whose concurrency is a real choice — this version issues
- * them together, where both copies awaited in sequence. A caller is now its
- * identity plus its per-file predicate, which is exactly the argument
- * {@link defineInvariant} already won one layer up: "that shape is bookkeeping,
- * not policy". This is not a renaming forwarder.
+ * filter, and a read-concurrency decision that is not obvious and is recorded
+ * below. A caller is now its identity plus its per-file predicate, which is the
+ * argument {@link defineInvariant} already won one layer up: "that shape is
+ * bookkeeping, not policy". This is not a renaming forwarder.
  *
- * The measured price is the opposite of the trade the rule warns against. It
- * paid **one** unit of indirection (919 → 926 total, of which 42 are the
- * feature's own choke-point edges) to remove 270 duplicated tokens
- * (26032 → 25762). The warned-against case is paying indirection to lower a
- * duplication count; here duplication genuinely went away.
+ * The measured price is the opposite of the trade the rule warns against.
+ * Extracting this cost **one** unit of indirection — measured directly: the
+ * corpus sat at 925 with the duplication in place and 926 with it gone — and
+ * removed 270 duplicated tokens, 26032 → 25762. (The feature's own ratchet move
+ * is 919 → 926, +7; the other +6 is the 42 swept sites importing `cli-entry`,
+ * which this helper has nothing to do with.) The warned-against case is paying
+ * indirection to lower a duplication count; here the duplication genuinely went
+ * away, and the diff-scoped gate confirms it: `no clone group touches this
+ * change`.
  *
  * It lives here rather than in `types.ts` on purpose. `types.ts` is imported by
  * every invariant and by the registry, and is deliberately dependency-free;
@@ -61,13 +64,19 @@ export function defineSourceScanInvariant(
   scan: SourceScan,
 ): Invariant {
   return defineInvariant(name, description, async () => {
+    const violations: InvariantViolation[] = [];
     const files: string[] = [];
     await walkRepo(join(repoRoot, 'src'), files);
-    const sources = await Promise.all(
-      files
-        .filter((abs) => abs.endsWith('.ts'))
-        .map(async (abs) => [relative(repoRoot, abs), await readFile(abs, 'utf8')] as const),
-    );
-    return sources.flatMap(([relPath, text]) => scan(relPath, text));
+    // Sequential on purpose. An unbounded `Promise.all` over every `.ts` file
+    // was tried and reverted: `readFile` does not queue descriptors, so 420
+    // concurrent opens here (916 across the whole tree) can EMFILE for a
+    // consumer on the macOS default `ulimit -n 256` — a failure the copied
+    // sequential form could not have. `no-await-in-loop` is off in this repo
+    // for exactly this class of loop.
+    for (const abs of files) {
+      if (!abs.endsWith('.ts')) continue;
+      violations.push(...scan(relative(repoRoot, abs), await readFile(abs, 'utf8')));
+    }
+    return violations;
   });
 }

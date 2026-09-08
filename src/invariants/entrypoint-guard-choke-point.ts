@@ -13,59 +13,71 @@ import type { Invariant, InvariantViolation } from './types.js';
 // `file://${process.argv[1]}` template; over the three weeks the defect sat
 // filed, two migrated away and two new ones arrived carrying it.
 //
-// WHAT IT MATCHES is co-occurrence, not an operator. A direct-invocation guard
-// needs two ingredients: this module's identity and the script path. So the rule
-// is `import.meta.url` near `argv[1]`, unless the sanctioned call is right
-// there. Keying on equality instead was tried and is worse in both directions:
-// it missed a comparison whose operator opened the next line, missed
-// `import.meta.url.startsWith(...)` and `.endsWith(...)` entirely — the most
-// literal way to reintroduce the very template this feature deletes — and it
-// BLOCKED the sanctioned `isEntrypoint(import.meta.url) && argv.length === 2`,
-// because an unrelated equality shared the line. A blocking check whose false
-// positive rejects correct code is worse than the defect it hunts.
+// WHAT IT MATCHES, on one line and nothing wider: a bare `import.meta.url`
+// beside an indexed argv read. Those are the two ingredients of a
+// direct-invocation guard, and needing both on one line is what keeps the rule
+// sound in both directions.
 //
-// Non-guard uses stay silent for free, without an allowlist to maintain, because
-// none of them indexes argv: `dirname(fileURLToPath(import.meta.url))` for a
-// directory, `new URL('./x.json', import.meta.url)` for an asset,
+// Two earlier shapes were tried and both failed, each in a way worth recording
+// so neither is reinvented:
+//
+//   - Keying on an equality OPERATOR near the mention. It missed
+//     `import.meta.url.startsWith(...)` and `.endsWith(...)` — the most literal
+//     way to put the swept template back, with no operator at all — missed a
+//     comparison whose operator opened the next line, and BLOCKED the sanctioned
+//     `isEntrypoint(import.meta.url) && argv.length === 2`, where an unrelated
+//     equality merely shared the line.
+//   - Judging a WINDOW of lines. Proximity cuts both ways: one sanctioned call
+//     then exempted every hand-rolled guard within two lines of it — including
+//     one pasted from this check's own violation message — while an innocent
+//     `const script = process.argv[1]` two lines from a `new URL(…,
+//     import.meta.url)` asset read was refused.
+//
+// Hence per-line, and hence the exemption counts occurrences rather than
+// searching for the sanctioned text: a line is clear only when EVERY mention on
+// it is inside `isEntrypoint(...)`, so a bare guard cannot hide beside a
+// sanctioned one, nor behind a trailing comment that names it.
+//
+// Non-guard uses stay silent for free, with no allowlist to maintain, because
+// none indexes argv: `dirname(fileURLToPath(import.meta.url))` for a directory,
+// `new URL('./x.json', import.meta.url)` for an asset,
 // `import.meta.url.endsWith('.ts')` for a runtime probe.
 //
 // Blind spots, stated rather than papered over. This is a text scan (TypeScript 7
 // dropped the in-process compiler API — see `public-api-tsdoc.ts`), so:
 //
-//   - a guard spread across more than WINDOW lines separates the two
-//     ingredients far enough to evade it;
+//   - a guard wrapped across lines splits the ingredients and evades it. This is
+//     the price of dropping the window, taken knowingly: the false-negative
+//     direction leaves a defect to be caught later, while the window's false
+//     positives refused correct code and would have got the check waived.
 //   - a guard reaching either ingredient through a local alias evades it —
 //     `const url = import.meta.url; if (url === hand) { … }`, or an argv copy;
-//   - a guard reading the script path by some other spelling evades it —
+//   - a guard reading the script path by another spelling evades it —
 //     `argv.at(1)`, or `const [, script] = process.argv`.
 //
 // Zero violations here does not prove the policy holds. What keeps those gaps
-// narrow is that neither shape exists today and neither is what an author
+// narrow is that none of those shapes exists today and none is what an author
 // reaches for; what keeps them honest is that they are written down.
 
-/**
- * Lines either side of an `import.meta.url` mention that count as "near".
- *
- * Two covers every wrapped form the formatter produces, including an operator
- * opening the following line. It is deliberately small: the co-occurrence test
- * is specific enough that a wider window would still be sound, but a narrow one
- * keeps the reported line close to the offending expression.
- */
-const WINDOW = 2;
+const MENTION = 'import.meta.url';
 
 /** The one sanctioned way to spell the guard. */
-const SANCTIONED = 'isEntrypoint(import.meta.url)';
+const SANCTIONED = `isEntrypoint(${MENTION})`;
 
 /**
- * The entrypoint ingredient: slot 1 of argv specifically, not `argv` at large.
+ * The entrypoint ingredient: an indexed argv read.
  *
- * A direct-invocation guard has to read the script path, which is always
- * `argv[1]`. Matching bare `argv` instead reported
- * `dirname(fileURLToPath(import.meta.url))` sitting near an unrelated
- * `process.argv.length` — a false positive on correct code, which is the failure
- * direction that gets a blocking check waived.
+ * A direct-invocation guard has to read the script path out of argv. Matching
+ * bare `argv` instead reported `dirname(fileURLToPath(import.meta.url))` sitting
+ * beside an unrelated `process.argv.length` — a false positive on correct code,
+ * which is the direction that gets a blocking check waived.
  */
-const ENTRY_ARGV_RE = /\bargv\[1\]/;
+const ENTRY_ARGV_RE = /\bargv\[/;
+
+/** Occurrences of `needle` in `haystack`. */
+function count(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1;
+}
 
 /**
  * True for a line that is entirely a comment.
@@ -86,7 +98,11 @@ const ENTRY_ARGV_RE = /\bargv\[1\]/;
  */
 function isCommentLine(line: string): boolean {
   const t = line.trimStart();
-  return t.startsWith('//') || t.startsWith('*') || t.startsWith('/*');
+  if (t.startsWith('//') || t.startsWith('*')) return true;
+  // `/*` opens a comment, but only runs to the end of the line when nothing
+  // closes it: `/* note */ if (…) {}` carries executable code, and blanking the
+  // whole line would let a hand-rolled guard through behind a two-word prefix.
+  return t.startsWith('/*') && !t.includes('*/');
 }
 
 /**
@@ -101,11 +117,10 @@ function isExempt(relPath: string): boolean {
 /**
  * Violations in one file's source text.
  *
- * A mention of `import.meta.url` is a violation when `argv` appears within
- * {@link WINDOW} lines of it and the sanctioned call does not. Those are the two
- * ingredients of a direct-invocation guard, so their co-occurrence is the signal;
- * matching an operator instead both missed string-method spellings and rejected
- * correct code that happened to compare something else on the same line.
+ * A line is a violation when it mentions `import.meta.url`, at least one of
+ * those mentions is not inside `isEntrypoint(...)`, and the same line indexes
+ * argv. Both ingredients on one line is the signal; see this file's header for
+ * the two shapes this replaced and why each was unsound.
  *
  * The helper's own file needs no exemption: `isEntrypoint` names `moduleUrl`, a
  * parameter, and never `import.meta.url`.
@@ -121,9 +136,12 @@ export function scanSource(relPath: string, text: string): InvariantViolation[] 
   // still point at the real line in the file.
   const lines = text.split('\n').map((line) => (isCommentLine(line) ? '' : line));
   for (const [i, line] of lines.entries()) {
-    if (!line.includes('import.meta.url')) continue;
-    const near = lines.slice(Math.max(0, i - WINDOW), i + WINDOW + 1).join('\n');
-    if (near.includes(SANCTIONED) || !ENTRY_ARGV_RE.test(near)) continue;
+    const mentions = count(line, MENTION);
+    if (mentions === 0) continue;
+    // Every mention on this line is the sanctioned call, so there is no bare
+    // `import.meta.url` left for a hand-rolled guard to use.
+    if (mentions === count(line, SANCTIONED)) continue;
+    if (!ENTRY_ARGV_RE.test(line)) continue;
     out.push({
       file: relPath,
       line: i + 1,
