@@ -19,11 +19,26 @@ export type SourceScan = (relPath: string, text: string) => InvariantViolation[]
  * Build an {@link Invariant} that runs `scan` over every `.ts` file under
  * `<repoRoot>/src`.
  *
- * Extracted when the diff-scoped clone gate flagged 135 tokens shared between
- * `slug-path-choke-point.ts` and `entrypoint-guard-choke-point.ts`: both walked
- * the tree, filtered the extension and folded the per-file results themselves.
- * That is bookkeeping, not policy — the same reasoning that made
- * {@link defineInvariant} worth having one layer up.
+ * **Why this exists at the second call site, which `abstraction-cost` normally
+ * declines.** That rule's remedy for a clone-gate red is "decline the wrapper
+ * and rebaseline", and it does not apply here: the red came from the
+ * *diff-scoped* gate, which asks whether a clone group overlaps a line the
+ * change wrote, and no baseline silences that. Rebaselining was tried first and
+ * left the gate red.
+ *
+ * It also clears the rule's own bar for reason 1, hiding complexity a caller
+ * should not see. Scanning a source tree means a recursive walk, an extension
+ * filter, and reads whose concurrency is a real choice — this version issues
+ * them together, where both copies awaited in sequence. A caller is now its
+ * identity plus its per-file predicate, which is exactly the argument
+ * {@link defineInvariant} already won one layer up: "that shape is bookkeeping,
+ * not policy". This is not a renaming forwarder.
+ *
+ * The measured price is the opposite of the trade the rule warns against. It
+ * paid **one** unit of indirection (919 → 926 total, of which 42 are the
+ * feature's own choke-point edges) to remove 270 duplicated tokens
+ * (26032 → 25762). The warned-against case is paying indirection to lower a
+ * duplication count; here duplication genuinely went away.
  *
  * It lives here rather than in `types.ts` on purpose. `types.ts` is imported by
  * every invariant and by the registry, and is deliberately dependency-free;

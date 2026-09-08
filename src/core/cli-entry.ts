@@ -34,6 +34,19 @@ export type CliMain = (argv: string[]) => Promise<number>;
  * as omitting the argument does. The `?? ''` therefore guards only a genuinely
  * absent `process.argv[1]` (a `node -e` process); a test wanting the false
  * branch passes `''`.
+ *
+ * **It normalises encoding, not symlinks.** Node resolves a module to its
+ * realpath, so `import.meta.url` is realpath-based while `argv1` is whatever the
+ * caller typed: invoking through a symlink returns `false` — the same silent
+ * no-op this replaces, from a different cause. Accepted rather than fixed,
+ * because no framework path is exposed. `src/cli/index.ts` derives `SRC_ROOT`
+ * from its own `fileURLToPath(import.meta.url)` (already a realpath), builds
+ * `modPath` from it, and assigns that to `process.argv[1]` before importing, so
+ * both sides of every routed comparison come from one realpath; every hook runs
+ * through that router. Only a direct `node <symlinked-path>` invocation is
+ * affected. Calling `realpathSync` here would cost an fs call on every guard
+ * evaluation in every process — 41 of the 42 evaluate to `false` on any given
+ * invocation — plus an ENOENT branch, to buy a case nothing reaches.
  */
 export function isEntrypoint(
   moduleUrl: string,
