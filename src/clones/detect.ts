@@ -120,8 +120,11 @@ const isReturnStatement = (toks: readonly Token[], r: number): boolean => {
   if (toks[k]?.norm === '<') {
     // A `<` directly after `return` can only open a type-parameter list or a
     // type assertion — never a comparison, which would need a left operand.
-    // So scan for the balanced `>` without bailing on a `(`: a constraint may
-    // legitimately contain one, as in `<T extends (x: string) => string>`.
+    // So scan for the balanced `>` and bail on nothing: both a constraint and
+    // an inline type literal may hold tokens that look like terminators —
+    // `<T extends (x: string) => string>`, `<{ a: string; b: string }>` — and
+    // every early bail added here has cost a real clone its place in the
+    // report. Running to the stream end is bounded and fails safe below.
     let angle = 0;
     let j = k;
     for (; j < toks.length; j++) {
@@ -129,7 +132,6 @@ const isReturnStatement = (toks: readonly Token[], r: number): boolean => {
       if (norm === '<') angle++;
       // `=>` scans as `=` then `>`; that `>` closes no type parameter.
       else if (norm === '>' && toks[j - 1]?.norm !== '=' && --angle === 0) break;
-      else if (norm === ';') break; // malformed — bail rather than run on
     }
     // Unclosed: treat as NOT a return statement, so the class stays reported.
     // Guessing the other way deletes a copied declaration from the report.

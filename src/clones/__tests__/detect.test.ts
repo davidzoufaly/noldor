@@ -532,6 +532,33 @@ describe('detectClones noise policy', () => {
     expect(report.duplicatedTokens).toBeGreaterThan(0);
   });
 
+  it('drops a delegation whose type assertion holds a semicolon', () => {
+    // `<{ a: string; b: string }>` puts a `;` inside the angle brackets. An
+    // angle scan that bailed on it left the list unclosed, so the span was not
+    // counted as delegation and the class stayed in the report.
+    const asserted = (suffix: string): string =>
+      [
+        `export function firstOf${suffix}(label: string, tag: string) {`,
+        '  return <{ first: string; second: string }>readPair(label, tag);',
+        '}',
+        `export function secondOf${suffix}(label: string, tag: string) {`,
+        '  return <{ third: string; fourth: string }>readPair(label, tag);',
+        '}',
+        `export function thirdOf${suffix}(label: string, tag: string) {`,
+        '  return <{ fifth: string; sixth: string }>readPair(label, tag);',
+        '}',
+        '',
+      ].join('\n');
+    const report = detectClones(
+      new Map([
+        ['a.ts', asserted('One')],
+        ['b.ts', asserted('Two')],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toEqual([]);
+  });
+
   it('drops a delegating run written without semicolons', () => {
     const noSemi = (s: string): string => facades(s).replace(/;$/gm, '');
     const report = detectClones(

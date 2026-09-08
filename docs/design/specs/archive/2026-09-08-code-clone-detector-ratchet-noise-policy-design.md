@@ -227,13 +227,15 @@ three hold:
    fires on an optional or generic member, so a copied `interface` declaring
    one is dropped — the exact silent loss test 3 exists to prevent.
 
-   The `<…>` scan does **not** bail on a `(`, because a constraint may
-   legitimately contain one (`<T extends (x: string) => string>`); it ignores
-   the `>` of an `=>` (which scans as `=` then `>`), bails on a `;`, and treats
-   an unclosed list as *not* a return statement — so an unparseable form leaves
-   the class reported rather than deleting it. A `<` directly after `return`
-   can only open type parameters or a type assertion, never a comparison, which
-   is what makes the scan safe to start at all.
+   The `<…>` scan bails on nothing. Both a constraint and an inline type
+   literal can hold tokens that look like terminators —
+   `<T extends (x: string) => string>`, `<{ a: string; b: string }>` — so it
+   only ignores the `>` of an `=>` (which scans as `=` then `>`) and otherwise
+   runs to the balanced `>` or to the stream end. An unclosed list is treated
+   as *not* a return statement, so an unparseable form leaves the class
+   reported rather than deleting it. A `<` directly after `return` can only
+   open type parameters or a type assertion, never a comparison, which is what
+   makes the scan safe to start at all.
 
 All three are **local to the `return` token**, which is the property that
 matters here. Clone spans are raw token-index ranges produced by window
