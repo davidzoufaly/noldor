@@ -106,14 +106,34 @@ const NON_DELEGATION_KEYWORDS = new Set([
 const isReturnStatement = (toks: readonly Token[], r: number): boolean => {
   // `iterator.return()` — a method call, not a statement.
   if (r > 0 && toks[r - 1]!.norm === '.') return false;
-  const next = toks[r + 1]?.norm;
   // `{ return: 1 }` — a property key always carries its colon.
-  if (next === ':') return false;
-  if (next !== '(') return true;
+  if (toks[r + 1]?.norm === ':') return false;
+
+  // A member signature may be optional and/or generic: `return?(v: T): T`,
+  // `return<T>(v: T): T`. Step over both before looking for its parameter
+  // list, or the paren test below never runs and the member reads as a
+  // statement. A `?` straight after `return` is never a return statement.
+  let k = r + 1;
+  if (toks[k]?.norm === '?') k++;
+  if (toks[k]?.norm === '<') {
+    let angle = 0;
+    let j = k;
+    for (; j < toks.length; j++) {
+      const norm = toks[j]!.norm;
+      if (norm === '<') angle++;
+      else if (norm === '>' && --angle === 0) break;
+      // A `(` or `;` before the angle bracket closes means this was a
+      // comparison, not a type-parameter list — leave `k` where it was.
+      else if (norm === '(' || norm === ';') break;
+    }
+    if (angle === 0 && toks[j]?.norm === '>') k = j + 1;
+  }
+  if (toks[k]?.norm !== '(') return true;
+
   // `return(v: T): T` — a method signature. The legal statements
   // `return (foo)` and `return (a, b)` close on `;`, `}` or the stream end.
   let depth = 0;
-  for (let j = r + 1; j < toks.length; j++) {
+  for (let j = k; j < toks.length; j++) {
     const norm = toks[j]!.norm;
     if (norm === '(') depth++;
     else if (norm === ')' && --depth === 0) return toks[j + 1]?.norm !== ':';
@@ -124,6 +144,9 @@ const isReturnStatement = (toks: readonly Token[], r: number): boolean => {
 /**
  * Whether the token range `[s, e]` of `toks` is pure delegation — the
  * signature-plus-`return <call>(…)` shape of a thin typed façade.
+ *
+ * Widening or narrowing this predicate changes what the ratchet counts, so it
+ * must be paired with a `CURRENT_NOISE_POLICY` bump in `./baseline.ts`.
  *
  * A run of such façades matches structurally under Type-2 normalization
  * (identifiers fold to `ID`) even though each binds a different schema and

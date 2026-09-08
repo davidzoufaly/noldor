@@ -216,10 +216,15 @@ three hold:
    `iterator.return()`.
 2. The following token is not `:` — excludes an object-literal or type-member
    property key such as `{ return: 1 }`.
-3. If the following token *is* `(`, the token after that parenthesis group's
-   matching `)` is not `:` — excludes a method signature such as
-   `return(v: T): T`, while keeping the legal statements `return (foo)` and
-   `return (a, b)`, whose `)` is followed by `;` or the span's end.
+3. Stepping over an optional `?` and an optional balanced `<…>`, if the next
+   token is `(`, the token after that parenthesis group's matching `)` is not
+   `:` — excludes a method signature such as `return(v: T): T`, and equally
+   `return?(v: T): T` and `return<T>(v: T): T`, while keeping the legal
+   statements `return (foo)` and `return (a, b)`, whose `)` is followed by `;`
+   or the span's end. The `?` and `<…>` steps are load-bearing rather than
+   thoroughness: without them the paren test never runs on an optional or
+   generic member, so a copied `interface` declaring one is dropped — the exact
+   silent loss test 3 exists to prevent.
 
 All three are **local to the `return` token**, which is the property that
 matters here. Clone spans are raw token-index ranges produced by window
@@ -384,16 +389,19 @@ Fixture files for criteria 1-12 must clear both detection floors
     inside a function body.
 11. The delegation predicate does not over-fire. Each of these is still
     reported: a copied `interface` whose only member is `return(v: T): T`
-    **with the span beginning after the `interface` keyword** (so the case
-    does not rely on the container being in-span); a copied object-literal
-    body carrying a `return:` property; a span whose only `return` is an
-    `iterator.return()` call; a copied sequence of side-effect calls with no
-    `return`; and a class in which one span carries control flow while
-    another is pure delegation.
-12. The delegation predicate does not under-fire. A span returning
-    `return (foo)` or `return (a, b)` is still recognised as delegation, and
-    a `semi: false` delegation body is dropped exactly as its
-    semicolon-terminated form is.
+    **with the span beginning after the `interface` keyword** (so the case does
+    not rely on the container being in-span); the optional, generic and
+    optional-generic forms of that member (`return?(…)`, `return<T>(…)`,
+    `return?<T>(…)`); a copied object-literal body carrying a `return:`
+    property; a span whose only `return` is an `iterator.return()` call; a
+    copied sequence of side-effect calls with no `return`; and a class in which
+    one span carries control flow while another is pure delegation.
+12. The delegation predicate does not under-fire where it is sure. A span
+    returning `return (foo)` or `return (a, b)` is still recognised as
+    delegation, and a `semi: false` delegation body is dropped exactly as its
+    semicolon-terminated form is. A span returning a generic arrow
+    (`return <T,>(x: T): T => x`) is the documented exception and stays
+    reported.
 13. A baseline whose `options` omits `noisePolicy` parses successfully and
     `compareToBaseline` returns `stale` — not `unreadable`, and not green —
     even when `duplicatedTokens` fell, and its message renders
@@ -455,6 +463,15 @@ ternary, a long expression — reads as pure delegation and is dropped. The
 mostly signature) but not impossible. The positive-`return` requirement bounds
 the class: a keyword-free span can no longer qualify, so the residual risk is
 confined to spans that genuinely do return something.
+
+**Where the predicate is unsure, it reports.** `return <T,>(x: T): T => x`
+returns a generic arrow, and after the type-parameter step its `)` is followed
+by `:` — indistinguishable from a method signature without also hunting the
+`=>`. Such a delegation is therefore NOT dropped and its class stays in the
+report. The asymmetry is deliberate and general: under-filtering leaves a real
+clone visible, while over-filtering deletes one from the report. The `?` and
+`<…>` steps earn their place because omitting them deletes a copied
+declaration; chasing the `=>` would only recover a rare delegation shape.
 
 **The two units are independently sized.** Unit 1 is 8.2% of the number,
 Unit 2 is 1.7%. They ship together because they share one test fixture and one

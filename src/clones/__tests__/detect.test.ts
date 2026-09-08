@@ -456,7 +456,13 @@ describe('detectClones noise policy', () => {
 
   it.each([
     ['a return-named property key', 'return: string;'],
-    ['an ordinary member', 'eta: string;'],
+    ['an ordinary member', 'nu: string;'],
+    // An optional or generic signature puts `?` / `<T>` between `return` and
+    // its parameter list, so a bare next-token-is-`(` test never reaches the
+    // trailing `:` that marks it a signature.
+    ['an optional return-named method', 'return?(value: string): string;'],
+    ['a generic return-named method', 'return<T>(value: T): T;'],
+    ['an optional generic return-named method', 'return?<T>(value: T): T;'],
   ])('still reports a copied interface carrying %s', (_label, member) => {
     const report = detectClones(
       new Map([
@@ -489,6 +495,37 @@ describe('detectClones noise policy', () => {
       OPTS,
     );
     expect(report.groups).toHaveLength(1);
+  });
+
+  it('errs toward reporting when a delegation returns a generic arrow', () => {
+    // `return <T,>(x: T): T => x` steps over the type params, finds `(`, and
+    // sees `:` after the matching `)` — indistinguishable from a method
+    // signature without also looking for the `=>`. So the span is not counted
+    // as delegation and the class is REPORTED. Deliberate: every added test in
+    // this predicate has cost a new hole, and under-filtering only leaves a
+    // real clone in the report, while over-filtering deletes one from it.
+    const arrow = (suffix: string): string =>
+      [
+        `export function makeIdentity${suffix}(label: string, tag: string) {`,
+        '  return <T,>(value: T): T => value;',
+        '}',
+        `export function makePair${suffix}(label: string, tag: string) {`,
+        '  return <T,>(value: T): [T, T] => [value, value];',
+        '}',
+        `export function makeList${suffix}(label: string, tag: string) {`,
+        '  return <T,>(value: T): T[] => [value];',
+        '}',
+        '',
+      ].join('\n');
+    const report = detectClones(
+      new Map([
+        ['a.ts', arrow('One')],
+        ['b.ts', arrow('Two')],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toHaveLength(1);
+    expect(report.duplicatedTokens).toBeGreaterThan(0);
   });
 
   it('drops a delegating run written without semicolons', () => {

@@ -10,6 +10,13 @@
  * Regex literals get no special handling (they degrade to punctuation and
  * identifier runs — bounded imprecision, never a crash). Deterministic, pure,
  * no fs.
+ *
+ * WIDENING EITHER EXCLUSION CHANGES WHAT THE RATCHET COUNTS. The exclusions
+ * here are versioned by `CURRENT_NOISE_POLICY` in `./baseline.ts`, and a
+ * baseline recorded under an older generation is only reported `stale` because
+ * that number moved. Bump it alongside any change to which tokens are dropped
+ * — otherwise the new, lower count compares as an improvement against an old
+ * baseline, with no diagnostic and no visible symptom.
  */
 
 export interface Token {
@@ -303,6 +310,10 @@ const importDeclEnd = (tokens: readonly Token[], at: number): number | null => {
  * two files importing the same six symbols produce identical normalized runs,
  * and the only way to "fix" that is to import less. On the repo's own corpus
  * such runs accounted for 43 of 289 clone groups.
+ *
+ * Widening the grammar `importDeclEnd` accepts — a directive prologue, a new
+ * attributes form — drops tokens this generation counted, so it must be paired
+ * with a `CURRENT_NOISE_POLICY` bump in `./baseline.ts`.
  *
  * The header is a prefix, so the whole pass is "advance past every declaration
  * that matches, then slice". The first statement that does not match ends the
