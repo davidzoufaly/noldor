@@ -388,6 +388,17 @@ export function priorBlockerIds(
  * Lines this series ADDED **to files that already existed**, per file, in
  * current coordinates — R3's input.
  *
+ * The window is `firstHeadSha..HEAD` — the commits landed AFTER the series'
+ * first reviewed head — because that is exactly the question R3 asks: "did a
+ * prior round touch this line?". Including `firstHeadSha` itself (the older
+ * `firstHeadSha^..HEAD`) answers a different one: on the first round the caller
+ * has no ledger and passes this round's own head, so the window became that
+ * commit's own change and every located finding in an edited file read as a
+ * contradiction with a round that had not happened yet (Q-0220). Excluding it
+ * also makes the empty-ledger case an empty range rather than one relying on
+ * the pre-existence filter below to stay quiet, and keeps a root commit as
+ * first head from failing the guard outright — `<root>^` does not resolve.
+ *
  * The pre-existence filter is what keeps R3 a signal rather than noise. R3 asks
  * whether a blocker sits on a line the series introduced, which distinguishes
  * something only where the series EDITED code that was already there. On a
@@ -421,8 +432,8 @@ export async function resolveIntroducedLines(
   if (firstHeadSha === '') return undefined;
   let diff: string;
   try {
-    await git(['merge-base', '--is-ancestor', `${firstHeadSha}^`, 'HEAD']);
-    diff = await git(['diff', '--unified=0', '--diff-filter=ad', '-M', `${firstHeadSha}^`, 'HEAD']);
+    await git(['merge-base', '--is-ancestor', firstHeadSha, 'HEAD']);
+    diff = await git(['diff', '--unified=0', '--diff-filter=ad', '-M', firstHeadSha, 'HEAD']);
   } catch {
     return undefined;
   }
@@ -996,9 +1007,9 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       }));
       // The series' FIRST reviewed head, not this round's — R3 measures
       // cumulatively. Falls back to this round's head on an empty ledger, which
-      // makes the range this round's own commit rather than an empty one; what
-      // keeps a first round quiet is the pre-existence filter in
-      // `resolveIntroducedLines`, not the range.
+      // makes the window `HEAD..HEAD`: empty, so a first round has no
+      // introduced lines and R3 is clear everywhere. That is the intended
+      // reading of a first round, not a degenerate case.
       const firstHead = (ledger?.rounds ?? [])[0]?.headSha ?? headSha;
       // Only the files this round's blockers actually point at get opened.
       const located = [
