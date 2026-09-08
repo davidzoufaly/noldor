@@ -1,4 +1,5 @@
 import { runList } from './cli-cores.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 function main(): void {
   for (const r of runList(process.cwd())) {
@@ -9,4 +10,4 @@ function main(): void {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isEntrypoint(import.meta.url)) main();

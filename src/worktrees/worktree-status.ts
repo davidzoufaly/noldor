@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * One worktree as parsed from `git worktree list --porcelain`.
@@ -461,6 +462,6 @@ function emptyStats(): WorktreeStats {
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   main().then((code) => process.exit(code));
 }

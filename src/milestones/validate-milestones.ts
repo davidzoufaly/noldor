@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import matter from 'gray-matter';
 import { milestoneFrontmatterSchema, type Milestone } from './lib.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export function validateMilestones(cwd: string = process.cwd()): string[] {
   const errors: string[] = [];
@@ -58,7 +59,7 @@ export function validateMilestones(cwd: string = process.cwd()): string[] {
   return errors;
 }
 
-const isMain = import.meta.url === `file://${process.argv[1]}`;
+const isMain = isEntrypoint(import.meta.url);
 if (isMain) {
   const errors = validateMilestones();
   if (errors.length === 0) {

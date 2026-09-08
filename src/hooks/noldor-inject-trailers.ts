@@ -4,6 +4,7 @@
 // harmless (nobody validates them yet) and useful post-rollout.
 import { spawnSync } from 'node:child_process';
 import { readSession } from '../core/session.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export function injectTrailers(opts: { messageFile: string; cwd: string }): void {
   const session = readSession(opts.cwd);
@@ -22,6 +23,6 @@ export function injectTrailers(opts: { messageFile: string; cwd: string }): void
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   injectTrailers({ messageFile: process.argv[2], cwd: process.cwd() });
 }

@@ -1,3 +1,4 @@
+// @fd: main-module-guard-fails-on-percent-encoded-paths
 /**
  * The direct-invocation tail every `*-cli.ts` module carries: run `main` when
  * this file *is* the entrypoint, exit with its code, and turn a rejection into a
@@ -9,8 +10,50 @@
  * as they are next edited — the gate surfaces each one as its span is touched.
  */
 
+import { pathToFileURL } from 'node:url';
+
 /** Async CLI body: argv without `node <script>`, resolving to an exit code. */
 export type CliMain = (argv: string[]) => Promise<number>;
+
+/**
+ * True when this module is the process entrypoint, by comparing its own
+ * `import.meta.url` against `argv1` put through the same encoder.
+ *
+ * `pathToFileURL`, never a `file://` template: `import.meta.url` is a
+ * percent-encoded URL while `process.argv[1]` is a raw path, so a repo path
+ * needing encoding (one space is enough) makes the naive comparison false — the
+ * body never runs, the process exits 0, and the check passes having checked
+ * nothing. Resolving `argv1` through the same function also makes a relative
+ * path work, since `pathToFileURL` resolves against the cwd.
+ *
+ * Prefer this over {@link invokedDirectly} wherever the module can name its own
+ * URL: this is path-exact, whereas the stem regex matches any file with that
+ * basename and so cannot tell `release/index.ts` from `cli/index.ts`.
+ *
+ * Passing `undefined` explicitly selects the `process.argv[1]` default, exactly
+ * as omitting the argument does. The `?? ''` therefore guards only a genuinely
+ * absent `process.argv[1]` (a `node -e` process); a test wanting the false
+ * branch passes `''`.
+ *
+ * **It normalises encoding, not symlinks.** Node resolves a module to its
+ * realpath, so `import.meta.url` is realpath-based while `argv1` is whatever the
+ * caller typed: invoking through a symlink returns `false` — the same silent
+ * no-op this replaces, from a different cause. Accepted rather than fixed,
+ * because no framework path is exposed. `src/cli/index.ts` derives `SRC_ROOT`
+ * from its own `fileURLToPath(import.meta.url)` (already a realpath), builds
+ * `modPath` from it, and assigns that to `process.argv[1]` before importing, so
+ * both sides of every routed comparison come from one realpath; every hook runs
+ * through that router. Only a direct `node <symlinked-path>` invocation is
+ * affected. Calling `realpathSync` here would cost an fs call on every guard
+ * evaluation in every process — 41 of the 42 evaluate to `false` on any given
+ * invocation — plus an ENOENT branch, to buy a case nothing reaches.
+ */
+export function isEntrypoint(
+  moduleUrl: string,
+  argv1: string | undefined = process.argv[1],
+): boolean {
+  return moduleUrl === pathToFileURL(argv1 ?? '').href;
+}
 
 /**
  * True when `process.argv[1]` is the module named `stem` — i.e. this file was

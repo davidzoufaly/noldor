@@ -4,6 +4,7 @@
 // inherit the engineering rules (they don't auto-load CLAUDE.md). See
 // docs/noldor/engineering-principles.md §"Subagent guidance".
 import { z } from 'zod';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * Result of an agent-rules-guard run.
@@ -72,7 +73,7 @@ function safeJsonParse(s: string): unknown {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   let stdin = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => {

@@ -3,6 +3,7 @@ import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 import { z } from 'zod';
+import { isEntrypoint } from './cli-entry.js';
 
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[\w.]+)?$/;
 
@@ -102,6 +103,6 @@ async function main(): Promise<void> {
   process.exitCode = 1;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

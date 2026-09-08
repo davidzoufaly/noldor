@@ -3,6 +3,7 @@
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const FEATURES_DIR = 'docs/features';
 const LEGACY_HEADING = '## Commits';
@@ -139,6 +140,6 @@ export async function main(): Promise<number> {
   return mismatches.length > 0 ? 1 : 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   void main().then((code) => process.exit(code));
 }

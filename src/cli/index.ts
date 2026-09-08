@@ -31,9 +31,10 @@ async function dispatch(srcRelative: string, argsAfterModulePath: string[]): Pro
   const modPath = resolve(SRC_ROOT, runtimeRelative(srcRelative));
   // Reshape process.argv so the dispatched module sees its own invocation
   // (`node <modPath> <args>`). Most entrypoints do `process.argv.slice(2)`;
-  // some use `if (import.meta.url === pathToFileURL(process.argv[1]).href)` —
-  // both work with this layout. The dynamic import then triggers the module's
-  // top-level execution.
+  // the rest gate on `isEntrypoint(import.meta.url)` — both work with this
+  // layout, because `modPath` and the import specifier below are the same
+  // string, so the guard compares one path to itself. The dynamic import then
+  // triggers the module's top-level execution.
   process.argv = [process.argv[0]!, modPath, ...argsAfterModulePath];
   await import(pathToFileURL(modPath).href);
 }

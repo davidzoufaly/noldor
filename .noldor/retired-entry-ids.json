@@ -349,5 +349,9 @@
     "slug": "clone-ratchet-counts-test-scaffolds-facades-and-import-runs-as-duplication",
     "retiredInto": "code-clone-detector",
     "retiredAt": "2026-09-08"
+  },
+  "Q-0126": {
+    "slug": "main-module-guard-fails-on-percent-encoded-paths",
+    "retiredAt": "2026-09-08"
   }
 }

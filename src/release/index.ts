@@ -24,6 +24,7 @@ import { withReleaseSession } from './release-session.js';
 import { awaitPublish, isVersionOnRegistry, readPkgIdentity } from './release-publish.js';
 import { clearReleaseState, readReleaseState, writeReleaseState } from './release-state.js';
 import { applyBump, findPreviousTag, getRepoUrl } from './release-version.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const execFileP = promisify(execFile);
 
@@ -575,7 +576,7 @@ async function main(): Promise<void> {
 // Execute only when dispatched as the CLI entrypoint (`noldor release run`
 // reshapes argv so argv[1] is this module's path). Importing this module in
 // tests must NOT fire a release run.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   main().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`\nRelease aborted: ${message}`);

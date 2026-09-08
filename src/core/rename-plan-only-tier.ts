@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { glob } from 'node:fs/promises';
 import { argv, exit } from 'node:process';
 import { minimatch } from 'minimatch';
+import { isEntrypoint } from './cli-entry.js';
 
 /**
  * Pure text-substitution helper for the one-time `plan-only` → `specs-only`
@@ -106,7 +107,7 @@ async function main(): Promise<void> {
   console.log(`\n${dryRun ? 'dry-run' : 'applied'}: ${touched} file(s) touched`);
 }
 
-if (import.meta.url === `file://${argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   main().catch((err) => {
     console.error(err);
     exit(1);

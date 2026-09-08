@@ -1,10 +1,10 @@
 // @fd: stable-entry-ids-for-roadmap-backlog
 
 import { readFileSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 
 import { COUNTER_PATH_DEFAULT, mintEntryIds, stampMissingIds } from './entry-id.js';
 import { liveMaxEntryId } from './live-max-entry-id.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const ROADMAP = 'docs/roadmap.md';
 const BACKLOG = 'docs/backlog.md';
@@ -54,11 +54,6 @@ function main(): number {
   return 0;
 }
 
-const invokedDirectly =
-  typeof process !== 'undefined' &&
-  process.argv[1] !== undefined &&
-  fileURLToPath(import.meta.url) === process.argv[1];
-
-if (invokedDirectly) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main());
 }

@@ -1,6 +1,9 @@
-// @tests: code-clone-detector
+// @tests: code-clone-detector, main-module-guard-fails-on-percent-encoded-paths
+import { relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
-import { invokedDirectly, readValueFlags } from '../cli-entry.js';
+import { invokedDirectly, isEntrypoint, readValueFlags } from '../cli-entry.js';
 
 describe('invokedDirectly', () => {
   it('matches the module by stem across source and build extensions', () => {
@@ -17,6 +20,76 @@ describe('invokedDirectly', () => {
     expect(invokedDirectly('clones-cli', '/repo/src/clones/clones-cli.txt')).toBe(false);
     expect(invokedDirectly('clones-cli', undefined)).toBe(false);
   });
+});
+
+// A predicate that gates execution fails in two directions, and each is a
+// different defect: a false negative silently disables the guarded body (the
+// bug this replaces), a false positive makes an imported module run its CLI and
+// call process.exit mid-dispatch. Both get their own rows.
+//
+// Expected URLs are hardcoded percent-encoded literals throughout. Deriving
+// them with `pathToFileURL` would move both sides of the assertion together, so
+// every row would pass for any encoder — the reverted `file://${argv[1]}`
+// template included, which is exactly the defect these rows exist to catch.
+describe('isEntrypoint', () => {
+  // The true-asserting rows below carry POSIX absolute literals. `pathToFileURL`
+  // resolves a rootless Windows path against the current drive, so on win32 the
+  // real answer is `file:///C:/repo/…` and the literal would be wrong for a
+  // reason that has nothing to do with this predicate. Skipping there keeps the
+  // expectations independent of the implementation's encoder, which is the whole
+  // point of the rows; the false-asserting rows need no guard, since a drive
+  // prefix only makes two different paths differ more.
+  const onPosix = process.platform !== 'win32';
+
+  it.skipIf(!onPosix)(
+    'matches a path needing percent-encoding, which the file:// template did not',
+    () => {
+      expect(isEntrypoint('file:///repo/my%20dir/m.ts', '/repo/my dir/m.ts')).toBe(true);
+      expect(isEntrypoint('file:///repo/a%23b/m.ts', '/repo/a#b/m.ts')).toBe(true);
+      expect(isEntrypoint('file:///repo/caf%C3%A9/m.ts', '/repo/café/m.ts')).toBe(true);
+    },
+  );
+
+  it.skipIf(!onPosix)('matches a plain path, and one whose characters need no encoding', () => {
+    expect(isEntrypoint('file:///repo/src/m.ts', '/repo/src/m.ts')).toBe(true);
+    expect(isEntrypoint('file:///repo/a+b/m.ts', '/repo/a+b/m.ts')).toBe(true);
+  });
+
+  it('resolves a relative argv against the cwd', () => {
+    // Asserted against this file's own runtime URL rather than a built literal:
+    // the expectation is `true`, and the path comes from the inverse function.
+    const self = fileURLToPath(import.meta.url);
+    expect(isEntrypoint(import.meta.url, relative(process.cwd(), self))).toBe(true);
+  });
+
+  it('does not match a sibling module or a namesake in another directory', () => {
+    expect(isEntrypoint('file:///repo/src/a.ts', '/repo/src/b.ts')).toBe(false);
+    expect(isEntrypoint('file:///repo/src/release/index.ts', '/repo/src/cli/index.ts')).toBe(false);
+    expect(isEntrypoint('file:///repo/src/cr/codex.ts', '/repo/src/cr/lanes/codex.ts')).toBe(false);
+  });
+
+  it('returns false for an empty argv without throwing', () => {
+    // `''` is the assertion, not `undefined`: an explicit `undefined` selects
+    // the `process.argv[1]` default and would compare against the test
+    // runner's own path, pinning nothing.
+    expect(() => isEntrypoint('file:///repo/src/m.ts', '')).not.toThrow();
+    expect(isEntrypoint('file:///repo/src/m.ts', '')).toBe(false);
+  });
+
+  it('separates namesakes that invokedDirectly cannot', () => {
+    // Why this predicate exists beside `invokedDirectly`: six `index.ts` and
+    // four `codex.ts` files live under `src/`, so a stem regex cannot tell a
+    // dispatched `cli/index.ts` from an imported `release/index.ts` — it says
+    // yes to both, and the imported one would run its CLI body.
+    expect(invokedDirectly('index', '/repo/src/cli/index.ts')).toBe(true);
+    expect(isEntrypoint('file:///repo/src/release/index.ts', '/repo/src/cli/index.ts')).toBe(false);
+  });
+
+  // No Windows-drive row. `pathToFileURL` is platform-dependent — on POSIX it
+  // treats `C:\repo\m.ts` as one cwd-relative filename and encodes the
+  // backslashes — so such a row would pin Node's platform behaviour rather than
+  // this predicate. `invokedDirectly` needs its own separator row above because
+  // its regex handles separators itself; this one delegates that to Node.
 });
 
 describe('readValueFlags', () => {

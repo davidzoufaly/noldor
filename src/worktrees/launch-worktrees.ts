@@ -6,6 +6,7 @@ import { loadAgentsConfig, resolveRunner } from '../core/agent-runner/registry.j
 import { CLAUDE_BIN } from '../core/agent-runner/runners/claude.js';
 import { CODEX_BIN } from '../core/agent-runner/runners/codex.js';
 import { OPENCODE_BIN } from '../core/agent-runner/runners/opencode.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -170,7 +171,7 @@ function escapeShell(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((err: unknown) => {
     console.error(err);
     process.exitCode = 1;

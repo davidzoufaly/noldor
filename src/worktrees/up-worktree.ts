@@ -9,6 +9,7 @@ import { bootDevSurfaces, type BootedSurface } from './dev-surfaces.js';
 import { launchTree, resolveAgentInvocation } from './launch-worktrees.js';
 import { openEditor } from './open-editor.js';
 import { readPort } from './worktree-status.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export interface UpOptions {
   slug: string;
@@ -154,6 +155,6 @@ async function main(): Promise<number> {
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   main().then((code) => process.exit(code));
 }

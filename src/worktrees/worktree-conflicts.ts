@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import type { GraphifyGraph } from '../garden/graph-fd-lookup.js';
 import { parseWorktreeList } from './worktree-status.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * A feature worktree reduced to the file-touch set scored for conflicts.
@@ -272,6 +273,6 @@ export async function main(): Promise<number> {
   return hasHardConflict(pairs) ? 1 : 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   main().then((code) => process.exit(code));
 }

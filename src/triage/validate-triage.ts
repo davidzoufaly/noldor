@@ -8,6 +8,7 @@ import { parseSlug } from '../core/slug.js';
 import { parseBacklog, parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 import { COUNTER_PATH_DEFAULT, ENTRY_ID_RE } from './entry-id.js';
 import { RETIRED_IDS_PATH_DEFAULT, loadRetiredIds, retiredRefs } from './retired-ids.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export interface TriageIssue {
   file: 'docs/roadmap.md' | 'docs/backlog.md';
@@ -517,6 +518,6 @@ async function main(): Promise<void> {
   );
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

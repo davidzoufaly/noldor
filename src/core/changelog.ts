@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { isEntrypoint } from './cli-entry.js';
 
 const execFileP = promisify(execFile);
 
@@ -145,6 +146,6 @@ async function listPageSlugs(): Promise<string[]> {
     .map((f) => (f === 'README.md' ? 'index' : f.replace(/\.md$/, '')));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

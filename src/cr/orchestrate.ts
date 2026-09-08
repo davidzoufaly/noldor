@@ -55,6 +55,7 @@ import { runUiReview } from './lanes/ui-review.js';
 import { runVerify } from './lanes/verify.js';
 import { promptSelect } from '../core/prompt-stdin.js';
 import { amendSubagentReceipt } from './amend-receipt.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 // Hand-rolled promise wrapper around execFile (NOT promisify) — keeps parity
 // with deep-review-spawn.ts where vitest replaces execFile directly and would
@@ -1075,7 +1076,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
 }
 
 // CLI entry — wired up in Task 5.4
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   const { parseArgs } = await import('./orchestrate-args.js');
   const args = parseArgs(process.argv);
   const r = await run({ args });

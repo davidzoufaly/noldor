@@ -17,6 +17,7 @@ import {
 } from '../core/allowlist.js';
 import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export interface ValidationResult {
   ok: boolean;
@@ -311,7 +312,7 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
 }
 
 // CLI entry: invoked by lefthook commit-msg with the message file path as argv[2]
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   const msgFile = process.argv[2];
   const message = readFileSync(msgFile, 'utf8');
   const result = validateTrailer({ message, cwd: process.cwd() });

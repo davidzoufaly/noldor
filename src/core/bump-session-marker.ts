@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { argv, exit, stdout, cwd } from 'node:process';
-import { fileURLToPath } from 'node:url';
+import { exit, stdout, cwd } from 'node:process';
+import { isEntrypoint } from './cli-entry.js';
 
 const FILE = '.noldor/session.json';
 
@@ -22,7 +22,7 @@ export function bumpSessionMarker(workdir: string): { changed: boolean; reason: 
   return { changed: true, reason: `bumped markerVersion to 2 at ${p}` };
 }
 
-if (argv[1] === fileURLToPath(import.meta.url)) {
+if (isEntrypoint(import.meta.url)) {
   const r = bumpSessionMarker(cwd());
   stdout.write(`${r.reason}\n`);
   exit(0);

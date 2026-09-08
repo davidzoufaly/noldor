@@ -20,6 +20,7 @@ import { loadConsumerConfig } from '../core/consumer-config.js';
 import { scanRoots } from '../core/repo-paths.js';
 
 import type { FeatureFrontmatter } from '../core/feature-schema.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * One candidate-FD match for an unreferenced code file. Confidence indicates
@@ -506,7 +507,7 @@ async function runAutoHigh(): Promise<void> {
   );
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   main().catch((e: unknown) => {
     console.error(e);
     process.exit(1);

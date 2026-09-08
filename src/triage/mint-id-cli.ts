@@ -1,9 +1,8 @@
 // @fd: stable-entry-ids-for-roadmap-backlog
 
-import { fileURLToPath } from 'node:url';
-
 import { COUNTER_PATH_DEFAULT, mintEntryIds } from './entry-id.js';
 import { liveMaxEntryId } from './live-max-entry-id.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const USAGE = 'usage: noldor triage mint-id [--count N]\n';
 
@@ -50,11 +49,6 @@ export function main(argv: readonly string[]): number {
   return 0;
 }
 
-const invokedDirectly =
-  typeof process !== 'undefined' &&
-  process.argv[1] !== undefined &&
-  fileURLToPath(import.meta.url) === process.argv[1];
-
-if (invokedDirectly) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main(process.argv));
 }

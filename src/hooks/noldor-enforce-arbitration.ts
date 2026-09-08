@@ -24,6 +24,7 @@ import { parseTrailers } from '../core/trailers.js';
 import { readStdinWithTimeout } from './noldor-pre-push.js';
 import { createGitRunner, isObjectId, parseRefLines } from './pre-push-range.js';
 import type { GitRunner } from './pre-push-range.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /** What the guard needs to know about the round ledger. `null` = none on disk. */
 export interface LedgerFacts {
@@ -244,6 +245,6 @@ async function main(): Promise<number> {
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(await main());
 }

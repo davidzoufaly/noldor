@@ -1,5 +1,6 @@
 import { runResolve } from './cli-cores.js';
 import type { Stage } from '../core/rules/stage.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 function main(): void {
   const args = process.argv.slice(2);
@@ -13,4 +14,4 @@ function main(): void {
   console.log(JSON.stringify({ injected, enforce }, null, 2));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isEntrypoint(import.meta.url)) main();

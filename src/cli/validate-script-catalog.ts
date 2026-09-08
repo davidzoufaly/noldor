@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { flattenManifest } from './manifest.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const CATALOG_PATH = 'docs/noldor/script-catalog.md';
 
@@ -190,6 +191,6 @@ async function main(): Promise<void> {
   process.exitCode = 1;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

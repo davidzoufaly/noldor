@@ -1,6 +1,5 @@
-import { fileURLToPath } from 'node:url';
-
 import { buildMergeCandidates, type MergeCandidate } from './merge-candidates.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * Render the corpus as an aligned, human-readable table (kind · disposition ·
@@ -26,12 +25,7 @@ async function main(): Promise<void> {
   );
 }
 
-// True only when this module is the direct entry — dispatch reshapes argv so
-// process.argv[1] === this module's path (see src/cli/index.ts:14-22).
-const invokedDirectly =
-  process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1];
-
-if (invokedDirectly) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

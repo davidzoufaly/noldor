@@ -1,4 +1,5 @@
 import { runValidate } from './cli-cores.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 function main(): void {
   const res = runValidate(process.cwd());
@@ -11,4 +12,4 @@ function main(): void {
   console.log(`validate:rules OK (${res.count} rule(s)).`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isEntrypoint(import.meta.url)) main();
