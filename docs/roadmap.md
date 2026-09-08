@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Release-Sweep Skill Prose Contradicts the Working Recipe
-
-- id: Q-0216
-- area: tooling
-- type: fix
-- since: 2026-09-07
-- size: XS
-- impact: med
-- confidence: high
-- parent: release-sweep-process-hardening
-
-Two places where `/noldor-release-sweep` documents an order a controller cannot follow. **Step order:** the v1.7.0 → v1.8.0 lesson was "run the garden pass BEFORE `garden sdd-report --release`, because the garden regen chain dirties `docs/features/**` and re-drifts the report" — but the skill was never reordered, so step 5.5 is still the sdd-report pre-empt and step 6.5 the garden pass. On v1.9.0 it did not bite (the garden pass produced no sdd-report delta), which is exactly why it keeps surviving reviews. Either swap 5.5 and 6.5, or make 5.5's prose say "re-run after the garden pass and commit any further drift". **Clean preflight:** `pnpm release --preflight` came back 16-ok / 0-blocking on the first try for v1.9.0 only because the operator stamped `pnpm noldor garden receipt` by hand after the last HEAD-moving commit and cleared `.noldor/session.json` before running it. Step 9 says to clear the mechanical rows with `--preflight --fix`, which cannot stamp the receipt in this repo (it needs zero `garden detect` findings; the repo permanently has ~190), and step 10 clears the session marker *after* step 9 — so a literal reading always hits a red `session-marker` row first. Fold both by-hand steps into step 9's preamble. Deletion test: a controller following the skill top-to-bottom reaches a green preflight without an undocumented manual step. (surfaced 2026-09-06 releasing v1.9.0)
-
 ### Clone Ratchet Counts Test Scaffolds, Facades and Import Runs as Duplication
 
 - id: Q-0214

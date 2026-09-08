@@ -98,6 +98,8 @@ git commit -m "chore(release-sweep): pre-empt sdd:report drift"
 
 The `release-sweep` allowlist admits `docs/sdd-report.md`. If `git status` shows nothing, skip the commit silently.
 
+**This pre-empt is not the final word — step 6.5 re-runs it.** The garden pass at step 6.5 runs a regen chain that dirties `docs/features/**`, and the sdd-report reads those files, so a report that was clean here can re-drift afterwards. Do not treat a clean tree at this step as settled; step 6.5 ends by re-running this same regen and committing any further drift. Running it here as well is still worth it: it collapses the common case into one commit and surfaces a large drift before the garden checklist buries it.
+
 (`pnpm docs:build` is not a script in this repo <!-- noldor-skill-drift-ignore --> — the release pipeline treats it as an optional consumer check via `runOptionalCheck` in `src/release/index.ts` and skips it when absent, so there is nothing to pre-empt for it here.)
 
 **Why this step exists.** v0.5.0 shipped without this regen pre-empted; the release script's sdd:report gate in `src/release/index.ts` (`runCliCheck('noldor garden sdd-report --release', …)` + the `docs/sdd-report.md` dirty-tree check) aborted the release. Follow-up PRs landed the regen output on `main`, then the release re-ran. Pre-empting in the sweep folds those PRs into the sweep PR.
@@ -122,6 +124,22 @@ If `git status --short` shows nothing, skip this step.
 ### 6.5. Garden pass
 
 Invoke the `noldor-garden` skill (Skill tool, name `noldor-garden`). It produces a checklist of stale plans/specs, unused backlog entries, rule contradictions, and SDD gaps. Confirm auto-actions; the regen chain at the end of the flow runs `pnpm noldor garden receipt` which stamps `.noldor/garden-receipt`. **Note:** `pnpm release` now auto-stamps the receipt at start when `pnpm noldor garden detect` is clean (see [release-sweep-process-hardening](../../../docs/features/release-sweep-process-hardening.md) §3.2), so the receipt may be stamped twice in a sweep+release run — that's harmless. The manual `/noldor-garden` step here remains useful for surfacing the operator-visible checklist of stale plans / unused backlog / SDD gaps.
+
+**Then re-run the sdd:report regen — this step is where it lands for real.** The garden regen chain above rewrites `docs/features/**`, which the report reads, so step 5.5's pre-empt can be stale by now:
+
+```bash
+pnpm noldor garden sdd-report --release
+git status --short docs/sdd-report.md
+```
+
+If that produced a diff, commit it on the sweep branch:
+
+```bash
+git add docs/sdd-report.md
+git commit -m "chore(release-sweep): pre-empt sdd:report drift after garden pass"
+```
+
+If `git status` shows nothing, skip the commit silently — a no-delta re-run is the normal outcome (it was the outcome on v1.9.0), which is exactly why the missing re-run survived reviews for two releases. Never skip the re-run itself on the grounds that step 5.5 already came back clean.
 
 ### 7. Final verify
 
@@ -152,13 +170,33 @@ If the ff-only fails — **most likely cause is a concurrent PR merging to `orig
 
 **Stop here. Do not run `pnpm release` without explicit confirmation.**
 
-First run the read-only gate aggregate so the confirmation is informed rather than hopeful:
+**Do these two by-hand steps first, in this order, before the preflight runs.** Neither is something `--preflight --fix` can do for you in this repo, and skipping either guarantees a red row on the first try:
+
+1. **Stamp the garden receipt by hand**, after the last HEAD-moving commit (i.e. now, once main carries the merged sweep squash):
+
+   ```bash
+   pnpm noldor garden receipt
+   ```
+
+   `--preflight --fix` re-stamps only when `pnpm noldor garden detect` comes back clean — `fixGardenReceipt` in [`src/release/preflight-fix.ts`](../../../src/release/preflight-fix.ts) delegates to `autoStampOnCleanDetect` in [`src/release/auto-restamp.ts`](../../../src/release/auto-restamp.ts) — and this repo carries a standing set of gating findings, so that path never fires here. "Clean" is narrower than the report's headline total: only the categories in `FINDING_CATEGORIES` ([`src/garden/garden-detect-runner.ts`](../../../src/garden/garden-detect-runner.ts)) plus a `WARN`-severity `overrideAudit` gate the stamp. On 2026-09-08 that gating count was **14** (`sddGaps` 13 + `invariantViolations` 1), against a far larger overall finding count — so do not read a big headline number as the thing to clear. The receipt must postdate the newest commit or the `garden-receipt` row reads stale — which is why this comes *after* step 8's merge and fast-forward, not before.
+
+2. **Clear the session marker now** — not at step 10:
+
+   ```bash
+   pnpm exec tsx -e "(async () => { const {clearSession} = await import('./src/core/session.ts'); clearSession(); })()"
+   ```
+
+   The preflight has a blocking `session-marker` row, so a live `release-sweep` marker reds the aggregate on a literal top-to-bottom reading. Clearing here is safe: step 8 already merged and fast-forwarded, so no further sweep commit is expected. If a by-hand preflight fix *does* turn out to need a commit, it is a separate micro-chore on its own branch — never a sweep commit on `main`.
+
+Step 10 below is then a no-op confirmation rather than the first clear.
+
+Now run the read-only gate aggregate so the confirmation is informed rather than hopeful:
 
 ```
 pnpm release --preflight
 ```
 
-It reports every release state gate at once — session marker, release state, branch, tree, origin sync, `gh` auth, graph freshness, garden receipt, sdd-report drift, `validate features`, gate compliance, CR gate, npm name — each blocking row carrying its own `fix:` line. Exit 1 means at least one gate is red. Surface the report verbatim; clear the mechanical rows with `pnpm release --preflight --fix` (stale session marker, fast-forward of a strictly-behind clean main, garden re-stamp on clean detect) and the rest by hand, then re-run until green. This is the same aggregate `pnpm release` runs as its own first rung, so a green preflight means the release will clear its state gates instead of aborting one at a time.
+It reports every release state gate at once — session marker, release state, branch, tree, origin sync, `gh` auth, graph freshness, garden receipt, sdd-report drift, `validate features`, gate compliance, CR gate, npm name — each blocking row carrying its own `fix:` line. Exit 1 means at least one gate is red. Surface the report verbatim; clear the mechanical rows with `pnpm release --preflight --fix` (stale session marker, fast-forward of a strictly-behind clean main, garden re-stamp on clean detect — that last one is inert in this repo, hence the by-hand stamp above) and the rest by hand, then re-run until green. This is the same aggregate `pnpm release` runs as its own first rung, so a green preflight means the release will clear its state gates instead of aborting one at a time.
 
 Show the user:
 
@@ -175,15 +213,15 @@ If the user types `release now` (exact match, case-insensitive): run `pnpm relea
 
 If anything else: tell the user the sweep PR is merged and they can run `pnpm release` manually when ready.
 
-### 10. Clear session marker
+### 10. Confirm the session marker is clear
 
-Regardless of release outcome (run, cancelled, deferred), clear the session marker:
+Step 9's preamble already cleared it. Confirm — and, if step 9 was entered out of order or the marker was rewritten since, clear it now. `clearSession` is idempotent, so running it again costs nothing:
 
 ```bash
 pnpm exec tsx -e "(async () => { const {clearSession} = await import('./src/core/session.ts'); clearSession(); })()"
 ```
 
-The release-sweep session ends here. The next gate path writes its own session marker; leaving the stale `release-sweep` marker would cause subsequent commits to be misclassified.
+Do this regardless of release outcome (run, cancelled, deferred). The release-sweep session ends here. The next gate path writes its own session marker; leaving the stale `release-sweep` marker would cause subsequent commits to be misclassified.
 
 ## Rules
 
