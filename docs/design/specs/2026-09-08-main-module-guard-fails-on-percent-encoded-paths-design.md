@@ -18,10 +18,10 @@ The class also regrows. The entry measured 35 sites on 2026-08-14; there are sti
 
 ## Goals
 
-- No module under `src/` decides direct invocation by comparing `import.meta.url` to a hand-built `file://` string.
+- No module under `src/` except `src/core/cli-entry.ts` compares `import.meta.url` to anything at all — not the broken `file://` template, not a `'file://' +` concatenation, not a hand-rolled variant. Every guard goes through a helper.
 - A checkout whose absolute path contains a space (or any other character `pathToFileURL` percent-encodes) runs every swept entrypoint's body exactly as an unencoded path does.
 - One choke point owns the comparison, so the behaviour is unit-testable once instead of re-derived 35 times.
-- A newly added entrypoint that reintroduces the broken template is refused mechanically, not by review attention.
+- A newly added entrypoint that compares `import.meta.url` outside a helper is refused mechanically — a non-zero exit, not an advisory line — rather than by review attention.
 - The two off-template sites normalise to the same call as the other 33, so there is one shape to read and one to enforce.
 
 ## Non-goals
@@ -54,9 +54,9 @@ export function isEntrypoint(
 }
 ```
 
-Path-exact rather than basename-matched, so it has no namesake hazard; percent-encoding-immune, because both sides are now produced by the same encoder; and relative-path-immune, because `pathToFileURL` resolves against `process.cwd()`. `pathToFileURL('')` returns the cwd URL rather than throwing, so the `?? ''` fallback yields `false` for a missing `argv[1]` instead of a crash — the same shape `src/hooks/noldor-pre-push.ts:183` already relies on.
+Path-exact rather than basename-matched, so it has no namesake hazard; percent-encoding-immune, because both sides are now produced by the same encoder; and relative-path-immune, because `pathToFileURL` resolves against `process.cwd()`. `pathToFileURL('')` returns the cwd URL rather than throwing, so the `?? ''` fallback yields `false` for an absent `process.argv[1]` instead of a crash — the same shape `src/hooks/noldor-pre-push.ts:183` already relies on.
 
-The injectable `argv1` parameter is what makes the predicate testable at all; it mirrors `invokedDirectly`'s signature so the two read as siblings.
+The injectable `argv1` parameter is what makes the predicate testable at all; it mirrors `invokedDirectly`'s signature so the two read as siblings. Its contract needs stating, because a default parameter makes two cases look like one: **passing `undefined` explicitly means "use `process.argv[1]`"**, exactly as omitting the argument does — that is what a TypeScript default parameter does, and `invokedDirectly` already behaves this way. The `?? ''` therefore guards only the case where `process.argv[1]` is *itself* absent (a `node -e` or `node --input-type=module -e` process), which no call-site argument can simulate. A test that wants the no-entrypoint branch passes `''`, not `undefined`; passing `undefined` under a test runner compares against the runner's own path and asserts nothing.
 
 Unlike `invokedDirectly`, this does **not** match a compiled `.js` against a `.ts` source path — it does not need to. `import.meta.url` and the router's `modPath` are both derived from the same runtime tree (`src/cli/index.ts:27` `runtimeRelative` picks the extension the live runtime emits), so under `dist` both sides are `.js` and under source both are `.ts`.
 
@@ -86,32 +86,39 @@ A unit test in `src/core/__tests__/cli-entry.test.ts` tables the predicate in **
 - *false-negative direction* (the live bug — returns `false` when the module **is** the entrypoint, so a gate silently passes): a plain path, a path containing a space, one containing `#`, one containing a non-ASCII character, a relative path, and a Windows-style path.
 - *false-positive direction* (returns `true` when the module is **not** the entrypoint, so an imported module runs its CLI body): a sibling module in the same directory, and a namesake in another directory — the `src/release/index.ts` vs `src/cli/index.ts` and `src/cr/codex.ts` vs `src/cr/lanes/codex.ts` cases that rule `invokedDirectly` out for those sites.
 
-An integration test then proves the wiring, not the predicate: copy the repo (or a minimal tree containing the router plus two representative entrypoints, one hook and one validator) into a temp directory whose name contains a space, invoke each through `bin/noldor.mjs`, and assert the body ran by observing its real output. Two entrypoints rather than 35 — the entry's reason for wanting all of them ("every site re-derives it inline") describes the code before Unit 1 and stops holding after it. What the 35 spawns were meant to prove is proved instead by acceptance criterion 1 (the grep is empty) plus Unit 5's invariant, which additionally covers sites added after this change; and a repo-copy fixture spawning 35 CLI boots would land a heavy filesystem test on a suite already reported as timing-flaky.
+An integration test then proves the wiring, not the predicate: copy the repo (or a minimal tree containing the router plus two representative entrypoints, one hook and one validator) into a temp directory whose name contains a space, invoke each through `bin/noldor.mjs`, and assert the body ran by observing its real output. Two entrypoints rather than 35 — the entry's reason for wanting all of them ("every site re-derives it inline") describes the code before Unit 1 and stops holding after it. What the 35 spawns were meant to prove is proved instead by acceptance criterion 1 (no site compares `import.meta.url` outside a helper) plus Unit 5's invariant and the extended parity scan below, which together cover all 35 sites and every site added after this change; and a repo-copy fixture spawning 35 CLI boots would land a heavy filesystem test on a suite already reported as timing-flaky.
 
-Run the spaced-path case under **both** runtimes — once with `NOLDOR_RUNTIME=source` and once with `NOLDOR_RUNTIME=dist` — because `isEntrypoint` deliberately drops the cross-extension tolerance `invokedDirectly` has, and the claim that `import.meta.url` and the router's `modPath` always share an extension rests on `runtimeRelative` at `src/cli/index.ts:27`. That claim is testable, so it gets tested rather than asserted.
+**`realpathSync` the fixture root before using it, or the fixture fails for the wrong reason.** Node resolves a module to its realpath, so `import.meta.url` is realpath-based while `process.argv[1]` keeps whatever path the caller typed. On macOS `os.tmpdir()` is `/var/folders/…`, a symlink to `/private/var/folders/…`, so a `mkdtemp`-based spaced-path fixture makes the two sides disagree on the symlink rather than on the percent-encoding under test — a red that looks exactly like the defect and is not it. Resolve the temp root once with `realpathSync` and build every path in the fixture from that.
+
+The cross-extension concern gets a **static** answer, not a `dist` build. `isEntrypoint` deliberately drops the `.ts`/`.js` tolerance `invokedDirectly` has, and the claim that `import.meta.url` and the router's `modPath` always share an extension rests on `runtimeRelative` at `src/cli/index.ts:27`. `src/cli/__tests__/runtime-parity.test.ts` already scans every manifest entrypoint for a guard hardcoding one extension; extend that scan to assert each one's guard goes through `isEntrypoint`. That covers the class for all 35 sites at once, needs no build, and doubles as the runtime check behind Unit 5's coverage claim — where an integration test under `NOLDOR_RUNTIME=dist` could not run at all, since `dist/` is gitignored and build-produced and neither fixture shape has one.
 
 **Deletion test.** Revert Unit 1's `pathToFileURL` to the `` `file://${…}` `` template and the integration test fails on the spaced-path checkout while passing on an unencoded one. Delete Unit 5's invariant and a reintroduced template guard commits clean.
 
 ### Unit 5 — a choke-point invariant
 
-Add `src/invariants/entrypoint-guard-choke-point.ts` on the pattern of `src/invariants/slug-path-choke-point.ts` (added for the same reason by the sibling feature `unvalidated-slug-path-traversal-across-cli-entry-points`), and register it in both `invariants` and `makeInvariants` in `src/invariants/index.ts`. It scans `src/**/*.ts` and reports a violation for any occurrence of an `import.meta.url` comparison against a `file://` template literal, naming file and line.
+Add `src/invariants/entrypoint-guard-choke-point.ts` and register it in both `invariants` and `makeInvariants` in `src/invariants/index.ts`. Take the *file shape* from `src/invariants/slug-path-choke-point.ts` (the sibling feature `unvalidated-slug-path-traversal-across-cli-entry-points` added it for the same class of reason) but **not** its severity: that plugin emits `severity: 'warn'`, which `src/invariants/types.ts` documents as "surfaced but non-blocking; the runner still exits zero". A warning cannot refuse anything, so this plugin emits `severity: 'error'` — the blocking form `src/invariants/toolchain-floor.ts` uses, and the value the runner assumes when `severity` is omitted.
+
+**What it enforces is an allowlist, not a denylist of the one broken template.** It scans `src/**/*.ts` for any comparison whose operand is `import.meta.url` and reports a violation unless the other operand is a call to `isEntrypoint` or `invokedDirectly`. A denylist keyed on the `` `file://${…}` `` template would pass `'file://' + process.argv[1]`, pass a mistyped replacement, and pass whatever fourth spelling someone invents — while this section claims to prove that no site bypasses the helper. The claim and the check have to be the same shape or the claim is false.
+
+Two exemptions are expected and are named in the plugin rather than discovered: `src/core/cli-entry.ts` itself, which contains the sanctioned comparison, and non-guard uses of `import.meta.url` (`fileURLToPath(import.meta.url)` for a directory, `new URL(…, import.meta.url)` for an asset), which are not comparisons and so never match.
 
 This is the unit that makes the sweep durable. The evidence that it is needed is in the drift already observed: two sites migrated away from the template and two new ones arrived carrying it, in three weeks, with the defect already written down in the roadmap.
 
 ## Acceptance criteria
 
-1. `grep -rF 'file://${' src --include='*.ts'` returns no `import.meta.url` comparison.
+1. No file under `src/` except `src/core/cli-entry.ts` compares `import.meta.url` to anything; every direct-invocation guard reads `isEntrypoint(import.meta.url)` or `invokedDirectly(<stem>)`. (`grep -rF 'file://${' src --include='*.ts'` returning nothing is necessary but not sufficient — it misses the concatenation form.)
 2. `isEntrypoint` is exported from `src/core/cli-entry.ts` and takes an optional second argument that overrides `process.argv[1]`.
 3. `isEntrypoint(url, argv1)` returns `true` for every path that resolves to `url`, including paths containing a space, a `#`, and a non-ASCII character, and for a relative path resolving to it from the cwd.
 4. `isEntrypoint(url, argv1)` returns `false` for a same-directory sibling module and for a same-basename module in a different directory.
-5. `isEntrypoint(url, undefined)` returns `false` and does not throw.
+5. `isEntrypoint(url, '')` returns `false` and does not throw. (`undefined` is not the assertion: it selects the `process.argv[1]` default, so under a test runner it compares against the runner's path and pins nothing — the same latent hole as `src/core/__tests__/cli-entry.test.ts:18`.)
 6. All 35 swept sites retain their pre-change tail behaviour: same exit codes, same stdout/stderr, same async handling.
 7. `src/milestones/validate-milestones.ts` still exposes its `isMain` local and branches on it unchanged.
-8. From a checkout whose absolute path contains a space, the representative hook and validator entrypoints execute their bodies and produce their normal output, under both `NOLDOR_RUNTIME=source` and `NOLDOR_RUNTIME=dist`.
-9. A file added under `src/` containing an `import.meta.url`-vs-`file://`-template comparison causes `pnpm noldor checks invariants` to report a violation naming that file and line.
-10. The new invariant is present in both `invariants` and `makeInvariants` in `src/invariants/index.ts`.
-11. `pnpm typecheck`, the full test suite, and `pnpm noldor checks push-gates` are green.
-12. The clone ratchet does not rise: 35 identical one-line conditions calling a shared helper replace 35 identical inline comparisons.
+8. From a checkout whose absolute `realpathSync`-resolved path contains a space, the representative hook and validator entrypoints execute their bodies and produce their normal output.
+9. `src/cli/__tests__/runtime-parity.test.ts` fails when a manifest entrypoint's direct-invocation guard does not go through `isEntrypoint`.
+10. A file added under `src/` that compares `import.meta.url` to anything other than an `isEntrypoint` or `invokedDirectly` call causes `pnpm noldor checks invariants` to **exit non-zero**, naming that file and line — including the `'file://' + process.argv[1]` concatenation form, not only the template-literal form.
+11. The new invariant is present in both `invariants` and `makeInvariants` in `src/invariants/index.ts`, and its violations carry `severity: 'error'` or omit `severity`.
+12. `pnpm typecheck`, the full test suite, and `pnpm noldor checks push-gates` are green.
+13. The clone ratchet does not rise: 35 identical one-line conditions calling a shared helper replace 35 identical inline comparisons.
 
 ## Risks / trade-offs
 
@@ -121,7 +128,9 @@ This is the unit that makes the sweep durable. The evidence that it is needed is
 
 **The integration test's cost and flakiness.** Copying a tree per test run is slow, and a spaced-path temp directory is exactly the kind of fixture that breaks on a shell quoting mistake. Mitigated by keeping it to two entrypoints and by having the unit table carry the real coverage; if the integration test proves unstable it can be reduced to one entrypoint without losing the class guarantee.
 
-**`isEntrypoint` drops the `.ts`/`.js` cross-extension tolerance `invokedDirectly` has.** If some invocation path ever hands the router a `dist` module path while a `src` module is imported, the guard goes false and the body silently does not run — the same failure mode being fixed, from a different cause. The claim that this cannot happen rests on `runtimeRelative` at `src/cli/index.ts:27`, so Unit 4 runs the spaced-path case under both `NOLDOR_RUNTIME` values rather than trusting it. The residual risk is an invocation path neither runtime value exercises.
+**`isEntrypoint` drops the `.ts`/`.js` cross-extension tolerance `invokedDirectly` has.** If some invocation path ever hands the router a `dist` module path while a `src` module is imported, the guard goes false and the body silently does not run — the same failure mode being fixed, from a different cause. The claim that this cannot happen rests on `runtimeRelative` at `src/cli/index.ts:27`; Unit 4 pins it by extending the static scan in `src/cli/__tests__/runtime-parity.test.ts` rather than by building a `dist` inside a temp fixture. Residual risk: a scan over the manifest cannot see an entrypoint reached by some path the manifest does not name.
+
+**A symlinked invocation path defeats the predicate, and this design accepts that.** Node resolves a module to its realpath, so `import.meta.url` is realpath-based while `process.argv[1]` is whatever the caller typed; invoking a module through a symlink makes the two disagree and the guard returns `false` — the same silent-pass shape being fixed. Accepted, because no framework path is exposed: the router derives `SRC_ROOT` from its own `import.meta.url` (already a realpath), builds `modPath` from it, and **rewrites `process.argv[1]` to that `modPath`** before importing, so both sides of every routed comparison come from the same realpath. Only a direct `node <symlinked-src-path>` invocation, which nothing in the framework or its hooks performs, is affected. The alternative — `realpathSync` inside the predicate — buys that edge case for an fs call on every guard evaluation in every process (34 of the 35 guards evaluate to `false` on any given invocation) plus an ENOENT branch, and is not worth it. What this risk does force is Unit 4's `realpathSync` on the fixture root, since `os.tmpdir()` is itself a symlink on macOS.
 
 **A false positive is worse than the bug being fixed.** A guard that wrongly returns `true` makes an imported module run its CLI body and call `process.exit`, which would break the router mid-dispatch. This is why the design refuses the basename approach for the two colliding sites and why the false-positive direction gets its own test rows.
 
@@ -158,3 +167,15 @@ For new code, the entrypoint tail is `if (isEntrypoint(import.meta.url)) { … }
 
 6. *Should the FD's `links.code` be populated with the 35 paths up front?*
    → **No.** (D6) Leave it empty and let the implementation's `@fd:` tags feed it, so the link list describes what the change actually touched rather than what this spec predicted.
+
+7. *Does explicit `isEntrypoint(url, undefined)` mean "use `process.argv[1]`" or "no entrypoint"?*
+   → **"Use `process.argv[1]`".** (D7) That is what a TypeScript default parameter does and what `invokedDirectly` already does, so the alternative would make two sibling helpers disagree on the same argument. The consequence is that `undefined` cannot express "no entrypoint" from a call site: the `?? ''` fallback exists for a genuinely absent `process.argv[1]`, and the test for the false branch passes `''`.
+
+8. *Should the invariant denylist the broken template, or allowlist the sanctioned helpers?*
+   → **Allowlist.** (D8) A denylist keyed on `` `file://${…}` `` passes `'file://' + process.argv[1]`, passes a mistyped replacement, and passes the next spelling someone invents — while the spec claims the invariant proves no site bypasses the helper. The check has to have the same shape as the claim, or the claim is false.
+
+9. *Blocking or advisory severity for the new invariant?*
+   → **Blocking (`severity: 'error'`).** (D9) `src/invariants/slug-path-choke-point.ts`, the file this one copies its shape from, emits `severity: 'warn'`, which `src/invariants/types.ts` defines as non-blocking. Inheriting that would make Unit 5 an advisory that refuses nothing, contradicting the goal it exists to serve.
+
+10. *`realpathSync` inside the predicate, or only in the test fixture?*
+    → **Only in the fixture; the symlink case is accepted residual risk.** (D10) Every routed invocation is already symlink-safe because the router derives `modPath` from its own realpath-based `import.meta.url` and rewrites `process.argv[1]` to it, so both sides of the comparison share one realpath; only a direct `node <symlinked-src-path>` call is exposed and nothing in the framework makes one. Putting `realpathSync` in the predicate would buy that edge case for an fs call on every guard evaluation in every process, plus an ENOENT branch. The fixture, by contrast, must resolve its root, because `os.tmpdir()` is a symlink on macOS.
