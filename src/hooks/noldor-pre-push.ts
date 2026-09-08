@@ -6,10 +6,10 @@
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Readable } from 'node:stream';
-import { pathToFileURL } from 'node:url';
 
 import { createGitRunner } from './pre-push-range.js';
 import { renderAdrViolations, validatePushedAdrs } from './validate-pushed-adrs.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export interface PrePushInput {
   remoteName: string;
@@ -176,10 +176,9 @@ export function readStdinWithTimeout(
   });
 }
 
-// `pathToFileURL`, not a `file://` template: a repo path needing percent-encoding
-// (a space is enough) makes the naive comparison false, `main` never runs, the
-// process exits 0, and every push passes with no diagnostic — a silently disabled
-// gate. Same form as `src/cli/index.ts`.
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+// Via `isEntrypoint`, never a hand-rolled comparison: a silently false guard
+// here means `main` never runs, the process exits 0, and every push passes
+// having checked nothing. See `src/core/cli-entry.ts` for why.
+if (isEntrypoint(import.meta.url)) {
   void main().then((code) => process.exit(code));
 }

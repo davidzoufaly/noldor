@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 
 import { templateFiles } from '../templates/manifest.js';
 import { parseTrailers } from './trailers.js';
+import { isEntrypoint } from './cli-entry.js';
 
 const execFileP = promisify(execFile);
 
@@ -380,6 +381,6 @@ async function main(): Promise<void> {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

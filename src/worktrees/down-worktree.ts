@@ -9,6 +9,7 @@ import {
   type ResolveError,
 } from '../core/slug-paths.js';
 import { resolveWorktree } from './worktree-paths.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const execFileP = promisify(execFile);
 
@@ -123,6 +124,6 @@ async function main(): Promise<number> {
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   main().then((code) => process.exit(code));
 }

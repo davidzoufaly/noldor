@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { isEntrypoint } from './cli-entry.js';
 
 const SKILLS_DIR = '.claude/skills';
 const CATALOG_PATH = 'docs/noldor/skill-catalog.md';
@@ -96,6 +97,6 @@ async function main(): Promise<void> {
   process.exitCode = 1;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

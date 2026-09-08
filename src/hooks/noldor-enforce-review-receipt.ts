@@ -4,6 +4,7 @@
 import { spawnSync } from 'node:child_process';
 import { parseTrailers } from '../core/trailers.js';
 import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export interface EnforceResult {
   ok: boolean;
@@ -60,7 +61,7 @@ export function enforceReviewReceipt(opts: { cwd: string }): EnforceResult {
   return { ok: true };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   const r = enforceReviewReceipt({ cwd: process.cwd() });
   if (!r.ok) {
     console.error(`Noldor gate: ${r.reason}`);

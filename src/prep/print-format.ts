@@ -3,6 +3,7 @@
 // agents in consumer repos (no noldor src/ checkout) read the contract here.
 
 import { PLAN_FORMAT, SPEC_FORMAT } from './formats.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * Resolve a CLI kind argument to its format const.
@@ -27,6 +28,6 @@ function main(): number {
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main());
 }

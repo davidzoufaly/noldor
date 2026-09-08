@@ -21,6 +21,7 @@ import {
 } from '../design/open-artifact.js';
 
 import { filePathFromPayload } from './noldor-pre-edit-guard.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /** What a PostToolUse payload carries that this hook reads. Unknown keys ignored. */
 interface PostToolUsePayload {
@@ -111,7 +112,7 @@ export function openArtifactForPayload(
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   try {
     // An interactive TTY (operator ran it bare) has no payload; don't block on a
     // stdin read that will never complete — same guard as the pre-edit guard.

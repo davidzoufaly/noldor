@@ -1,4 +1,8 @@
 import { boundaries, makeBoundariesInvariant } from './boundaries.js';
+import {
+  entrypointGuardChokePoint,
+  makeEntrypointGuardChokePointInvariant,
+} from './entrypoint-guard-choke-point.js';
 import { makePublicApiTsdocInvariant, publicApiTsdoc } from './public-api-tsdoc.js';
 import { makeRuleConflictsInvariant, ruleConflicts } from './rule-conflicts.js';
 import { makeSlugPathChokePointInvariant, slugPathChokePoint } from './slug-path-choke-point.js';
@@ -16,6 +20,7 @@ export const invariants: readonly Invariant[] = [
   boundaries,
   toolchainFloor,
   slugPathChokePoint,
+  entrypointGuardChokePoint,
 ] as const;
 
 /**
@@ -31,6 +36,7 @@ export function makeInvariants(repoRoot: string): readonly Invariant[] {
     makeBoundariesInvariant(repoRoot),
     makeToolchainFloorInvariant(repoRoot),
     makeSlugPathChokePointInvariant(repoRoot),
+    makeEntrypointGuardChokePointInvariant(repoRoot),
   ] as const;
 }
 

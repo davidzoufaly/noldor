@@ -5,6 +5,7 @@ import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import matter from 'gray-matter';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const CHANGELOG_HEADING = '## Changelog';
 const COMMITS_SUBHEADING = '#### Commits';
@@ -214,6 +215,6 @@ async function main(): Promise<void> {
   );
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   await main();
 }

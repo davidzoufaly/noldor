@@ -9,8 +9,37 @@
  * as they are next edited — the gate surfaces each one as its span is touched.
  */
 
+import { pathToFileURL } from 'node:url';
+
 /** Async CLI body: argv without `node <script>`, resolving to an exit code. */
 export type CliMain = (argv: string[]) => Promise<number>;
+
+/**
+ * True when this module is the process entrypoint, by comparing its own
+ * `import.meta.url` against `argv1` put through the same encoder.
+ *
+ * `pathToFileURL`, never a `file://` template: `import.meta.url` is a
+ * percent-encoded URL while `process.argv[1]` is a raw path, so a repo path
+ * needing encoding (one space is enough) makes the naive comparison false — the
+ * body never runs, the process exits 0, and the check passes having checked
+ * nothing. Resolving `argv1` through the same function also makes a relative
+ * path work, since `pathToFileURL` resolves against the cwd.
+ *
+ * Prefer this over {@link invokedDirectly} wherever the module can name its own
+ * URL: this is path-exact, whereas the stem regex matches any file with that
+ * basename and so cannot tell `release/index.ts` from `cli/index.ts`.
+ *
+ * Passing `undefined` explicitly selects the `process.argv[1]` default, exactly
+ * as omitting the argument does. The `?? ''` therefore guards only a genuinely
+ * absent `process.argv[1]` (a `node -e` process); a test wanting the false
+ * branch passes `''`.
+ */
+export function isEntrypoint(
+  moduleUrl: string,
+  argv1: string | undefined = process.argv[1],
+): boolean {
+  return moduleUrl === pathToFileURL(argv1 ?? '').href;
+}
 
 /**
  * True when `process.argv[1]` is the module named `stem` — i.e. this file was

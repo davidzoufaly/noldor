@@ -17,6 +17,7 @@ import {
   type SummaryCommit,
   type VerifySummary,
 } from './pr-flow.js';
+import { isEntrypoint } from './cli-entry.js';
 
 const DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;
 
@@ -505,6 +506,6 @@ export async function runCli(cwd: string): Promise<number> {
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   void runCli(process.cwd()).then((code) => process.exit(code));
 }

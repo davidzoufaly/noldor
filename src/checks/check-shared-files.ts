@@ -12,6 +12,7 @@ import {
   approvalRelPath,
   parseApprovalBytes,
 } from '../design/design-approval.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const BLOCK_LIST: ReadonlyArray<string | RegExp> = [
   'CLAUDE.md',
@@ -390,6 +391,6 @@ export function main(): number {
   return 1;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main());
 }

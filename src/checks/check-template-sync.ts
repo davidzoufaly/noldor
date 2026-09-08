@@ -3,6 +3,7 @@ import { loadAgentsConfig } from '../core/agent-runner/registry.js';
 import { filterTemplatesByAgents } from '../templates/agent-filter.js';
 import { computeDrift, type DriftEntry } from '../templates/diff.js';
 import { templateFiles, TEMPLATES_ROOT, SCAFFOLD_ONLY_TEMPLATES } from '../templates/manifest.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const TEMPLATES_PREFIX = 'templates/';
 
@@ -100,6 +101,6 @@ export function main(): number {
   return 1;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main());
 }

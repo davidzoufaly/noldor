@@ -42,6 +42,7 @@ export function createRefusalMessage(error: CreateRefusal): string {
   }
 }
 import { allocatePorts, parseWorktreeList, readPort } from './worktree-status.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const execFileP = promisify(execFile);
 
@@ -227,6 +228,6 @@ async function main(): Promise<number> {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   main().then((code) => process.exit(code));
 }

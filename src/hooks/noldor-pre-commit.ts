@@ -16,6 +16,7 @@ import {
   loadConfigSync,
   resolveSessionTtlHours,
 } from '../core/config.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export interface PreCommitResult {
   ok: boolean;
@@ -135,7 +136,7 @@ export function runPreCommit(opts: {
   return { ok: true };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   const cwd = process.cwd();
   // Fail-open: a malformed .noldor/config.json must never block a commit, since
   // this hook gates every commit. Fall back to the default TTL on any read/parse error.

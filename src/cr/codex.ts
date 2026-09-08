@@ -5,6 +5,7 @@ import { replaceReceiptTrailer } from './receipt-trailer.js';
 import { runCodex } from './run-codex.js';
 import { readFeatureMd, readRules, reviewWithCodex, sh } from './review-with-codex.js';
 import { sidecarFilename, writeSidecar } from './sidecar.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export interface RunCliInput {
   argv: readonly string[];
@@ -146,6 +147,6 @@ function printFindings(r: {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   runCli({ argv: process.argv.slice(2), cwd: process.cwd() }).then((code) => process.exit(code));
 }

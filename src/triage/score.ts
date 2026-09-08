@@ -1,12 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import matter from 'gray-matter';
 import { z } from 'zod';
 
 import { resolveEntryRef } from './entry-id.js';
 import { RETIRED_IDS_PATH_DEFAULT, loadRetiredIds, retiredRefs } from './retired-ids.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export const sizeSchema = z.enum(['XS', 'S', 'M', 'L', 'XL']);
 export const impactSchema = z.enum(['low', 'med', 'high', 'critical']);
@@ -175,11 +175,6 @@ function main(argv: readonly string[]): number {
   return 0;
 }
 
-const invokedDirectly =
-  typeof process !== 'undefined' &&
-  process.argv[1] !== undefined &&
-  fileURLToPath(import.meta.url) === process.argv[1];
-
-if (invokedDirectly) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main(process.argv));
 }

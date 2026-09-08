@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
 import { readSession } from '../core/session.js';
 import { rolloutMarkerExists } from '../core/rollout-marker.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export interface PreEditResult {
   ok: boolean;
@@ -82,7 +83,7 @@ export function filePathFromPayload(payload: PreToolUsePayload): string | undefi
   return input.file_path ?? input.notebook_path ?? input.path;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   const argPath = process.argv[2];
   let result: PreEditResult;
   try {

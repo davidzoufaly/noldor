@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { glob } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import { argv, exit } from 'node:process';
+import { isEntrypoint } from './cli-entry.js';
 
 /**
  * One-time, idempotent codemod prefixing the 9 bare framework skill names with
@@ -88,7 +88,7 @@ async function main(): Promise<void> {
   console.log(`\n${dryRun ? 'dry-run' : 'applied'}: ${touched} file(s) touched`);
 }
 
-if (argv[1] === fileURLToPath(import.meta.url)) {
+if (isEntrypoint(import.meta.url)) {
   main().catch((err) => {
     console.error(err);
     exit(1);
