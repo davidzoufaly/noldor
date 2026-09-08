@@ -117,27 +117,46 @@ else), and emitting is also what ends the header — the exclusion never resumes
 
 Buffering rather than skipping is forced by two things that cannot be decided
 at statement start. `export` is ambiguous: `export { a } from './b.js'` is a
-re-export and excluded, while `export const a = 1` is a declaration and kept,
-and the `from` that separates them arrives several tokens later. And the word
-`import` does not imply an import declaration: top-level `import('./x.js')` and
-`import.meta.url` both begin with it and must keep every token. The decision
-predicate is therefore evaluated over the completed buffer — a static import
-declaration is `import` **not** followed by `(` or `.`; a re-export is `export`
-whose statement contains a `from` at bracket depth 0 — and any statement
-failing both is emitted. A single boolean can track *whether the header has
-ended*, but it cannot classify the statement — that is why the buffer exists.
+re-export and excluded, while `export const a = 1` is a declaration and kept.
+And the word `import` does not imply an import declaration: top-level
+`import('./x.js')` and `import.meta.url` both begin with it and must keep every
+token. The decision predicate is therefore evaluated over the completed buffer,
+and it is **prefix-anchored rather than token-search-based**:
+
+- **Static import** — first token `import`, second token *not* `(` and *not*
+  `.`. Discard.
+- **Re-export** — first token `export`, second token `{` or `*`. Discard.
+  (`export * from`, `export * as ns from`, `export {a} from` are the only
+  re-export forms; `export type {a} from` is covered because `type` is
+  followed by `{`, so the second-token rule is applied after an optional
+  `type` token.)
+- **Anything else** — emit verbatim, and the header ends here.
+
+A search for a depth-0 `from` token would be wrong, not merely loose:
+`from` is a keyword in this scanner (`src/clones/tokenize.ts:49`), so it stays
+verbatim in `norm`, and `export const from = startOfDay(x)` or
+`export const r = from(source)` would both match. Those are executable
+declarations; discarding one deletes real code from the corpus *and*, because
+discarding does not end the header, leaves the exclusion running into the next
+statement. The prefix anchor cannot misfire that way — the second token of
+either statement is `const`.
 
 **Statement end is defined without relying on a semicolon.** The buffer closes
-at a `;` at bracket depth 0, *or* at a newline at bracket depth 0 that is not
-inside an unterminated clause — the ASI boundary. A repo formatted with
-`semi: false`, or a single semicolon-free import in this one, must not extend
-the buffer past its statement: doing so would discard the following executable
-declaration, and in the worst case swallow the remainder of the file, collapsing
-`totalTokens` so the corpus reports zero clones and the ratchet goes silently
-green. `tokenize` is documented as never-throw / degrade-gracefully
-(`src/clones/tokenize.ts:203`), and the same posture applies here: if the buffer
-reaches EOF without a depth-0 terminator, it is **emitted, not discarded**. An
-unparseable header costs a few extra tokens; a discarded one costs the ratchet.
+at the first of: a `;` at bracket depth 0; a newline at bracket depth 0 (the
+ASI boundary); or **EOF at bracket depth 0**. All three are ordinary,
+well-formed terminators — a semicolon-free final import in a file with no
+trailing newline is a *complete* statement and is classified and discarded like
+any other, so criterion 1 holds for it. The `;`-only rule this replaces would
+have extended the buffer past its statement in `semi: false` source, discarding
+the following executable declaration and, in the worst case, the remainder of
+the file — collapsing `totalTokens` so the corpus reports zero clones and the
+ratchet goes silently green.
+
+The fail-safe covers only the genuinely malformed case: **EOF reached at
+bracket depth > 0** — an unbalanced `{` or `(` in the header — where the buffer
+is **emitted, not discarded**. `tokenize` is documented as never-throw /
+degrade-gracefully (`src/clones/tokenize.ts:203`), and this is the same
+posture: unparseable input costs a few extra tokens rather than deleted code.
 
 Bounding the rule to the header is deliberate. A general "imports never count"
 rule would leave an unbounded hole: a genuinely pasted block that happens to
@@ -157,9 +176,20 @@ A clone class survives to the report only if at least one of its spans holds a
 statement that is not a delegation. A span is *pure delegation* when **both**
 of these hold:
 
-- it contains **at least one** `return`, and
+- it contains **at least one `return` in statement position**, and
 - it contains **no** other statement keyword — no `if`, `for`, `while`,
   `switch`, `try`, `const`, `let`, or `var`.
+
+*Statement position* means the token preceding the `return` is `{`, `;`, or the
+span's own start, **and** the token following it is not `:`. The qualifier is
+required because `return` is a legal member name in TypeScript: a copied
+`interface` declaring a `return(...)` method, or a copied object literal
+carrying a `return:` property, would otherwise satisfy the positive half of the
+predicate while returning nothing, and the whole class would be dropped — the
+same class of silent loss the positive requirement exists to prevent. The
+preceding-token and following-token checks are both computable from the
+normalized stream, since `{`, `;` and `:` are single-character punctuation the
+scanner keeps verbatim (`src/clones/tokenize.ts:308-310`).
 
 That is exactly the signature-plus-`return <call>(…)` shape of a thin typed
 façade. A class whose every span is pure delegation is dropped; a class with
@@ -217,10 +247,15 @@ bump the generation without another schema field.
 - **Legacy representation:** absent. Absence means generation `0` — the policy
   in force before this change.
 - **Comparison:** `sameOptions` compares `(a.noisePolicy ?? 0) === (b.noisePolicy ?? 0)`.
-  The `?? 0` on *both* sides is required, not defensive: without it two
-  `undefined` values compare equal for the wrong reason (see below).
-- **`describeOptions`:** gains `noise-policy <n>`, so the `stale` message names
-  the generation that changed instead of listing four identical numbers.
+  What the coalesce buys is that a legacy baseline's *absent* value equals an
+  explicit `noisePolicy: 0` — nothing more. It is **not** what guards the
+  optionality trap below: two `undefined`s already compare equal, and since the
+  `now` side always stamps `CURRENT_NOISE_POLICY` the coalesce on that side is
+  dead. The guard is the both-write-sites rule, stated below.
+- **`describeOptions`:** renders `noise-policy ${o.noisePolicy ?? 0}` — the same
+  coalesce as the comparison, so a legacy consumer's `stale` message reads
+  `noise-policy 0` against `noise-policy 1` rather than `noise-policy undefined`,
+  and actually names the generation that changed.
 
 It is **unconditional**: no `.noldor/config.json` entry, no CLI flag. No repo
 has a reason to ask for its own import headers to keep counting as duplication,
@@ -251,7 +286,7 @@ do nothing at all, with no compiler diagnostic and no visible symptom — the
 number would simply look like an improvement. So `compareToBaseline` must
 construct `now` as `{ ...opts, includeTests, noisePolicy: CURRENT_NOISE_POLICY }`,
 and `buildBaseline` (`src/clones/baseline.ts:66-84`) must stamp the same
-constant into the options block it writes. Criterion 10 exists to pin exactly
+constant into the options block it writes. Criterion 12 exists to pin exactly
 this: a legacy baseline must come back `stale`, and a test that only checks
 "parses without error" would pass while the bug is live.
 
@@ -274,7 +309,7 @@ and this is a settled fact about shipped behavior.
 
 ## Acceptance criteria
 
-Fixture files for criteria 1-9 must clear both detection floors
+Fixture files for criteria 1-11 must clear both detection floors
 (`minTokens: 50`, `minLines: 5`), or the assertion passes for the wrong reason.
 
 1. A file pair whose only structural overlap is a head-of-file import block
@@ -288,23 +323,31 @@ Fixture files for criteria 1-9 must clear both detection floors
 5. Semicolon-free source: a file whose head-of-file imports carry no `;`
    tokenizes to the same non-import token count as the semicolon-terminated
    equivalent, and a copied body following such an import is still reported.
-   An unterminated header statement reaching EOF is emitted, not discarded.
-6. A top-level `import('./x.js')` call and a top-level `import.meta.url`
+   A semicolon-free *final* import with no trailing newline is discarded too —
+   depth-0 EOF is a terminator, not a failure.
+6. A header statement reaching EOF with unbalanced brackets is emitted, not
+   discarded, so `totalTokens` never collapses on malformed input.
+7. `export const from = startOfDay(x)` in the header position is emitted at
+   full token weight and ends the header, so the statement following it is
+   also counted.
+8. A top-level `import('./x.js')` call and a top-level `import.meta.url`
    reference each contribute their full token weight, as does an `import()`
    inside a function body.
-7. A copied `interface` (or `type` alias, or enum) block containing no
-   statement keyword at all is still reported — the delegation predicate
-   requires a positive `return`.
-8. A copied sequence of side-effect calls or property assignments, with no
-   `return` and no other statement keyword, is still reported.
-9. A class in which one span carries control flow and another is pure
-   delegation is still reported, at full weight.
-10. A baseline whose `options` omits `noisePolicy` parses successfully and
+9. A copied `interface` (or `type` alias, or enum) block containing no
+   statement keyword at all is still reported, and so is one declaring a
+   `return(...)` method or a `return:` property — the delegation predicate
+   requires a `return` in statement position.
+10. A copied sequence of side-effect calls or property assignments, with no
+    `return` and no other statement keyword, is still reported.
+11. A class in which one span carries control flow and another is pure
+    delegation is still reported, at full weight.
+12. A baseline whose `options` omits `noisePolicy` parses successfully and
     `compareToBaseline` returns `stale` — not `unreadable`, and not green —
-    even when `duplicatedTokens` fell.
-11. `duplicatedTokens` after the change is lower than before on the repo's own
+    even when `duplicatedTokens` fell, and its message renders
+    `noise-policy 0`.
+13. `duplicatedTokens` after the change is lower than before on the repo's own
     corpus, and `perFile` still sums exactly to `duplicatedTokens`.
-12. `pnpm noldor clones check` exits 0 against the re-recorded baseline at the
+14. `pnpm noldor clones check` exits 0 against the re-recorded baseline at the
     shipping commit, and adding a case to a table-driven test file does not
     change `duplicatedTokens`.
 
@@ -342,13 +385,20 @@ confined to spans that genuinely do return something.
 
 **The header exclusion is a hand-rolled statement boundary, not a parser.**
 `tokenize` is a scanner by design (`src/clones/tokenize.ts:1-11`), so
-buffer-then-decide reimplements just enough of ASI to find a statement end. A
-header form neither the `;` nor the depth-0-newline rule anticipates will end
-the buffer in the wrong place. The fail-safe direction is fixed rather than
-left to the implementer: an unterminated buffer is emitted, so a
-mis-recognised header over-counts tokens instead of discarding code. That
-turns the failure mode into a slightly high ratchet number — visible, and red
-in the safe direction — rather than a silently disabled check.
+buffer-then-decide reimplements just enough of ASI to find a statement end, and
+a header form that none of the three depth-0 terminators anticipates will close
+the buffer in the wrong place.
+
+Two separate things keep that from deleting code, and they cover different
+failures. *Classification* is prefix-anchored on the statement's first two
+tokens, so no statement that is not a static import or a `{`/`*` re-export can
+be discarded however oddly it is written — that is what a depth-0 `from` search
+could not guarantee. *Termination* fails toward emitting: EOF at depth > 0
+emits the buffer. What remains uncovered is a boundary drawn in the wrong place
+between two statements that are *both* header imports, which merges or splits
+their token runs without deleting anything outside the header. The residual
+failure mode is therefore a slightly wrong ratchet number rather than a
+silently disabled check.
 
 **The two units are independently sized.** Unit 1 is 8.2% of the number,
 Unit 2 is 1.7%. They ship together because they share one test fixture and one
@@ -398,31 +448,40 @@ pnpm noldor clones check      # green
 
 4. *Should Unit 2's predicate be "no statement keyword but `return`", or
    "at least one `return` and no other statement keyword"?*
-   -> **At least one `return` and no other statement keyword.** (D4) The
-   absence-only form is vacuously satisfied by a span with no keyword at all,
-   which silently drops a copied `interface`, enum, object-literal body, or any
-   match landing mid-declaration — a real copied declaration disappearing from
-   the report. The positive requirement is what makes the predicate mean
-   "delegation" rather than "not obviously control flow". Multi-`return`
-   delegations still qualify, which was the original intent.
+   -> **At least one `return` in statement position, and no other statement
+   keyword.** (D4) The absence-only form is vacuously satisfied by a span with
+   no keyword at all, which silently drops a copied `interface`, enum,
+   object-literal body, or any match landing mid-declaration — a real copied
+   declaration disappearing from the report. The statement-position qualifier
+   (preceded by `{`, `;` or the span start; not followed by `:`) closes the
+   mirror-image hole, since `return` is a legal member name and a copied
+   `interface` with a `return(...)` method would otherwise pass the positive
+   half. Multi-`return` delegations still qualify, which was the intent.
 
 5. *How is the excluded header statement's end defined, and how is `export`
    classified?*
-   -> **Buffer the statement, decide at its end; end at a depth-0 `;` or a
-   depth-0 ASI newline; emit on EOF without a terminator.** (D5) Neither
-   `export` (`export {a} from` excluded, `export const a` kept, `from` arriving
-   late) nor `import` (`import()` and `import.meta` must be kept) can be
-   classified at statement start, so a skip-in-place cannot be correct. And a
-   `;`-only terminator would swallow the rest of a semicolon-free file,
-   collapsing `totalTokens` and turning the ratchet silently green — so the
-   ASI boundary is required and the EOF case fails toward emitting.
+   -> **Buffer the statement and decide on a prefix anchor; end at a depth-0
+   `;`, a depth-0 newline, or depth-0 EOF; emit only when EOF is reached at
+   depth > 0.** (D5) Neither `export` (`export {a} from` excluded,
+   `export const a` kept) nor `import` (`import()` and `import.meta` must be
+   kept) can be classified at statement start, so a skip-in-place cannot be
+   correct. The anchor is the statement's first two tokens, not a search for a
+   depth-0 `from`: `from` is a keyword in this scanner
+   (`src/clones/tokenize.ts:49`), so a search would discard
+   `export const from = startOfDay(x)` — real code deleted, header left open.
+   Treating depth-0 EOF as a terminator rather than a failure is what keeps a
+   semicolon-free final import (no trailing newline) classified and discarded;
+   the emit-on-unbalanced-EOF fail-safe is then reserved for genuinely
+   malformed input.
 
 6. *What exactly is persisted in the baseline options?*
    -> **`noisePolicy`, `z.number().int().nonnegative().optional()`, value `1`
    from an exported `CURRENT_NOISE_POLICY`; absent means generation `0`;
    `sameOptions` compares `(a ?? 0) === (b ?? 0)`; `describeOptions` renders
-   it.** (D6) A generation integer keeps the comparison scalar and absorbs a
-   future noise rule without another field. Both write sites —
+   `noise-policy ${o.noisePolicy ?? 0}`.** (D6) A generation integer keeps the
+   comparison scalar and absorbs a future noise rule without another field. The
+   coalesce only equates a legacy absent value with an explicit `0`; it is not
+   the guard against the optionality trap. Both write sites —
    `buildBaseline` and `compareToBaseline`'s `now` at
    `src/clones/baseline.ts:198` — must stamp the constant: because the field is
    optional, omitting it there is not a type error, and `undefined` would
