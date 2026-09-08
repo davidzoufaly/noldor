@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### R3's Window Includes the First Round's Own Commit
-
-- id: Q-0220
-- area: tooling
-- type: fix
-- since: 2026-09-07
-- size: XS
-- impact: med
-- confidence: high
-
-`resolveIntroducedLines` diffs `firstHeadSha^..HEAD`, and on an empty ledger `firstHeadSha` falls back to *this* round's head — so the range is `HEAD^..HEAD`, the last commit, not the empty range the call-site comment claimed (the comment was corrected in PR #447). Q-0212's pre-existence filter hides this for greenfield series, but on a series that EDITS existing code, round 1 still gets R3 signals about lines its own pre-review commit added, and "the series introduced it" is not oscillation when nothing has been reviewed yet. The fix is to narrow the window to the rounds actually recorded in the ledger: drop the `^` so the window is `firstHeadSha..HEAD` — lines added *after* the first reviewed head, which is exactly "a prior round touched this line". Deletion test: a first CR round on an edit-only series emits zero R3 signals. (surfaced 2026-09-07 shipping Q-0212)
-
 ### Release-Sweep Skill Prose Contradicts the Working Recipe
 
 - id: Q-0216

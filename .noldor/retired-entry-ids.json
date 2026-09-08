@@ -336,5 +336,9 @@
   "Q-0213": {
     "slug": "clones-check-wont-name-the-files-that-moved-the-token-total",
     "retiredAt": "2026-09-07"
+  },
+  "Q-0220": {
+    "slug": "r3s-window-includes-the-first-rounds-own-commit",
+    "retiredAt": "2026-09-08"
   }
 }
