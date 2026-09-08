@@ -1374,6 +1374,28 @@ describe('resolveIntroducedLines', () => {
     expect(map?.has('src/greenfield.ts')).toBe(false);
     expect([...(map?.get('src/old.ts') ?? [])]).toEqual([11]);
   });
+
+  // Q-0220's deletion test. On the FIRST round the ledger is empty, so the
+  // caller passes this round's own head — and the window must then be empty:
+  // "a prior round touched this line" cannot be true when no round has been
+  // reviewed yet. A window opening one commit earlier reports the series' own
+  // pre-review commit instead, which on an edit-only series (where Q-0212's
+  // pre-existence filter cannot help) fires R3 on round 1.
+  //
+  // The fake answers ranges the way git does — `C1..C1` is empty, `C1^..C1` is
+  // C1's own change — so what is asserted is the window the caller opens.
+  it('reports no introduced lines when the first head is the current head', async () => {
+    const c1Change = ['--- a/src/old.ts', '+++ b/src/old.ts', '@@ -10,0 +11,1 @@', '+x'].join('\n');
+    const git = async (args: string[]) => {
+      if (args[0] === 'merge-base') return '';
+      const [from, to] = args.slice(-2);
+      if (from === 'C1' && to === 'HEAD') return '';
+      if (from === 'C1^' && to === 'HEAD') return c1Change;
+      throw new Error(`unexpected range ${from}..${to}`);
+    };
+    const map = await resolveIntroducedLines('C1', git);
+    expect(map?.size).toBe(0);
+  });
 });
 
 describe('runReflagRules', () => {
