@@ -463,6 +463,10 @@ describe('detectClones noise policy', () => {
     ['an optional return-named method', 'return?(value: string): string;'],
     ['a generic return-named method', 'return<T>(value: T): T;'],
     ['an optional generic return-named method', 'return?<T>(value: T): T;'],
+    // An optional PROPERTY key: the `?` step must not skip past the colon.
+    ['an optional return-named property key', 'return?: string;'],
+    // A constraint may legitimately contain parentheses and an `=>`.
+    ['a constrained generic method', 'return<T extends (x: string) => string>(v: T): T;'],
   ])('still reports a copied interface carrying %s', (_label, member) => {
     const report = detectClones(
       new Map([

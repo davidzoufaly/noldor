@@ -109,24 +109,32 @@ const isReturnStatement = (toks: readonly Token[], r: number): boolean => {
   // `{ return: 1 }` — a property key always carries its colon.
   if (toks[r + 1]?.norm === ':') return false;
 
-  // A member signature may be optional and/or generic: `return?(v: T): T`,
-  // `return<T>(v: T): T`. Step over both before looking for its parameter
-  // list, or the paren test below never runs and the member reads as a
-  // statement. A `?` straight after `return` is never a return statement.
+  // A member may be optional and/or generic: `return?: string`,
+  // `return?(v: T): T`, `return<T>(v: T): T`. Step over the markers before the
+  // tests below, or neither fires and the member reads as a statement.
   let k = r + 1;
   if (toks[k]?.norm === '?') k++;
+  // Re-test after the `?`: an OPTIONAL property key is still a property key.
+  if (toks[k]?.norm === ':') return false;
+
   if (toks[k]?.norm === '<') {
+    // A `<` directly after `return` can only open a type-parameter list or a
+    // type assertion — never a comparison, which would need a left operand.
+    // So scan for the balanced `>` without bailing on a `(`: a constraint may
+    // legitimately contain one, as in `<T extends (x: string) => string>`.
     let angle = 0;
     let j = k;
     for (; j < toks.length; j++) {
       const norm = toks[j]!.norm;
       if (norm === '<') angle++;
-      else if (norm === '>' && --angle === 0) break;
-      // A `(` or `;` before the angle bracket closes means this was a
-      // comparison, not a type-parameter list — leave `k` where it was.
-      else if (norm === '(' || norm === ';') break;
+      // `=>` scans as `=` then `>`; that `>` closes no type parameter.
+      else if (norm === '>' && toks[j - 1]?.norm !== '=' && --angle === 0) break;
+      else if (norm === ';') break; // malformed — bail rather than run on
     }
-    if (angle === 0 && toks[j]?.norm === '>') k = j + 1;
+    // Unclosed: treat as NOT a return statement, so the class stays reported.
+    // Guessing the other way deletes a copied declaration from the report.
+    if (angle !== 0 || toks[j]?.norm !== '>') return false;
+    k = j + 1;
   }
   if (toks[k]?.norm !== '(') return true;
 

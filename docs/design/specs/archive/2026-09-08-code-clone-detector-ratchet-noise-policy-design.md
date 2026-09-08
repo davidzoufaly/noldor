@@ -216,15 +216,24 @@ three hold:
    `iterator.return()`.
 2. The following token is not `:` — excludes an object-literal or type-member
    property key such as `{ return: 1 }`.
-3. Stepping over an optional `?` and an optional balanced `<…>`, if the next
-   token is `(`, the token after that parenthesis group's matching `)` is not
-   `:` — excludes a method signature such as `return(v: T): T`, and equally
-   `return?(v: T): T` and `return<T>(v: T): T`, while keeping the legal
-   statements `return (foo)` and `return (a, b)`, whose `)` is followed by `;`
-   or the span's end. The `?` and `<…>` steps are load-bearing rather than
-   thoroughness: without them the paren test never runs on an optional or
-   generic member, so a copied `interface` declaring one is dropped — the exact
-   silent loss test 3 exists to prevent.
+3. Stepping over an optional `?` — and re-applying test 2 after it, since an
+   optional *property key* `return?: string` is still a property key — then
+   over an optional balanced `<…>`, if the next token is `(`, the token after
+   that parenthesis group's matching `)` is not `:`. This excludes
+   `return(v: T): T` and equally its `return?(…)`, `return<T>(…)` and
+   `return?<T>(…)` forms, while keeping the legal statements `return (foo)` and
+   `return (a, b)`, whose `)` is followed by `;` or the span's end. The marker
+   steps are load-bearing rather than thoroughness: without them neither test
+   fires on an optional or generic member, so a copied `interface` declaring
+   one is dropped — the exact silent loss test 3 exists to prevent.
+
+   The `<…>` scan does **not** bail on a `(`, because a constraint may
+   legitimately contain one (`<T extends (x: string) => string>`); it ignores
+   the `>` of an `=>` (which scans as `=` then `>`), bails on a `;`, and treats
+   an unclosed list as *not* a return statement — so an unparseable form leaves
+   the class reported rather than deleting it. A `<` directly after `return`
+   can only open type parameters or a type assertion, never a comparison, which
+   is what makes the scan safe to start at all.
 
 All three are **local to the `return` token**, which is the property that
 matters here. Clone spans are raw token-index ranges produced by window
@@ -390,10 +399,11 @@ Fixture files for criteria 1-12 must clear both detection floors
 11. The delegation predicate does not over-fire. Each of these is still
     reported: a copied `interface` whose only member is `return(v: T): T`
     **with the span beginning after the `interface` keyword** (so the case does
-    not rely on the container being in-span); the optional, generic and
-    optional-generic forms of that member (`return?(…)`, `return<T>(…)`,
-    `return?<T>(…)`); a copied object-literal body carrying a `return:`
-    property; a span whose only `return` is an `iterator.return()` call; a
+    not rely on the container being in-span); the optional, generic,
+    optional-generic and constrained-generic forms of that member
+    (`return?(…)`, `return<T>(…)`, `return?<T>(…)`,
+    `return<T extends (x: string) => string>(…)`); a copied body carrying a
+    `return:` or `return?:` property; a span whose only `return` is an `iterator.return()` call; a
     copied sequence of side-effect calls with no `return`; and a class in which
     one span carries control flow while another is pure delegation.
 12. The delegation predicate does not under-fire where it is sure. A span
