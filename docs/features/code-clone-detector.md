@@ -25,7 +25,7 @@ links:
 name: Code-Clone Detector
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-07-11T00:00:00.000Z
 noldor-tier: full
 introduced: 1.0.0
@@ -52,6 +52,7 @@ As a framework maintainer, I want a deterministic token-based clone report over 
   - **ratchet** (no tuning): red when `duplicatedTokens` rose above `.noldor/clones-baseline.json`. Absolute tokens, not the percentage — the ratio moves whenever clean code is added or deleted. No baseline = skipped green (nothing to ratchet against); a baseline recorded under other detection options is reported as not-comparable, never red; an unreadable baseline exits 3. Every could-not-compare state prints on stderr — only a real comparison and `clones.ratchet: false` stay on stdout, so a deleted baseline cannot silence the gate quietly. A rise names the files that moved it (`files that moved the total:`, largest rise first, capped at 10 with the withheld count stated) by diffing the per-file clone coverage the baseline records; a baseline written before that attribution existed still parses and asks for a re-record instead of guessing. Every run that actually compared — green included — also prints the group list, so a later rise has a printed base to diff against.
 - Runs automatically as the `noldor-clones` pre-push job (`lefthook/noldor.yml`). Opt out per verdict with `clones.diffScope: false` / `clones.ratchet: false`.
 - Flags: `--against <ref>` (`check` only — a usage error elsewhere), `--min-tokens N` (50), `--min-lines N` (5), `--gap-tokens N` (10), `--include-tests`.
+- **Noise policy** (no flag, no config — unconditional). Two classes of structural match are never counted as duplication: a file's head-of-file `import` / `export … from` declarations, and a clone class whose every span is pure delegation (no `if`/`for`/`while`/`switch`/`try`/`const`/`let`/`var`, plus a real return statement). The generation in force is recorded as `options.noisePolicy` in the baseline, so a baseline written under an older generation reports as not-comparable (`noise-policy 0` vs `noise-policy 1`) rather than passing the newer, lower number as an improvement — re-record once with `clones baseline` after upgrading.
 - `sdd-report` — `## Code clones` section renders group count + duplication % + top-5 groups on every regen.
 
 ## PRs
