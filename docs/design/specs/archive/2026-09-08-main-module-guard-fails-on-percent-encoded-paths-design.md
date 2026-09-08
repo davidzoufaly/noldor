@@ -135,7 +135,9 @@ This is the unit that makes the sweep durable. The evidence that it is needed is
 10. The new invariant is present in both `invariants` and `makeInvariants` in `src/invariants/index.ts`, and its violations carry `severity: 'error'` or omit `severity`.
 11. `pnpm noldor checks invariants` is green on the swept tree — in particular the reworded comment in `src/cli/index.ts` does not trip the new plugin.
 12. `pnpm typecheck`, the full test suite, and `pnpm noldor checks push-gates` are green.
-13. The clone ratchet does not rise: 42 identical one-line conditions calling a shared helper replace 35 identical inline comparisons plus seven correct-but-inline ones in four spellings.
+13. Both ratchets are re-recorded in the same commit as the change that moved them, with the direction named. The measured outcome:
+    - **Clones 25796 → 25762 (−34), 231 groups → 230, and the diff-scoped gate green.** The first attempt raised it +236, of which 135 tokens were the new invariant against `src/invariants/slug-path-choke-point.ts`, whose plugin shape it had copied. Rebaselining does not clear the diff-scoped gate — that check asks whether a clone group overlaps a line this change wrote, and no baseline silences it — so the duplication was removed instead, by extracting `defineSourceScanInvariant` into `src/invariants/source-scan.ts` and migrating both plugins onto it. That is an abstraction at the second call site, which `abstraction-cost` would normally decline; the gate outranked the rule here, and it was right to, since the result is less duplication rather than a laundered baseline.
+    - **Indirection 919 → 926 (+7).** 42 new import edges to one leaf module, plus one for the extracted helper. This is the centralisation the Risks section accepted at fan-in 22 → 64; a choke point cannot be added without adding edges, which is what makes this the one ratchet the change legitimately raises.
 
 ## Risks / trade-offs
 

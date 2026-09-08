@@ -7,6 +7,7 @@ links:
   code:
     - src/core/cli-entry.ts
     - src/invariants/entrypoint-guard-choke-point.ts
+    - src/invariants/source-scan.ts
   tests:
     - src/core/__tests__/cli-entry.test.ts
     - src/core/__tests__/entrypoint-guard-spaced-path.test.ts

@@ -1,5 +1,5 @@
 {
-  "duplicatedTokens": 25796,
+  "duplicatedTokens": 25762,
   "perFile": {
     "src/autonomous/drain-io.ts": 154,
     "src/autonomous/drain-loop.ts": 108,
@@ -29,9 +29,9 @@
     "src/core/phase-revert.ts": 76,
     "src/core/pr-flow-cli.ts": 126,
     "src/core/pr-flow.ts": 220,
-    "src/core/prefix-skills-codemod.ts": 154,
+    "src/core/prefix-skills-codemod.ts": 230,
     "src/core/release-markers.ts": 100,
-    "src/core/rename-plan-only-tier.ts": 154,
+    "src/core/rename-plan-only-tier.ts": 232,
     "src/core/split-check-cli.ts": 278,
     "src/core/trailers.ts": 67,
     "src/core/validate-noldor-scope.ts": 223,
@@ -112,12 +112,9 @@
     "src/sync/sync-doc-links.ts": 116,
     "src/sync/sync-fd-resources.ts": 71,
     "src/sync/sync-test-links.ts": 116,
-    "src/triage/backfill-ids-cli.ts": 59,
     "src/triage/entry-id.ts": 51,
     "src/triage/merge-candidates.ts": 136,
-    "src/triage/mint-id-cli.ts": 66,
     "src/triage/remove-block-cli.ts": 59,
-    "src/triage/score.ts": 63,
     "src/triage/triage-list-untriaged.ts": 71,
     "src/triage/validate-triage.ts": 85,
     "src/utils/parse-blocks.ts": 248,
@@ -126,10 +123,10 @@
     "src/worktrees/worktree-conflicts.ts": 284,
     "src/worktrees/worktree-status.ts": 284
   },
-  "duplicationPct": 7.9159429718234655,
-  "totalTokens": 325874,
-  "groups": 233,
-  "filesScanned": 418,
+  "duplicationPct": 7.8971488478598735,
+  "totalTokens": 326219,
+  "groups": 230,
+  "filesScanned": 420,
   "options": {
     "minTokens": 50,
     "minLines": 5,
@@ -137,5 +134,5 @@
     "includeTests": false,
     "noisePolicy": 1
   },
-  "recordedAt": "2026-09-08T08:18:59.629Z"
+  "recordedAt": "2026-09-08T13:06:17.754Z"
 }
