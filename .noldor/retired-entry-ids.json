@@ -340,5 +340,9 @@
   "Q-0220": {
     "slug": "r3s-window-includes-the-first-rounds-own-commit",
     "retiredAt": "2026-09-08"
+  },
+  "Q-0216": {
+    "slug": "release-sweep-skill-prose-contradicts-the-working-recipe",
+    "retiredAt": "2026-09-08"
   }
 }
