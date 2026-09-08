@@ -123,10 +123,10 @@
     "src/worktrees/worktree-conflicts.ts": 284,
     "src/worktrees/worktree-status.ts": 284
   },
-  "duplicationPct": 7.8971488478598735,
-  "totalTokens": 326219,
+  "duplicationPct": 7.904854541716657,
+  "totalTokens": 325901,
   "groups": 230,
-  "filesScanned": 420,
+  "filesScanned": 418,
   "options": {
     "minTokens": 50,
     "minLines": 5,
@@ -134,5 +134,5 @@
     "includeTests": false,
     "noisePolicy": 1
   },
-  "recordedAt": "2026-09-08T13:06:17.754Z"
+  "recordedAt": "2026-09-08T14:10:05.017Z"
 }

@@ -1,4 +1,8 @@
-import { defineSourceScanInvariant } from './source-scan.js';
+import { readFile } from 'node:fs/promises';
+import { join, relative } from 'node:path';
+
+import { walkRepo } from '../core/fd-load.js';
+import { defineInvariant } from './types.js';
 import type { Invariant, InvariantViolation } from './types.js';
 
 // ADVISORY ON PURPOSE — this reports, it does not enforce.
@@ -136,11 +140,19 @@ export function scanSource(relPath: string, text: string): InvariantViolation[] 
  * @returns A plugin instance bound to that root.
  */
 export function makeSlugPathChokePointInvariant(repoRoot: string): Invariant {
-  return defineSourceScanInvariant(
+  return defineInvariant(
     'slug-path-choke-point',
     'reports slug-rooted path joins outside the guarded builders (advisory — the brand is the enforcement)',
-    repoRoot,
-    scanSource,
+    async () => {
+      const violations: InvariantViolation[] = [];
+      const files: string[] = [];
+      await walkRepo(join(repoRoot, 'src'), files);
+      for (const abs of files) {
+        if (!abs.endsWith('.ts')) continue;
+        violations.push(...scanSource(relative(repoRoot, abs), await readFile(abs, 'utf8')));
+      }
+      return violations;
+    },
   );
 }
 
