@@ -1,3 +1,4 @@
+// @fd: main-module-guard-fails-on-percent-encoded-paths
 /**
  * The direct-invocation tail every `*-cli.ts` module carries: run `main` when
  * this file *is* the entrypoint, exit with its code, and turn a rejection into a

@@ -1,3 +1,4 @@
+// @fd: main-module-guard-fails-on-percent-encoded-paths
 import { readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
