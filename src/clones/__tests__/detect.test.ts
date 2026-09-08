@@ -467,6 +467,13 @@ describe('detectClones noise policy', () => {
     ['an optional return-named property key', 'return?: string;'],
     // A constraint may legitimately contain parentheses and an `=>`.
     ['a constrained generic method', 'return<T extends (x: string) => string>(v: T): T;'],
+    // ...and a semicolon, inside an inline type literal. Mirrors the
+    // drop-direction case below: each widening of the angle scan needs a row
+    // here proving it did not start deleting declarations from the report.
+    [
+      'a constrained generic method whose constraint holds a semicolon',
+      'return<T extends { a: string; b: string }>(v: T): T;',
+    ],
   ])('still reports a copied interface carrying %s', (_label, member) => {
     const report = detectClones(
       new Map([
