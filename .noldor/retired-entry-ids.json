@@ -344,5 +344,10 @@
   "Q-0216": {
     "slug": "release-sweep-skill-prose-contradicts-the-working-recipe",
     "retiredAt": "2026-09-08"
+  },
+  "Q-0214": {
+    "slug": "clone-ratchet-counts-test-scaffolds-facades-and-import-runs-as-duplication",
+    "retiredInto": "code-clone-detector",
+    "retiredAt": "2026-09-08"
   }
 }
