@@ -4,10 +4,19 @@
  * identifiers normalize to `ID` and numeric/string literals to `LIT` in the
  * normalized stream (Type-2 clone matching) while keywords stay verbatim.
  * A declaration-style builder chain (`z.number().int().nonnegative()`) also
- * collapses to one token — see {@link collapseBuilderChains}.
+ * collapses to one token — see {@link collapseBuilderChains}. The module's
+ * leading shebang and its head-of-file import declarations emit nothing — see
+ * {@link dropImportHeader}.
  * Regex literals get no special handling (they degrade to punctuation and
  * identifier runs — bounded imprecision, never a crash). Deterministic, pure,
  * no fs.
+ *
+ * WIDENING EITHER EXCLUSION CHANGES WHAT THE RATCHET COUNTS. The exclusions
+ * here are versioned by `CURRENT_NOISE_POLICY` in `./baseline.ts`, and a
+ * baseline recorded under an older generation is only reported `stale` because
+ * that number moved. Bump it alongside any change to which tokens are dropped
+ * — otherwise the new, lower count compares as an improvement against an old
+ * baseline, with no diagnostic and no visible symptom.
  */
 
 export interface Token {
@@ -200,12 +209,143 @@ export function collapseBuilderChains(tokens: readonly Token[]): Token[] {
   return out;
 }
 
+/**
+ * End index (exclusive) of the static import or re-export declaration starting
+ * at `at`, or `null` when the tokens there are not one.
+ *
+ * Matching is a bounded forward walk of the declaration's own grammar, ending
+ * at the module-specifier `LIT` plus an optional attributes tail — NOT a scan
+ * for a statement boundary. A scanner cannot find statement ends: a newline is
+ * not one (`import { Foo }` newline `from './m.js'` is a single statement) and
+ * a `;` need not be present. Matching the grammar removes the question, and
+ * makes formatting irrelevant since newlines are already whitespace here.
+ *
+ * The failure direction is the safety property. `import('./x.js')` and
+ * `import.meta.url` fail at their second token; `export const from = f(x)`
+ * fails at `const`. All three keep every token. Searching for a `from` token
+ * instead would discard that last one — `from` is a keyword here, so it stays
+ * verbatim in `norm` — deleting real code from the corpus.
+ *
+ * `with` and `assert` are matched on `text`: neither is in {@link KEYWORDS},
+ * so both normalize to `ID`.
+ */
+const importDeclEnd = (tokens: readonly Token[], at: number): number | null => {
+  const norm = (k: number): string | undefined => tokens[k]?.norm;
+
+  /** End index (exclusive) of the balanced `{ … }` group opening at `k`. */
+  const braceEnd = (k: number): number | null => {
+    if (norm(k) !== '{') return null;
+    let depth = 0;
+    for (let j = k; j < tokens.length; j++) {
+      if (norm(j) === '{') depth++;
+      else if (norm(j) === '}' && --depth === 0) return j + 1;
+    }
+    return null;
+  };
+
+  /**
+   * Optional `with`/`assert { … }` attributes clause plus optional `;`.
+   *
+   * Consuming the clause is required, not thoroughness: stopping at the `LIT`
+   * discards the declaration and leaves the orphan `with { … }` tokens at the
+   * next statement start, where they fail the match and END THE HEADER — so
+   * every later import in that file silently stops being excluded.
+   */
+  const tail = (k: number): number => {
+    let j = k;
+    const word = tokens[j]?.text;
+    if ((word === 'with' || word === 'assert') && norm(j + 1) === '{') {
+      const end = braceEnd(j + 1);
+      // Unbalanced: leave the clause in the stream rather than guessing where
+      // it ends. The declaration itself already matched and is still excluded.
+      if (end !== null) j = end;
+    }
+    if (norm(j) === ';') j++;
+    return j;
+  };
+
+  const head = norm(at);
+  if (head !== 'import' && head !== 'export') return null;
+  let k = at + 1;
+  if (norm(k) === 'type') k++;
+
+  // Side-effect import: `import './x.js'` — no clause, no `from`.
+  if (head === 'import' && norm(k) === 'LIT') return tail(k + 1);
+
+  // Clause: `*` [`as` ID] | `{ … }` | ID [`,` (`{ … }` | `*` `as` ID)].
+  if (norm(k) === '*') {
+    k++;
+    if (norm(k) === 'as') {
+      if (norm(k + 1) !== 'ID') return null;
+      k += 2;
+    } else if (head === 'import') {
+      return null; // `import * from` is not a legal form; keep its tokens.
+    }
+  } else if (norm(k) === '{') {
+    const end = braceEnd(k);
+    if (end === null) return null;
+    k = end;
+  } else if (head === 'import' && norm(k) === 'ID') {
+    k++; // default import, optionally plus a named or namespace clause
+    if (norm(k) === ',') {
+      k++;
+      if (norm(k) === '{') {
+        const end = braceEnd(k);
+        if (end === null) return null;
+        k = end;
+      } else if (norm(k) === '*' && norm(k + 1) === 'as' && norm(k + 2) === 'ID') {
+        k += 3;
+      } else return null;
+    }
+  } else return null;
+
+  if (norm(k) !== 'from' || norm(k + 1) !== 'LIT') return null;
+  return tail(k + 2);
+};
+
+/**
+ * Drop the module's head-of-file import declarations from `tokens`.
+ *
+ * An import block is a consequence of a file's dependencies, not copied logic:
+ * two files importing the same six symbols produce identical normalized runs,
+ * and the only way to "fix" that is to import less. On the repo's own corpus
+ * such runs accounted for 43 of 289 clone groups.
+ *
+ * Widening the grammar `importDeclEnd` accepts — a directive prologue, a new
+ * attributes form — drops tokens this generation counted, so it must be paired
+ * with a `CURRENT_NOISE_POLICY` bump in `./baseline.ts`.
+ *
+ * The header is a prefix, so the whole pass is "advance past every declaration
+ * that matches, then slice". The first statement that does not match ends the
+ * header and the exclusion never resumes — which is what stops a genuinely
+ * pasted block that happens to open with an import from having part of its
+ * weight erased.
+ */
+export function dropImportHeader(tokens: readonly Token[]): Token[] {
+  let i = 0;
+  for (;;) {
+    const end = importDeclEnd(tokens, i);
+    if (end === null || end <= i) break;
+    i = end;
+  }
+  return tokens.slice(i);
+}
+
 /** Tokenize `source`. Never throws — unknown characters emit punctuation tokens. */
 export function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
   let i = 0;
   let line = 1;
   const n = source.length;
+
+  // A leading shebang is not code. Left in, `#` and `!` emit as punctuation,
+  // fail the first import match and end the header at token one — so the
+  // file's whole import block keeps counting (src/graphify/graph-to-toon.ts).
+  // The trailing newline is left for the main loop, which counts the line.
+  if (source.startsWith('#!')) {
+    const nl = source.indexOf('\n');
+    i = nl === -1 ? n : nl;
+  }
 
   const countLines = (text: string): void => {
     for (let k = 0; k < text.length; k++) if (text[k] === '\n') line++;
@@ -310,5 +450,5 @@ export function tokenize(source: string): Token[] {
     i++;
   }
 
-  return collapseBuilderChains(tokens);
+  return collapseBuilderChains(dropImportHeader(tokens));
 }

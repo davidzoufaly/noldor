@@ -76,6 +76,7 @@ describe('buildBaseline', () => {
       minLines: 5,
       gapTokens: 10,
       includeTests: false,
+      noisePolicy: 1,
     });
     expect(baseline.recordedAt).toBe('2026-08-12T00:00:00.000Z');
   });
@@ -255,5 +256,51 @@ describe('per-file attribution round-trip', () => {
     if (read.kind !== 'ok') throw new Error('unreachable');
     expect(read.baseline.duplicatedTokens).toBe(300);
     expect(read.baseline.perFile).toBeUndefined();
+  });
+});
+
+describe('noise-policy generation', () => {
+  /** A baseline as written before `noisePolicy` existed: the key is absent. */
+  const legacyBaseline = (duplicatedTokens: number) => {
+    const { noisePolicy: _dropped, ...options } = baselineAt(duplicatedTokens).options;
+    return { ...baselineAt(duplicatedTokens), options };
+  };
+
+  it('records the current generation when building a baseline', () => {
+    expect(baselineAt(120).options.noisePolicy).toBe(1);
+  });
+
+  it('keeps a legacy baseline readable rather than unreadable', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-clones-baseline-'));
+    const path = join(dir, 'legacy.json');
+    writeFileSync(path, JSON.stringify(legacyBaseline(400)), 'utf8');
+    const read = readBaseline(path);
+    expect(read.kind).toBe('ok');
+    // An unreadable baseline turns the ratchet OFF; a comparable-looking one
+    // would let the new lower number pass as an improvement. Neither.
+    expect(read.kind === 'ok' && read.baseline.options.noisePolicy).toBeUndefined();
+  });
+
+  it('calls a legacy baseline stale even when the number FELL', () => {
+    // The trap this pins: `noisePolicy` is optional, so a `now` built without
+    // it reads `undefined`, matches a legacy baseline's absent value, and the
+    // run reports green-with-a-hint on a number the policy change lowered.
+    const verdict = compareToBaseline(reportWith(90), legacyBaseline(400), OPTS, false);
+    expect(verdict.kind).toBe('stale');
+    expect(verdict.message).toContain('noise-policy 0');
+    expect(verdict.message).toContain('noise-policy 1');
+  });
+
+  it('still compares two baselines recorded under the same generation', () => {
+    expect(compareToBaseline(reportWith(90), baselineAt(120), OPTS, false).kind).toBe('green');
+    expect(compareToBaseline(reportWith(150), baselineAt(120), OPTS, false).kind).toBe('red');
+  });
+
+  it('treats an explicit generation 0 as the legacy policy', () => {
+    const explicitZero = {
+      ...baselineAt(400),
+      options: { ...baselineAt(400).options, noisePolicy: 0 },
+    };
+    expect(compareToBaseline(reportWith(90), explicitZero, OPTS, false).kind).toBe('stale');
   });
 });

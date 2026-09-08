@@ -28,12 +28,37 @@ const measured = z.number().int().nonnegative();
 const floor = z.number().int().positive();
 
 /**
+ * Generation of the noise policy the detector applies — which structural
+ * matches it declines to count as duplication at all. Generation 1 excludes
+ * head-of-file import declarations and drops clone classes whose every span is
+ * pure delegation; generation 0 is the policy before either existed.
+ *
+ * A single generation integer rather than a flag per rule: `sameOptions` stays
+ * a scalar comparison, and a future noise rule bumps the number instead of
+ * adding another field to a schema every consumer repo carries.
+ */
+export const CURRENT_NOISE_POLICY = 1;
+
+/**
  * Detection knobs the baseline was recorded under. A baseline is only
  * comparable against a run that used the same knobs — raising `minTokens`
  * shrinks `duplicatedTokens` without anyone removing a clone.
+ *
+ * `noisePolicy` is optional for the same reason `perFile` is: this schema is
+ * `.strict()`, so a required addition fails `safeParse` on every baseline
+ * recorded before it, which `readBaseline` reports as `unreadable` rather than
+ * `stale` — turning the ratchet OFF in every consumer repo at once. Absent
+ * reads as generation 0, so an old baseline instead compares unequal and the
+ * run reports `stale` with the re-record hint, which is the intended path.
  */
 export const baselineOptionsSchema = z
-  .object({ minTokens: floor, minLines: floor, gapTokens: floor, includeTests: z.boolean() })
+  .object({
+    minTokens: floor,
+    minLines: floor,
+    gapTokens: floor,
+    includeTests: z.boolean(),
+    noisePolicy: z.number().int().nonnegative().optional(),
+  })
   .strict();
 export type BaselineOptions = z.infer<typeof baselineOptionsSchema>;
 
@@ -79,6 +104,7 @@ export function buildBaseline(
       minLines: opts.minLines,
       gapTokens: opts.gapTokens,
       includeTests,
+      noisePolicy: CURRENT_NOISE_POLICY,
     },
     recordedAt,
   };
@@ -124,14 +150,22 @@ export type RatchetVerdict =
   | { readonly kind: 'green'; readonly message: string }
   | { readonly kind: 'stale'; readonly message: string };
 
+/**
+ * The `?? 0` equates a legacy baseline's ABSENT value with an explicit
+ * `noisePolicy: 0` — that is all it buys. It is not what guards the
+ * optionality trap: two `undefined`s already compare equal. The guard is that
+ * both write sites stamp {@link CURRENT_NOISE_POLICY}.
+ */
 const sameOptions = (a: BaselineOptions, b: BaselineOptions): boolean =>
   a.minTokens === b.minTokens &&
   a.minLines === b.minLines &&
   a.gapTokens === b.gapTokens &&
-  a.includeTests === b.includeTests;
+  a.includeTests === b.includeTests &&
+  (a.noisePolicy ?? 0) === (b.noisePolicy ?? 0);
 
 const describeOptions = (o: BaselineOptions): string =>
-  `min-tokens ${o.minTokens}, min-lines ${o.minLines}, gap-tokens ${o.gapTokens}, include-tests ${o.includeTests}`;
+  `min-tokens ${o.minTokens}, min-lines ${o.minLines}, gap-tokens ${o.gapTokens}, ` +
+  `include-tests ${o.includeTests}, noise-policy ${o.noisePolicy ?? 0}`;
 
 /** One file whose clone-covered token count grew between two runs. */
 export interface RatchetOffender {
@@ -195,7 +229,12 @@ export function compareToBaseline(
   opts: CloneOptions,
   includeTests: boolean,
 ): RatchetVerdict {
-  const now: BaselineOptions = { ...opts, includeTests };
+  // `noisePolicy` MUST be stamped here. It is optional, so omitting it is not
+  // a type error — and `undefined` compares equal to a legacy baseline's
+  // absent value, so `sameOptions` would pass and this run would report the
+  // new, lower number as green-with-a-hint instead of `stale`. No diagnostic,
+  // no visible symptom: the number would simply look like an improvement.
+  const now: BaselineOptions = { ...opts, includeTests, noisePolicy: CURRENT_NOISE_POLICY };
   if (!sameOptions(baseline.options, now)) {
     return {
       kind: 'stale',

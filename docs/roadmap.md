@@ -16,21 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Clone Ratchet Counts Test Scaffolds, Facades and Import Runs as Duplication
-
-- id: Q-0214
-- area: tooling
-- type: fix
-- since: 2026-09-07
-- size: M
-- impact: med
-- confidence: high
-- parent: code-clone-detector
-- split-from: Q-0193
-- recovered: 2026-09-07
-
-The whole-corpus token ratchet counts three things that are not copied logic, and it has forced a hand re-record twice. **Test scaffolds:** a new case in a table-driven test file reuses that file's established 15-instance scaffold (`const commits: Commit[] = [...]` + `checkCrGate({...runGit: makeGitFake(commits)})`) — exactly the idiom consistency the test rules ask for — so any such PR owes a baseline re-record commit. **Thin typed façades:** on the 2026-08-30 sweep the largest new group was `src/design/design-approval.ts:63-92` vs `src/design/ui-capture.ts:76-108` (82 tokens), both one-line delegations to the already-shared receipt store, each binding a *different* schema, dir-segment tuple and return type; the tokenizer normalizes identifiers to `ID` for Type-2 matching, so two same-shaped delegations match structurally. Extracting is strictly worse here — one generic untyped wrapper, indirection added, zero logic shared. **Import runs:** the rest of that delta was import blocks (`src/design/ledger.ts` vs `src/cr/orchestrate.ts`, `src/metrics/compute.ts`, `src/garden/garden-detect.ts`). Rebaselined to 28844 by hand to unblock the sweep. Sized M because deciding what counts as duplication is a policy call across three independent axes — exempt or separately weight `**/__tests__/**`, skip a group whose every span is a single `return <call>(…)` statement, exclude leading import runs from the token stream — not a mechanical fix. Deletion test: a file pair whose only overlap is imports plus a delegating one-liner produces no group, and adding a case to a table-driven test file does not red the ratchet. (split from Q-0193 on 2026-09-07; found 2026-08-25 and 2026-08-30)
-
 ### Main-Module Guard Fails on Percent-Encoded Paths
 
 - id: Q-0126

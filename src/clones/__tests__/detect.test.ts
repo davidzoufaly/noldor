@@ -332,3 +332,269 @@ describe('per-file attribution', () => {
     expect(report.perFile).toEqual({});
   });
 });
+
+/** A header of six named imports — ~40 normalized tokens before exclusion. */
+const HEADER = [
+  "import { readFileSync, writeFileSync, statSync, mkdirSync } from 'node:fs';",
+  "import { join, dirname, basename, resolve } from 'node:path';",
+  "import { z } from 'zod';",
+  '',
+].join('\n');
+
+/** A run of three thin typed façades — signature plus one delegating return. */
+const facades = (suffix: string): string =>
+  [
+    `export function relPath${suffix}(name: string): string {`,
+    `  return receiptRelPath(DIR_SEGMENTS, basename(name, '.ext'));`,
+    '}',
+    `export function parseBytes${suffix}(bytes: Buffer | string): Record${suffix} | null {`,
+    `  return parseReceiptWith((value) => recordSchema.safeParse(value), bytes);`,
+    '}',
+    `export function write${suffix}(root: string, name: string, record: Record${suffix}) {`,
+    `  return writeReceiptFile(root, DIR_SEGMENTS, basename(name, '.ext'), record);`,
+    '}',
+    '',
+  ].join('\n');
+
+/**
+ * A copied declaration with no statement keyword in its body. `heritage` lets
+ * one copy carry `extends Base`, which breaks left-extension one token INSIDE
+ * the braces — so the matched span excludes the `interface` keyword itself.
+ */
+const iface = (name: string, member: string, heritage = ''): string =>
+  [
+    `export interface ${name}${heritage} {`,
+    '  alpha: string;',
+    '  beta: number;',
+    '  gamma: boolean;',
+    '  delta: string;',
+    '  epsilon: number;',
+    '  zeta: boolean;',
+    '  eta: string;',
+    '  theta: number;',
+    '  iota: boolean;',
+    '  kappa: string;',
+    '  lambda: number;',
+    '  mu: boolean;',
+    `  ${member}`,
+    '}',
+    '',
+  ].join('\n');
+
+describe('detectClones noise policy', () => {
+  it('reports no group when the only overlap is the import header', () => {
+    const report = detectClones(
+      new Map([
+        ['a.ts', `${HEADER}export const alpha = 1;\n`],
+        ['b.ts', `${HEADER}export const beta = 2;\n`],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toEqual([]);
+    expect(report.duplicatedTokens).toBe(0);
+  });
+
+  it('reports no group when the overlap is the header plus a delegating run', () => {
+    const report = detectClones(
+      new Map([
+        ['a.ts', `${HEADER}${facades('Approval')}`],
+        ['b.ts', `${HEADER}${facades('Capture')}`],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toEqual([]);
+    expect(report.duplicatedTokens).toBe(0);
+  });
+
+  it('still reports a copied body that follows an identical header', () => {
+    const report = detectClones(
+      new Map([
+        ['a.ts', `${HEADER}${fn('first')}`],
+        ['b.ts', `${HEADER}${fn('second')}`],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toHaveLength(1);
+    expect(report.duplicatedTokens).toBeGreaterThan(0);
+  });
+
+  it('still reports a copied block that opens with an import past the header', () => {
+    const body = ["import('./lazy.js');", fn('same')].join('\n');
+    const report = detectClones(
+      new Map([
+        ['a.ts', `export const gate = 1;\n${body}`],
+        ['b.ts', `export const other = 2;\n${body}`],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toHaveLength(1);
+  });
+
+  it('still reports a copied interface whose span begins inside its braces', () => {
+    // The two heads diverge (`interface Alpha` vs `type Beta =`) and the brace
+    // sits on its own line, so left-extension stops at the `{` on line 2 and
+    // the `interface` keyword falls OUTSIDE the matched span. This is the
+    // shape a container-keyword guard would never fire on: the member named
+    // `return` is in the span, its declaration keyword is not.
+    const body = iface('X', 'return(value: string): string;').split('\n').slice(1).join('\n');
+    const report = detectClones(
+      new Map([
+        ['a.ts', `export interface Alpha\n{\n${body}`],
+        ['b.ts', `export type Beta =\n{\n${body}`],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toHaveLength(1);
+    expect(report.duplicatedTokens).toBeGreaterThan(0);
+
+    // Prove the premise rather than assuming it: every span starts at the
+    // brace on line 2, past the declaration keyword on line 1.
+    for (const inst of report.groups[0]!.instances) {
+      expect(inst.startLine).toBe(2);
+    }
+  });
+
+  it.each([
+    ['a return-named property key', 'return: string;'],
+    ['an ordinary member', 'nu: string;'],
+    // An optional or generic signature puts `?` / `<T>` between `return` and
+    // its parameter list, so a bare next-token-is-`(` test never reaches the
+    // trailing `:` that marks it a signature.
+    ['an optional return-named method', 'return?(value: string): string;'],
+    ['a generic return-named method', 'return<T>(value: T): T;'],
+    ['an optional generic return-named method', 'return?<T>(value: T): T;'],
+    // An optional PROPERTY key: the `?` step must not skip past the colon.
+    ['an optional return-named property key', 'return?: string;'],
+    // A constraint may legitimately contain parentheses and an `=>`.
+    ['a constrained generic method', 'return<T extends (x: string) => string>(v: T): T;'],
+    // ...and a semicolon, inside an inline type literal. Mirrors the
+    // drop-direction case below: each widening of the angle scan needs a row
+    // here proving it did not start deleting declarations from the report.
+    [
+      'a constrained generic method whose constraint holds a semicolon',
+      'return<T extends { a: string; b: string }>(v: T): T;',
+    ],
+  ])('still reports a copied interface carrying %s', (_label, member) => {
+    const report = detectClones(
+      new Map([
+        ['a.ts', iface('Alpha', member)],
+        ['b.ts', iface('Beta', member)],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toHaveLength(1);
+  });
+
+  it('still reports a copied run whose only return is a method call', () => {
+    const call = (suffix: string): string =>
+      [
+        `export function drain${suffix}(iter: Iterator<string>, sink: string[]) {`,
+        '  sink.push(iter.next().value);',
+        '  sink.push(iter.next().value);',
+        '  iter.return();',
+        '  sink.push(iter.next().value);',
+        '  sink.push(iter.next().value);',
+        '  iter.return();',
+        '}',
+        '',
+      ].join('\n');
+    const report = detectClones(
+      new Map([
+        ['a.ts', call('One')],
+        ['b.ts', call('Two')],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toHaveLength(1);
+  });
+
+  it('errs toward reporting when a delegation returns a generic arrow', () => {
+    // `return <T,>(x: T): T => x` steps over the type params, finds `(`, and
+    // sees `:` after the matching `)` — indistinguishable from a method
+    // signature without also looking for the `=>`. So the span is not counted
+    // as delegation and the class is REPORTED. Deliberate: every added test in
+    // this predicate has cost a new hole, and under-filtering only leaves a
+    // real clone in the report, while over-filtering deletes one from it.
+    const arrow = (suffix: string): string =>
+      [
+        `export function makeIdentity${suffix}(label: string, tag: string) {`,
+        '  return <T,>(value: T): T => value;',
+        '}',
+        `export function makePair${suffix}(label: string, tag: string) {`,
+        '  return <T,>(value: T): [T, T] => [value, value];',
+        '}',
+        `export function makeList${suffix}(label: string, tag: string) {`,
+        '  return <T,>(value: T): T[] => [value];',
+        '}',
+        '',
+      ].join('\n');
+    const report = detectClones(
+      new Map([
+        ['a.ts', arrow('One')],
+        ['b.ts', arrow('Two')],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toHaveLength(1);
+    expect(report.duplicatedTokens).toBeGreaterThan(0);
+  });
+
+  it('drops a delegation whose type assertion holds a semicolon', () => {
+    // `<{ a: string; b: string }>` puts a `;` inside the angle brackets. An
+    // angle scan that bailed on it left the list unclosed, so the span was not
+    // counted as delegation and the class stayed in the report.
+    const asserted = (suffix: string): string =>
+      [
+        `export function firstOf${suffix}(label: string, tag: string) {`,
+        '  return <{ first: string; second: string }>readPair(label, tag);',
+        '}',
+        `export function secondOf${suffix}(label: string, tag: string) {`,
+        '  return <{ third: string; fourth: string }>readPair(label, tag);',
+        '}',
+        `export function thirdOf${suffix}(label: string, tag: string) {`,
+        '  return <{ fifth: string; sixth: string }>readPair(label, tag);',
+        '}',
+        '',
+      ].join('\n');
+    const report = detectClones(
+      new Map([
+        ['a.ts', asserted('One')],
+        ['b.ts', asserted('Two')],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toEqual([]);
+  });
+
+  it('drops a delegating run written without semicolons', () => {
+    const noSemi = (s: string): string => facades(s).replace(/;$/gm, '');
+    const report = detectClones(
+      new Map([
+        ['a.ts', noSemi('Approval')],
+        ['b.ts', noSemi('Capture')],
+      ]),
+      OPTS,
+    );
+    expect(report.groups).toEqual([]);
+  });
+
+  it('keeps a class at full weight when one of its spans holds control flow', () => {
+    const withBranch = facades('Capture').replace(
+      '  return parseReceiptWith((value) => recordSchema.safeParse(value), bytes);',
+      '  if (bytes.length === 0) return null;\n  return parseReceiptWith(recordSchema, bytes);',
+    );
+    const report = detectClones(
+      new Map([
+        ['a.ts', facades('Approval')],
+        ['b.ts', withBranch],
+      ]),
+      OPTS,
+    );
+    for (const g of report.groups) {
+      expect(g.tokens).toBeGreaterThan(0);
+    }
+    expect(report.duplicatedTokens).toBe(
+      Object.values(report.perFile).reduce((acc, n) => acc + n, 0),
+    );
+  });
+});
