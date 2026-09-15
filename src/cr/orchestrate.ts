@@ -654,36 +654,50 @@ export async function writeSkeletonIfAbsent(
     await mkdir(dirname(path), { recursive: true });
     await writeJsonAtomic(path, rec);
     console.error(`arbitration skeleton written: ${path}`);
-    console.error(
-      `  ${rec.blockers.length} unresolved blockers await a disposition; then commit with:`,
-    );
+    console.error(`  ${rec.blockers.length} unresolved blockers await a disposition:`);
+    // The ids, not just the count: they are what `--blocker` takes, and a
+    // `fingerprintBlocker` id is not something an operator can derive. The
+    // message is reviewer-controlled text, so its newlines are collapsed —
+    // otherwise one could forge an extra `    <id>  [high] …` row no lane filed.
+    for (const b of rec.blockers) {
+      console.error(`    ${b.id}  [${b.severity}] ${b.message.replace(/\r\n|\r|\n/g, ' ⏎ ')}`);
+    }
     if (stale.length > 0) {
       console.error(
         '  CHECK EACH ONE AGAINST THE CODE FIRST — the sinks they came from predate this tree, ' +
           'so some may already be fixed.',
       );
     }
-    console.error('  git commit --amend --no-edit --trailer \\');
-    console.error('    "Noldor-Path-Override: cr-arbitration <digest> — <why>"');
+    for (const line of arbitrationExit(slug, kind)) console.error(line);
   } catch (err) {
     console.error(`arbitration skeleton not written: ${(err as Error).message}`);
   }
 }
 
 /**
- * How to arbitrate, named once so both refusals cite the SAME trailer form as
+ * How to arbitrate, named once so both refusals cite the SAME commands as
  * {@link writeSkeletonIfAbsent}.
  *
  * The digest matters. Past the cap with the last round red,
  * `decideArbitration` rejects a bare `Noldor-Path-Override: <why>` outright and
  * demands the `cr-arbitration <digest>` form — so the banner's old bare-override
  * line named a close the pre-push hook refuses (Q-0226).
+ *
+ * The trailer line stays spelled out beneath the commands even though
+ * `cr arbitration digest` prints it: an operator who already knows the digest
+ * should not have to run a command to be reminded of the form.
  */
-const ARBITRATION_EXIT = [
-  '  Dispose of every blocker in the arbitration record below, then name its digest:',
-  '    git commit --amend --no-edit \\',
-  '      --trailer "Noldor-Path-Override: cr-arbitration <digest> — <why>"',
-];
+function arbitrationExit(slug: string, kind: ArtifactKind): string[] {
+  return [
+    '  Dispose of every blocker in the arbitration record below, then name its digest:',
+    `    pnpm noldor cr arbitration dispose --slug ${slug} --kind ${kind} \\`,
+    '      --blocker <id> --disposition <accepted|rejected|deferred> --note "<why>"',
+    `    pnpm noldor cr arbitration digest --slug ${slug} --kind ${kind}`,
+    '  then commit with the digest it prints:',
+    '    git commit --amend --no-edit \\',
+    '      --trailer "Noldor-Path-Override: cr-arbitration <digest> — <why>"',
+  ];
+}
 
 /** The refusal banner: what was spent, and the ways out THIS refusal actually has. */
 export function renderCapRefusal(
@@ -703,13 +717,13 @@ export function renderCapRefusal(
           'review. Two ways to close:',
           '  Commit the remaining fixes and re-run this command — a changed HEAD past',
           '  the cap earns exactly one closing round.',
-          ...ARBITRATION_EXIT,
+          ...arbitrationExit(slug, kind),
         ]
       : [
           'The closing round for this series is already SPENT, so the cap is final: no',
           'commit re-arms a dispatch and re-running this command will refuse again.',
           'Arbitration is the only close.',
-          ...ARBITRATION_EXIT,
+          ...arbitrationExit(slug, kind),
         ];
   return [
     `red rounds ${roundLabel(redRounds(ledger?.rounds ?? []))} for ${slug} (${kind}) — cap reached`,

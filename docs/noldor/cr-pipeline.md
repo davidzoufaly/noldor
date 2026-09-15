@@ -684,5 +684,29 @@ cap costs one dispatch; a false cap costs the ship. A series with no session
 marker never records the closing-round sentinel, since one sessionless run
 would otherwise lock out every future sessionless dispatch for the pair.
 
+### Taking the arbitration exit
+
+The refusal writes a skeleton to `.noldor/cr/arbitration/<slug>-<kind>.json` and
+prints the blocker ids it holds. Answer each one, then read off the digest:
+
+```
+pnpm noldor cr arbitration dispose --slug <slug> --kind <kind> \
+  --blocker <id> --disposition <accepted|rejected|deferred> --note "<why>"
+pnpm noldor cr arbitration digest --slug <slug> --kind <kind>
+```
+
+`dispose` replaces any prior answer for that blocker rather than appending one —
+the schema forbids two dispositions for one id, so changing your mind by hand
+produces a record that no longer parses. `digest` prints the digest plus the
+`git commit --amend --trailer …` line to run, and exits **1** when a push naming
+that digest would still be refused: a blocker left undisposed, a record with no
+arbitrable blockers (every finding was an integrity blocker, which
+`buildSkeleton` drops and no operator can dispose of), or a `boundTree` that
+`HEAD` has moved past. Each reason prints as a `not ready:` line.
+
+Both commands existed only as functions before Q-0228, which made the one exit
+past a capped round also the one surface that asked for a hand-edited,
+schema-validated JSON file — against a disposition vocabulary nothing printed.
+
 Sink-file mechanics (stale sink after amend, archive-to-subdir, headless
 overwrite crash) live in [`gotchas.md`](gotchas.md#cr-sinks).

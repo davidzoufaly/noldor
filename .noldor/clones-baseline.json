@@ -1,5 +1,5 @@
 {
-  "duplicatedTokens": 25762,
+  "duplicatedTokens": 25775,
   "perFile": {
     "src/autonomous/drain-io.ts": 154,
     "src/autonomous/drain-loop.ts": 108,
@@ -10,7 +10,7 @@
     "src/checks/check-feature-slug-scope.ts": 121,
     "src/checks/check-shared-files.ts": 112,
     "src/cli/command-registry.ts": 76,
-    "src/cli/manifest.ts": 1727,
+    "src/cli/manifest.ts": 1740,
     "src/cli/validate-script-catalog.ts": 117,
     "src/clones/baseline.ts": 58,
     "src/clones/clones-cli.ts": 200,
@@ -123,10 +123,10 @@
     "src/worktrees/worktree-conflicts.ts": 284,
     "src/worktrees/worktree-status.ts": 284
   },
-  "duplicationPct": 7.904854541716657,
-  "totalTokens": 325901,
-  "groups": 230,
-  "filesScanned": 418,
+  "duplicationPct": 7.87867302055027,
+  "totalTokens": 327149,
+  "groups": 231,
+  "filesScanned": 420,
   "options": {
     "minTokens": 50,
     "minLines": 5,
@@ -134,5 +134,5 @@
     "includeTests": false,
     "noisePolicy": 1
   },
-  "recordedAt": "2026-09-08T14:10:05.017Z"
+  "recordedAt": "2026-09-15T19:26:50.975Z"
 }
