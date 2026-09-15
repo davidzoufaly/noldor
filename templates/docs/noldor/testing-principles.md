@@ -75,6 +75,30 @@ What follows from it:
 Test names state WHAT behavior holds, not HOW it is implemented, and a test
 must not break when the implementation is refactored without a behavior change.
 
+### Two directions, two tables
+
+The Deletion Test asks whether a test *can* fail. A predicate that **removes**
+data can fail in two directions, and a single table only ever pins one of them:
+
+| Direction | The predicate… | Its table asserts |
+| --------- | -------------- | ----------------- |
+| **Under-fire** | leaves in the noise it was written to suppress | `drops …` |
+| **Over-fire** | suppresses a genuine finding along with the noise | `still reports …` |
+
+Name the direction that loses data — over-fire, for a suppressor — and give it
+its own table, one row per input **shape** rather than one representative row.
+Every widening of the predicate adds a row on **both** sides. A widening that
+lands with only the drop-direction row proves the new case went quiet, and
+nothing about what it started deleting.
+
+The worked pair lives in `src/clones/__tests__/detect.test.ts`: an `it.each`
+over member shapes (plain, optional, generic, optional-generic,
+constrained-generic, property key, optional property key) asserting
+`still reports …`, beside the `drops …` cases for the same filter. It exists
+because Q-0214 ran eight review rounds on exactly this failure — the clone
+detector's delegation filter over-fired and a genuinely copied declaration
+stopped being reported, with no over-fire row to catch it.
+
 ## Banned patterns
 
 | Pattern | Why it is banned |
@@ -183,6 +207,10 @@ Copy the approach of these files rather than inventing new machinery.
 - **Invariant assertions over exact output** — for algorithms and detectors,
   assert the property that must hold rather than a brittle exact shape. See
   Tuning a detector below.
+- **Two-directional tables for a data-losing predicate** — a `still reports …`
+  table beside a `drops …` table, one row per input shape, so a widening cannot
+  land proving only that it went quiet: `src/clones/__tests__/detect.test.ts`.
+  See Two directions, two tables above.
 
 ## The `// @tests:` convention
 
