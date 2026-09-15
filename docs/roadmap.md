@@ -16,6 +16,102 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### draft-feature-md Autonomous Mode Keeps a TODO Stub
+
+- id: Q-0222
+- area: tooling
+- type: fix
+- since: 2026-09-08
+- size: XS
+- impact: high
+- confidence: high
+
+`/noldor-draft-feature-md --yes` reads a freshly scaffolded TODO stub as hand-curated prose and keeps it. Its step 8 decision rule is "token-overlap(current, draft) `< 30%` → **keep** (treat as hand-curated)", but a scaffolded section body is `<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->`, which shares almost no tokens with a real draft — so the overlap test fires and autonomous mode ships the placeholder, the exact opposite of what the threshold exists for. The interactive path is safe only because a human sees the diff, which is why this has stayed invisible. The fix is one branch: a body containing `<!-- TODO` is never "curated", so apply unconditionally, matching what `--from-spec` mode already does (its step 4 keys on that same substring). Deletion test: `--refresh --yes` on an FD whose Usage is still a TODO comment writes the draft. (found 2026-09-08 shipping Q-0126)
+
+### State-File Schema Additions Must Be Optional
+
+- id: Q-0223
+- area: docs
+- type: docs
+- since: 2026-09-08
+- size: S
+- impact: high
+- confidence: high
+
+`.noldor/*.json` files are tracked and travel across framework versions, so their schemas are a compatibility surface, not an internal shape — and nothing states it anywhere. Q-0213 added `perFile` to `cloneBaselineSchema`, which is `.strict()` and read by `clones check` on every push; a *required* field would have turned every consumer's committed `.noldor/clones-baseline.json` into `kind: 'unreadable'` — exit 3, ratchet off, across every repo — to gain a reporting nicety. Optional plus a "predates attribution, re-record" message costs one branch and keeps the gate alive. The retired-ID map and the CR sinks live under the same constraint. Wanted: a `state-file-schema-additive` rule alongside the existing state-file rules, so the next field addition meets the constraint at authoring time rather than in a consumer's push. (found 2026-09-07 shipping Q-0213)
+
+### Arbitration Guard Reads a Ledger the Gate Deletes
+
+- id: Q-0224
+- area: tooling
+- type: fix
+- since: 2026-09-08
+- size: S
+- impact: high
+- confidence: high
+
+The gate's context-cleanup step runs before the push and deletes the ledger the pre-push arbitration guard reads. Step 4 says to `rm -f .noldor/cr/autofix/<slug>-{spec,plan,code}.json` "once all aggregates are green and the gate is about to enter PR flow" — i.e. immediately before `pr-flow`. Shipping Q-0214 (PR #453) under a `cr-arbitration` override, the push printed `pre-push: could not verify arbitration — no round ledger found` and fail-opened, so the override trailer reached `main` unverified. The two steps are ordered against each other: the guard exists to check that an override names a real capped round, and the cleanup removes its only evidence a second earlier. Either move the cleanup after `pr-flow` reports the merge, or have the guard read the `rounds` array in `.noldor/cr/arbitration/<slug>-<kind>.json`, which the skeleton already carries. Deletion test: a push carrying a `Noldor-Path-Override: cr-arbitration <digest>` trailer verifies the digest against a real record rather than warning. (found 2026-09-08 shipping Q-0214)
+
+### abstraction-cost Has No Answer for the Diff-Scoped Clone Gate
+
+- id: Q-0225
+- area: docs
+- type: docs
+- since: 2026-09-08
+- size: XS
+- impact: med
+- confidence: high
+
+The `abstraction-cost` rule's closing clause reads "A clone-gate red that can only be cleared by adding a cross-file wrapper is the case both halves exist for — decline the wrapper and rebaseline". Shipping Q-0126 that advice was followed literally and did not work: `clones check` has three independent verdicts, and the one that fired was `diffScope`, which asks whether a clone group overlaps a line *this change wrote*. No baseline silences it — a re-record left it red with `1 group(s) duplicated in this change` — and its only opt-out is `clones.diffScope: false`, repo-wide. So for a newly-added second copy the rule prescribes a remedy the gate does not accept, and the operator is left choosing between an abstraction the rule forbids and disabling a gate for the whole repo. Wanted: a clause naming which verdict the "rebaseline" advice applies to, and what to do at the second call site when the diff-scoped gate is the one talking. (found 2026-09-08 shipping Q-0126)
+
+### cr orchestrate Exit-3 Promises a Closing Round It Refuses
+
+- id: Q-0226
+- area: tooling
+- type: fix
+- since: 2026-09-08
+- size: XS
+- impact: med
+- confidence: high
+
+At the round cap `cr orchestrate` prints "no further round will be dispatched. To close: commit the remaining fixes and re-review — that earns one closing round". Shipping Q-0126 that was done exactly — the two remaining fixes committed, then orchestrate re-run — and it exited 3 again with the same text, plus an arbitration skeleton built from the now-stale sinks. Whatever "earns one closing round" means, a fix commit plus a re-run is not it, so the message describes a path that does not exist and the only real exit is the arbitration override. Either implement what the text claims (a `HEAD` change past the cap re-arms one dispatch) or reword it to say the cap is final and arbitration is the sole close. Related to the Q-0211 stale-sink work, and the same session hit both. (found 2026-09-08 shipping Q-0126)
+
+### Print the Spec Link Before Confirmation
+
+- id: Q-0227
+- area: tooling
+- type: feat
+- since: 2026-09-08
+- size: XS
+- impact: med
+- confidence: med
+
+Before asking the operator to confirm a spec, always print a clickable link to the spec file. Today the confirmation prompt describes the spec without addressing it, so the operator either scrolls back for the path or confirms without re-reading the artifact they are approving — and spec approval is the one gate whose whole value is that a human read the thing. Same shape as the auto-open work (Q-0207): the artifact exists on disk and the seam that asks about it already knows its path. (surfaced 2026-09-08)
+
+### cr arbitration dispose and digest CLI
+
+- id: Q-0228
+- area: tooling
+- type: feat
+- since: 2026-09-08
+- size: S
+- impact: high
+- confidence: med
+
+Nothing computes the `cr-arbitration` digest the gate tells you to commit. `cr orchestrate` exits 3 at the cap, writes the arbitration skeleton, and prints `git commit --amend --trailer "Noldor-Path-Override: cr-arbitration <digest> — <why>"` — but `<digest>` comes from `recordDigest` in `src/cr/arbitration.ts`, which has no CLI surface. Shipping Q-0214 the digest was obtained by copying a throwaway `.ts` file into the repo root and running it under `tsx`, because a bare `npx tsx -e` cannot resolve the `.js` specifiers. Filling `dispositions` is hand-edited JSON for the same reason, against a closed `accepted`/`rejected`/`deferred` vocabulary the prose never lists. Wanted: `noldor cr arbitration dispose --slug <s> --kind <k> --blocker <id> --disposition accepted --note "…"` plus `noldor cr arbitration digest --slug <s> --kind <k>`, so the one path the framework offers past a capped round is not the only one that requires hand-editing a schema-validated file. (found 2026-09-08 shipping Q-0214)
+
+### Two-Directional Test Tables for Data-Losing Predicates
+
+- id: Q-0229
+- area: testing
+- type: docs
+- since: 2026-09-08
+- size: XS
+- impact: med
+- confidence: med
+
+`test-real-behavior` demands the Deletion Test but never says that a filter's two failure directions are two different tests. All eight Q-0214 rounds were the same shape: the delegation filter over-fired and a genuinely copied declaration stopped being reported. What finally made regressions visible was an explicit pair — an over-fire table (`still reports …`, one row per member shape: plain, optional, generic, optional-generic, constrained-generic, property key, optional property key) beside an under-fire table (`drops …`). The last reviewer finding on the branch was exactly that a widening had shipped with only the drop-direction row, so nothing pinned the direction the widening could break. Wanted: a clause in that rule, or a sibling rule — name the direction that loses data, table it, and add a row on both sides whenever the predicate widens. (found 2026-09-08 shipping Q-0214)
+
 ### Test Suites Read Live Repo State — Shifting Full-Suite Failures
 
 - id: Q-0171
@@ -66,6 +162,8 @@ The co-tag detector's degraded mode hides the real number. With a 3-day-stale `g
 - parent: feature-md-links-overhaul
 
 Hand-editing an FD's `links.code` is only safe on an FD that carries **no** `// @fd:` tags. Add a `src/**` path to a tagged FD and `code-links-drift` immediately reports `links.code is stale vs // @fd: tags`, because the tag scan is the projection source and `sync code-links` will drop the hand-added row on the next write. Nothing surfaces that split at edit time — `validate features` passes, and the drift only appears from `garden detect`. Two candidate fixes: have `features validate` warn when `links.code` names a path under a scan root that carries no `@fd:` tag while the FD has tags elsewhere, or teach `sync code-links` to preserve untagged manual entries the way it already preserves whole tagless FDs. (found 2026-08-23 closing SDD gaps before the 1.5.0 release)
+
+- Consider deriving an FD's test and source links dynamically rather than storing them statically — the static projection drifts too easily, and every drift is a garden finding rather than a compile error. (surfaced 2026-09-08)
 
 ### Spec-Lint Prior-Art Requirement
 
@@ -228,3 +326,63 @@ Two sanctioned spellings, not one. Besides `isEntrypoint(import.meta.url)`, 22 m
 Deletion test: a file added under `src/` that derives direct invocation from `import.meta.url` without going through `isEntrypoint` makes `pnpm noldor checks invariants` exit non-zero and name the file and line, while every guard and non-guard shape listed above is classified correctly in both directions.
 
 (descoped from Q-0126 on 2026-09-08 after three red code-stage rounds; the 14 findings above are the input)
+
+### PR Summary at Flow End Is Sometimes Not a Link
+
+- id: Q-0230
+- area: tooling
+- type: fix
+- since: 2026-09-08
+- size: XS
+- impact: low
+- confidence: med
+
+The PR summary printed at the end of the flow is sometimes not a clickable link, so the operator has to go find the PR by hand at exactly the moment the flow claims to be done. Intermittent rather than always, which suggests one branch of the summary composition emits a bare number or title where the others emit the URL. Deletion test: every terminal path of the flow that mentions a PR prints its URL. (surfaced 2026-09-08)
+
+### Roadmap Entry Show-More Not Rendered
+
+- id: Q-0231
+- area: tooling
+- type: fix
+- since: 2026-09-08
+- size: XS
+- impact: low
+- confidence: med
+
+The dashboard's roadmap entry rendering does not display the show-more control, so long entry bodies are truncated with no way to expand them — reproduced against Charuy's dashboard. Since every roadmap block now carries a full paragraph plus optional sub-bullets, truncation without an expander makes the roadmap view unusable for exactly the entries that need reading. Deletion test: a roadmap entry whose body exceeds the collapse threshold renders a working show-more control. (surfaced 2026-09-08)
+
+### Self-Explanatory Code Over Comments Rule
+
+- id: Q-0232
+- area: docs
+- type: docs
+- since: 2026-09-08
+- size: S
+- impact: med
+- confidence: med
+
+Agents write far more in-code comments than the repo wants, and nothing states the preference, so every review re-litigates it. The house position is that code should be self-explanatory — naming and structure carry the intent, and a comment earns its place only when it records a why that the code cannot (a falsified alternative, an external constraint, a deliberate deviation). Wanted: an engineering rule stating it, so the expectation reaches the author rather than the reviewer. Pairs with the existing comment-density guidance in the harness prose, which is advisory and unenforced. (surfaced 2026-09-08)
+
+### Fast-Track Changes Can Obsolete an Unattached FD
+
+- id: Q-0233
+- area: tooling
+- type: feat
+- since: 2026-09-08
+- size: M
+- impact: med
+- confidence: low
+
+A fast-track ships without attaching to any feature MD, so when one or more fast-tracks change the business logic, files, or behaviour an FD documents, that FD silently goes stale — the doc-tracked invariant holds only for paths that scaffold an artifact. Worth exploring whether fast-track should optionally attach to an FD the way the attach paths do (carrying the parent slug, refreshing the FD's Usage on ship), or whether a detector should flag an FD whose `links.code` paths moved under a fast-track commit it never records. The first is a gate change, the second a garden detector; they are not exclusive. (surfaced 2026-09-08)
+
+### Extract the Shared tsconfig Reader
+
+- id: Q-0234
+- area: tooling
+- type: refactor
+- since: 2026-09-08
+- size: M
+- impact: low
+- confidence: med
+
+Extract the shared tsconfig reader into a neutral module. `src/invariants/toolchain-floor.ts` and `src/indirection/detect.ts` each carry their own tsconfig discovery — `findPackageManifests`/`isTsconfigName` on one side, `findTsconfigFiles`/`readTsconfig`/`resolveExtends` on the other — and `detect.ts` already imports `stripJsonc` from `toolchain-floor.ts`, so importing discovery back would close a module cycle. PR #436 duplicated it deliberately and promised this entry in the spec's Risks section. The two walks are not a clean lift (async `readdir` + `WORKSPACE_SCAN_DEPTH` here, sync `readdirSync` + configured scan roots there), so the shared helper has to be designed rather than moved, and it touches the indirection ratchet. `clones check` was green on #436, so this is cohesion debt rather than a live gate failure. Deletion test: both modules import their tsconfig discovery from one place, and neither declares a private copy. (surfaced 2026-09-05, spec CR on nested-tsconfig-lib-floor)
