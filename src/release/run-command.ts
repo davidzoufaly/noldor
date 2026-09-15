@@ -26,12 +26,13 @@ export interface RunOptions {
   /**
    * The probe's deadline AND its cancellation path, as one signal.
    *
-   * `concurrency-write-discipline`: a subprocess wait takes a signal, and where a
-   * caller's cancellation and a timeout both apply they compose into one via
-   * `AbortSignal.any` rather than two racing mechanisms. `runProbe` mints
-   * `AbortSignal.timeout(budget)` per probe and both aborts the child and
-   * produces the timeout row from that same signal, so there is no second bound
-   * to keep out of step with it.
+   * `concurrency-write-discipline`: a subprocess wait takes a signal, and a
+   * deadline and a cancellation compose into one rather than racing as two
+   * mechanisms. `runProbe` owns an `AbortController` per probe and fires it from
+   * a single `setTimeout`, which both aborts the child and produces the timeout
+   * row — so there is no second bound to keep out of step with it. Deliberately
+   * not `AbortSignal.timeout`: that keeps a timer scheduled for the whole budget
+   * even when the probe answers immediately, and throws on an out-of-range delay.
    */
   signal?: AbortSignal;
 }

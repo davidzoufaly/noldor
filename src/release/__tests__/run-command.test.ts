@@ -201,6 +201,43 @@ describe('runProbe budget', () => {
     }
   });
 
+  it("clamps a budget past setTimeout's 32-bit ceiling instead of wrapping to ~1ms", async () => {
+    // Left unclamped, 2_147_483_648 wraps and the probe times out almost
+    // immediately — the opposite of the very long budget it was handed. Asserted
+    // through the scheduled delay rather than by waiting for it.
+    vi.useFakeTimers();
+    try {
+      const ctx = ctxFor({ budgetMs: 2_147_483_648, runCommand: () => new Promise(() => {}) });
+      const probe = runProbe('gh-auth', ctx);
+      // Advance past the wrapped delay a naive implementation would have used.
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(2_147_483_647);
+      expect((await probe).status).toBe('blocking');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('falls back to the default budget when handed a non-positive one', async () => {
+    // 0 and -1 are not "no deadline" — an unbounded probe inside a bounded
+    // harness is the hang this feature exists to remove.
+    for (const bad of [0, -1, Number.NaN]) {
+      const ctx = ctxFor({ budgetMs: bad, runCommand: () => new Promise(() => {}) });
+      vi.useFakeTimers();
+      try {
+        const probe = runProbe('gh-auth', ctx);
+        await vi.advanceTimersByTimeAsync(1_000);
+        // Still pending: a 0/NaN budget must not have fired on the next tick.
+        expect(vi.getTimerCount()).toBe(1);
+        await vi.advanceTimersByTimeAsync(PROBE_TIMEOUT_MS);
+        expect((await probe).status).toBe('blocking');
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  });
+
   it('hands every command the probe deadline, so a timeout cancels the child', async () => {
     // The observable half of the one-signal design: a probe cannot forget to
     // pass the deadline, because runProbe scopes the runner rather than relying

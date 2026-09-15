@@ -163,11 +163,12 @@ const TIMEOUT_ROWS: Partial<Record<PreflightRowId, { detail: string; fix: string
 /**
  * Run one probe by id, bounded by the context's budget.
  *
- * One `AbortSignal.timeout(budget)` is both the deadline and the cancellation
- * path: it aborts any command the probe is waiting on AND resolves the race that
- * produces the timeout row. Deriving both from one signal is what
- * `concurrency-write-discipline` asks for, and it is why no slack constant is
- * needed to keep two independent bounds from tying.
+ * One owned `AbortController` + `setTimeout` is both the deadline and the
+ * cancellation path: firing it aborts any command the probe is waiting on AND
+ * resolves the race that produces the timeout row. Deriving both from one
+ * deadline is what `concurrency-write-discipline` asks for, and it is why no
+ * slack constant is needed to keep two independent bounds from tying. See the
+ * body for why this is not `AbortSignal.timeout`.
  *
  * The budget is per PROBE, shared by every command inside it — `gh-auth` makes
  * two sequential calls, and a per-command ceiling let it spend twice the bound.
@@ -175,12 +176,21 @@ const TIMEOUT_ROWS: Partial<Record<PreflightRowId, { detail: string; fix: string
  * Any unexpected throw becomes a blocking row, never a crash.
  */
 export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<PreflightRow> {
-  // A context assembled by hand rather than by `makeProbeContext` can arrive
-  // with no budget. `AbortSignal.timeout(undefined)` would abort immediately, so
-  // an absent budget would time out EVERY probe instead of bounding none — fall
-  // back to the same default the constructor applies.
+  // A context assembled by hand rather than by `makeProbeContext` can arrive with
+  // no budget, and `setTimeout(fn, undefined)` fires on the next tick — so an
+  // absent budget would time out EVERY probe instead of bounding none. Fall back
+  // to the same default the constructor applies.
+  //
+  // The upper clamp is not defensive noise: `setTimeout` stores its delay in a
+  // 32-bit int, so anything past 2_147_483_647 silently wraps to about 1ms and
+  // the probe would time out instantly instead of getting the long budget it was
+  // handed. Clamping keeps a nonsense budget from becoming a DIFFERENT deadline.
+  const MAX_DELAY_MS = 2_147_483_647;
+  const requested = ctx.budgetMs;
   const budgetMs =
-    Number.isFinite(ctx.budgetMs) && ctx.budgetMs > 0 ? ctx.budgetMs : PROBE_TIMEOUT_MS;
+    Number.isFinite(requested) && requested > 0
+      ? Math.min(Math.floor(requested), MAX_DELAY_MS)
+      : PROBE_TIMEOUT_MS;
 
   // ONE deadline drives both the cancellation and the row, per
   // `concurrency-write-discipline`: when it fires it aborts whatever command the
