@@ -8,71 +8,88 @@
 
 ## Problem
 
-`npx vitest run` fails on a shifting set of files that each pass in isolation, so a green suite is a matter of timing rather than a statement about the code. The roadmap entry (Q-0171) recorded two runs ten minutes apart on 2026-08-20: one red in `src/garden/__tests__/sdd-report.test.ts` (2 tests), the next red in `src/release/__tests__/preflight.test.ts` + `src/dashboard/__tests__/route-sweep.test.ts` (8 tests) with sdd-report green, and all three green together in isolation.
+`npx vitest run` fails on a shifting set of files that each pass in isolation, so a green suite is a matter of timing rather than a statement about the code. Q-0171 recorded two runs ten minutes apart on 2026-08-20: one red in `src/garden/__tests__/sdd-report.test.ts` (2 tests), the next red in `src/release/__tests__/preflight.test.ts` + `src/dashboard/__tests__/route-sweep.test.ts` (8 tests) with sdd-report green, and all three green together in isolation.
 
-The entry's stated cause does not survive reading the files. `preflight.test.ts:19-33` builds a `mkdtempSync` git repo per test and never touches the live `.noldor/`; `route-sweep.test.ts:23` binds `startServer({ port: 0 })`, an ephemeral port that cannot collide. So neither "tests read live `.noldor/session.json`" nor "the dashboard port" is the mechanism, and a fix aimed at those would leave the flake in place.
+The entry's stated causes do not survive reading the files. `preflight.test.ts:19-33` builds a `mkdtempSync` git repo per test and never touches the live `.noldor/`; `route-sweep.test.ts:23` binds `startServer({ port: 0 })`, an ephemeral port that cannot collide. So neither "tests read live `.noldor/session.json`" nor "the dashboard port" is a mechanism, and a fix aimed at those would change nothing.
 
-What the files do share is **unbounded external I/O inside a unit suite, under a per-test timeout shorter than the I/O's own bound**. Two green full-suite runs today (5618 tests, ~43s wall, one of them under six busy-loop CPU hogs) confirm the flake is real but not reproducible on demand, which is exactly why the remedy has to be structural rather than a chased repro.
+What reading the files *does* establish is a specific, independently-checkable defect in one file. `src/release/preflight-probes.ts` performs unbounded external I/O — `gh --version`, `gh auth status`, and `npm view <name> --registry https://registry.npmjs.org` — with no seam for a caller to intercept it, and `preflight.test.ts` drives that 19 times. The probes' own bound (`PROBE_TIMEOUT_MS = 15_000`, line 41) is larger than the harness bound that contains them (`testTimeout: 10_000` in `vitest.config.ts`), so the probes' timeout branch is unreachable from the suite. That file took 31s of a 43s run.
+
+Two full-suite runs today were green (5618 tests, ~43s wall; the second under six busy-loop CPU hogs). The flake is real but does not reproduce on demand here, which bounds what this feature may claim — see Goals.
 
 ## Goals
 
-- Remove unbounded network and CLI-discovery I/O from the unit suite, so a test's result depends on the repo and not on `gh`, the npm registry, or the machine's load.
-- Make a probe that exceeds its own bound report as a row rather than killing the test that called it — the current inversion loses the diagnosis.
-- Leave behind a regression net, so the hazard class cannot silently regrow.
+- **Isolate `preflight.test.ts` from external I/O**, so its result depends on the repo rather than on `gh`, the npm registry, or machine load.
+- **Give timeout enforcement one owner**, so a probe that exceeds its budget reports a row instead of being killed by the harness that called it.
+- **Leave a regression net**, so the hazard cannot silently regrow when the next probe is added.
 
 ## Non-goals
 
-- Rewriting all 67 of 385 test files that spawn subprocesses. Most spawn `git` against a tmpdir, which is bounded and local.
+- **Claiming the full-suite flake is fixed.** This removes one sufficient cause in one file. The 2026-08-20 `route-sweep.test.ts` reds are **not explained** by anything in this spec, and the `sdd-report.test.ts` reds are explicitly out of scope. Q-0171 stays open as an investigation after this ships; see *What remains unresolved*.
+- Rewriting the 67 of 385 test files that spawn subprocesses. Most spawn `git` against a tmpdir, which is local and bounded.
 - Building a fixture consumer repo or an e2e layer — that is `consumer-contract-ci-and-headless-gate-e2e-harness`, already an FD.
-- Raising `testTimeout` as the remedy. It would convert a red suite into a slow one and hide the same defect.
-- Changing `vitest.setup.ts`'s `process.chdir` to the repo root. 32 test files read live repo state through it deliberately; that is a separate (and larger) question.
+- Raising `testTimeout`. It converts a red suite into a slow one and leaves the two bounds free to disagree again.
+- Changing `vitest.setup.ts`'s `process.chdir` to the repo root. 32 test files read live repo state through it deliberately; that is a separate and larger question.
 
 ## Design
 
 ### Structural context
 
-`noldor:cut graphify-out/graph.json is stale (design graph-context exit 1) and regenerating it rewrites a 4 MB tracked artifact that /noldor-release-sweep owns — the churn does not belong in this PR.` Read from the stale `graphify-out/graph.brainstorm-summary.toon` anyway: none of the six candidate paths (`vitest.config.ts`, `vitest.setup.ts`, `src/release/preflight-probes.ts`, and the three named test files) appears in the top-20 communities or the top-25 cross-community edges. They are interior files with no god node and no bridge — which is itself the finding: this change is contained, and nothing downstream reads it structurally. What would change the answer is a fresh graph showing `preflight-probes.ts` as a hub for the release module.
+`noldor:cut graphify-out/graph.json is stale (design graph-context exit 1) and regenerating it rewrites a 4 MB tracked artifact that /noldor-release-sweep owns — the churn does not belong in this PR.` Read from the stale `graphify-out/graph.brainstorm-summary.toon` anyway: none of the candidate paths (`vitest.config.ts`, `vitest.setup.ts`, `src/release/preflight-probes.ts`, and the three named test files) appears in the top-20 communities or the top-25 cross-community edges. They are interior files with no god node and no bridge — itself the finding: this change is contained, and nothing downstream reads it structurally. A fresh graph showing `preflight-probes.ts` as a hub for the release module would change the answer.
 
-### U1 — Seam the external probes behind an injected runner
+### U1 — One injected command runner, with a stated contract
 
-`src/release/preflight-probes.ts` reaches the outside world in three places with no way for a caller to intercept it. The `gh-auth` probe (lines 335-340) spawns `gh --version` then `gh auth status` on **every** `runPreflight` call, with no skip guard. The `npm-name` probe (line 670) runs `npm view <name> versions --json --registry https://registry.npmjs.org`, a real network round-trip — guarded only by `release.publish.enabled`. And `runCli` (lines 143-148) spawns the whole noldor CLI as a child node process via `noldorCliCommand`. `preflight.test.ts` calls `runPreflight` 19 times, and `runPreflight` (`src/release/preflight.ts:73-75`) walks all 17 probe ids serially per call, so that file alone performs ~323 probe executions and took 31s of the 43s suite.
+`preflight-probes.ts` reaches the outside world in three places with no interception point: the `gh-auth` probe (lines 335-340), the `npm-name` probe (line 670), and `runCli` (lines 143-148), which spawns the whole noldor CLI as a child node process. `runPreflight` (`src/release/preflight.ts:73-75`) walks all 17 probe ids serially per call, so `preflight.test.ts`'s 19 calls perform ~323 probe executions.
 
-The seam to add is the one `src/release/release-cr-gate.ts:75` already demonstrates — `input.runGit ?? ((args) => execFileSync(...))`. Extend `PreflightInput` with an optional runner (working name `exec`) that `makeProbeContext` threads onto `ProbeCtx`, defaulting to the real `execFileP`. Production behaviour is byte-identical; the tests inject a runner that answers `gh`/`npm` from a table and never leaves the process.
+Add **one** seam, following the precedent at `src/release/release-cr-gate.ts:75` (`input.runGit ?? ((args) => execFileSync(...))`). `PreflightInput` gains an optional `runCommand`; `makeProbeContext` (`preflight-probes.ts:83-101`) threads it onto `ProbeContext` beside the existing memoized `treeState` / `previousTag` / `config` closures, defaulting to the real `execFileP`. All three call sites go through it — a second seam for `runCli` would describe the same concern twice, and `runCli` already funnels every internal spawn through a single function.
 
-One runner covers all three call sites, `runCli` included. A second seam for the noldor-internal spawn would describe the same concern twice, which is the abstraction cost the repo's own ratchet penalises, and `runCli` already funnels every internal spawn through a single function — so the single seam reaches it for free.
+**The contract is part of the design, not left to the implementer.** The runner is `(cmd: string, args: string[], opts?: { timeout?: number }) => Promise<{ stdout: string; stderr: string }>`. Failure is a rejection with an `Error` carrying `stdout` and `stderr` string properties and, where the process exited non-zero, a numeric `code` — the shape `execFile`'s own rejection already has. This matters concretely rather than decoratively: the `npm-name` probe at `preflight-probes.ts:669-680` discriminates published-from-unpublished by regexing `err.stderr` + `err.message` for `/E404|404 Not Found/` and treats anything else as an unanswered question, so a stub rejecting with a bare `Error` would silently land in the "unanswered" branch and assert a blocking row where production reports the name free. Test support therefore ships **one** helper that builds rejections in this shape, and every stub uses it, so the contract has a single point of drift.
 
-### U2 — Resolve the timeout inversion
+The name is `runCommand` rather than `exec` deliberately — see U3.
 
-`vitest.config.ts` sets `testTimeout: 10_000`; `preflight-probes.ts:41` sets `PROBE_TIMEOUT_MS = 15_000`. A probe that hits its own bound therefore kills the test five seconds before it can return the row it was written to return — the `gh probe timed out after 15000ms` branch at line 348 is unreachable from the test suite, and the operator sees a bare vitest timeout naming the test rather than the gate. Once U1 lands the tests no longer reach those probes at all, but the inversion is a live defect for anyone running `runPreflight` under any harness with a shorter bound.
+### U2 — The probe owns its timeout, not the runner
 
-`PROBE_TIMEOUT_MS` therefore becomes a default rather than a constant: `PreflightInput` gains an optional bound that `makeProbeContext` threads onto `ProbeCtx` beside the runner, and the probes read it instead of the module-level literal. A caller that is itself bounded passes something under its own limit, so the timeout row is reachable rather than pre-empted. The rejected alternative was raising `testTimeout` past 15s for the release suite: one line, but it leaves both numbers free to disagree again on the next edit to either, and it makes the suite slower rather than more honest.
+`PROBE_TIMEOUT_MS` (line 41) is 15s; `vitest.config.ts` sets `testTimeout: 10_000`. A probe that hits its own bound is killed by the harness five seconds before it can return the row it exists to return, so the `gh probe timed out after 15000ms` branch at line 348 is unreachable from the suite.
 
-### U3 — A regression net that keeps the unit suite off the network
+The tempting fix — pass a smaller `timeout` to the injected runner — does not work, for two independent reasons. First, it is **circular as a test**: the probe tells a timeout from a missing binary by reading `(err as { killed?: boolean }).killed === true` at lines 341-348, a Node `execFile` implementation detail, so a stub would have to both enforce the bound and fabricate `killed`, and the test would assert the stub rather than the probe. Second, it is **off by 2×**: `gh-auth` makes two sequential `execFileP` calls at lines 339-340, each handed the full bound, so a caller under vitest's 10s that passes 9s can still spend 18s here and be killed exactly as today.
 
-Without a guard the hazard regrows the next time someone adds a probe. The shape that fits this repo is an architecture-invariant-style test (the repo already carries `src/core/agent-runner/__tests__/no-stray-spawns.test.ts`, which is the same idea for a different spawn class) asserting that no probe module reaches `gh`, `npm`, or a URL except through the injected runner.
+So enforcement moves **into the probe**. `PreflightInput` gains an optional budget (default `PROBE_TIMEOUT_MS`) that `makeProbeContext` threads onto the context. `runProbe` races the whole probe body against that budget with `Promise.race` and, on the budget winning, synthesises the probe's timeout row itself. Two consequences fall out. The budget is **per probe, shared by every command inside it**, so `gh-auth`'s two calls can no longer double it. And the timeout row no longer depends on `killed`, so no runner — real or stubbed — has to produce that flag.
 
-It is a **static scan** of `preflight-probes.ts` for the forbidden identifiers, not a runtime assertion that the default runner was never constructed. The scan matches the `no-stray-spawns.test.ts` precedent, costs nothing at runtime, and reads as a rule rather than as a side effect. The indirection it would miss — a spawn reached through a variable rather than a literal — is not a shape this module has, and a runtime probe would have to run the very I/O it is policing to observe it.
+The default runner still passes `timeout` down to `execFile`, because the race decides the *row* while only `execFile`'s own timeout **cancels the child process**; dropping it would leak a real `gh` waiting on a keychain prompt. A stub spawns nothing, so it leaks nothing. The line 341-348 `killed` discrimination stays in place for the real path where `execFile` may still win the race.
+
+### U3 — A static scan that does not red on its own sanctioned calls
+
+Without a guard the hazard regrows the next time someone adds a probe. The shape is an architecture-invariant test modelled on `src/core/agent-runner/__tests__/no-stray-spawns.test.ts`, whose pattern is `/\b(?:spawn|spawnSync|execFile|execFileSync|execFileP|exec)\s*\(\s*['"](?:claude|codex|opencode)['"]/m`.
+
+Copying that shape naively breaks twice, and the design pins both. Its `exec` alternative is preceded by `\b`, and a word boundary sits between the `.` and the `e` in `ctx.exec(`, so a seam named `exec` would be matched by the very scan meant to protect it. Hence `runCommand` in U1 — a name no spawn-primitive alternative can match. And the scan forbids **spawn primitives only** (`execFile`, `execFileSync`, `execFileP`, `execSync`, `spawn`, `spawnSync`) applied to a literal `gh` or `npm`; it does **not** forbid URLs, because `preflight-probes.ts:665` keeps `'https://registry.npmjs.org'` as a config default and line 352 keeps `'https://cli.github.com/'` in operator-facing fix text, and neither is I/O.
+
+A static scan over `preflight-probes.ts` is the choice over a runtime assertion: it matches the existing precedent, costs nothing at runtime, and does not have to perform the I/O it polices in order to observe it.
 
 ### What this deliberately does not fix
 
-`src/garden/__tests__/sdd-report.test.ts:692,728,740,756` shells out to `tsx src/garden/sdd-report.ts` against the live repo (`cwd: process.cwd()`), plus `pnpm --silent fmt:check` at line 732 — four tests, 17.4s for that file. These are slow and live-state-dependent, and sdd-report was one of the observed red files. They stay out of scope: they are *integration* tests that deliberately exercise the real CLI against the real repo, and converting them to a fixture duplicates `consumer-contract-ci-and-headless-gate-e2e-harness`. Taking the narrow cut trades coverage of one observed red file for a fix that is measurable; the wide cut would trade a provable fix for a larger unprovable one.
+`src/garden/__tests__/sdd-report.test.ts:692,728,740,756` shells out to `tsx src/garden/sdd-report.ts` against the live repo (`cwd: process.cwd()`), plus `pnpm --silent fmt:check` at line 732 — four tests, 17.4s for that file. They stay out: they are *integration* tests that deliberately exercise the real CLI against the real repo, and converting them to a fixture duplicates `consumer-contract-ci-and-headless-gate-e2e-harness`.
 
-This is the cut most likely to be wrong. If the flake recurs after this ships, these four tests are the next suspect and the scope moves to them.
+### What remains unresolved
+
+The 2026-08-20 `route-sweep.test.ts` reds (8 tests, shared with preflight) are **not accounted for** by U1–U3. That file performs no external I/O: it binds an ephemeral port and renders live-repo pages in-process, at 949–1472 ms per route against a 10s bound. Nothing here makes it faster or more deterministic. The honest statement is that this spec removes one sufficient cause in one file and leaves the full-suite question open; if the flake recurs after this ships, `route-sweep.test.ts` and then the sdd-report integration tests are the next suspects, in that order.
 
 ## Acceptance criteria
 
-1. `preflight.test.ts` completes without spawning `gh` or `npm` — asserted by the injected runner recording every command it was asked to run.
-2. `runPreflight` with no injected runner behaves exactly as today: the 17-row contract at `preflight.test.ts:62-63` still passes unchanged.
-3. A probe whose command exceeds the bound produces a `PreflightRow` reporting the timeout, and that row is observable from a test bounded at vitest's 10s — proved by injecting a runner that stalls past a bound the test passes in, so no real command is spawned to demonstrate it.
-4. `src/release/__tests__/preflight.test.ts` file duration drops below 10s (from 31s), measured by `vitest run --reporter=basic`.
-5. A new test fails when a network or CLI-discovery call is added to `preflight-probes.ts` outside the injected runner.
-6. `pnpm verify` is green.
+1. `preflight.test.ts` runs to completion without spawning `gh` or `npm`, asserted by the injected runner recording every command it was asked to run.
+2. With no injected runner, `runPreflight` behaves as today: the 17-row contract at `preflight.test.ts:62-63` holds, evaluated against the real probes at least once.
+3. `makeProbeContext` is asserted directly to default `runCommand` to the real `execFileP` and the budget to `PROBE_TIMEOUT_MS` when the input omits them — so a mis-typed `??` or a dropped field cannot leave the suite green.
+4. A probe whose body exceeds the budget yields a `PreflightRow` reporting a timeout, produced by the probe rather than by the runner, and observable from a test bounded at vitest's 10s.
+5. A probe making two sequential commands cannot exceed the budget: `gh-auth` given a budget under the harness bound returns its row within that budget, not 2× it.
+6. A runner that rejects with a bare `Error` — no `stderr` — is rejected by the contract's test helper rather than silently producing an "unanswered" `npm-name` row.
+7. Adding a spawn primitive applied to a literal `gh` or `npm` anywhere in `preflight-probes.ts` fails the scan test; the sanctioned `ctx.runCommand(...)` calls and the two non-I/O URL strings do not.
+8. `src/release/__tests__/preflight.test.ts` file duration drops below 10s, from 31s, measured by `vitest run --reporter=basic`.
+9. `pnpm verify` is green.
 
 ## Risks / trade-offs
 
-- **The flake is not reproducible here, so success is not directly observable.** Two green runs today, one under load. Criterion 4 (file duration) is the closest proxy: removing 19 × 2 `gh` spawns and one CLI spawn per call should be a large, measurable drop, and a test that no longer performs unbounded I/O cannot time out because of it. The honest statement is that this removes a sufficient cause, not that it proves the only cause.
-- **An injected runner can drift from the real one.** A stub that answers `gh auth status` differently from the real `gh` makes the test green and the release red. Mitigated by keeping the default path untouched and the stub's table small.
-- **Scope may be mis-cut.** If the 2026-08-20 reds were in fact the sdd-report integration tests timing out under parallel load, U1–U3 leave that untouched and the flake survives. This is the main thing the operator should push back on.
+- **Success is not directly observable.** The flake did not reproduce here across two runs, one under load. Criterion 8 is the closest proxy, and criteria 1–7 prove the hazard is gone rather than that the original reds are gone. This is a removal of a sufficient cause, stated as such; *What remains unresolved* names what it does not cover.
+- **`Promise.race` decides the row but does not cancel work.** The default runner's `execFile` timeout is what kills a real child; if that were ever dropped, a raced-out probe would return its row while a real `gh` kept waiting on a keychain prompt. The coupling is stated in U2 so a later edit does not remove one half.
+- **A stub can still drift from the real runner.** A single rejection-building helper (U1) and criterion 6 narrow it to one place, but a stub that answers `gh auth status` differently from real `gh` would make the test green and the release red. The default path staying untouched is the main mitigation.
+- **Scope may be mis-cut.** If the 2026-08-20 reds were dominated by slow in-process rendering rather than external I/O, U1–U3 leave them untouched. *What remains unresolved* is written so that outcome reads as expected rather than as a surprise.
 
 ## User Story
 
@@ -80,12 +97,15 @@ As an engineer or agent running `pnpm test`, I want a red suite to mean the code
 
 ## Usage
 
-No new command. `pnpm test` and `pnpm verify` behave as before; `pnpm noldor release run --preflight` is unchanged. The only new surface is the optional runner on `runPreflight`'s input, used by tests.
+No new command. `pnpm test` and `pnpm verify` behave as before; `pnpm noldor release run --preflight` is unchanged. The only new surface is two optional fields on `runPreflight`'s input — `runCommand` and the probe budget — used by tests.
 
 ## Open questions (resolved)
 
-1. *Is the mechanism unbounded external I/O, or live shared repo state as Q-0171 claims?* -> Unbounded external I/O. (D1) `preflight.test.ts` uses tmpdir repos and `route-sweep.test.ts` uses `port: 0`, so both stated causes are falsified by the files themselves, while every observed red file sits in the measured slow tail.
-2. *One injected runner for all three spawn sites, or a separate seam for `runCli`?* -> One runner. (D2) Three seams to describe one concern is the abstraction cost the repo's own ratchet penalises, and `runCli` already funnels through a single function.
-3. *Fix the timeout inversion by parameterising the probe bound, or by raising `testTimeout`?* -> Parameterise. (D3) Raising the timeout leaves two files free to disagree again and makes the suite slower rather than more honest.
-4. *Static scan or runtime assertion for the regression net?* -> Static scan. (D4) Matches the existing `no-stray-spawns.test.ts` precedent and costs nothing at runtime; the indirection it misses is not a shape this module has.
-5. *Should the sdd-report integration tests come into scope?* -> No. (D5) They are deliberate real-CLI integration tests and converting them is a different FD's scope — but this is the cut most likely to be wrong, so it is stated rather than assumed.
+1. *Is the mechanism unbounded external I/O, or live shared repo state as Q-0171 claims?* -> Neither claim in the entry survives, and external I/O is established only for `preflight.test.ts`. (D1) The tmpdir repos and the ephemeral port falsify the entry's two causes outright; the `gh`/`npm` spawns are measured, but they explain one of the two observed red files, so the causal claim is scoped to that file rather than to the suite.
+2. *One injected runner for all three spawn sites, or a separate seam for `runCli`?* -> One runner. (D2) Three seams for one concern is the abstraction cost the repo's own ratchet penalises, and `runCli` already funnels every internal spawn through a single function.
+3. *Who enforces the probe timeout — the injected runner, or the probe?* -> The probe, via `Promise.race` on a per-probe budget. (D3) A runner-enforced bound makes the regression test assert the stub's fabricated `killed` flag rather than the probe, and lets `gh-auth`'s two sequential calls spend 2× the bound.
+4. *Is the injected bound a per-command ceiling or a per-probe budget?* -> Per probe, shared by every command in it. (D4) A per-command ceiling is what produces the 2× overrun, and a caller that is itself bounded can only reason about the probe as a whole.
+5. *Static scan or runtime assertion for the regression net?* -> Static scan, over spawn primitives only, with no URL clause. (D5) It matches the `no-stray-spawns.test.ts` precedent and cannot false-red on the two non-I/O URL strings that survive U1; the seam is named `runCommand` so the scan cannot match its own sanctioned calls.
+6. *What proves the default, non-injected wiring once every test injects a stub?* -> A direct assertion on the context `makeProbeContext` returns. (D6) It is constructed from a plain object at `preflight-probes.ts:83-101`, so the defaults are assertable without running a probe.
+7. *Should the sdd-report integration tests come into scope?* -> No. (D7) They are deliberate real-CLI integration tests and converting them is another FD's scope.
+8. *Should the feature claim the full-suite flake is fixed?* -> No; narrow the claim to preflight I/O isolation and keep the investigation open. (D8) The `route-sweep.test.ts` reds are unexplained by this design, so a "fixed" claim would be falsified by the next shifting failure.
