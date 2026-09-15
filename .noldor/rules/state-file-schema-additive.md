@@ -44,15 +44,14 @@ with required fields is the better, stricter choice. What this rule covers is th
 `id-counter.json`, `config.json` — plus the untracked files a later version still reads: the
 CR sinks, the autofix ledgers, the arbitration records, `session.json`.
 
-`config.json` is worth singling out, because two schemas read it and they sit at opposite
-ends. `noldorConfigSchema` (`src/core/config.ts`) is non-strict with every key optional, so
-it is safe in both directions by construction — copy it. Its `consumer:` block is a separate
-schema, `ConsumerConfigSchema` (`src/core/consumer-config.ts`), which is `.strict()` and
-required-heavy down its nested shapes (`BoundaryRuleSchema.name`, `VerifySurfaceSchema.command`,
-`ToolchainWaiverSchema.id`), and `loadConsumerConfig` reaches it through `.parse`, so a
-validation failure *throws* rather than degrading to a verdict. A required addition there
-does not turn a gate off; it breaks the command outright in every consumer whose config
-predates it. That makes the block the sharpest instance of this rule, not an exception to it.
+`config.json` is the sharpest instance, and the reason is the reader, not the shape. Two
+schemas parse it — `noldorConfigSchema` (`src/core/config.ts`) and, for the `consumer:`
+block, `ConsumerConfigSchema` (`src/core/consumer-config.ts`) — and every loader reaches
+them through `.parse`, not `safeParse`. So a file the schema rejects does not degrade into a
+verdict the operator can read and act on; it throws, and the command dies. A required
+addition anywhere in either tree, top level or nested, breaks outright in every consumer
+whose config predates it. Audit the nesting level you are actually editing rather than the
+block's top keys: optionality one level up protects nothing below it.
 
 There is no mechanical counterpart — nothing diffs a schema against its predecessor — so this
 is caught by reading the diff or not at all.
