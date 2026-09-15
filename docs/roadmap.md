@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### State-File Schema Additions Must Be Optional
-
-- id: Q-0223
-- area: docs
-- type: docs
-- since: 2026-09-08
-- size: S
-- impact: high
-- confidence: high
-
-`.noldor/*.json` files are tracked and travel across framework versions, so their schemas are a compatibility surface, not an internal shape — and nothing states it anywhere. Q-0213 added `perFile` to `cloneBaselineSchema`, which is `.strict()` and read by `clones check` on every push; a *required* field would have turned every consumer's committed `.noldor/clones-baseline.json` into `kind: 'unreadable'` — exit 3, ratchet off, across every repo — to gain a reporting nicety. Optional plus a "predates attribution, re-record" message costs one branch and keeps the gate alive. The retired-ID map and the CR sinks live under the same constraint. Wanted: a `state-file-schema-additive` rule alongside the existing state-file rules, so the next field addition meets the constraint at authoring time rather than in a consumer's push. (found 2026-09-07 shipping Q-0213)
-
 ### Arbitration Guard Reads a Ledger the Gate Deletes
 
 - id: Q-0224
