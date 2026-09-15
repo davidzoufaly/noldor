@@ -21,8 +21,16 @@ const PROBES = join(import.meta.dirname, '../preflight-probes.ts');
 /**
  * Spawn primitives, matched as calls. Multiline-tolerant so a `spawn(\n 'gh'`
  * shape a line-based grep misses is still caught.
+ *
+ * `defaultRunCommand` is in the list because `preflight-probes.ts` already
+ * imports it as the context default: a probe calling it DIRECTLY would spawn
+ * outside `ctx.runCommand`, so it would carry neither the probe deadline nor a
+ * test seam, and a primitives-only pattern reports zero hits. The one live
+ * reference is `?? defaultRunCommand,` — a value, not a call — so this costs no
+ * false positive.
  */
-const SPAWN_CALL = /\b(?:execFile|execFileSync|execFileP|execSync|spawn|spawnSync|fork)\s*\(/g;
+const SPAWN_CALL =
+  /\b(?:execFile|execFileSync|execFileP|execSync|spawn|spawnSync|fork|defaultRunCommand)\s*\(/g;
 
 describe('preflight probe spawn containment', () => {
   it('preflight-probes.ts contains no spawn primitive at all', () => {
@@ -39,6 +47,13 @@ describe('preflight probe spawn containment', () => {
 
   it('preflight-probes.ts does not import node:child_process', () => {
     expect(readFileSync(PROBES, 'utf8')).not.toContain('node:child_process');
+  });
+
+  it('the scan would catch a probe calling the default runner directly', () => {
+    // The seam's own escape hatch: importable, already imported, and invisible to
+    // a primitives-only pattern.
+    const direct = 'const r = await defaultRunCommand("gh", ["auth", "status"]);\n';
+    expect([...direct.matchAll(SPAWN_CALL)]).toHaveLength(1);
   });
 
   it('the scan would catch a spawn handed a variable, not just a literal command', () => {

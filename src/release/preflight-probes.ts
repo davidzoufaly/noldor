@@ -182,13 +182,24 @@ export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<P
   const budgetMs =
     Number.isFinite(ctx.budgetMs) && ctx.budgetMs > 0 ? ctx.budgetMs : PROBE_TIMEOUT_MS;
 
-  // ONE signal is the deadline and the cancellation path, per
-  // `concurrency-write-discipline`. It aborts the child AND resolves the race
-  // that produces the timeout row, so there is no second bound to drift out of
-  // step with it — the earlier design raced a `setTimeout` against `execFile`'s
-  // own timeout and needed a slack constant to stop them tying. Nothing to clear
-  // afterwards either: the deadline is the signal, not a timer this code owns.
-  const deadline = AbortSignal.timeout(budgetMs);
+  // ONE deadline drives both the cancellation and the row, per
+  // `concurrency-write-discipline`: when it fires it aborts whatever command the
+  // probe is waiting on AND resolves the race that produces the timeout row. The
+  // earlier design raced a timer against `execFile`'s own timeout and needed a
+  // slack constant to stop the two tying; there is no second bound here to drift
+  // out of step with.
+  //
+  // An owned `AbortController` rather than `AbortSignal.timeout`, for two
+  // reasons. `AbortSignal.timeout` keeps its timer and this probe's abort
+  // listener scheduled until the full budget elapses even when the probe answers
+  // in milliseconds — hundreds of probe executions would each leave one pending,
+  // which is exactly what a completed probe must not do. And it throws
+  // `RangeError` on a non-integer or out-of-range delay, which would escape as a
+  // rejection instead of the blocking row this function promises; `setTimeout`
+  // coerces instead.
+  const controller = new AbortController();
+  const deadline = controller.signal;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const scoped: ProbeContext = {
     ...ctx,
     // Applied here rather than at each call site, so no probe can forget it.
@@ -206,8 +217,11 @@ export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<P
   let unevaluated: { detail: string; fix: string };
   try {
     const timedOut = new Promise<typeof TIMED_OUT>((resolve) => {
-      if (deadline.aborted) resolve(TIMED_OUT);
-      else deadline.addEventListener('abort', () => resolve(TIMED_OUT), { once: true });
+      timer = setTimeout(() => {
+        controller.abort();
+        resolve(TIMED_OUT);
+      }, budgetMs);
+      timer.unref?.();
     });
     const outcome = await Promise.race([PROBES[id](scoped), timedOut]);
     if (outcome !== TIMED_OUT) return outcome;
@@ -221,6 +235,10 @@ export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<P
       detail: `probe threw: ${message}`,
       fix: `Investigate the error above — ${NOT_A_PASS}`,
     };
+  } finally {
+    // On every path out, including the early `return` above: a probe that
+    // answered in milliseconds must not leave its budget scheduled.
+    if (timer !== undefined) clearTimeout(timer);
   }
   return { id, status: 'blocking', ...unevaluated };
 }

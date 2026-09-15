@@ -56,11 +56,18 @@ const byId = (rows: PreflightRow[], id: string): PreflightRow => {
 function runner(script: Record<string, Partial<RunResult>> = {}): {
   run: RunCommand;
   calls: string[];
+  cwds: (string | undefined)[];
 } {
   const calls: string[] = [];
-  const run: RunCommand = (cmd, args) => {
+  const cwds: (string | undefined)[] = [];
+  const run: RunCommand = (cmd, args, opts) => {
     const key = [cmd, ...args].join(' ');
     calls.push(key);
+    // Recorded separately because the cwd is the thing most easily dropped and
+    // least visible when it is: a probe that forgets it runs against the
+    // developer's live repo instead of this test's mkdtemp fixture, and every
+    // assertion on the returned rows still passes.
+    cwds.push(opts?.cwd);
     for (const [prefix, res] of Object.entries(script)) {
       if (key.startsWith(prefix)) {
         return Promise.resolve({ code: 0, stdout: '', stderr: '', ...res });
@@ -69,7 +76,7 @@ function runner(script: Record<string, Partial<RunResult>> = {}): {
     if (key.startsWith('gh ')) return Promise.resolve({ code: 0, stdout: '', stderr: '' });
     return Promise.resolve({ code: 1, stdout: '', stderr: '' });
   };
-  return { run, calls };
+  return { run, calls, cwds };
 }
 
 const run = (cwd: string, over: Partial<Parameters<typeof runPreflight>[0]> = {}) =>
@@ -245,6 +252,17 @@ describe('runPreflight', () => {
     expect(calls.some((c) => c.includes('validate features'))).toBe(true);
     // And the answers reach the rows, rather than the fake being merely called.
     expect(byId(rows, 'gh-auth').status).toBe('ok');
+  });
+
+  it('hands every probe command the fixture cwd, never the developer tree', async () => {
+    // `makeProbeContext`'s own comment names this failure: without the cwd "a
+    // fixture-backed test silently asserts against the developer's own working
+    // tree". Nothing else in the suite catches it — the rows come back identical
+    // either way, which is what makes it worth an explicit assertion.
+    const { run: runCommand, cwds } = runner();
+    await run(cwd, { runCommand });
+    expect(cwds.length).toBeGreaterThan(0);
+    for (const seen of cwds) expect(seen).toBe(cwd);
   });
 
   it('reports gh as blocking when the runner says the binary is missing', async () => {

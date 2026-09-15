@@ -4,7 +4,7 @@
 // nothing there exercises the default wiring or the normalization that makes
 // "resolves rather than rejects" real rather than aspirational — a mis-typed
 // `??` or a dropped field would otherwise leave the whole suite green.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { makeProbeContext, runProbe, PROBE_TIMEOUT_MS } from '../preflight-probes.js';
 import { defaultRunCommand, normalizeRunner, resultFromError } from '../run-command.js';
@@ -179,6 +179,26 @@ describe('runProbe budget', () => {
     });
     const row = await runProbe('gh-auth', ctx);
     expect(row.status).toBe('ok');
+  });
+
+  it('clears its budget timer when the probe answers first', async () => {
+    // Criterion 8. `process._getActiveHandles()` does NOT enumerate JS timers —
+    // an earlier version of this test read it and stayed green with the cleanup
+    // deleted. Vitest's fake-timer clock does count them, so this can fail.
+    vi.useFakeTimers();
+    try {
+      const ctx = ctxFor({
+        budgetMs: 60_000,
+        runCommand: () => Promise.resolve({ code: 0, stdout: '', stderr: '' }),
+      });
+      const row = await runProbe('gh-auth', ctx);
+      expect(row.status).toBe('ok');
+      // A 60s budget still scheduled after a probe that answered immediately is
+      // the leak: one per probe execution, hundreds per suite run.
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('hands every command the probe deadline, so a timeout cancels the child', async () => {
