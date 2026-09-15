@@ -112,11 +112,46 @@ export function arbitrationPath(cwd: string, slug: Slug, kind: ArtifactKind): st
   return slugKindJsonPath(cwd, ['.noldor', 'cr', 'arbitration'], slug, kind, 'arbitration record');
 }
 
+/** Blocker ids still awaiting a disposition, in record order. */
+export function undisposed(rec: ArbitrationRecord): string[] {
+  const disposed = new Set(rec.dispositions.map((d) => d.blockerId));
+  return rec.blockers.filter((b) => !disposed.has(b.id)).map((b) => b.id);
+}
+
 /** Every unresolved blocker carries exactly one disposition. */
 export function isFilled(rec: ArbitrationRecord): boolean {
   if (rec.blockers.length === 0) return false;
-  const disposed = new Set(rec.dispositions.map((d) => d.blockerId));
-  return rec.blockers.every((b) => disposed.has(b.id));
+  return undisposed(rec).length === 0;
+}
+
+/**
+ * `rec` with `blockerId` disposed as `disposition`, or `null` when the id names
+ * no blocker the record carries.
+ *
+ * REPLACES any prior entry for that id rather than appending. The schema forbids
+ * two dispositions for one blocker, so an append would produce a record that no
+ * longer parses — which is what an operator changing their mind hits when the
+ * only writer is a text editor.
+ *
+ * The result is sorted by `blockerId`, which makes {@link recordDigest}
+ * independent of the order the dispositions were entered in. Two operators who
+ * dispose of the same blockers the same way then agree on the digest, and
+ * re-disposing one blocker does not move the others.
+ */
+export function withDisposition(
+  rec: ArbitrationRecord,
+  blockerId: string,
+  disposition: Disposition,
+  note?: string,
+): ArbitrationRecord | null {
+  if (!rec.blockers.some((b) => b.id === blockerId)) return null;
+  const entry = { blockerId, disposition, ...(note === undefined ? {} : { note }) };
+  return {
+    ...rec,
+    dispositions: [...rec.dispositions.filter((d) => d.blockerId !== blockerId), entry].toSorted(
+      (a, b) => (a.blockerId < b.blockerId ? -1 : a.blockerId > b.blockerId ? 1 : 0),
+    ),
+  };
 }
 
 /**

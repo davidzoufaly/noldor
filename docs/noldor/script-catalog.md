@@ -385,6 +385,14 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 - **When to use:** automatic at end-of-flow for gate-introducing FDs. See [`bootstrap-immunity-for-self-gating-features.md`](../features/bootstrap-immunity-for-self-gating-features.md).
 - **Source:** [`src/cr/bootstrap-cli.ts`](../../src/cr/bootstrap-cli.ts)
 
+### `cr:arbitration`
+
+- **Trigger:** `pnpm noldor cr arbitration dispose --slug <slug> --kind <spec\|plan\|code> --blocker <id> --disposition <accepted\|rejected\|deferred> [--note <text>]` (answer one standing blocker), then `pnpm noldor cr arbitration digest --slug <slug> --kind <kind>` (print the digest the `Noldor-Path-Override` trailer must name). Run after `cr orchestrate` exits 3 at the round cap and writes the arbitration skeleton — its refusal banner prints both commands with the slug and kind already filled in, plus the blocker ids `--blocker` takes.
+- **Inputs:** the arbitration record at `.noldor/cr/arbitration/<slug>-<kind>.json`, and `HEAD^{tree}` for the record's tree binding.
+- **Outputs:** `dispose` rewrites the record — replacing any prior answer for that blocker, so changing your mind cannot produce the duplicate entry the schema rejects — and prints what is still undisposed; exit 0, or 2 when the id, the disposition or the flags are wrong (nothing is written). `digest` prints `digest: <12 hex>` plus the `git commit --amend --trailer …` line to run; exit 0 when a push naming it would be accepted, **exit 1 (not ready)** when it would not — a blocker with no disposition, a record with no arbitrable blockers, a `boundTree` that HEAD has moved past, or a `--kind` other than `code` (the pre-push guard reads only the code record, so a spec/plan digest is refused where a code record exists and unchecked where none does) — each reason printed as a `not ready:` line. The digest prints either way; the exit code is what says whether it is usable.
+- **When to use:** the only exit past a spent round cap. The disposition vocabulary is closed — `accepted` (the finding is right, the debt is deliberate), `rejected` (the finding is wrong), `deferred` (right, carried to follow-up) — and the `--note` beside it carries the sentence a later reader needs.
+- **Source:** [`src/cr/arbitration-cli.ts`](../../src/cr/arbitration-cli.ts), [`src/cr/arbitration.ts`](../../src/cr/arbitration.ts), [`src/hooks/noldor-enforce-arbitration.ts`](../../src/hooks/noldor-enforce-arbitration.ts)
+
 ## Worktree
 
 ### `worktree:status`

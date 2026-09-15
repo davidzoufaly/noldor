@@ -162,6 +162,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'cr/bootstrap-cli.ts',
         desc: 'Stamp bootstrap override on a gate-introducing feature branch',
       },
+      arbitration: {
+        src: 'cr/arbitration-cli.ts',
+        desc: 'Dispose of the blockers a spent round cap left standing, and print the override digest (dispose | digest)',
+      },
     },
   },
   triage: {

@@ -1,7 +1,7 @@
-import { execFileSync } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import type { Slug } from '../core/slug.js';
 import { join } from 'node:path';
+import { treeOf } from './git-tree.js';
 import type { ArtifactKind, Finding, Lane } from './findings-schema.js';
 import { laneFindingsSchema } from './findings-schema.js';
 import { inferLaneFromFilename } from './filename.js';
@@ -202,24 +202,6 @@ export async function aggregate(
     summaries,
     notes,
   };
-}
-
-/**
- * `rev^{tree}`, or `null` when git cannot answer — no repo, no such commit, no
- * git on PATH. The subprocess is the boundary this converts at (expected
- * failures do not throw past it); the caller disambiguates the two meanings by
- * resolving `HEAD` first.
- */
-function treeOf(cwd: string, rev: string): string | null {
-  try {
-    return execFileSync('git', ['rev-parse', `${rev}^{tree}`], {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch {
-    return null;
-  }
 }
 
 /**

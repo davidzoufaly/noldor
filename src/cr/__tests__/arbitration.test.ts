@@ -8,7 +8,10 @@ import {
   isFilled,
   parseArbitrationTrailer,
   recordDigest,
+  undisposed,
+  withDisposition,
 } from '../arbitration.js';
+import type { ArbitrationRecord, Disposition } from '../arbitration.js';
 import type { Slug } from '../../core/slug.js';
 
 const base = {
@@ -87,6 +90,88 @@ describe('isFilled', () => {
       dispositions: [...rec.dispositions, { blockerId: 'b2', disposition: 'rejected' as const }],
     };
     expect(isFilled(arbitrationRecordSchema.parse(full))).toBe(true);
+  });
+});
+
+/** Two blockers, nothing disposed — the shape both suites below start from. */
+const twoBlockers = arbitrationRecordSchema.parse({
+  ...base,
+  blockers: [
+    { id: 'b1', severity: 'high', message: 'x', lanes: ['reviewer'] },
+    { id: 'b2', severity: 'med', message: 'y', lanes: ['codex'] },
+  ],
+});
+
+/** {@link withDisposition} with its `null`-for-unknown-id branch asserted away. */
+function dispose(
+  rec: ArbitrationRecord,
+  id: string,
+  d: Disposition,
+  note?: string,
+): ArbitrationRecord {
+  const next = withDisposition(rec, id, d, note);
+  if (next === null) throw new Error(`expected a record; ${id} names no blocker`);
+  return next;
+}
+
+describe('undisposed', () => {
+  it('names the blockers still awaiting a disposition, and only those', () => {
+    expect(undisposed(dispose(twoBlockers, 'b2', 'accepted'))).toEqual(['b1']);
+  });
+
+  it('is empty once every blocker is disposed', () => {
+    expect(undisposed(dispose(dispose(twoBlockers, 'b2', 'accepted'), 'b1', 'rejected'))).toEqual(
+      [],
+    );
+  });
+});
+
+describe('withDisposition', () => {
+  it('returns null for an id the record does not carry', () => {
+    expect(withDisposition(twoBlockers, 'nope', 'accepted')).toBeNull();
+  });
+
+  it('records the disposition and its note', () => {
+    expect(dispose(twoBlockers, 'b1', 'deferred', 'follow-up filed').dispositions).toEqual([
+      { blockerId: 'b1', disposition: 'deferred', note: 'follow-up filed' },
+    ]);
+  });
+
+  it('omits note entirely when none was given', () => {
+    // `note` is optional under `.strict()`, so an explicit `note: undefined`
+    // would survive in memory but vanish through `JSON.stringify` — leaving the
+    // digest printed before the write disagreeing with the record on disk.
+    expect(dispose(twoBlockers, 'b1', 'accepted').dispositions[0]).toEqual({
+      blockerId: 'b1',
+      disposition: 'accepted',
+    });
+  });
+
+  it('replaces a prior disposition instead of appending a second one', () => {
+    // The schema forbids two entries for one blocker, so an appending
+    // implementation yields a record that no longer parses — exactly what a
+    // hand-edit produces when the operator changes their mind.
+    const twice = dispose(
+      dispose(twoBlockers, 'b1', 'accepted', 'first'),
+      'b1',
+      'rejected',
+      'last',
+    );
+    expect(twice.dispositions).toEqual([
+      { blockerId: 'b1', disposition: 'rejected', note: 'last' },
+    ]);
+    expect(() => arbitrationRecordSchema.parse(twice)).not.toThrow();
+  });
+
+  it('digests the same however the dispositions were ordered', () => {
+    const forward = dispose(dispose(twoBlockers, 'b1', 'accepted'), 'b2', 'rejected');
+    const backward = dispose(dispose(twoBlockers, 'b2', 'rejected'), 'b1', 'accepted');
+    expect(recordDigest(forward)).toBe(recordDigest(backward));
+  });
+
+  it('does not mutate the record it was given', () => {
+    dispose(twoBlockers, 'b1', 'accepted');
+    expect(twoBlockers.dispositions).toEqual([]);
   });
 });
 

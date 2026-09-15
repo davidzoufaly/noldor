@@ -377,5 +377,9 @@
   "Q-0227": {
     "slug": "print-the-spec-link-before-confirmation",
     "retiredAt": "2026-09-15"
+  },
+  "Q-0228": {
+    "slug": "cr-arbitration-dispose-and-digest-cli",
+    "retiredAt": "2026-09-15"
   }
 }

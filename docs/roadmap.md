@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### cr arbitration dispose and digest CLI
-
-- id: Q-0228
-- area: tooling
-- type: feat
-- since: 2026-09-08
-- size: S
-- impact: high
-- confidence: med
-
-Nothing computes the `cr-arbitration` digest the gate tells you to commit. `cr orchestrate` exits 3 at the cap, writes the arbitration skeleton, and prints `git commit --amend --trailer "Noldor-Path-Override: cr-arbitration <digest> — <why>"` — but `<digest>` comes from `recordDigest` in `src/cr/arbitration.ts`, which has no CLI surface. Shipping Q-0214 the digest was obtained by copying a throwaway `.ts` file into the repo root and running it under `tsx`, because a bare `npx tsx -e` cannot resolve the `.js` specifiers. Filling `dispositions` is hand-edited JSON for the same reason, against a closed `accepted`/`rejected`/`deferred` vocabulary the prose never lists. Wanted: `noldor cr arbitration dispose --slug <s> --kind <k> --blocker <id> --disposition accepted --note "…"` plus `noldor cr arbitration digest --slug <s> --kind <k>`, so the one path the framework offers past a capped round is not the only one that requires hand-editing a schema-validated file. (found 2026-09-08 shipping Q-0214)
-
 ### Two-Directional Test Tables for Data-Losing Predicates
 
 - id: Q-0229
