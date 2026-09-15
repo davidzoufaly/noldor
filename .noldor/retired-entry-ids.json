@@ -357,5 +357,9 @@
   "Q-0222": {
     "slug": "draft-feature-md-autonomous-mode-keeps-a-todo-stub",
     "retiredAt": "2026-09-15"
+  },
+  "Q-0223": {
+    "slug": "state-file-schema-additions-must-be-optional",
+    "retiredAt": "2026-09-15"
   }
 }
