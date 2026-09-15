@@ -37,6 +37,34 @@ export interface RecordFacts {
   readonly filled: boolean;
   readonly boundTree: string;
   readonly currentTree: string;
+  /** The round history the skeleton was built from — the ledger's stand-in. */
+  readonly rounds: LedgerFacts['rounds'];
+}
+
+/**
+ * The round history to arbitrate against, or `null` when nothing proves one.
+ *
+ * The ledger first, because it is the live history: it can hold rounds the
+ * skeleton predates — notably the one closing round a spent cap grants — and
+ * arbitrating against the shorter record history would answer a stale question.
+ *
+ * The record is the fallback because the gate's context-cleanup step deletes the
+ * ledger one step before `pr-flow` pushes, so at push time the ledger is
+ * routinely gone on exactly the sessions this guard exists to check. Nothing
+ * deletes the record, and it carries the same rounds.
+ *
+ * Gated on tree freshness, and that is load-bearing in the other direction: a
+ * record is evidence only about the tree it is bound to, and since nothing ever
+ * removes it, an unfreshened fallback would refuse honest bare overrides in
+ * every later session on the same slug.
+ */
+function resolveRounds(
+  ledger: LedgerFacts | null,
+  record: RecordFacts | null,
+): LedgerFacts['rounds'] | null {
+  if (ledger !== null) return ledger.rounds;
+  if (record === null || record.boundTree !== record.currentTree) return null;
+  return record.rounds;
 }
 
 export interface ArbitrationDecision {
@@ -62,15 +90,16 @@ export function decideArbitration(input: {
 }): ArbitrationDecision {
   if (input.override === null) return { ok: true };
 
-  // Fail OPEN, loudly. No ledger means no proof any red round happened, and a
-  // deleted ledger is indistinguishable from a session that never ran
-  // orchestrate at all — which is most overrides in this repo (micro-chore,
+  // Fail OPEN, loudly. No round history at all means no proof any red round
+  // happened, and that is indistinguishable from a session that never ran
+  // orchestrate — which is most overrides in this repo (micro-chore,
   // fast-track, a doc fix). The printed line is what keeps the hole visible.
-  if (input.ledger === null)
+  const rounds = resolveRounds(input.ledger, input.record);
+  if (rounds === null)
     return { ok: true, warning: 'pre-push: could not verify arbitration — no round ledger found' };
 
-  const red = input.ledger.rounds.filter((r) => r.verdict === 'red').length;
-  const lastRed = input.ledger.rounds.at(-1)?.verdict === 'red';
+  const red = rounds.filter((r) => r.verdict === 'red').length;
+  const lastRed = rounds.at(-1)?.verdict === 'red';
   if (red <= AUTOFIX_ROUND_CAP || !lastRed) return { ok: true };
 
   const claimed = parseArbitrationTrailer(input.override);
@@ -208,6 +237,7 @@ function readRecordFacts(cwd: string, git: GitRunner, slug: string): RecordFacts
       filled: isFilled(rec),
       boundTree: rec.boundTree,
       currentTree: tree.status === 0 ? tree.stdout.trim() : '',
+      rounds: rec.rounds.map((r) => ({ round: r.round, verdict: r.verdict })),
     };
   } catch {
     return null;
