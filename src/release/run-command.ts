@@ -60,12 +60,17 @@ export type RunCommand = (cmd: string, args: string[], opts?: RunOptions) => Pro
  * string — is not an exit status, so it normalizes to 1.
  */
 export function resultFromError(err: unknown): RunResult {
-  const e = err as { code?: unknown; stdout?: string; stderr?: string; message?: string };
-  const stderr = e.stderr ?? '';
+  // Narrowed, not merely cast: a runner rejecting with `null` or a string would
+  // make a property read throw from inside the very function that exists to stop
+  // a throw, breaking {@link normalizeRunner}'s never-reject contract.
+  const e: { code?: unknown; stdout?: unknown; stderr?: unknown; message?: unknown } =
+    typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : {};
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+  const stderr = str(e.stderr);
   const message = typeof e.message === 'string' ? e.message : String(err);
   return {
     code: typeof e.code === 'number' && e.code !== 0 ? e.code : 1,
-    stdout: e.stdout ?? '',
+    stdout: str(e.stdout),
     stderr: stderr.length > 0 ? stderr : message,
   };
 }

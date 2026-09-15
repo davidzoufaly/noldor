@@ -18,7 +18,13 @@ noldor-tier: specs-only
 ---
 ## Summary
 
-The full `npx vitest run` fails on a *shifting* set of files that each pass in isolation, so a green suite is currently a matter of timing. Observed twice within ten minutes on 2026-08-20: run one failed `src/garden/__tests__/sdd-report.test.ts` (2 tests), run two failed `src/release/__tests__/preflight.test.ts` + `src/dashboard/__tests__/route-sweep.test.ts` (8 tests) with sdd-report green; all three files passed together in isolation (141 tests). The common factor is tests that read live repository state — `.noldor/session.json`, which the same session's `noldor set-autonomous` rewrites mid-run, and the dashboard port — rather than a fixture. Identify which suites read live `.noldor/` state or bind a fixed port and give them a fixture or a temp root, since the alternative is that every future red suite gets retried instead of read. Deletion test: the full suite passes with a session marker present, an autonomous flag flip mid-run, and a dashboard already listening. (found 2026-08-20 draining the XS batch)
+`npx vitest run` failed on a shifting set of files that each passed in isolation, so a green suite was a matter of timing. Q-0171 recorded two runs ten minutes apart on 2026-08-20 with disjoint failure sets across `sdd-report.test.ts`, `preflight.test.ts` and `route-sweep.test.ts`.
+
+The entry blamed live `.noldor/session.json` and the dashboard port. Reading the files falsified both: `preflight.test.ts` builds a `mkdtemp` repo per test and `route-sweep.test.ts` binds `port: 0`. What reading did establish was a specific defect in one file — `src/release/preflight-probes.ts` performed unbounded external I/O (`gh --version`, `gh auth status`, `npm view`) with no seam to intercept it, driven 19 times per run, under a harness bound (10s) *shorter* than the probes' own (15s), so the probes' timeout branch was unreachable and a slow keychain killed the test instead.
+
+**This feature fixes that one file.** Every probe now reaches the outside world through one injectable `RunCommand` (`src/release/run-command.ts`), timeout enforcement moved into `runProbe` as a per-probe budget, and a static scan keeps spawn primitives out of the probes module. Measured: 31s → ~6s alone, ~21s in the full parallel suite.
+
+**It does not fix the full-suite flake, and does not claim to.** The residue is `git`, not `gh` — `inspectTreeState` spawns `git fetch` outside the seam (Q-0237) — and the `route-sweep.test.ts` and `sdd-report.test.ts` reds remain unexplained (Q-0238). Both were minted as follow-ups when this shipped, so retiring Q-0171 does not lose the open investigation.
 
 ## Diagram
 

@@ -75,6 +75,17 @@ describe(resultFromError, () => {
     expect(r.stderr).toBe('E404 Not Found');
   });
 
+  it('survives a rejection that is not an object at all', () => {
+    // A runner that rejects with null would otherwise make the property read
+    // throw from inside the function whose whole job is to stop a throw.
+    for (const junk of [null, undefined, 'plain string', 42]) {
+      const r = resultFromError(junk);
+      expect(r.code).toBe(1);
+      expect(typeof r.stdout).toBe('string');
+      expect(typeof r.stderr).toBe('string');
+    }
+  });
+
   it('normalizes a bare Error, which carries no code or streams at all', () => {
     expect(resultFromError(new Error('boom'))).toStrictEqual({
       code: 1,
@@ -141,21 +152,33 @@ describe('runProbe budget', () => {
   });
 
   it('shares one budget across a probe that runs two commands, rather than one each', async () => {
-    // gh-auth spawns `gh --version` then `gh auth status`. Under a per-command
-    // ceiling this returned at 2x the bound and the harness killed it first.
+    // gh-auth spawns `gh --version` then `gh auth status`, each well inside the
+    // budget on its own but over it together. The VERDICT is what separates the
+    // two designs: a per-command ceiling lets both finish and returns `ok`; one
+    // shared deadline times out. Asserting the verdict rather than an elapsed-ms
+    // ceiling is deliberate — a wall-clock bound would be exactly the
+    // load-sensitive assertion this whole feature exists to remove, and load can
+    // only make this timeout more certain, never less.
     const ctx = ctxFor({
       budgetMs: 120,
       runCommand: () =>
         new Promise((r) => setTimeout(() => r({ code: 0, stdout: '', stderr: '' }), 100)),
     });
-    const started = Date.now();
     const row = await runProbe('gh-auth', ctx);
-    const elapsed = Date.now() - started;
     expect(row.status).toBe('blocking');
-    // Two 100ms commands would be 200ms if each got its own bound; the shared
-    // budget cuts it at 120. Generous upper bound — this asserts "not 2x", not a
-    // precise duration, so a loaded machine cannot false-red it.
-    expect(elapsed).toBeLessThan(190);
+    expect(row.fix).toContain('keychain');
+  });
+
+  it('lets a probe whose two commands fit inside the budget answer normally', async () => {
+    // The other direction, so the case above cannot pass by timing out for any
+    // reason at all: same two commands, a budget that comfortably covers both.
+    const ctx = ctxFor({
+      budgetMs: 5_000,
+      runCommand: () =>
+        new Promise((r) => setTimeout(() => r({ code: 0, stdout: '', stderr: '' }), 20)),
+    });
+    const row = await runProbe('gh-auth', ctx);
+    expect(row.status).toBe('ok');
   });
 
   it('leaves no pending timer behind when the probe wins the race', async () => {

@@ -219,7 +219,14 @@ export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<P
  */
 async function runCli(ctx: ProbeContext, args: string[]): Promise<{ code: number; out: string }> {
   const [cmd, cmdArgs] = noldorCliCommand(args);
-  const { code, stdout, stderr } = await ctx.runCommand(cmd, cmdArgs, { cwd: ctx.cwd });
+  // The budget goes down too, not just the cwd. `runProbe`'s race returns a row
+  // but cannot cancel the child, so a CLI spawned with no deadline would outlive
+  // the probe indefinitely — and the sdd-report probe would never reach its
+  // tmpdir cleanup.
+  const { code, stdout, stderr } = await ctx.runCommand(cmd, cmdArgs, {
+    cwd: ctx.cwd,
+    timeout: ctx.budgetMs,
+  });
   return { code, out: `${stdout}${stderr}`.trim() };
 }
 
