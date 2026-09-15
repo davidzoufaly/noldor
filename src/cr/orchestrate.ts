@@ -322,7 +322,21 @@ export interface RunResult {
 export const EXIT_ROUND_CAP = 3;
 
 /**
- * Whether this dispatch is refused, and whether it is the one closing round.
+ * Why a past-the-cap dispatch was refused — the two refusals differ in what
+ * closes them, so {@link renderCapRefusal} must be able to tell them apart.
+ *
+ * `head-unchanged` is provisional: the last round was red and nothing has been
+ * committed since, so a fix commit plus a re-run still earns the closing round.
+ * `closing-round-spent` is terminal: that dispatch is gone for the series, no
+ * commit re-arms it, and arbitration is the sole close. One banner advising
+ * "commit the remaining fixes and re-review" for both described a path that
+ * does not exist in the second case (Q-0226).
+ */
+export type CapRefusal = 'head-unchanged' | 'closing-round-spent';
+
+/**
+ * Why this dispatch is refused (`null` when it is not), and whether it is the
+ * one closing round.
  *
  * Under the cap, everything dispatches. Past it, in order:
  *
@@ -340,31 +354,37 @@ export const EXIT_ROUND_CAP = 3;
  * green round can be retried at the same head. What it does bound is
  * arbitration — the run that comes back red past the cap is marked, and after
  * that nothing dispatches at all.
+ *
+ * The refusal is returned as a REASON rather than as a boolean beside one,
+ * because the banner and the dispatch gate must never disagree about which case
+ * they are in: two fields would have to be kept in step at every return.
  */
 export function capVerdict(
   ledger: AutofixLedger | null,
   sessionStartedAt: string,
   headSha: string,
-): { refuse: boolean; closingRound: boolean } {
+): { refusal: CapRefusal | null; closingRound: boolean } {
   const rounds = ledger?.rounds ?? [];
-  if (redRounds(rounds) <= AUTOFIX_ROUND_CAP) return { refuse: false, closingRound: false };
+  if (redRounds(rounds) <= AUTOFIX_ROUND_CAP) return { refusal: null, closingRound: false };
   // A SPENT closing round is terminal, and that is checked before anything else.
   // It is a property of the series, not of its last entry: two overlapping runs
   // can both dispatch before either appends, and if the red one records the
   // sentinel while the green one lands after it, a last-entry test would read
   // green and reopen a session the contract says is closed.
-  if (hasClosingRound(ledger, sessionStartedAt)) return { refuse: true, closingRound: false };
+  if (hasClosingRound(ledger, sessionStartedAt))
+    return { refusal: 'closing-round-spent', closingRound: false };
   const last = rounds.at(-1);
   // A green last round means the pair is not mid-arbitration: it is re-minting a
   // receipt that a later commit stripped. Refusing there would forbid retrying a
   // failed mint at the same head — the very thing "green rounds are free" is for
   // — so the head test below engages only while the last round was RED.
-  if (last && roundVerdict(last) === 'green') return { refuse: false, closingRound: false };
+  if (last && roundVerdict(last) === 'green') return { refusal: null, closingRound: false };
   // `headMatches`, not `===`: the ledger's own identity is prefix-aware, so an
   // exact comparison here would read an abbreviated form of an unchanged head as
   // a change and grant a closing round nobody earned.
-  if (headMatches(last?.headSha ?? '', headSha)) return { refuse: true, closingRound: false };
-  return { refuse: false, closingRound: true };
+  if (headMatches(last?.headSha ?? '', headSha))
+    return { refusal: 'head-unchanged', closingRound: false };
+  return { refusal: null, closingRound: true };
 }
 
 /**
@@ -650,23 +670,51 @@ export async function writeSkeletonIfAbsent(
   }
 }
 
-/** The refusal banner: what was spent, and the two ways out. */
+/**
+ * How to arbitrate, named once so both refusals cite the SAME trailer form as
+ * {@link writeSkeletonIfAbsent}.
+ *
+ * The digest matters. Past the cap with the last round red,
+ * `decideArbitration` rejects a bare `Noldor-Path-Override: <why>` outright and
+ * demands the `cr-arbitration <digest>` form — so the banner's old bare-override
+ * line named a close the pre-push hook refuses (Q-0226).
+ */
+const ARBITRATION_EXIT = [
+  '  Dispose of every blocker in the arbitration record below, then name its digest:',
+  '    git commit --amend --no-edit \\',
+  '      --trailer "Noldor-Path-Override: cr-arbitration <digest> — <why>"',
+];
+
+/** The refusal banner: what was spent, and the ways out THIS refusal actually has. */
 export function renderCapRefusal(
   ledger: AutofixLedger | null,
   slug: string,
   kind: ArtifactKind,
+  refusal: CapRefusal,
 ): string {
   const rows = (ledger?.rounds ?? []).map(
     (r) =>
       `  ${r.round}  ${roundVerdict(r).padEnd(5)}  ${r.applied} applied, ${r.deferred} deferred  ${r.headSha.slice(0, 7) || '(no sha)'}`,
   );
+  const exit =
+    refusal === 'head-unchanged'
+      ? [
+          'HEAD is unchanged since the last round, so nothing new has been written to',
+          'review. Two ways to close:',
+          '  Commit the remaining fixes and re-run this command — a changed HEAD past',
+          '  the cap earns exactly one closing round.',
+          ...ARBITRATION_EXIT,
+        ]
+      : [
+          'The closing round for this series is already SPENT, so the cap is final: no',
+          'commit re-arms a dispatch and re-running this command will refuse again.',
+          'Arbitration is the only close.',
+          ...ARBITRATION_EXIT,
+        ];
   return [
     `red rounds ${roundLabel(redRounds(ledger?.rounds ?? []))} for ${slug} (${kind}) — cap reached`,
     ...rows,
-    'HEAD is unchanged since the last round, or the closing round is spent, so no',
-    'further round will be dispatched. To close: commit the remaining fixes and',
-    're-review — that earns one closing round — or record the arbitration:',
-    '  git commit --amend --no-edit --trailer "Noldor-Path-Override: <why>"',
+    ...exit,
   ].join('\n');
 }
 
@@ -764,8 +812,8 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // nothing; bounding the overlap itself is the upgrade path — a lock around the
   // read-through-append span, so one commit cannot earn two closing dispatches.
   const cap = capVerdict(ledger, roundKey, headSha);
-  if (cap.refuse) {
-    console.error(renderCapRefusal(ledger, opts.args.slug, opts.args.kind));
+  if (cap.refusal !== null) {
+    console.error(renderCapRefusal(ledger, opts.args.slug, opts.args.kind, cap.refusal));
     await writeSkeletonIfAbsent(cwd, opts.args.slug, opts.args.kind, ledger);
     return { lanesRun: [], syntheticOks: [], exitCode: EXIT_ROUND_CAP };
   }
