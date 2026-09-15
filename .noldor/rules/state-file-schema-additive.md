@@ -40,10 +40,19 @@ reader's schema does not list has shipped a break whether the field is optional 
 Scope is the *persisted* shape. A schema over subprocess output, hook stdin, or an in-memory
 value the same version wrote and dropped has no older file to break, and there `.strict()`
 with required fields is the better, stricter choice. What this rule covers is the tracked set
-(`clones-baseline.json`, `indirection-baseline.json`, `retired-entry-ids.json`,
-`id-counter.json`, `config.json` — the last already correct in both directions: every key
-optional, and not `.strict()`, so an unknown key from a newer writer is stripped rather than
-rejected) plus the untracked files a later version still reads: the CR sinks, the
-autofix ledgers, the arbitration records, `session.json`. There is no mechanical counterpart
-— nothing diffs a schema against its predecessor — so this is caught by reading the diff or
-not at all.
+— `clones-baseline.json`, `indirection-baseline.json`, `retired-entry-ids.json`,
+`id-counter.json`, `config.json` — plus the untracked files a later version still reads: the
+CR sinks, the autofix ledgers, the arbitration records, `session.json`.
+
+`config.json` is worth singling out, because two schemas read it and they sit at opposite
+ends. `noldorConfigSchema` (`src/core/config.ts`) is non-strict with every key optional, so
+it is safe in both directions by construction — copy it. Its `consumer:` block is a separate
+schema, `ConsumerConfigSchema` (`src/core/consumer-config.ts`), which is `.strict()` and
+required-heavy down its nested shapes (`BoundaryRuleSchema.name`, `VerifySurfaceSchema.command`,
+`ToolchainWaiverSchema.id`), and `loadConsumerConfig` reaches it through `.parse`, so a
+validation failure *throws* rather than degrading to a verdict. A required addition there
+does not turn a gate off; it breaks the command outright in every consumer whose config
+predates it. That makes the block the sharpest instance of this rule, not an exception to it.
+
+There is no mechanical counterpart — nothing diffs a schema against its predecessor — so this
+is caught by reading the diff or not at all.
