@@ -158,7 +158,9 @@ pnpm noldor cr orchestrate --slug <slug> --artifact <artifact-path> --kind <spec
 
 Mark any section the spec doesn't cover as `(not specified in spec)` rather than omitting it — a visible gap is itself review signal. The operator must be able to pick `proceed` / `address-blockers` without opening the spec file. `full-*` paths get their detailed review surface at the kind=plan pause; this summary targets the path that otherwise has none.
 
-**Continue dialog.** Surface `AskUserQuestion`. When `kind === 'plan'`, options are: `proceed-autonomous / proceed / address-blockers / abort`. When `kind === 'spec'`, the autonomous option is omitted (autonomous mode triggers on plan-confirm, not spec-confirm).
+**Continue dialog — lead with the artifact link.** Open the message carrying this `AskUserQuestion` with the artifact's clickable link, re-pasted **verbatim** from what the auto-open hook supplied when the artifact was written (the link rule at the top of this step). The summaries above *describe* the artifact; only the link *addresses* it — without one the operator either scrolls back for the path or approves prose they did not re-read, and spec approval is the one gate whose whole value is that a human read the thing. Both kinds get it, for the same reason. No hook string to hand? Run `pnpm noldor design open <artifact-path>` and use its `link:` line; never build the link from the repo-relative path, which resolves against the wrong root in every `.worktrees/<slug>/` session.
+
+Then surface `AskUserQuestion`. When `kind === 'plan'`, options are: `proceed-autonomous / proceed / address-blockers / abort`. When `kind === 'spec'`, the autonomous option is omitted (autonomous mode triggers on plan-confirm, not spec-confirm).
 
 For `specs-only-*` paths, the kind=spec continue-dialog has no `proceed-autonomous` option — these paths have no plan stage. Operators wanting autonomous flows should use `full-*` paths. The `proceed` option at kind=spec advances:
 

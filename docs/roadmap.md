@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Print the Spec Link Before Confirmation
-
-- id: Q-0227
-- area: tooling
-- type: feat
-- since: 2026-09-08
-- size: XS
-- impact: med
-- confidence: med
-
-Before asking the operator to confirm a spec, always print a clickable link to the spec file. Today the confirmation prompt describes the spec without addressing it, so the operator either scrolls back for the path or confirms without re-reading the artifact they are approving — and spec approval is the one gate whose whole value is that a human read the thing. Same shape as the auto-open work (Q-0207): the artifact exists on disk and the seam that asks about it already knows its path. (surfaced 2026-09-08)
-
 ### cr arbitration dispose and digest CLI
 
 - id: Q-0228
