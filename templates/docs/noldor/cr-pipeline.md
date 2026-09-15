@@ -704,6 +704,16 @@ arbitrable blockers (every finding was an integrity blocker, which
 `buildSkeleton` drops and no operator can dispose of), or a `boundTree` that
 `HEAD` has moved past. Each reason prints as a `not ready:` line.
 
+**A spec or plan digest is never a verified close, and `digest` exits 1 to say
+so.** `noldor-enforce-arbitration.ts` builds its record path with a hardcoded
+`'code'`, so it is the only record the trailer is ever checked against: naming a
+spec digest is *refused* where a code record for the same slug exists (the guard
+compares the named digest against that one) and merely *unchecked* where none
+does, since the guard then fails open with its warning. The spec and plan records
+are still worth filling — they are the round history the guard falls back on once
+the gate's cleanup step has deleted the ledger — but the close itself happens at
+`--kind code`.
+
 Both commands existed only as functions before Q-0228, which made the one exit
 past a capped round also the one surface that asked for a hand-edited,
 schema-validated JSON file — against a disposition vocabulary nothing printed.

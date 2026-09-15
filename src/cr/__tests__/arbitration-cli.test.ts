@@ -288,6 +288,36 @@ describe('cr arbitration digest', () => {
     expect(r.stderr).toContain('bound to tree fffffff');
   });
 
+  it('exits 1 on a filled spec record, because no reader validates that digest', () => {
+    // `noldor-enforce-arbitration.ts` builds its record path with a hardcoded
+    // `'code'`, so a spec digest in the trailer is compared against the CODE
+    // record — a refusal where one exists, and unchecked where none does.
+    // Exit 0 here would be the one lie this command exists to prevent.
+    const path = arbitrationPath(cwd, 'slug' as Slug, 'spec');
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(
+      path,
+      JSON.stringify({
+        version: 1,
+        slug: 'slug',
+        kind: 'spec',
+        boundTree: headTree(),
+        rounds: [{ round: 1, verdict: 'red', headSha: 'abc1234' }],
+        blockers: [{ id: 'b1', severity: 'high', message: 'scope drift', lanes: ['reviewer'] }],
+        signals: [],
+        dispositions: [{ blockerId: 'b1', disposition: 'accepted', note: 'deliberate' }],
+      }),
+      'utf8',
+    );
+    const r = run('digest', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('pre-push validates the code record only');
+    // Every other readiness reason is satisfied, so the kind is provably the
+    // only thing holding it: a code record in the same state exits 0.
+    expect(r.stderr).not.toContain('no disposition');
+    expect(r.stderr).not.toContain('bound to tree');
+  });
+
   it('exits 1 on a record with no arbitrable blockers, which cannot be filled', () => {
     // `buildSkeleton` drops integrity blockers, so an aggregate that went red on
     // those alone writes this — and no disposition can ever make it filled.

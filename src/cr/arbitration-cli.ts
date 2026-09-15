@@ -96,6 +96,9 @@ async function dispose(
  * this command useless for the question an operator most often has — "what does
  * this record digest to right now" — and the `not ready:` lines plus exit 1 are
  * what keep the printed trailer from reading as a promise.
+ *
+ * `--kind spec` / `--kind plan` are always not-ready for that same reason: the
+ * record is real and worth filling, but no reader validates its digest.
  */
 function digest(cwd: string, rec: ArbitrationRecord): number {
   const d = recordDigest(rec);
@@ -104,6 +107,20 @@ function digest(cwd: string, rec: ArbitrationRecord): number {
   console.log(`  --trailer "Noldor-Path-Override: cr-arbitration ${d} — <why>"`);
 
   const problems: string[] = [];
+  // The trailer is validated by ONE reader, and it is code-only:
+  // `noldor-enforce-arbitration.ts` builds its record path with a hardcoded
+  // `'code'`. So naming a spec or plan digest is never the verified close it
+  // looks like — it is refused outright when a code record for the same slug
+  // exists (the guard compares this digest against THAT record), and merely
+  // unchecked when none does, since the guard then fails open with a warning.
+  // Reported rather than silently allowed: a command whose exit code answers
+  // "will the push take this" must not answer yes on a digest nothing reads.
+  if (rec.kind !== 'code') {
+    problems.push(
+      `pre-push validates the code record only, so a trailer naming this ${rec.kind} digest is not ` +
+        'what it checks — refused outright where a code record for this slug exists, unverified where none does',
+    );
+  }
   if (rec.blockers.length === 0) {
     // `buildSkeleton` drops every integrity blocker, so an aggregate that went
     // red on those alone yields this. The pre-push guard reads it as unfilled
