@@ -150,6 +150,9 @@ function warnWorthyNames(verdict: UiFreshnessVerdict): string {
  * this is an override rather than a field every probe must declare — 17
  * declarations would serve one real consumer.
  */
+/** Shared tail for both unevaluated-probe fix lines — one string, so they cannot drift. */
+const NOT_A_PASS = 'a probe that could not evaluate its gate must not be read as a pass.';
+
 const TIMEOUT_ROWS: Partial<Record<PreflightRowId, { detail: string; fix: string }>> = {
   'gh-auth': {
     detail: 'gh probe timed out',
@@ -180,6 +183,10 @@ export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<P
   // none. Fall back to the same default the constructor applies.
   const budgetMs =
     Number.isFinite(ctx.budgetMs) && ctx.budgetMs > 0 ? ctx.budgetMs : PROBE_TIMEOUT_MS;
+  // Both ways a probe can fail to produce a verdict — it timed out, or it threw
+  // — end in the same row shape, so they share one construction below rather
+  // than two literals that can drift apart.
+  let unevaluated: { detail: string; fix: string };
   try {
     const budget = new Promise<typeof TIMED_OUT>((resolve) => {
       timer = setTimeout(() => resolve(TIMED_OUT), budgetMs);
@@ -187,26 +194,20 @@ export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<P
     });
     const outcome = await Promise.race([PROBES[id](ctx), budget]);
     if (outcome !== TIMED_OUT) return outcome;
-    const override = TIMEOUT_ROWS[id];
-    return {
-      id,
-      status: 'blocking',
-      detail: override?.detail ?? `probe exceeded its ${budgetMs}ms budget`,
-      fix:
-        override?.fix ??
-        'Run the gate by hand — a probe that could not evaluate must not be read as a pass.',
+    unevaluated = TIMEOUT_ROWS[id] ?? {
+      detail: `probe exceeded its ${budgetMs}ms budget`,
+      fix: `Run the gate by hand — ${NOT_A_PASS}`,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return {
-      id,
-      status: 'blocking',
+    unevaluated = {
       detail: `probe threw: ${message}`,
-      fix: 'Investigate the error above — a probe that cannot evaluate its gate must not be read as a pass.',
+      fix: `Investigate the error above — ${NOT_A_PASS}`,
     };
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }
+  return { id, status: 'blocking', ...unevaluated };
 }
 
 /**
