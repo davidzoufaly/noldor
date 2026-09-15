@@ -316,6 +316,9 @@ describe('cr arbitration digest', () => {
     // unlike the others it has to name where the close actually happens or the
     // cap banner walks a spec-stage operator to a dead end.
     expect(r.stderr).toContain('The close happens at `--kind code`');
+    // And it does not oversell the spec record: the guard's ledger fallback is
+    // governed by the same hardcoded `'code'`, so filling this one feeds no gate.
+    expect(r.stderr).toContain('which no gate reads');
     // Every other readiness reason is satisfied, so the kind is provably the
     // only thing holding it: a code record in the same state exits 0.
     expect(r.stderr).not.toContain('no disposition');

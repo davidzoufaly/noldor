@@ -120,7 +120,7 @@ function digest(cwd: string, rec: ArbitrationRecord): number {
       `pre-push validates the code record only, so a trailer naming this ${rec.kind} digest is not ` +
         'what it checks — refused outright where a code record for this slug exists, unverified where ' +
         'none does. The close happens at `--kind code`, on the record the code-stage round writes; ' +
-        `this ${rec.kind} record is still worth filling as the round history the guard falls back on`,
+        `this ${rec.kind} record stays a readable account of how the round was settled, which no gate reads`,
     );
   }
   if (rec.blockers.length === 0) {
