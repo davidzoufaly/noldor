@@ -1,3 +1,4 @@
+// @fd: test-suites-read-live-repo-state-shifting-full-suite-failures
 // The one sanctioned spawn seam for release preflight. Every probe reaches the
 // outside world through a `RunCommand`, so a test hands `runPreflight` a
 // scripted fake and the suite never spawns `gh` or `npm` — which is what keeps
