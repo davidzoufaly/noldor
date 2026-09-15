@@ -54,7 +54,9 @@ Draft `User Story` and `Usage` sections of a feature MD from the spec (and at re
      > Reply: `keep` (current text), `replace` (use proposal), or `edit: <new text>`.
 8. Apply user choices. If a section was edited heavily by the user (current text shares <30% of tokens with what we'd draft), prefer `keep` as the default if the user replies with empty input — don't surprise-replace.
 
-   **Under `--yes` (non-interactive): no prompts.** For each in-scope section decide unconditionally: normalized current == draft → `unchanged`; else token-overlap(current, draft) `< 30%` → **keep** (treat as hand-curated); else → **apply** the draft. Emit one log line per section (`<section>: unchanged | kept (curated) | refreshed`). This promotes the interactive empty-reply default into a hard rule — a deliberate behavior difference, not identical behavior. The auto-applied body is reviewed downstream by `/noldor-gate` Step 4's code-stage CR.
+   **Under `--yes` (non-interactive): no prompts.** For each in-scope section decide unconditionally, in this order: normalized current == draft → `unchanged`; else the current body contains the substring `<!-- TODO` → **apply** the draft (`refreshed (stub)`); else token-overlap(current, draft) `< 30%` → **keep** (treat as hand-curated); else → **apply** the draft. Emit one log line per section (`<section>: unchanged | refreshed (stub) | kept (curated) | refreshed`). This promotes the interactive empty-reply default into a hard rule — a deliberate behavior difference, not identical behavior. The auto-applied body is reviewed downstream by `/noldor-gate` Step 4's code-stage CR.
+
+   **The stub branch has to precede the overlap test.** A scaffolded section body is `<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->`, which shares almost no tokens with a real draft — so without the branch the `< 30%` test fires on the emptiest possible body and keeps the placeholder, the exact opposite of what the threshold exists for. A TODO stub is by definition not hand-curated. This is the same substring `--from-spec` step 4 keys on, so both modes now agree on what "already populated" means.
 9. Save the file. Tell the user what changed. Do NOT stage or commit.
 
 ## Drafting prompts
@@ -87,6 +89,7 @@ When the agent invoking this skill produces the draft itself (no separate API ca
 | Spec missing                                               | `--from-spec` | Abort with: "No spec — author one or use `--refresh` later."  |
 | Spec missing AND `links.code` + `links.tests` empty        | `--refresh`   | Abort with: "Nothing to draw from."                           |
 | Section already non-TODO                                   | `--from-spec` | Skip + tell user.                                             |
+| Section body still a TODO stub                             | `--refresh --yes` | Apply the draft — a stub is never hand-curated, so the `< 30%` overlap test is not consulted. |
 | Drafted text ≈ current text                                | `--refresh`   | Skip + tell user "unchanged".                                 |
 | User types unparseable edit syntax                         | both          | Re-prompt with format hint.                                   |
 | Multiple specs match `*-<slug>-design.md`                  | both          | Pick the latest by date prefix; tell user which one was used. |

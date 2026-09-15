@@ -353,5 +353,9 @@
   "Q-0126": {
     "slug": "main-module-guard-fails-on-percent-encoded-paths",
     "retiredAt": "2026-09-08"
+  },
+  "Q-0222": {
+    "slug": "draft-feature-md-autonomous-mode-keeps-a-todo-stub",
+    "retiredAt": "2026-09-15"
   }
 }
