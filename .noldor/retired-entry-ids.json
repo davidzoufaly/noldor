@@ -373,5 +373,9 @@
   "Q-0226": {
     "slug": "cr-orchestrate-exit-3-promises-a-closing-round-it-refuses",
     "retiredAt": "2026-09-15"
+  },
+  "Q-0227": {
+    "slug": "print-the-spec-link-before-confirmation",
+    "retiredAt": "2026-09-15"
   }
 }
