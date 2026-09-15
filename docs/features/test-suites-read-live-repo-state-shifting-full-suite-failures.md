@@ -22,7 +22,7 @@ noldor-tier: specs-only
 
 The entry blamed live `.noldor/session.json` and the dashboard port. Reading the files falsified both: `preflight.test.ts` builds a `mkdtemp` repo per test and `route-sweep.test.ts` binds `port: 0`. What reading did establish was a specific defect in one file — `src/release/preflight-probes.ts` performed unbounded external I/O (`gh --version`, `gh auth status`, `npm view`) with no seam to intercept it, driven 19 times per run, under a harness bound (10s) *shorter* than the probes' own (15s), so the probes' timeout branch was unreachable and a slow keychain killed the test instead.
 
-**This feature fixes that one file.** Every probe now reaches the outside world through one injectable `RunCommand` (`src/release/run-command.ts`), timeout enforcement moved into `runProbe` as a per-probe budget, and a static scan keeps spawn primitives out of the probes module. Measured: 31s → ~6s alone, ~21s in the full parallel suite.
+**This feature fixes that one file.** Every probe now reaches the outside world through one injectable `RunCommand` (`src/release/run-command.ts`), timeout enforcement moved into `runProbe` as a per-probe budget, and a static scan keeps spawn primitives out of the probes module. Measured: 31s → ~5s alone, ~14s in the full parallel suite.
 
 **It does not fix the full-suite flake, and does not claim to.** The residue is `git`, not `gh` — `inspectTreeState` spawns `git fetch` outside the seam (Q-0237) — and the `route-sweep.test.ts` and `sdd-report.test.ts` reds remain unexplained (Q-0238). Both were minted as follow-ups when this shipped, so retiring Q-0171 does not lose the open investigation.
 

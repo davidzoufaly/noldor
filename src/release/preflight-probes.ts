@@ -143,6 +143,9 @@ function warnWorthyNames(verdict: UiFreshnessVerdict): string {
     .join(', ');
 }
 
+/** Shared tail for both unevaluated-probe fix lines — one string, so they cannot drift. */
+const NOT_A_PASS = 'a probe that could not evaluate its gate must not be read as a pass.';
+
 /**
  * Per-probe override for the timeout row.
  *
@@ -150,9 +153,6 @@ function warnWorthyNames(verdict: UiFreshnessVerdict): string {
  * this is an override rather than a field every probe must declare — 17
  * declarations would serve one real consumer.
  */
-/** Shared tail for both unevaluated-probe fix lines — one string, so they cannot drift. */
-const NOT_A_PASS = 'a probe that could not evaluate its gate must not be read as a pass.';
-
 const TIMEOUT_ROWS: Partial<Record<PreflightRowId, { detail: string; fix: string }>> = {
   'gh-auth': {
     detail: 'gh probe timed out',
@@ -163,36 +163,53 @@ const TIMEOUT_ROWS: Partial<Record<PreflightRowId, { detail: string; fix: string
 /**
  * Run one probe by id, bounded by the context's budget.
  *
- * The race owns the timeout row exclusively; the runner's own spawn timeout
- * (budget + slack) exists only to kill a child the race cannot cancel. That
- * separation is what makes the row deterministic rather than a coin flip
- * between two bounds that would otherwise fire together.
+ * One `AbortSignal.timeout(budget)` is both the deadline and the cancellation
+ * path: it aborts any command the probe is waiting on AND resolves the race that
+ * produces the timeout row. Deriving both from one signal is what
+ * `concurrency-write-discipline` asks for, and it is why no slack constant is
+ * needed to keep two independent bounds from tying.
+ *
+ * The budget is per PROBE, shared by every command inside it — `gh-auth` makes
+ * two sequential calls, and a per-command ceiling let it spend twice the bound.
  *
  * Any unexpected throw becomes a blocking row, never a crash.
  */
 export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<PreflightRow> {
-  // Cleared in `finally`, and unref'd besides: runProbe runs once per id per
-  // pass, so a suite driving hundreds of probe executions would otherwise leave
-  // that many live timers holding the event loop open long after each probe
-  // resolved in milliseconds — delaying worker teardown.
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const TIMED_OUT = Symbol('probe-timeout');
   // A context assembled by hand rather than by `makeProbeContext` can arrive
-  // with no budget, and `setTimeout(fn, undefined)` fires on the next tick — so
-  // an absent budget would silently time out EVERY probe instead of bounding
-  // none. Fall back to the same default the constructor applies.
+  // with no budget. `AbortSignal.timeout(undefined)` would abort immediately, so
+  // an absent budget would time out EVERY probe instead of bounding none — fall
+  // back to the same default the constructor applies.
   const budgetMs =
     Number.isFinite(ctx.budgetMs) && ctx.budgetMs > 0 ? ctx.budgetMs : PROBE_TIMEOUT_MS;
+
+  // ONE signal is the deadline and the cancellation path, per
+  // `concurrency-write-discipline`. It aborts the child AND resolves the race
+  // that produces the timeout row, so there is no second bound to drift out of
+  // step with it — the earlier design raced a `setTimeout` against `execFile`'s
+  // own timeout and needed a slack constant to stop them tying. Nothing to clear
+  // afterwards either: the deadline is the signal, not a timer this code owns.
+  const deadline = AbortSignal.timeout(budgetMs);
+  const scoped: ProbeContext = {
+    ...ctx,
+    // Applied here rather than at each call site, so no probe can forget it.
+    // A plain assignment rather than `AbortSignal.any([opts.signal, deadline])`
+    // because no probe has a caller signal to compose with — the deadline is the
+    // only cancellation source in this path, and a branch nothing can reach is a
+    // branch nothing can test.
+    runCommand: (cmd, args, opts) => ctx.runCommand(cmd, args, { ...opts, signal: deadline }),
+  };
+
+  const TIMED_OUT = Symbol('probe-timeout');
   // Both ways a probe can fail to produce a verdict — it timed out, or it threw
   // — end in the same row shape, so they share one construction below rather
   // than two literals that can drift apart.
   let unevaluated: { detail: string; fix: string };
   try {
-    const budget = new Promise<typeof TIMED_OUT>((resolve) => {
-      timer = setTimeout(() => resolve(TIMED_OUT), budgetMs);
-      timer.unref?.();
+    const timedOut = new Promise<typeof TIMED_OUT>((resolve) => {
+      if (deadline.aborted) resolve(TIMED_OUT);
+      else deadline.addEventListener('abort', () => resolve(TIMED_OUT), { once: true });
     });
-    const outcome = await Promise.race([PROBES[id](ctx), budget]);
+    const outcome = await Promise.race([PROBES[id](scoped), timedOut]);
     if (outcome !== TIMED_OUT) return outcome;
     unevaluated = TIMEOUT_ROWS[id] ?? {
       detail: `probe exceeded its ${budgetMs}ms budget`,
@@ -204,8 +221,6 @@ export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<P
       detail: `probe threw: ${message}`,
       fix: `Investigate the error above — ${NOT_A_PASS}`,
     };
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
   }
   return { id, status: 'blocking', ...unevaluated };
 }
@@ -219,14 +234,12 @@ export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<P
  */
 async function runCli(ctx: ProbeContext, args: string[]): Promise<{ code: number; out: string }> {
   const [cmd, cmdArgs] = noldorCliCommand(args);
-  // The budget goes down too, not just the cwd. `runProbe`'s race returns a row
-  // but cannot cancel the child, so a CLI spawned with no deadline would outlive
-  // the probe indefinitely — and the sdd-report probe would never reach its
-  // tmpdir cleanup.
-  const { code, stdout, stderr } = await ctx.runCommand(cmd, cmdArgs, {
-    cwd: ctx.cwd,
-    timeout: ctx.budgetMs,
-  });
+  // No deadline is passed here on purpose: `runProbe` scopes `ctx.runCommand` so
+  // every command it issues already carries the probe's abort signal. That is
+  // what kills the child when the budget expires — without it a hung CLI would
+  // outlive the probe and the sdd-report probe would never reach its tmpdir
+  // cleanup.
+  const { code, stdout, stderr } = await ctx.runCommand(cmd, cmdArgs, { cwd: ctx.cwd });
   return { code, out: `${stdout}${stderr}`.trim() };
 }
 
@@ -416,7 +429,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     // full bound each. That is why this reads only `code` — a killed child's
     // rejection is normalized to a non-zero code like any other failure, and
     // the race has already returned the timeout row by then.
-    const opts = { cwd: ctx.cwd, timeout: ctx.budgetMs };
+    const opts = { cwd: ctx.cwd };
     const version = await ctx.runCommand('gh', ['--version'], opts);
     const auth =
       version.code === 0 ? await ctx.runCommand('gh', ['auth', 'status'], opts) : version;
@@ -748,7 +761,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     const view = await ctx.runCommand(
       'npm',
       ['view', name, 'versions', '--json', '--registry', registry],
-      { cwd: ctx.cwd, timeout: ctx.budgetMs },
+      { cwd: ctx.cwd },
     );
     let resolved = view.code === 0;
     if (!resolved) {

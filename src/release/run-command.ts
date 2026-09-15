@@ -13,16 +13,6 @@ import { promisify } from 'node:util';
 
 const execFileP = promisify(execFile);
 
-/**
- * Slack added to a probe's budget before it reaches `execFile`.
- *
- * `runProbe` races the probe body against the budget and owns the timeout row;
- * `execFile`'s own timeout exists only to kill a child the race cannot cancel.
- * Equal bounds would fire at the same instant and make it a coin flip which row
- * is produced, so the spawn always gets strictly longer than the race.
- */
-export const RUNNER_SLACK_MS = 1_000;
-
 export interface RunResult {
   /** 0 on success. A non-zero exit, an absent binary and a killed child all land here. */
   code: number;
@@ -33,8 +23,17 @@ export interface RunResult {
 export interface RunOptions {
   /** The repo the command runs against — never `process.cwd()`, or a fixture-backed test asserts against the developer's tree. */
   cwd?: string;
-  /** The probe's budget. {@link defaultRunCommand} adds {@link RUNNER_SLACK_MS} before spawning. */
-  timeout?: number;
+  /**
+   * The probe's deadline AND its cancellation path, as one signal.
+   *
+   * `concurrency-write-discipline`: a subprocess wait takes a signal, and where a
+   * caller's cancellation and a timeout both apply they compose into one via
+   * `AbortSignal.any` rather than two racing mechanisms. `runProbe` mints
+   * `AbortSignal.timeout(budget)` per probe and both aborts the child and
+   * produces the timeout row from that same signal, so there is no second bound
+   * to keep out of step with it.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -84,7 +83,7 @@ export const defaultRunCommand: RunCommand = async (cmd, args, opts) => {
   try {
     const { stdout, stderr } = await execFileP(cmd, args, {
       cwd: opts?.cwd,
-      timeout: opts?.timeout === undefined ? undefined : opts.timeout + RUNNER_SLACK_MS,
+      signal: opts?.signal,
     });
     return { code: 0, stdout, stderr };
   } catch (err) {

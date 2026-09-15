@@ -50,9 +50,18 @@ describe('preflight probe spawn containment', () => {
 
   it('the scan does not fire on the two non-I/O URL strings the probes keep', () => {
     // `https://registry.npmjs.org` is a config default and `https://cli.github.com/`
-    // is operator-facing fix text. Forbidding URLs would false-red on both.
+    // is operator-facing fix text. Forbidding URLs would false-red on both — so
+    // run the real pattern over them rather than merely asserting they are still
+    // in the file, which would stay green even if SPAWN_CALL started matching.
     const src = readFileSync(PROBES, 'utf8');
-    expect(src).toContain('https://registry.npmjs.org');
-    expect(src).toContain('https://cli.github.com/');
+    const urls = src
+      .split('\n')
+      .filter(
+        (l) => l.includes('https://registry.npmjs.org') || l.includes('https://cli.github.com/'),
+      );
+    expect(urls.length, 'both non-I/O URL strings should still be present').toBeGreaterThanOrEqual(
+      2,
+    );
+    expect([...urls.join('\n').matchAll(SPAWN_CALL)]).toStrictEqual([]);
   });
 });

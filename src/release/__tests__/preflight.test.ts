@@ -220,9 +220,16 @@ describe('runPreflight', () => {
     // that file and then aborted the release, leaving unexplained drift.
     const sdd = calls.find((c) => c.includes('sdd-report'));
     expect(sdd, 'sdd-report probe never invoked the CLI').toBeDefined();
-    const out = sdd!.split(' ')[sdd!.split(' ').indexOf('--out') + 1]!;
+    const argv = sdd!.split(' ');
+    const flag = argv.indexOf('--out');
+    // Assert the flag is PRESENT before reading past it. Without this, dropping
+    // `--out` makes indexOf return -1, `argv[0]` is the node executable, and both
+    // path assertions below pass against a probe that now writes in place.
+    expect(flag, '--out flag absent from the sdd-report invocation').toBeGreaterThan(-1);
+    const out = argv[flag + 1];
+    expect(out).toBeDefined();
     expect(out).not.toBe(report);
-    expect(out.startsWith(cwd)).toBe(false);
+    expect(out!.startsWith(cwd)).toBe(false);
   });
 
   it('routes every external command through the injected runner, gh included', async () => {

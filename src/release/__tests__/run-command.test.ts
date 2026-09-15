@@ -181,20 +181,26 @@ describe('runProbe budget', () => {
     expect(row.status).toBe('ok');
   });
 
-  it('leaves no pending timer behind when the probe wins the race', async () => {
-    // ~323 probe executions in one file, each leaving a live 15s timer, would
-    // hold the event loop open long after every probe resolved in milliseconds.
+  it('hands every command the probe deadline, so a timeout cancels the child', async () => {
+    // The observable half of the one-signal design: a probe cannot forget to
+    // pass the deadline, because runProbe scopes the runner rather than relying
+    // on each call site. Without this the race would return a row while the real
+    // child kept running.
+    const seen: (AbortSignal | undefined)[] = [];
     const ctx = ctxFor({
-      budgetMs: 60_000,
-      runCommand: () => Promise.resolve({ code: 0, stdout: '', stderr: '' }),
+      budgetMs: 40,
+      runCommand: (_c, _a, opts) => {
+        seen.push(opts?.signal);
+        return new Promise(() => {});
+      },
     });
     const row = await runProbe('gh-auth', ctx);
-    expect(row.status).toBe('ok');
-    // A 60s timer still pending would keep this process alive well past the
-    // test; an unref'd-and-cleared one does not appear in the active handles.
-    const pending = (
-      process as unknown as { _getActiveHandles: () => { _idleTimeout?: number }[] }
-    )._getActiveHandles();
-    expect(pending.some((h) => h._idleTimeout === 60_000)).toBe(false);
+
+    expect(row.status).toBe('blocking');
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toBeInstanceOf(AbortSignal);
+    // And it is the deadline, not an inert signal: it aborted when the budget
+    // ran out, which is what kills a real `execFile` child.
+    expect(seen[0]!.aborted).toBe(true);
   });
 });
