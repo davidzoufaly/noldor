@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### draft-feature-md Autonomous Mode Keeps a TODO Stub
-
-- id: Q-0222
-- area: tooling
-- type: fix
-- since: 2026-09-08
-- size: XS
-- impact: high
-- confidence: high
-
-`/noldor-draft-feature-md --yes` reads a freshly scaffolded TODO stub as hand-curated prose and keeps it. Its step 8 decision rule is "token-overlap(current, draft) `< 30%` → **keep** (treat as hand-curated)", but a scaffolded section body is `<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->`, which shares almost no tokens with a real draft — so the overlap test fires and autonomous mode ships the placeholder, the exact opposite of what the threshold exists for. The interactive path is safe only because a human sees the diff, which is why this has stayed invisible. The fix is one branch: a body containing `<!-- TODO` is never "curated", so apply unconditionally, matching what `--from-spec` mode already does (its step 4 keys on that same substring). Deletion test: `--refresh --yes` on an FD whose Usage is still a TODO comment writes the draft. (found 2026-09-08 shipping Q-0126)
-
 ### State-File Schema Additions Must Be Optional
 
 - id: Q-0223
