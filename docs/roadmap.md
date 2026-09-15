@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### abstraction-cost Has No Answer for the Diff-Scoped Clone Gate
-
-- id: Q-0225
-- area: docs
-- type: docs
-- since: 2026-09-08
-- size: XS
-- impact: med
-- confidence: high
-
-The `abstraction-cost` rule's closing clause reads "A clone-gate red that can only be cleared by adding a cross-file wrapper is the case both halves exist for — decline the wrapper and rebaseline". Shipping Q-0126 that advice was followed literally and did not work: `clones check` has three independent verdicts, and the one that fired was `diffScope`, which asks whether a clone group overlaps a line *this change wrote*. No baseline silences it — a re-record left it red with `1 group(s) duplicated in this change` — and its only opt-out is `clones.diffScope: false`, repo-wide. So for a newly-added second copy the rule prescribes a remedy the gate does not accept, and the operator is left choosing between an abstraction the rule forbids and disabling a gate for the whole repo. Wanted: a clause naming which verdict the "rebaseline" advice applies to, and what to do at the second call site when the diff-scoped gate is the one talking. (found 2026-09-08 shipping Q-0126)
-
 ### cr orchestrate Exit-3 Promises a Closing Round It Refuses
 
 - id: Q-0226

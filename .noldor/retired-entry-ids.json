@@ -365,5 +365,9 @@
   "Q-0224": {
     "slug": "arbitration-guard-reads-a-ledger-the-gate-deletes",
     "retiredAt": "2026-09-15"
+  },
+  "Q-0225": {
+    "slug": "abstraction-cost-has-no-answer-for-the-diff-scoped-clone-gate",
+    "retiredAt": "2026-09-15"
   }
 }
