@@ -183,6 +183,17 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   whole line fails, grep never executes, and the failure reads like a broken
   search rather than a quoting bug. Always `--include='*.ts'`. Same class as
   the `$var` word-splitting trap.
+- **`pnpm` re-expands every argument through `sh`, so a backtick in a CLI
+  argument runs as a command.** `pnpm noldor design log --confirm-section
+  'Unit 1 — `isEntrypoint` in `src/core/cli-entry.ts`'` prints
+  `sh: isEntrypoint: command not found` / `sh: src/core/cli-entry.ts:
+  Permission denied`, and the CLI then receives the heading with both code
+  spans **deleted** (`'Unit 1 —  in '`) — which it correctly refuses. Single
+  quotes do not help: the expansion happens inside pnpm's own shell, after the
+  outer shell is done. It hits any `pnpm noldor` argument containing backticks,
+  and spec H3 headings are full of inline code, so `design context --section`
+  and `--confirm-section` are the routine casualties. Call
+  `node bin/noldor.mjs …` directly when a backtick is unavoidable.
 
 ## Pencil / UI design
 

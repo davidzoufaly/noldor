@@ -600,6 +600,31 @@ Two traps in how a round's result is read:
   Acceptance-style verification confirms the happy path does what the feature
   claims; it does not probe adversarial or edge-state cases. Shipping on a green
   verify alone would have shipped every one of those defects.
+- **When round N+1 finds a defect in round N's fix, prefer the candidate that
+  DELETES a rule over the one that adds a case.** Q-0214 (PR #453) ran 4 red
+  spec rounds and 4 red code rounds; each found a real silent-loss defect in
+  the previous round's fix, always the same class — a copied declaration
+  silently dropped from the clone report. Every fix that *added* a distinction
+  (terminate the import match at `;`, then an ASI boundary, then the import
+  grammar; require a `return`, then disqualify `interface`/`type`/`enum`/
+  `class`) was falsified next round; the three that held each *removed* one
+  (drop the container list, drop the `(` bail, drop the `;` bail). Before
+  picking a fix, say plainly which direction the predicate fails in.
+- **A blocking gate that refuses working code is worse than the gap it closes —
+  that asymmetry is the stop condition, not the round cap.** Q-0126's
+  `src/invariants/` text scanner over a semantic pattern took three red code
+  rounds and 14 findings and never converged: keying on an equality operator
+  missed string-method spellings, a proximity window exempted a guard pasted
+  from the check's own violation message, and the per-line replacement refused
+  `isEntrypoint(import.meta.url, argv1)` — the helper's own documented API,
+  the very thing the check existed to steer toward — plus ordinary one-line
+  `/** … */` doc comments. The last two rounds failed in the **false-positive**
+  direction; that is where to stop, whatever the cap says. The escape was not a
+  fourth heuristic but removing the unit and filing it as its own entry with
+  the three falsified designs attached, which turned six oscillation signals
+  into zero. `src/invariants/` has no AST route since TS7 dropped the
+  in-process compiler API, so "this invariant needs an AST" is a recognised
+  reason to *not build it now* rather than to write another heuristic.
 
 ## Round budget
 

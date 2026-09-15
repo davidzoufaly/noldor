@@ -118,18 +118,6 @@ Residual design follow-ups from the v0.4.0 near-miss (`pnpm release` hard-gates 
 
 Verified 2026-07-14 (gate pickup): trigger not fired — `src/core/fmt-guard.ts` maps all-ignored→exit 0 + release-sweep pre-commits graph; no collision recurrence since PR #184. Remaining scope = (c) only.
 
-### Real-Codex Integration Smoke Test
-
-- id: Q-0005
-- area: tooling
-- type: test
-- since: 2026-05-10
-- size: M
-- impact: low
-- parent: noldor
-
-`src/cr/__tests__/codex.test.ts` mocks the `Spawn` function, so all CI runs of the codex lane validate the wiring without ever invoking the real `codex` binary. The first real-codex run will surface integration bugs the mocked tests can't catch (codex CLI flag drift, JSON schema variance, stdin-pipe encoding edge cases). Add a manual / opt-in smoke test (`pnpm noldor cr codex --dry-run` against a fixture worktree, gated behind `NOLDOR_RUN_REAL_CODEX=1`) plus a documented operator-side pre-release dogfood step in `docs/noldor/cr-pipeline.md`. Trigger: when codex CLI grows a stable `cr --json` subcommand (currently absent).
-
 ### Does SQL in a Framework Make Sense?
 
 - id: Q-0007
@@ -349,6 +337,8 @@ Nine hand-rolled fenced-code scanners live in the repo and every one of them rec
 
 The M/L/XL mandatory codex round (Q-0091, PR #341) hardcodes `codex` as the second model family, which is wrong the moment the *driving runner* is not claude: in a setup where codex runs the whole noldor flow (implementer + reviewer), a "mandatory codex round" reviews codex with codex — the mandate should instead force a mandatory **claude** review there. And opencode as the driving runner is a completely different use case again. Generalize the mandate from "force lane `codex`" to "force at least one review lane whose model family differs from the session's driving runner" — the runner registry (`agents` config, three-runner runtime from PR #71) already knows who is driving, so `withMandatoryCodex` should become runner-aware (e.g. `withMandatoryCrossFamilyReview`) and pick the forced lane from that, not from a constant. Parked: claude is the only driving runner in practice today — pick up when a non-claude driving runner is real. (raised 2026-08-20 from an untriaged ideas bullet)
 
+- Also let a lane vary model and reasoning effort *within* one family, not only across families — a second opinion from the same family at a higher effort setting is a cheaper diversity axis than a second runner, and today nothing in the lane config can express it. (surfaced 2026-09-08)
+
 ### Doc Text Duplication and Text Imports
 
 - id: Q-0191
@@ -385,3 +375,27 @@ Fold the `archify` skill — architecture, workflow, sequence, data-flow and lif
 - confidence: low
 
 Let more roadmap entries — ideally any of them — carry a UI-design pass, rather than only the ones an operator remembers to route there. Two parts sketched: a new schema-C frontmatter boolean (`ui:`) on roadmap/backlog entries that declares an entry wants the UI-design stage, and a bottom-of-canvas annotation notation for marking UI elements against the entry that owns them, shaped `{{ task-id }}: {{ task-title }}`. The UI-design stage and its baseline/waiver machinery already exist (Q-0144, Q-0145), so this is about opting entries in declaratively and tying rendered elements back to entry IDs. Parked rather than roadmapped because neither half is designed: what the boolean does at gate time (force the stage? suggest it?), where the annotation lives, and whether it round-trips through `.pen` are all open. Deletion test: an entry marked `ui: true` reaches the UI-design stage without an operator naming it, and each annotated element resolves to the entry ID that owns it. (raised 2026-09-07 from an untriaged ideas bullet)
+
+### noUncheckedIndexedAccess in the Toolchain Floor
+
+- id: Q-0235
+- area: tooling
+- type: chore
+- since: 2026-09-08
+- size: S
+- impact: med
+- confidence: low
+
+Should `noUncheckedIndexedAccess: true` join the graded compiler settings in the toolchain floor, and should it live in the shipped base config consumers extend? The flag turns every index read into `T | undefined`, which catches a real defect class the repo currently relies on review to catch — but switching it on is not a config edit, it is a corpus-wide type-error sweep in this repo and in every consumer that extends the base config, and the floor grades every discovered tsconfig since Q-0208. Parked as a question: the sweep cost has to be measured (how many sites, how many are genuine) before this is a decision rather than a preference. (raised 2026-09-08 from an untriaged ideas bullet)
+
+### Clone-Ratchet Sibling-Literal Noise
+
+- id: Q-0236
+- area: tooling
+- type: fix
+- since: 2026-09-08
+- size: S
+- impact: low
+- confidence: low
+
+A third clone-ratchet noise class past the two Q-0214 dropped. A comments-and-one-field change to three sibling object literals moved the ratchet by -126: Q-0213 touched only `detect.ts` / `baseline.ts` / `clones-cli.ts` and added no copied logic, yet whole-corpus `duplicatedTokens` fell 28967 → 28841 and the group count 290 → 289 — because adding `compared: false` to three neighbouring `return {...}` literals in `ratchetOutcome` changed how they structurally match. Q-0214 dropped import headers and pure delegations; structural matching of sibling literals is untouched, and it is the same sensitivity that forced two hand re-records. Parked rather than roadmapped because it went unnoticed only by moving in the *helpful* direction, and no policy is obvious — suppressing sibling-literal matches would also hide genuinely copied literal blocks. Deletion test: adding a field to neighbouring return literals with no copied logic leaves the ratchet unmoved. (raised 2026-09-08 from an untriaged ideas bullet)
