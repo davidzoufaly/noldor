@@ -72,13 +72,26 @@ red rounds 3/3 for <slug> (code) — cap reached
   1  red    3 applied, 1 deferred  a1b2c3d
   2  red    2 applied, 0 deferred  e4f5g6h
   3  red    0 applied, 0 deferred  i7j8k9l
-HEAD is unchanged since the last round, or the closing round is spent, so no
-further round will be dispatched. To close: commit the remaining fixes and
-re-review — that earns one closing round — or record the arbitration:
-  git commit --amend --no-edit --trailer "Noldor-Path-Override: <why>"
+HEAD is unchanged since the last round, so nothing new has been written to
+review. Two ways to close:
+  Commit the remaining fixes and re-run this command — a changed HEAD past
+  the cap earns exactly one closing round.
+  Dispose of every blocker in the arbitration record below, then name its digest:
+    git commit --amend --no-edit \
+      --trailer "Noldor-Path-Override: cr-arbitration <digest> — <why>"
 ```
 
-Committing a fix and re-running spends the closing round. Green mints the receipt and the session ships; red is the last, and the override is the only exit after it.
+Committing a fix and re-running spends the closing round. Green mints the receipt and the session ships; red is the last.
+
+After that the refusal is terminal, and the banner says so rather than repeating an offer no commit can take up — the closing round is gone, so arbitration is the only close:
+
+```
+The closing round for this series is already SPENT, so the cap is final: no
+commit re-arms a dispatch and re-running this command will refuse again.
+Arbitration is the only close.
+```
+
+Both banners name the `cr-arbitration <digest>` trailer form, not a bare `Noldor-Path-Override: <why>` — past the cap with the last round red, `decideArbitration` rejects the bare form outright, so advertising it sends the operator into a refused push.
 
 ## PRs
 

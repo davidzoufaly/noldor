@@ -18,7 +18,9 @@ vi.mock('../lanes/render-compare.js', () => ({
   runRenderCompare: vi.fn(async () => ({ lane: 'render-compare', sinkPath: 'rc', ok: true })),
 }));
 import {
+  capVerdict,
   priorBlockerIds,
+  renderCapRefusal,
   resolveIntroducedLines,
   resolveLanes,
   run,
@@ -932,7 +934,7 @@ describe('round budget (Q-0170)', () => {
     }
   });
 
-  it('refuses past the cap when HEAD is unchanged, and names the way out', async () => {
+  it('refuses past the cap when HEAD is unchanged, and offers the closing round', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
     const r = await run({ args: { ...ARGS, headSha: 'ccccccc' }, cwd: root });
@@ -941,6 +943,10 @@ describe('round budget (Q-0170)', () => {
     const said = spy.mock.calls.flat().join('\n');
     expect(said).toContain('cap reached');
     expect(said).toContain('Noldor-Path-Override');
+    // This refusal is PROVISIONAL — a fix commit really does re-arm one dispatch
+    // — so the banner offers that, and must not claim the cap is final.
+    expect(said).toContain('earns exactly one closing round');
+    expect(said).not.toContain('already SPENT');
     spy.mockRestore();
   });
 
@@ -1006,6 +1012,13 @@ describe('round budget (Q-0170)', () => {
     );
     const r = await run({ args: { ...ARGS, headSha: 'eeeeeee' }, cwd: root });
     expect(r.exitCode).toBe(3);
+    // ...and says so. Q-0126 did exactly what the old banner asked — committed
+    // the remaining fixes, re-ran — and landed here, on a refusal no commit
+    // lifts. Repeating the offer at this state describes a path that does not
+    // exist (Q-0226).
+    const said = spy.mock.calls.flat().join('\n');
+    expect(said).toContain('already SPENT');
+    expect(said).not.toContain('earns exactly one closing round');
     spy.mockRestore();
   });
 
@@ -1289,6 +1302,58 @@ describe('round budget (Q-0170)', () => {
     const r = await run({ args: { ...ARGS, headSha: 'aaaaaaa' }, cwd: root });
     expect(r.exitCode).toBe(0);
     spy.mockRestore();
+  });
+});
+
+describe('capVerdict + renderCapRefusal (Q-0226)', () => {
+  /** A ledger whose red rounds are one past the cap — the state both refusals share. */
+  function spentLedger(closing = false) {
+    return {
+      slug: 'x',
+      kind: 'spec' as const,
+      sessionStartedAt: 'S1',
+      rounds: ['aaaaaaa', 'bbbbbbb', 'ccccccc', 'ddddddd'].map((headSha, i) => ({
+        round: i + 1,
+        headSha,
+        fingerprint: `f-${i}`,
+        verdict: 'red' as const,
+        applied: 0,
+        deferred: 0,
+        diffStat: '',
+        ...(closing && i === 3 ? { closingRound: true } : {}),
+      })),
+    };
+  }
+
+  it('separates the provisional refusal from the terminal one', () => {
+    // Same ledger depth, same session, same new HEAD — only the spent sentinel
+    // differs, and it is what decides whether a commit can still close.
+    expect(capVerdict(spentLedger(false), 'S1', 'eeeeeee')).toEqual({
+      refusal: null,
+      closingRound: true,
+    });
+    expect(capVerdict(spentLedger(false), 'S1', 'ddddddd').refusal).toBe('head-unchanged');
+    expect(capVerdict(spentLedger(true), 'S1', 'eeeeeee').refusal).toBe('closing-round-spent');
+  });
+
+  it('names the digest trailer form, which is the only one the push hook takes', () => {
+    // `decideArbitration` rejects a bare `Noldor-Path-Override: <why>` at this
+    // exact state (cap spent, last round red), so a banner printing that form
+    // sends the operator into a refused push.
+    for (const refusal of ['head-unchanged', 'closing-round-spent'] as const) {
+      const said = renderCapRefusal(spentLedger(), 'x', 'spec', refusal);
+      expect(said).toContain('Noldor-Path-Override: cr-arbitration <digest> — <why>');
+      expect(said).not.toMatch(/Noldor-Path-Override: <why>/);
+    }
+  });
+
+  it('offers the closing round only where one is still left to earn', () => {
+    expect(renderCapRefusal(spentLedger(), 'x', 'spec', 'head-unchanged')).toContain(
+      'earns exactly one closing round',
+    );
+    const terminal = renderCapRefusal(spentLedger(true), 'x', 'spec', 'closing-round-spent');
+    expect(terminal).not.toContain('earns exactly one closing round');
+    expect(terminal).toContain('the cap is final');
   });
 });
 
