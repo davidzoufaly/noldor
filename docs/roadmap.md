@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### cr orchestrate Exit-3 Promises a Closing Round It Refuses
-
-- id: Q-0226
-- area: tooling
-- type: fix
-- since: 2026-09-08
-- size: XS
-- impact: med
-- confidence: high
-
-At the round cap `cr orchestrate` prints "no further round will be dispatched. To close: commit the remaining fixes and re-review — that earns one closing round". Shipping Q-0126 that was done exactly — the two remaining fixes committed, then orchestrate re-run — and it exited 3 again with the same text, plus an arbitration skeleton built from the now-stale sinks. Whatever "earns one closing round" means, a fix commit plus a re-run is not it, so the message describes a path that does not exist and the only real exit is the arbitration override. Either implement what the text claims (a `HEAD` change past the cap re-arms one dispatch) or reword it to say the cap is final and arbitration is the sole close. Related to the Q-0211 stale-sink work, and the same session hit both. (found 2026-09-08 shipping Q-0126)
-
 ### Print the Spec Link Before Confirmation
 
 - id: Q-0227
