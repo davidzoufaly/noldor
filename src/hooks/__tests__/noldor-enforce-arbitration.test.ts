@@ -19,6 +19,7 @@ const freshRecord = (over: Partial<RecordFacts> = {}): RecordFacts => ({
   boundTree: 'T',
   currentTree: 'T',
   rounds: cappedRounds,
+  blockerCount: 2,
   ...over,
 });
 
@@ -140,6 +141,21 @@ describe('decideArbitration falling back to the record rounds', () => {
       override: 'shipping anyway',
       ledger: null,
       record: freshRecord({ boundTree: 'OLD', currentTree: 'NEW' }),
+    });
+    expect(r.ok).toBe(true);
+    expect(r.warning).toMatch(/could not verify/i);
+  });
+
+  // `buildSkeleton` drops every `integrity: true` blocker while `aggregate` can
+  // go red on integrity blockers alone, so a capped red series really can leave a
+  // record with nothing to arbitrate. `isFilled` calls that unfilled, so treating
+  // it as a ledger would refuse the push over a disposition no operator can ever
+  // write — a dead end where the old fail-open warning used to be.
+  it('warns rather than refusing when the surviving record has no arbitrable blockers', () => {
+    const r = decideArbitration({
+      override: 'cr-arbitration abc123abc123 — why',
+      ledger: null,
+      record: freshRecord({ blockerCount: 0, filled: false }),
     });
     expect(r.ok).toBe(true);
     expect(r.warning).toMatch(/could not verify/i);

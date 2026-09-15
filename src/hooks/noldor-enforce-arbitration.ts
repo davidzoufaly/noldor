@@ -39,6 +39,8 @@ export interface RecordFacts {
   readonly currentTree: string;
   /** The round history the skeleton was built from — the ledger's stand-in. */
   readonly rounds: LedgerFacts['rounds'];
+  /** How many arbitrable blockers the record carries. Zero is a real case. */
+  readonly blockerCount: number;
 }
 
 /**
@@ -57,6 +59,15 @@ export interface RecordFacts {
  * record is evidence only about the tree it is bound to, and since nothing ever
  * removes it, an unfreshened fallback would refuse honest bare overrides in
  * every later session on the same slug.
+ *
+ * Gated on a non-empty blocker list for a second reason. `buildSkeleton` drops
+ * every `integrity: true` blocker — "this verdict cannot be trusted" is not
+ * something an operator can accept, reject or defer — while `aggregate` can go
+ * red on integrity blockers alone (an unreadable sink, a parse error). That
+ * combination yields a record with no arbitrable blockers, which `isFilled`
+ * reports as unfilled, so demanding a filled record there asks for something
+ * that cannot be supplied. Falling through to the warning leaves such a push
+ * exactly where it was before this fallback existed.
  */
 function resolveRounds(
   ledger: LedgerFacts | null,
@@ -64,6 +75,7 @@ function resolveRounds(
 ): LedgerFacts['rounds'] | null {
   if (ledger !== null) return ledger.rounds;
   if (record === null || record.boundTree !== record.currentTree) return null;
+  if (record.blockerCount === 0) return null;
   return record.rounds;
 }
 
@@ -238,6 +250,7 @@ function readRecordFacts(cwd: string, git: GitRunner, slug: string): RecordFacts
       boundTree: rec.boundTree,
       currentTree: tree.status === 0 ? tree.stdout.trim() : '',
       rounds: rec.rounds.map((r) => ({ round: r.round, verdict: r.verdict })),
+      blockerCount: rec.blockers.length,
     };
   } catch {
     return null;
