@@ -44,14 +44,13 @@ with required fields is the better, stricter choice. What this rule covers is th
 `id-counter.json`, `config.json` — plus the untracked files a later version still reads: the
 CR sinks, the autofix ledgers, the arbitration records, `session.json`.
 
-`config.json` is the sharpest instance, and the reason is the reader, not the shape. Two
-schemas parse it — `noldorConfigSchema` (`src/core/config.ts`) and, for the `consumer:`
-block, `ConsumerConfigSchema` (`src/core/consumer-config.ts`) — and every loader reaches
-them through `.parse`, not `safeParse`. So a file the schema rejects does not degrade into a
-verdict the operator can read and act on; it throws, and the command dies. A required
-addition anywhere in either tree, top level or nested, breaks outright in every consumer
-whose config predates it. Audit the nesting level you are actually editing rather than the
-block's top keys: optionality one level up protects nothing below it.
+Audit the nesting level you are actually editing, not the block's top keys: `config.json`
+alone is read by two schemas (`noldorConfigSchema` in `src/core/config.ts` and, for the
+`consumer:` block, `ConsumerConfigSchema` in `src/core/consumer-config.ts`), each several
+levels deep, and optionality one level up protects nothing below it. Do not reason from the
+loader to the blast radius either — what a rejected file does to a given command depends on
+that call site, and they differ. Establish the consequence by running the command against a
+file the new schema would reject.
 
 There is no mechanical counterpart — nothing diffs a schema against its predecessor — so this
 is caught by reading the diff or not at all.
