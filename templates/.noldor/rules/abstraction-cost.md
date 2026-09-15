@@ -3,7 +3,7 @@ id: abstraction-cost
 applies-to: ["src/**/*.{ts,tsx,js,jsx}"]
 stage: [code]
 enforce: true
-links: [docs/noldor/rules.md]
+links: [docs/noldor/rules.md, docs/noldor/gotchas.md]
 ---
 
 Abstraction is priced by file boundaries. Inside one file it is nearly free; across
@@ -36,6 +36,28 @@ not enforcement: the ratchet still measures every scan root.
 
 The mechanical counterpart is `pnpm noldor indirection check`, which ratchets the total
 transitive-import-closure excess across the corpus. This rule covers what the counter
-cannot see: whether a given crossing was worth it. A clone-gate red that can only be
-cleared by adding a cross-file wrapper is the case both halves exist for — decline the
-wrapper and rebaseline, rather than paying indirection to lower a duplication count.
+cannot see: whether a given crossing was worth it.
+
+`pnpm noldor clones check` returns three independent verdicts and only one of them
+answers to a baseline, so name the verdict before choosing a remedy:
+
+- **ratchet** — corpus duplication rose above `.noldor/clones-baseline.json`. This is the
+  verdict the rebaseline advice is about: a red here that can only be cleared by adding a
+  cross-file wrapper is the case both halves exist for — decline the wrapper and
+  `pnpm noldor clones baseline`, rather than paying indirection to lower a duplication
+  count.
+- **threshold** — corpus duplication above `clones.thresholdPct`. Re-recording does not
+  reach it; the call is to raise the percentage or to extract.
+- **diffScope** — a clone group overlaps a line *this change wrote*. No baseline silences
+  it, a re-record leaves it red, and its only config opt-out is repo-wide.
+
+When diff-scope is the one talking, rule 3 yields and you extract at the second call site.
+The detector's default floor is 50 tokens across 5 lines (`clones.minTokens` /
+`clones.minLines`), well above the "two similar lines are fine" that rule 3 protects — a
+block that large, duplicated by the change in front of you, is not the cheap similarity
+this rule defends. Splitting a file so its import block drops under the floor is the other
+honest fix; perturbing code to break the token match is honest only where the two sites
+coincide in shape and differ in intent. Setting `clones.diffScope: false` is never the
+answer to a single call site — it is a repo-wide switch bought by one change, and it
+retires the only verdict that asks about the diff at all. See `docs/noldor/gotchas.md` for
+the operational walkthrough.
