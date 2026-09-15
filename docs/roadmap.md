@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Two-Directional Test Tables for Data-Losing Predicates
-
-- id: Q-0229
-- area: testing
-- type: docs
-- since: 2026-09-08
-- size: XS
-- impact: med
-- confidence: med
-
-`test-real-behavior` demands the Deletion Test but never says that a filter's two failure directions are two different tests. All eight Q-0214 rounds were the same shape: the delegation filter over-fired and a genuinely copied declaration stopped being reported. What finally made regressions visible was an explicit pair — an over-fire table (`still reports …`, one row per member shape: plain, optional, generic, optional-generic, constrained-generic, property key, optional property key) beside an under-fire table (`drops …`). The last reviewer finding on the branch was exactly that a widening had shipped with only the drop-direction row, so nothing pinned the direction the widening could break. Wanted: a clause in that rule, or a sibling rule — name the direction that loses data, table it, and add a row on both sides whenever the predicate widens. (found 2026-09-08 shipping Q-0214)
-
 ### Test Suites Read Live Repo State — Shifting Full-Suite Failures
 
 - id: Q-0171

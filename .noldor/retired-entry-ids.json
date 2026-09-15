@@ -381,5 +381,9 @@
   "Q-0228": {
     "slug": "cr-arbitration-dispose-and-digest-cli",
     "retiredAt": "2026-09-15"
+  },
+  "Q-0229": {
+    "slug": "two-directional-test-tables-for-data-losing-predicates",
+    "retiredAt": "2026-09-15"
   }
 }
