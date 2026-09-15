@@ -6,11 +6,9 @@
 // were already report-shaped, and `inspectTreeState` / `evaluateGraphFreshness`
 // were extracted from their throwing wrappers for exactly this purpose. No gate
 // condition is expressed twice.
-import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
 import { loadConfigSync, resolveSessionTtlHours, type NoldorConfig } from '../core/config.js';
 import { checkAdr } from '../docs/docs-adr.js';
@@ -33,12 +31,20 @@ import { checkCrGate } from './release-cr-gate.js';
 import { readReleaseState } from './release-state.js';
 import { findPreviousTag } from './release-version.js';
 import { onlyVolatileSectionsChanged } from './sdd-report-diff.js';
+import { defaultRunCommand, normalizeRunner } from './run-command.js';
+import type { RunCommand } from './run-command.js';
 import type { PreflightRow, PreflightRowId } from './preflight-types.js';
 
-const execFileP = promisify(execFile);
-
-/** Ceiling for network-bound probes (`gh auth status`, `npm view`). */
-const PROBE_TIMEOUT_MS = 15_000;
+/**
+ * Default per-probe budget.
+ *
+ * Per PROBE, shared by every command inside it — `gh-auth` makes two sequential
+ * calls, and a per-command ceiling let it spend twice this. `runProbe` races
+ * the probe body against it, so a caller bounded by its own harness (a vitest
+ * test at 10s) can pass something smaller and still get a row back instead of
+ * being killed mid-probe.
+ */
+export const PROBE_TIMEOUT_MS = 15_000;
 
 /** Report order: cheapest local state first, subprocess-backed gates last. */
 export const ALL_ROW_IDS: readonly PreflightRowId[] = [
@@ -71,6 +77,10 @@ export interface ProbeContext {
   previousTag: () => Promise<string>;
   /** Memoized `.noldor/config.json` — three rows read it. */
   config: () => NoldorConfig | null;
+  /** The only way out of this process. Already normalized — it never rejects. */
+  runCommand: RunCommand;
+  /** Budget for ONE probe, shared by every command it runs. */
+  budgetMs: number;
 }
 
 /**
@@ -84,12 +94,20 @@ export function makeProbeContext(base: {
   cwd: string;
   scanPaths: string[];
   nowMs: number;
+  runCommand?: RunCommand;
+  budgetMs?: number;
 }): ProbeContext {
   let tree: Promise<TreeState> | null = null;
   let tag: Promise<string> | null = null;
   let cfg: { v: NoldorConfig | null } | null = null;
   return {
     ...base,
+    // Wrapped, not merely defaulted: `RunCommand`'s "resolves rather than
+    // rejects" contract cannot be typed (`Promise<never>` satisfies any promise
+    // type), so a hand-written fake that throws would otherwise crash the probe
+    // into runProbe's generic catch instead of the row the probe meant.
+    runCommand: normalizeRunner(base.runCommand ?? defaultRunCommand),
+    budgetMs: base.budgetMs ?? PROBE_TIMEOUT_MS,
     // Both take the context's cwd, not process.cwd(): a probe must evaluate the
     // repo it was handed, or a fixture-backed test silently asserts against the
     // developer's own working tree.
@@ -125,10 +143,59 @@ function warnWorthyNames(verdict: UiFreshnessVerdict): string {
     .join(', ');
 }
 
-/** Run one probe by id. Any unexpected throw becomes a blocking row, never a crash. */
+/**
+ * Per-probe override for the timeout row.
+ *
+ * Only `gh-auth` has advice worth keeping that a generic row would drop, so
+ * this is an override rather than a field every probe must declare — 17
+ * declarations would serve one real consumer.
+ */
+const TIMEOUT_ROWS: Partial<Record<PreflightRowId, { detail: string; fix: string }>> = {
+  'gh-auth': {
+    detail: 'gh probe timed out',
+    fix: 'Run `gh auth status` by hand — it may be waiting on a keychain prompt.',
+  },
+};
+
+/**
+ * Run one probe by id, bounded by the context's budget.
+ *
+ * The race owns the timeout row exclusively; the runner's own spawn timeout
+ * (budget + slack) exists only to kill a child the race cannot cancel. That
+ * separation is what makes the row deterministic rather than a coin flip
+ * between two bounds that would otherwise fire together.
+ *
+ * Any unexpected throw becomes a blocking row, never a crash.
+ */
 export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<PreflightRow> {
+  // Cleared in `finally`, and unref'd besides: runProbe runs once per id per
+  // pass, so a suite driving hundreds of probe executions would otherwise leave
+  // that many live timers holding the event loop open long after each probe
+  // resolved in milliseconds — delaying worker teardown.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const TIMED_OUT = Symbol('probe-timeout');
+  // A context assembled by hand rather than by `makeProbeContext` can arrive
+  // with no budget, and `setTimeout(fn, undefined)` fires on the next tick — so
+  // an absent budget would silently time out EVERY probe instead of bounding
+  // none. Fall back to the same default the constructor applies.
+  const budgetMs =
+    Number.isFinite(ctx.budgetMs) && ctx.budgetMs > 0 ? ctx.budgetMs : PROBE_TIMEOUT_MS;
   try {
-    return await PROBES[id](ctx);
+    const budget = new Promise<typeof TIMED_OUT>((resolve) => {
+      timer = setTimeout(() => resolve(TIMED_OUT), budgetMs);
+      timer.unref?.();
+    });
+    const outcome = await Promise.race([PROBES[id](ctx), budget]);
+    if (outcome !== TIMED_OUT) return outcome;
+    const override = TIMEOUT_ROWS[id];
+    return {
+      id,
+      status: 'blocking',
+      detail: override?.detail ?? `probe exceeded its ${budgetMs}ms budget`,
+      fix:
+        override?.fix ??
+        'Run the gate by hand — a probe that could not evaluate must not be read as a pass.',
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return {
@@ -137,19 +204,22 @@ export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<P
       detail: `probe threw: ${message}`,
       fix: 'Investigate the error above — a probe that cannot evaluate its gate must not be read as a pass.',
     };
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 
-/** Spawn a noldor CLI subcommand; resolve its exit code and merged output. */
-async function runCli(args: string[], cwd: string): Promise<{ code: number; out: string }> {
+/**
+ * Spawn a noldor CLI subcommand; resolve its exit code and merged output.
+ *
+ * Goes through the context's seam like every other spawn — the command name
+ * here comes from `noldorCliCommand`, a variable rather than a literal, which
+ * is exactly the shape a command-name-keyed scan could never see.
+ */
+async function runCli(ctx: ProbeContext, args: string[]): Promise<{ code: number; out: string }> {
   const [cmd, cmdArgs] = noldorCliCommand(args);
-  try {
-    const { stdout, stderr } = await execFileP(cmd, cmdArgs, { cwd });
-    return { code: 0, out: `${stdout}${stderr}`.trim() };
-  } catch (err) {
-    const e = err as { code?: number; stdout?: string; stderr?: string };
-    return { code: e.code ?? 1, out: `${e.stdout ?? ''}${e.stderr ?? ''}`.trim() };
-  }
+  const { code, stdout, stderr } = await ctx.runCommand(cmd, cmdArgs, { cwd: ctx.cwd });
+  return { code, out: `${stdout}${stderr}`.trim() };
 }
 
 /** First line of a subprocess blob — enough to identify a failure in one row. */
@@ -332,26 +402,25 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     };
   },
 
-  'gh-auth': async () => {
-    try {
-      // Bounded: a gh keychain prompt or hung network would otherwise stall the
-      // whole aggregate with no row to blame it on.
-      await execFileP('gh', ['--version'], { timeout: PROBE_TIMEOUT_MS });
-      await execFileP('gh', ['auth', 'status'], { timeout: PROBE_TIMEOUT_MS });
+  'gh-auth': async (ctx) => {
+    // The timeout case is runProbe's: it races this whole body against the
+    // budget, so the two calls below share one deadline rather than getting the
+    // full bound each. That is why this reads only `code` — a killed child's
+    // rejection is normalized to a non-zero code like any other failure, and
+    // the race has already returned the timeout row by then.
+    const opts = { cwd: ctx.cwd, timeout: ctx.budgetMs };
+    const version = await ctx.runCommand('gh', ['--version'], opts);
+    const auth =
+      version.code === 0 ? await ctx.runCommand('gh', ['auth', 'status'], opts) : version;
+    if (auth.code === 0) {
       return { id: 'gh-auth', status: 'ok', detail: 'gh present and authenticated' };
-    } catch (err) {
-      const timedOut = (err as { killed?: boolean }).killed === true;
-      return {
-        id: 'gh-auth',
-        status: 'blocking',
-        detail: timedOut
-          ? `gh probe timed out after ${PROBE_TIMEOUT_MS}ms`
-          : 'gh CLI missing or unauthenticated',
-        fix: timedOut
-          ? 'Run `gh auth status` by hand — it may be waiting on a keychain prompt.'
-          : 'Install from https://cli.github.com/ then run `gh auth login`.',
-      };
     }
+    return {
+      id: 'gh-auth',
+      status: 'blocking',
+      detail: 'gh CLI missing or unauthenticated',
+      fix: 'Install from https://cli.github.com/ then run `gh auth login`.',
+    };
   },
 
   'graph-freshness': async (ctx) => {
@@ -492,10 +561,13 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     try {
       tmpDir = await mkdtemp(join(tmpdir(), 'noldor-preflight-sdd-'));
       const out = join(tmpDir, 'sdd-report.md');
-      const { code, out: cliOut } = await runCli(
-        ['garden', 'sdd-report', '--release', '--out', out],
-        ctx.cwd,
-      );
+      const { code, out: cliOut } = await runCli(ctx, [
+        'garden',
+        'sdd-report',
+        '--release',
+        '--out',
+        out,
+      ]);
       if (code !== 0) {
         return {
           id: 'sdd-report',
@@ -544,7 +616,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
   },
 
   'validate-features': async (ctx) => {
-    const { code, out } = await runCli(['validate', 'features'], ctx.cwd);
+    const { code, out } = await runCli(ctx, ['validate', 'features']);
     return code === 0
       ? { id: 'validate-features', status: 'ok', detail: firstLine(out) }
       : {
@@ -559,7 +631,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     if (process.env.RELEASE_SKIP_GATE_COMPLIANCE === '1') {
       return overrideSkip('gate-compliance', 'RELEASE_SKIP_GATE_COMPLIANCE');
     }
-    const { code, out } = await runCli(['garden', 'detect', '--gate-compliance'], ctx.cwd);
+    const { code, out } = await runCli(ctx, ['garden', 'detect', '--gate-compliance']);
     return code === 0
       ? { id: 'gate-compliance', status: 'ok', detail: 'no gate-compliance findings' }
       : {
@@ -665,14 +737,16 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     const registry = publishCfg.registry ?? 'https://registry.npmjs.org';
     const scoped = name.startsWith('@');
 
-    let resolved: boolean;
-    try {
-      await execFileP('npm', ['view', name, 'versions', '--json', '--registry', registry], {
-        timeout: PROBE_TIMEOUT_MS,
-      });
-      resolved = true;
-    } catch (err) {
-      const blob = `${(err as { stderr?: string }).stderr ?? ''}${(err as Error).message ?? ''}`;
+    const view = await ctx.runCommand(
+      'npm',
+      ['view', name, 'versions', '--json', '--registry', registry],
+      { cwd: ctx.cwd, timeout: ctx.budgetMs },
+    );
+    let resolved = view.code === 0;
+    if (!resolved) {
+      // `stderr` carries the whole story because the seam folds a spawn error's
+      // message into it — for an absent `npm` (ENOENT) nothing else would.
+      const blob = view.stderr;
       // Only a clean 404 proves the name is unpublished. Anything else — network
       // down, 5xx, missing `npm` — leaves the question unanswered, and reporting
       // `ok` on an unanswered question is worse than admitting the unknown.
@@ -684,7 +758,6 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
           fix: `npm view ${name} --registry ${registry}`,
         };
       }
-      resolved = false;
     }
 
     // "Ours" is operationalized as "this repo has released before": an

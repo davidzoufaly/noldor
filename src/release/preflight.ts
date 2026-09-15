@@ -54,6 +54,8 @@ export async function runPreflight(input: PreflightInput): Promise<PreflightRow[
     cwd: input.cwd,
     scanPaths: input.scanPaths,
     nowMs: input.nowMs,
+    runCommand: input.runCommand,
+    budgetMs: input.budgetMs,
   };
 
   if (input.fixes.length > 0) {
