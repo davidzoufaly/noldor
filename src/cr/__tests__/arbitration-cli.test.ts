@@ -312,6 +312,10 @@ describe('cr arbitration digest', () => {
     const r = run('digest', '--slug', 'slug', '--kind', 'spec');
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('pre-push validates the code record only');
+    // Self-closing: this reason can never be cleared for a spec record, so
+    // unlike the others it has to name where the close actually happens or the
+    // cap banner walks a spec-stage operator to a dead end.
+    expect(r.stderr).toContain('The close happens at `--kind code`');
     // Every other readiness reason is satisfied, so the kind is provably the
     // only thing holding it: a code record in the same state exits 0.
     expect(r.stderr).not.toContain('no disposition');
