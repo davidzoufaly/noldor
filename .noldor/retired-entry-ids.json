@@ -361,5 +361,9 @@
   "Q-0223": {
     "slug": "state-file-schema-additions-must-be-optional",
     "retiredAt": "2026-09-15"
+  },
+  "Q-0224": {
+    "slug": "arbitration-guard-reads-a-ledger-the-gate-deletes",
+    "retiredAt": "2026-09-15"
   }
 }

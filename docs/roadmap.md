@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Arbitration Guard Reads a Ledger the Gate Deletes
-
-- id: Q-0224
-- area: tooling
-- type: fix
-- since: 2026-09-08
-- size: S
-- impact: high
-- confidence: high
-
-The gate's context-cleanup step runs before the push and deletes the ledger the pre-push arbitration guard reads. Step 4 says to `rm -f .noldor/cr/autofix/<slug>-{spec,plan,code}.json` "once all aggregates are green and the gate is about to enter PR flow" — i.e. immediately before `pr-flow`. Shipping Q-0214 (PR #453) under a `cr-arbitration` override, the push printed `pre-push: could not verify arbitration — no round ledger found` and fail-opened, so the override trailer reached `main` unverified. The two steps are ordered against each other: the guard exists to check that an override names a real capped round, and the cleanup removes its only evidence a second earlier. Either move the cleanup after `pr-flow` reports the merge, or have the guard read the `rounds` array in `.noldor/cr/arbitration/<slug>-<kind>.json`, which the skeleton already carries. Deletion test: a push carrying a `Noldor-Path-Override: cr-arbitration <digest>` trailer verifies the digest against a real record rather than warning. (found 2026-09-08 shipping Q-0214)
-
 ### abstraction-cost Has No Answer for the Diff-Scoped Clone Gate
 
 - id: Q-0225
