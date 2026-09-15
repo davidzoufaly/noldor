@@ -42,7 +42,18 @@ Two full-suite runs today were green (5618 tests, ~43s wall; the second under si
 
 Add **one** seam, following the precedent at `src/release/release-cr-gate.ts:75` (`input.runGit ?? ((args) => execFileSync(...))`). `PreflightInput` gains an optional `runCommand`; `makeProbeContext` (`preflight-probes.ts:83-101`) threads it onto `ProbeContext` beside the existing memoized `treeState` / `previousTag` / `config` closures, defaulting to the real `execFileP`. All three call sites go through it — a second seam for `runCli` would describe the same concern twice, and `runCli` already funnels every internal spawn through a single function.
 
-**The contract is part of the design, not left to the implementer.** The runner is `(cmd: string, args: string[], opts?: { timeout?: number }) => Promise<{ stdout: string; stderr: string }>`. Failure is a rejection with an `Error` carrying `stdout` and `stderr` string properties and, where the process exited non-zero, a numeric `code` — the shape `execFile`'s own rejection already has. This matters concretely rather than decoratively: the `npm-name` probe at `preflight-probes.ts:669-680` discriminates published-from-unpublished by regexing `err.stderr` + `err.message` for `/E404|404 Not Found/` and treats anything else as an unanswered question, so a stub rejecting with a bare `Error` would silently land in the "unanswered" branch and assert a blocking row where production reports the name free. Test support therefore ships **one** helper that builds rejections in this shape, and every stub uses it, so the contract has a single point of drift.
+**The contract is part of the design, and failure is returned rather than thrown.** The runner is
+
+```
+type RunCommand = (cmd: string, args: string[], opts?: { timeout?: number })
+  => Promise<{ code: number; stdout: string; stderr: string }>;
+```
+
+and it **never rejects**. A non-zero exit, a missing binary and a killed child all resolve with a non-zero `code` and whatever `stdout`/`stderr` were captured. `runCli` at `preflight-probes.ts:143-152` already does exactly this — it catches `execFileP`'s rejection and returns `{ code, out }` — so this generalises a shape the file already carries rather than inventing one.
+
+The alternative, a rejection carrying `stdout`/`stderr` in the shape `execFile` already uses, was rejected because TypeScript does not type a promise's rejection value: nothing would stop a stub from `throw new Error('boom')`, and that drift is invisible until it changes a row. It matters concretely here — the `npm-name` probe at `preflight-probes.ts:669-680` discriminates published-from-unpublished by regexing `err.stderr` + `err.message` for `/E404|404 Not Found/` and treats anything else as an unanswered question, so a bare `Error` from a stub silently asserts a blocking row where production would report the name free. With a returned result, `stderr` is a typed field the compiler requires, the drift class is gone rather than policed, and no error-constructing helper is needed at all.
+
+The three call sites adapt to read `code` instead of catching. The default runner — an **exported named symbol**, so a test can assert identity against it rather than against the module-private `execFileP` at line 38 — is the one place that converts `execFile`'s rejection into the returned shape.
 
 The name is `runCommand` rather than `exec` deliberately — see U3.
 
@@ -52,17 +63,29 @@ The name is `runCommand` rather than `exec` deliberately — see U3.
 
 The tempting fix — pass a smaller `timeout` to the injected runner — does not work, for two independent reasons. First, it is **circular as a test**: the probe tells a timeout from a missing binary by reading `(err as { killed?: boolean }).killed === true` at lines 341-348, a Node `execFile` implementation detail, so a stub would have to both enforce the bound and fabricate `killed`, and the test would assert the stub rather than the probe. Second, it is **off by 2×**: `gh-auth` makes two sequential `execFileP` calls at lines 339-340, each handed the full bound, so a caller under vitest's 10s that passes 9s can still spend 18s here and be killed exactly as today.
 
-So enforcement moves **into the probe**. `PreflightInput` gains an optional budget (default `PROBE_TIMEOUT_MS`) that `makeProbeContext` threads onto the context. `runProbe` races the whole probe body against that budget with `Promise.race` and, on the budget winning, synthesises the probe's timeout row itself. Two consequences fall out. The budget is **per probe, shared by every command inside it**, so `gh-auth`'s two calls can no longer double it. And the timeout row no longer depends on `killed`, so no runner — real or stubbed — has to produce that flag.
+So enforcement moves **into the probe**. `PreflightInput` gains an optional budget (default `PROBE_TIMEOUT_MS`) that `makeProbeContext` threads onto the context. `runProbe` (`preflight-probes.ts:129`) races the whole probe body against that budget with `Promise.race`. The budget is **per probe, shared by every command inside it**, so `gh-auth`'s two calls can no longer double it, and the row no longer depends on `killed`, so no runner has to produce that flag.
 
-The default runner still passes `timeout` down to `execFile`, because the race decides the *row* while only `execFile`'s own timeout **cancels the child process**; dropping it would leak a real `gh` waiting on a keychain prompt. A stub spawns nothing, so it leaks nothing. The line 341-348 `killed` discrimination stays in place for the real path where `execFile` may still win the race.
+Three details decide whether this works, and each is part of the design rather than the implementer's discretion.
+
+**The race owns the row exclusively; `execFile` only cancels the child.** Both bounds defaulting to `PROBE_TIMEOUT_MS` would fire at the same instant and make it a coin flip which row is produced — the race's generic one or the tailored `killed` row at lines 341-352 whose `fix` names the keychain prompt. So the default runner passes the budget **plus a fixed slack** down to `execFile`, guaranteeing the race always wins. `execFile`'s timeout is retained purely to kill a real child that the race cannot cancel; without it a raced-out probe would return while a real `gh` kept waiting on a keychain prompt. The existing `killed` branch stays as the path for a child killed during that cleanup window.
+
+**Each probe declares its own timeout row.** Rather than synthesising a generic one, the probe registry carries a per-probe `{ detail, fix }` for the timeout case, which `runProbe` returns when the budget wins. That is what keeps `gh-auth`'s keychain advice from being silently dropped, and it settles the row's semantics for all 17 probes rather than only the one with existing timeout text. The status is `blocking`, matching what `runProbe`'s existing catch already returns for a probe that threw (lines 133-140): a probe that could not evaluate its gate must never read as a pass.
+
+**The losing timer is cleared.** `runProbe` runs once per id per pass and this one test file drives ~323 probe executions, so an uncleared 15s `setTimeout` per probe would hold the event loop open long after the probe resolved in milliseconds — working directly against criterion 8. The timer is cleared in a `finally`, and `unref`'d besides.
 
 ### U3 — A static scan that does not red on its own sanctioned calls
 
 Without a guard the hazard regrows the next time someone adds a probe. The shape is an architecture-invariant test modelled on `src/core/agent-runner/__tests__/no-stray-spawns.test.ts`, whose pattern is `/\b(?:spawn|spawnSync|execFile|execFileSync|execFileP|exec)\s*\(\s*['"](?:claude|codex|opencode)['"]/m`.
 
-Copying that shape naively breaks twice, and the design pins both. Its `exec` alternative is preceded by `\b`, and a word boundary sits between the `.` and the `e` in `ctx.exec(`, so a seam named `exec` would be matched by the very scan meant to protect it. Hence `runCommand` in U1 — a name no spawn-primitive alternative can match. And the scan forbids **spawn primitives only** (`execFile`, `execFileSync`, `execFileP`, `execSync`, `spawn`, `spawnSync`) applied to a literal `gh` or `npm`; it does **not** forbid URLs, because `preflight-probes.ts:665` keeps `'https://registry.npmjs.org'` as a config default and line 352 keeps `'https://cli.github.com/'` in operator-facing fix text, and neither is I/O.
+Copying that shape naively breaks three ways, and the design pins all three.
 
-A static scan over `preflight-probes.ts` is the choice over a runtime assertion: it matches the existing precedent, costs nothing at runtime, and does not have to perform the I/O it polices in order to observe it.
+**The seam must not match its own guard.** The precedent's `exec` alternative is preceded by `\b`, and a word boundary sits between the `.` and the `e` in `ctx.exec(`, so a seam named `exec` would be flagged by the very scan meant to protect it. Hence `runCommand` in U1 — a name no spawn-primitive alternative can match.
+
+**The scan is keyed on the primitive, not on a command name.** The precedent matches `['"](?:claude|codex|opencode)['"]` right after the call, but `runCli` at `preflight-probes.ts:143-148` spawns `execFileP(cmd, cmdArgs, …)` where `cmd` comes from `noldorCliCommand` — a variable, so no literal-keyed pattern can ever see it, and that is the third call site U1 routes through the seam. The scan therefore forbids **any** spawn primitive (`execFile`, `execFileSync`, `execFileP`, `execSync`, `spawn`, `spawnSync`) appearing anywhere in `preflight-probes.ts` outside the single exported default-runner definition, regardless of what it is handed. That is a stricter rule than the precedent's and it is the only one that closes the variable-command hole.
+
+**There is no URL clause.** `preflight-probes.ts:665` keeps `'https://registry.npmjs.org'` as a config default and line 352 keeps `'https://cli.github.com/'` in operator-facing fix text; neither is I/O, both survive U1, and forbidding URLs would false-red on them.
+
+A static scan is the choice over a runtime assertion: it costs nothing at runtime and does not have to perform the I/O it polices in order to observe it.
 
 ### What this deliberately does not fix
 
@@ -74,21 +97,22 @@ The 2026-08-20 `route-sweep.test.ts` reds (8 tests, shared with preflight) are *
 
 ## Acceptance criteria
 
-1. `preflight.test.ts` runs to completion without spawning `gh` or `npm`, asserted by the injected runner recording every command it was asked to run.
-2. With no injected runner, `runPreflight` behaves as today: the 17-row contract at `preflight.test.ts:62-63` holds, evaluated against the real probes at least once.
-3. `makeProbeContext` is asserted directly to default `runCommand` to the real `execFileP` and the budget to `PROBE_TIMEOUT_MS` when the input omits them — so a mis-typed `??` or a dropped field cannot leave the suite green.
-4. A probe whose body exceeds the budget yields a `PreflightRow` reporting a timeout, produced by the probe rather than by the runner, and observable from a test bounded at vitest's 10s.
+1. No test in the default `vitest run` spawns `gh` or `npm`: every `runPreflight` call in `preflight.test.ts` injects a runner, and that runner records every command it was asked to run.
+2. The 17-row contract at `preflight.test.ts:60-64` still holds under an injected runner — the row set and id uniqueness are properties of the registry, not of what the commands returned. **No criterion asks for a real-probe pass.** Evaluating those probes for real spawns `gh --version` + `gh auth status` under a 10s bound, which is the hazard this spec exists to remove; the claim that production is unchanged rests on criteria 3 and 7 instead.
+3. `makeProbeContext` is asserted directly to default `runCommand` to the exported default-runner symbol and the budget to `PROBE_TIMEOUT_MS` when the input omits them — so a mis-typed `??` or a dropped field cannot leave the suite green.
+4. A probe whose body exceeds the budget yields that probe's declared timeout `PreflightRow` at `blocking`, produced by `runProbe` rather than by the runner, and observable from a test bounded at vitest's 10s. `gh-auth`'s row still carries its keychain `fix` text.
 5. A probe making two sequential commands cannot exceed the budget: `gh-auth` given a budget under the harness bound returns its row within that budget, not 2× it.
-6. A runner that rejects with a bare `Error` — no `stderr` — is rejected by the contract's test helper rather than silently producing an "unanswered" `npm-name` row.
-7. Adding a spawn primitive applied to a literal `gh` or `npm` anywhere in `preflight-probes.ts` fails the scan test; the sanctioned `ctx.runCommand(...)` calls and the two non-I/O URL strings do not.
-8. `src/release/__tests__/preflight.test.ts` file duration drops below 10s, from 31s, measured by `vitest run --reporter=basic`.
-9. `pnpm verify` is green.
+6. `runCommand` has no rejection path to get wrong: a stub that resolves `{ code, stdout, stderr }` is the only shape the type admits, and `npm-name`'s `/E404/` discrimination reads `stderr` as a required field. A stub omitting it fails `pnpm typecheck`.
+7. Any spawn primitive appearing in `preflight-probes.ts` outside the exported default-runner definition fails the scan test — including one handed a variable rather than a literal command name. The sanctioned `ctx.runCommand(...)` calls and the two non-I/O URL strings pass.
+8. No probe leaves a pending timer after it resolves, so worker teardown is not delayed by the race.
+9. `src/release/__tests__/preflight.test.ts` file duration drops below 10s, from 31s, measured by `vitest run --reporter=basic`.
+10. `pnpm verify` is green.
 
 ## Risks / trade-offs
 
 - **Success is not directly observable.** The flake did not reproduce here across two runs, one under load. Criterion 8 is the closest proxy, and criteria 1–7 prove the hazard is gone rather than that the original reds are gone. This is a removal of a sufficient cause, stated as such; *What remains unresolved* names what it does not cover.
-- **`Promise.race` decides the row but does not cancel work.** The default runner's `execFile` timeout is what kills a real child; if that were ever dropped, a raced-out probe would return its row while a real `gh` kept waiting on a keychain prompt. The coupling is stated in U2 so a later edit does not remove one half.
-- **A stub can still drift from the real runner.** A single rejection-building helper (U1) and criterion 6 narrow it to one place, but a stub that answers `gh auth status` differently from real `gh` would make the test green and the release red. The default path staying untouched is the main mitigation.
+- **`Promise.race` decides the row but cannot cancel the losing work.** A probe body that has already started a second command keeps running after its row is returned. The `execFile` timeout (budget + slack) is what eventually kills the real child; if that were ever dropped, a raced-out probe would return while a real `gh` waited on a keychain prompt. The coupling and the slack are both stated in U2 so a later edit cannot remove one half without seeing the other. What remains genuinely unhandled is a command *started* after the deadline by a late continuation — accepted, because `runPreflight` returns the raced row regardless and the child is bounded by its own `execFile` timeout.
+- **A stub can still drift from the real runner behaviourally.** The typed `{ code, stdout, stderr }` result removes the *shape* drift class entirely (criterion 6), but a stub that answers `gh auth status` with the wrong `code` or `stderr` would make the test green and the release red. Nothing here catches that; the default path staying untouched, and criterion 3 proving it is wired, are the mitigations.
 - **Scope may be mis-cut.** If the 2026-08-20 reds were dominated by slow in-process rendering rather than external I/O, U1–U3 leave them untouched. *What remains unresolved* is written so that outcome reads as expected rather than as a surprise.
 
 ## User Story
@@ -109,3 +133,7 @@ No new command. `pnpm test` and `pnpm verify` behave as before; `pnpm noldor rel
 6. *What proves the default, non-injected wiring once every test injects a stub?* -> A direct assertion on the context `makeProbeContext` returns. (D6) It is constructed from a plain object at `preflight-probes.ts:83-101`, so the defaults are assertable without running a probe.
 7. *Should the sdd-report integration tests come into scope?* -> No. (D7) They are deliberate real-CLI integration tests and converting them is another FD's scope.
 8. *Should the feature claim the full-suite flake is fixed?* -> No; narrow the claim to preflight I/O isolation and keep the investigation open. (D8) The `route-sweep.test.ts` reds are unexplained by this design, so a "fixed" claim would be falsified by the next shifting failure.
+9. *Does the runner signal failure by rejecting or by returning?* -> Returning `{ code, stdout, stderr }`; it never rejects. (D9) TypeScript does not type a rejection value, so a rejection contract could only be policed at runtime and by convention, while a returned result makes `stderr` a field the compiler requires — and `runCli` at `preflight-probes.ts:143-152` already returns rather than throws, so this generalises the file's own shape.
+10. *Where does the real-probe, non-injected pass live?* -> Nowhere in the default suite. (D10) Running it spawns `gh` under a 10s bound, which is the hazard being removed; criterion 3's direct assertion on `makeProbeContext`'s defaults and criterion 7's scan carry the "production is unchanged" claim instead.
+11. *Does the race's generic row replace each probe's tailored timeout text?* -> No; each probe declares its own timeout `{ detail, fix }` and `runProbe` returns it. (D11) A generic row would silently drop `gh-auth`'s keychain advice at line 352, and declaring one per probe also settles the row's semantics for the other 16 rather than leaving them undefined.
+12. *How is the scan made to cover `runCli`'s variable command?* -> Key the scan on the spawn primitive alone, not on a literal command name. (D12) `runCli` passes `cmd` from `noldorCliCommand`, so no literal-keyed pattern can see it; forbidding the primitive outside the exported default runner is stricter than the precedent but is the only rule that closes the hole.
