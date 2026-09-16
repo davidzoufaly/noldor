@@ -124,6 +124,25 @@ export function makeProbeContext(base: {
     // one rung up — `inspectTreeState` spawns `git fetch`, so a context that
     // kept its own spawn would put unbounded network I/O behind every probe
     // pass however carefully the caller injected a fake.
+    //
+    // These two are the ONE exception to `runProbe`'s deadline, and the
+    // exception is structural rather than an oversight. `runProbe` scopes a
+    // fresh abort signal per probe by replacing `runCommand` on a spread copy;
+    // these closures captured `runCommand` when the context was built, and they
+    // are memoized ACROSS probes precisely so `git fetch` runs once per pass
+    // instead of three times. A value three probes share cannot carry any one
+    // probe's deadline. So `git fetch origin main` and `git describe` run
+    // unbounded: the probe still returns its timeout row on budget, but the git
+    // child outlives it.
+    //
+    // Giving them a context-level deadline instead is the obvious fix and is
+    // WRONG as the code stands, which is why it is written down rather than
+    // done. `findPreviousTag` maps every non-zero exit to `v0.0.0`, so an
+    // aborted `git describe` would become "no previous tag" and the `cr-gate`
+    // row would report `skipped` — a release shipping unaudited because a probe
+    // was slow. Bounding these needs `RunResult` to distinguish an abort from a
+    // command that ran and failed; until it does, unbounded-and-stated beats
+    // bounded-and-silently-green.
     treeState: () => (tree ??= inspectTreeState(base.cwd, runCommand)),
     previousTag: () => (tag ??= findPreviousTag(base.cwd, runCommand)),
     // Explicit path: loadConfigSync's default is RELATIVE, so a bare call would
@@ -276,10 +295,16 @@ export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<P
 async function runCli(ctx: ProbeContext, args: string[]): Promise<{ code: number; out: string }> {
   const [cmd, cmdArgs] = noldorCliCommand(args);
   // No deadline is passed here on purpose: `runProbe` scopes `ctx.runCommand` so
-  // every command it issues already carries the probe's abort signal. That is
-  // what kills the child when the budget expires — without it a hung CLI would
-  // outlive the probe and the sdd-report probe would never reach its tmpdir
-  // cleanup.
+  // every command a probe issues THROUGH IT already carries the probe's abort
+  // signal. That is what kills the child when the budget expires — without it a
+  // hung CLI would outlive the probe and the sdd-report probe would never reach
+  // its tmpdir cleanup.
+  //
+  // "Through it" is the whole claim: `makeProbeContext`'s memoized `treeState`
+  // and `previousTag` closed over the unscoped runner before `runProbe` existed
+  // to wrap it, so those two git spawns are outside this guarantee. See the
+  // comment on those closures for why bounding them needs a change to
+  // `RunResult` first.
   const { code, stdout, stderr } = await ctx.runCommand(cmd, cmdArgs, { cwd: ctx.cwd });
   return { code, out: `${stdout}${stderr}`.trim() };
 }
