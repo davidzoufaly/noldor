@@ -1,11 +1,18 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { defaultRunCommand, runOrThrow, type RunCommand } from './run-command.js';
 
-const execFileP = promisify(execFile);
-
-/** Run a git command, forwarding stderr (fetch progress etc.) like index.ts's `run`. */
-async function git(args: string[], cwd?: string): Promise<string> {
-  const { stdout, stderr } = await execFileP('git', args, { cwd });
+/**
+ * Run a git command through the injectable seam, forwarding stderr (fetch
+ * progress etc.) like index.ts's `run`.
+ *
+ * stderr is forwarded on the SUCCESS path only, matching the `execFileP` form
+ * this replaced: there, a non-zero exit rejected before the forwarding line ran.
+ * Keeping that shape matters here — `inspectTreeState` calls this for `git
+ * fetch` inside a try/catch precisely because a repo with no origin is a normal
+ * state, and forwarding that failure would print `fatal: 'origin' does not
+ * appear to be a git repository` on every preflight of such a repo.
+ */
+async function git(run: RunCommand, args: string[], cwd?: string): Promise<string> {
+  const { stdout, stderr } = await runOrThrow(run, 'git', args, { cwd });
   if (stderr) {
     process.stderr.write(stderr);
   }
@@ -46,17 +53,33 @@ export interface TreeState {
  *
  * `cwd` is injectable so probes evaluate the repo they were handed rather than
  * whatever `process.cwd()` happens to be.
+ *
+ * `run` is injectable for a sharper reason than tidiness. This function is the
+ * only one every probe context reaches — `branch`, `tree-clean` and
+ * `origin-sync` all read it — and it spawns `git fetch origin main`, so before
+ * the seam a unit suite that evaluated probes did unbounded NETWORK I/O once
+ * per context. `preflight.test.ts` alone drove 28 of them. The fixture repos
+ * have no origin so the fetch failed locally and fast, which is precisely why
+ * the hazard stayed invisible: the same call against a repo that does have a
+ * remote is a real round-trip on a timer nobody set.
  */
-export async function inspectTreeState(cwd: string = process.cwd()): Promise<TreeState> {
-  const branch = await git(['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
-  const status = await git(['status', '--porcelain'], cwd);
+export async function inspectTreeState(
+  cwd: string = process.cwd(),
+  run: RunCommand = defaultRunCommand,
+): Promise<TreeState> {
+  const branch = await git(run, ['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
+  const status = await git(run, ['status', '--porcelain'], cwd);
   const dirty = status.length > 0 ? status.split('\n').filter((l) => l.trim().length > 0) : [];
   try {
-    await git(['fetch', 'origin', 'main'], cwd);
+    await git(run, ['fetch', 'origin', 'main'], cwd);
     // `rev-list --left-right --count A...B` prints "<ahead>\t<behind>" — one
     // command for both directions, so a diverged history is distinguishable from
     // a simply-behind one (only the latter is safe to fast-forward).
-    const counts = await git(['rev-list', '--left-right', '--count', 'HEAD...origin/main'], cwd);
+    const counts = await git(
+      run,
+      ['rev-list', '--left-right', '--count', 'HEAD...origin/main'],
+      cwd,
+    );
     const [aheadRaw, behindRaw] = counts.split(/\s+/);
     return {
       branch,

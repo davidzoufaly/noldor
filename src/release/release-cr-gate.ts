@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process';
 import { isNoReviewLaneAllowed } from '../core/allowlist.js';
+import { defaultRunCommand, runOrThrow, type RunCommand } from './run-command.js';
 
 export interface CrGateOffender {
   sha: string;
@@ -39,7 +39,15 @@ export interface CrGateInput {
   from: string;
   to: string;
   cwd: string;
-  runGit?: (args: string[]) => string;
+  /**
+   * Spawn seam — defaults to the real spawn.
+   *
+   * Replaces an earlier bespoke `runGit?: (args) => string`. One seam type
+   * across the release module beats two: the `cr-gate` probe holds a
+   * {@link RunCommand} and could not hand it to a synchronous fake, so the gate
+   * spawned its own git however carefully the probe context was injected.
+   */
+  run?: RunCommand;
   /** Committed per-SHA acknowledgments (`release.crGateExemptCommits`). */
   exemptions?: ReadonlyArray<CrGateExemption>;
 }
@@ -70,11 +78,16 @@ export interface CrGateInput {
  *   - a configured per-SHA exemption (`input.exemptions`, sourced from
  *     `release.crGateExemptCommits`) — skipped AND reported in `exempted`
  */
-export function checkCrGate(input: CrGateInput): CrGateResult {
-  const git =
-    input.runGit ?? ((args) => execFileSync('git', args, { cwd: input.cwd, encoding: 'utf8' }));
+export async function checkCrGate(input: CrGateInput): Promise<CrGateResult> {
+  const run = input.run ?? defaultRunCommand;
+  // Throws on a non-zero exit, exactly as the `execFileSync` form did. The
+  // resolve-everything contract the seam gives probes would be a false green
+  // here: an unreadable range yields empty stdout, which parses as zero commits
+  // and reports every commit since the tag as reviewed.
+  const git = async (args: string[]): Promise<string> =>
+    (await runOrThrow(run, 'git', args, { cwd: input.cwd })).stdout;
 
-  const shas = git(['rev-list', `${input.from}..${input.to}`])
+  const shas = (await git(['rev-list', `${input.from}..${input.to}`]))
     .split('\n')
     .map((s) => s.trim())
     .filter(Boolean);
@@ -84,7 +97,7 @@ export function checkCrGate(input: CrGateInput): CrGateResult {
   const exempted: CrGateExemptedCommit[] = [];
 
   for (const sha of shas) {
-    const message = git(['show', '-s', '--format=%B', sha]);
+    const message = await git(['show', '-s', '--format=%B', sha]);
     const t = collectNoldorTrailerLines(message);
 
     // Exempt only when EVERY embedded Noldor-Path is an exempt path — a mixed
@@ -105,7 +118,7 @@ export function checkCrGate(input: CrGateInput): CrGateResult {
       continue;
     }
 
-    const files = git(['show', '--name-only', '--format=', sha])
+    const files = (await git(['show', '--name-only', '--format=', sha]))
       .split('\n')
       .map((s) => s.trim())
       .filter(Boolean);

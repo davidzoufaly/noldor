@@ -1,10 +1,18 @@
 // @tests: release-sweep-process-hardening
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { readSession, writeSession } from '../../core/session.js';
 import { readGardenReceipt, writeGardenReceipt } from '../../garden/garden-receipt.js';
@@ -16,9 +24,23 @@ import type { RunCommand, RunResult } from '../run-command.js';
 
 const HOUR_MS = 3_600_000;
 
-/** A git repo with a src/ commit, a .noldor/ dir, and no origin remote. */
-function repo(): string {
-  const cwd = mkdtempSync(join(tmpdir(), 'preflight-run-'));
+/**
+ * Build the fixture ONCE: a git repo with a src/ commit, a .noldor/ dir, and no
+ * origin remote. {@link repo} then hands each case a file copy of it.
+ *
+ * Five `git` spawns per case was the single largest remaining subprocess cost
+ * in this file once the probes stopped spawning their own — 100 of the 194 that
+ * survived the seam. Copying is not a shortcut around the house rule that git
+ * tests use a real repo rather than a shim: this IS a real repo, with real
+ * objects and a real commit. `git init` writes no absolute paths into
+ * `.git/config`, so a plain repo is position-independent and a copy of one is
+ * indistinguishable from a freshly-built one to every command these probes run.
+ *
+ * Each case still gets its OWN copy, mutates it freely, and deletes it — the
+ * isolation `beforeEach` bought is unchanged. Only the construction is shared.
+ */
+function buildTemplate(): string {
+  const cwd = mkdtempSync(join(tmpdir(), 'preflight-template-'));
   execFileSync('git', ['init', '-q'], { cwd });
   execFileSync('git', ['config', 'user.email', 't@e'], { cwd });
   execFileSync('git', ['config', 'user.name', 't'], { cwd });
@@ -33,6 +55,21 @@ function repo(): string {
   return cwd;
 }
 
+let template: string;
+beforeAll(() => {
+  template = buildTemplate();
+});
+afterAll(() => {
+  rmSync(template, { recursive: true, force: true });
+});
+
+/** A private copy of the template repo, disposable by the calling case. */
+function repo(): string {
+  const cwd = mkdtempSync(join(tmpdir(), 'preflight-run-'));
+  cpSync(template, cwd, { recursive: true });
+  return cwd;
+}
+
 const byId = (rows: PreflightRow[], id: string): PreflightRow => {
   const row = rows.find((r) => r.id === id);
   if (row === undefined) throw new Error(`no row for ${id}`);
@@ -40,14 +77,46 @@ const byId = (rows: PreflightRow[], id: string): PreflightRow => {
 };
 
 /**
+ * What real git says about the {@link repo} fixture, as a script.
+ *
+ * `inspectTreeState` and `findPreviousTag` reach the outside world through the
+ * same seam as `gh`, so these four are answered rather than spawned. Each
+ * answer is what git actually returns for a fresh `git init` with one commit
+ * and no remote — including the two failures, which are load-bearing: no origin
+ * makes `origin-sync` report `remoteMissing`, and no tag makes `cr-gate` skip.
+ * A conveniently-green default would quietly change which rows these 23 cases
+ * are even exercising.
+ *
+ * `git fetch origin main` is the reason this matters beyond tidiness. Before
+ * the seam it ran for real once per probe context — 28 times in this file
+ * alone. Against these fixtures it failed locally and fast, so the cost stayed
+ * invisible; against any repo that does have a remote the same call is a
+ * network round-trip inside a unit suite.
+ */
+const GIT_FIXTURE_ANSWERS: Record<string, Partial<RunResult>> = {
+  'git rev-parse --abbrev-ref HEAD': { stdout: 'main\n' },
+  'git status --porcelain': { stdout: '' },
+  'git fetch origin main': {
+    code: 1,
+    stderr: "fatal: 'origin' does not appear to be a git repository",
+  },
+  'git describe --tags': { code: 1, stderr: 'fatal: No names found, cannot describe anything.' },
+};
+
+/**
  * Scripted runner: maps "cmd arg arg" prefixes to results, recording every
  * command it was asked to run so a case can assert what the probes reached for.
  *
- * `gh` answers "present and authenticated"; every other key answers a failed
- * spawn with no output, which is what the real noldor CLI does against this
- * bare fixture — no `.noldor/config.json`, no graph, no `docs/`. One test
- * ('does not claim a garden re-stamp') depends on that failure, so the default
- * mirrors reality rather than being conveniently green.
+ * `gh` answers "present and authenticated"; git answers per
+ * {@link GIT_FIXTURE_ANSWERS}; every other key answers a failed spawn with no
+ * output, which is what the real noldor CLI does against this bare fixture — no
+ * `.noldor/config.json`, no graph, no `docs/`. One test ('does not claim a
+ * garden re-stamp') depends on that failure, so the default mirrors reality
+ * rather than being conveniently green.
+ *
+ * A caller's `script` is consulted BEFORE the git fixture answers, so a case
+ * that needs a different tree state (a feature branch, a dirty worktree) states
+ * it as the git output it is emulating instead of mutating the fixture repo.
  *
  * Injecting this is the point of the file: evaluating these probes for real
  * spawns `gh --version` + `gh auth status` per `runPreflight` call, 19 times
@@ -60,6 +129,7 @@ function runner(script: Record<string, Partial<RunResult>> = {}): {
 } {
   const calls: string[] = [];
   const cwds: (string | undefined)[] = [];
+  const table = [...Object.entries(script), ...Object.entries(GIT_FIXTURE_ANSWERS)];
   const run: RunCommand = (cmd, args, opts) => {
     const key = [cmd, ...args].join(' ');
     calls.push(key);
@@ -68,7 +138,7 @@ function runner(script: Record<string, Partial<RunResult>> = {}): {
     // developer's live repo instead of this test's mkdtemp fixture, and every
     // assertion on the returned rows still passes.
     cwds.push(opts?.cwd);
-    for (const [prefix, res] of Object.entries(script)) {
+    for (const [prefix, res] of table) {
       if (key.startsWith(prefix)) {
         return Promise.resolve({ code: 0, stdout: '', stderr: '', ...res });
       }
@@ -140,9 +210,15 @@ describe('runPreflight', () => {
       startedAt: new Date(0).toISOString(),
     });
     // No garden receipt → garden-receipt blocks. Not on main → branch blocks.
-    execFileSync('git', ['checkout', '-q', '-b', 'feat/x'], { cwd });
+    // The branch is stated as git's own answer rather than by checking out a
+    // real one: `inspectTreeState` reads it through the seam now, so a real
+    // checkout would no longer reach the probe and this row would go blocking
+    // for an unrelated reason (a failed spawn) while still reading green here.
+    const { run: runCommand } = runner({
+      'git rev-parse --abbrev-ref HEAD': { stdout: 'feat/x\n' },
+    });
 
-    const rows = await run(cwd);
+    const rows = await run(cwd, { runCommand });
     const blocking = blockingIds(rows);
     for (const id of ['session-marker', 'release-state', 'branch', 'garden-receipt'] as const) {
       expect(blocking, `${id} should be blocking`).toContain(id);
@@ -252,6 +328,45 @@ describe('runPreflight', () => {
     expect(calls.some((c) => c.includes('validate features'))).toBe(true);
     // And the answers reach the rows, rather than the fake being merely called.
     expect(byId(rows, 'gh-auth').status).toBe('ok');
+  });
+
+  it('routes git through the injected runner too, fetch included', async () => {
+    const { run: runCommand, calls } = runner();
+    const rows = await run(cwd, { runCommand });
+
+    // The recorded `git fetch` is the whole point: `inspectTreeState` runs once
+    // per probe context and fetched for real before the seam, so a unit suite
+    // did unbounded network I/O against any repo with a remote. Recording it
+    // here proves the call is now the caller's to answer.
+    expect(calls).toContain('git fetch origin main');
+    expect(calls).toContain('git rev-parse --abbrev-ref HEAD');
+    expect(calls).toContain('git status --porcelain');
+    expect(calls.some((c) => c.startsWith('git describe --tags'))).toBe(true);
+
+    // And the answers reach the rows rather than the fake being merely called —
+    // each of these would read identically against a probe that still spawned.
+    expect(byId(rows, 'branch').status).toBe('ok'); // scripted 'main'
+    expect(byId(rows, 'origin-sync').status).toBe('blocking'); // scripted: no origin
+    expect(byId(rows, 'origin-sync').detail).toContain('could not resolve origin/main');
+    expect(byId(rows, 'cr-gate').detail).toContain('no previous tag'); // scripted: no tags
+  });
+
+  it('reports the tree state the runner describes, not the one on disk', async () => {
+    // The fixture repo is clean and on main. Every row below contradicts it, so
+    // each one fails if `inspectTreeState` goes back to spawning its own git —
+    // which is the failure the assertions above cannot see, because a real
+    // spawn against this fixture happens to agree with the scripted defaults.
+    const { run: runCommand } = runner({
+      'git rev-parse --abbrev-ref HEAD': { stdout: 'feat/x\n' },
+      'git status --porcelain': { stdout: ' M src/app.ts\n?? scratch.txt\n' },
+      'git fetch origin main': { stdout: '' },
+      'git rev-list --left-right --count': { stdout: '2\t3\n' },
+    });
+    const rows = await run(cwd, { runCommand });
+
+    expect(byId(rows, 'branch').detail).toBe('on feat/x, not main');
+    expect(byId(rows, 'tree-clean').detail).toContain('2 dirty path(s)');
+    expect(byId(rows, 'origin-sync').detail).toBe('diverged from origin/main (2 ahead, 3 behind)');
   });
 
   it('hands every probe command the fixture cwd, never the developer tree', async () => {

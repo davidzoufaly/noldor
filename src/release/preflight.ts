@@ -64,7 +64,7 @@ export async function runPreflight(input: PreflightInput): Promise<PreflightRow[
     for (const id of input.fixes) {
       const row = await runProbe(id, makeProbeContext(base));
       if (row.status !== 'blocking') continue;
-      const applied = await applyFix(id, input.cwd, input.nowMs);
+      const applied = await applyFix(id, input.cwd, input.nowMs, input.runCommand);
       if (applied !== null) log(`→ preflight --fix: ${applied}`);
     }
   }

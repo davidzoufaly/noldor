@@ -120,15 +120,15 @@ describe('injectBootstrapOverrides', () => {
     expect(r2.injected).toEqual([]);
   });
 
-  it('makes checkCrGate pass over a range with no review evidence', () => {
+  it('makes checkCrGate pass over a range with no review evidence', async () => {
     // Bare commits: no receipt, no override — the gate must fail pre-injection.
     const bare = makeRepo('feat', 'codex-cr', { bare: true });
     try {
-      const before = checkCrGate({ from: 'origin/main', to: 'HEAD', cwd: bare });
+      const before = await checkCrGate({ from: 'origin/main', to: 'HEAD', cwd: bare });
       expect(before.ok).toBe(false);
 
       injectBootstrapOverrides({ cwd: bare, slug: 'feat', range });
-      const after = checkCrGate({ from: 'origin/main', to: 'HEAD', cwd: bare });
+      const after = await checkCrGate({ from: 'origin/main', to: 'HEAD', cwd: bare });
       expect(after.ok).toBe(true); // injected codex override counts as review evidence
     } finally {
       rmSync(bare, { recursive: true, force: true });
