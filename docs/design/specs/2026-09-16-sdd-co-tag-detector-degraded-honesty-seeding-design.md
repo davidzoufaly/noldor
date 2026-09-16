@@ -13,7 +13,8 @@ needs a fresh `graphify-out/graph.json` to name the test files whose `// @tests:
 tag omits an FD that owns a file they import. When the graph is stale it does not
 weaken the signal — it *replaces* it. [`src/garden/graph-fd-lookup.ts:67`](../../../src/garden/graph-fd-lookup.ts)
 returns a single meta-gap, and the detector's `if (!loadResult.ok) return [loadResult.gap]`
-hands that one row back in place of the whole scan.
+hands that one row back in place of the whole scan. A *missing* graph takes the same
+branch, so both failure modes lose the same rows.
 
 Measured in this worktree on 2026-09-16, against the same working tree in both cases:
 
@@ -31,13 +32,13 @@ obligations for every test importing the newly-owned file, and the graph goes st
 on its own between release sweeps.
 
 There is a second, sharper failure hiding inside the first. A degraded run still
-*rewrites* `docs/sdd-report.md`, so it replaces the 181-row section with the single
-degraded row — destroying the only committed record of how large the backlog is.
-This is not hypothetical: `main()` in `sdd-report.ts` returns early for `--json`
-(which is why the measurement above left the file untouched) but otherwise writes
-`resolveReportOutPath(...)` unconditionally. Any plain `noldor garden sdd-report`
-run between release sweeps — the window in which the graph is stale by default —
-therefore trades 181 rows for one.
+*rewrites* the report, so it replaces the 181-row section with the single degraded row
+— destroying the only committed record of how large the backlog is. This is not
+hypothetical: `main()` in `sdd-report.ts` returns early for `--json` (which is why the
+measurement above left the file untouched) but otherwise writes
+`resolveReportOutPath(...)` unconditionally. Any plain `noldor garden sdd-report` run
+between release sweeps — the window in which the graph is stale by default — therefore
+trades 181 rows for one.
 
 And the prescribed remedy — a by-hand audit of 183 files — is work nothing will ever
 do. `features migrate-code-tags` already gives `@fd:` tags mechanical seeding;
@@ -47,11 +48,11 @@ do. `features migrate-code-tags` already gives `@fd:` tags mechanical seeding;
 
 1. A degraded run stops destroying the co-tag findings it cannot recompute: the
    report keeps the last fresh scan's rows, visibly marked as carried-forward rather
-   than current.
-2. The size of what is being stood in for is legible from the report itself, without
-   a second command and without a new persisted state file.
+   than current. "Degraded" covers both a stale and a missing graph.
+2. The size and provenance of what is being stood in for is legible from the report
+   itself, without a second command and without a new persisted state file.
 3. `@tests:` co-tags get a mechanical seeder, so the 183-row backlog is drainable by
-   a command instead of by hand.
+   a command in reviewable batches instead of by hand.
 
 ## Non-goals
 
@@ -60,11 +61,11 @@ do. `features migrate-code-tags` already gives `@fd:` tags mechanical seeding;
   `consumer.scanPaths`, so a `git checkout` of `graphify-out/` makes a stale graph
   read fresh. Real, and out of scope — a different defect with a different blast
   radius. Worth an `ideas.md` bullet.
-- **Changing `detectMissingCoTags` or the `Gap[]` contract.** The detector keeps
-  returning exactly one meta-gap on a stale graph. That is what keeps `isStaleGraphGap`
-  matching and `garden detect --ci` exiting 1
-  ([`src/garden/garden-detect.ts:963`](../../../src/garden/garden-detect.ts)). The whole
-  change lands in report *rendering*.
+- **Changing `detectMissingCoTags`'s return contract.** It keeps returning exactly one
+  meta-gap on a degraded graph. That is what keeps `isStaleGraphGap` matching and
+  `garden detect --ci` exiting 1
+  ([`src/garden/garden-detect.ts:963`](../../../src/garden/garden-detect.ts)). Its
+  *internals* change once, to call the shared helper in Unit C.
 - **Making `garden sdd-report` exit non-zero on a degraded run.** `--ci` already
   refuses, and a second refusal point risks the failure
   `src/release/preflight-probes.ts:636` warns about — rewriting the report and then
@@ -73,8 +74,8 @@ do. `features migrate-code-tags` already gives `@fd:` tags mechanical seeding;
   *substitutes* a meta-gap for its rows; detectors 9, 10 and 19 degrade silently or
   not at all, so they have no rows to lose.
 - **Seeding tests that carry no `// @tests:` line at all.** That is detector 10
-  (`detectUntaggedTests`), which suggests slugs but never writes. This covers the
-  *incomplete* tag case only.
+  (`detectUntaggedTests`), which suggests slugs but never writes. The seeder merges
+  into an existing tag line and never inserts one.
 - **Draining the 183 rows.** This ships the tool. Running it is a follow-up chore,
   and a large one — see Risks.
 
@@ -87,12 +88,11 @@ From `pnpm noldor design graph-context` against a freshly regenerated graph
 
 - `src/garden/graph-fd-lookup.ts` and `src/garden/sdd-report.ts` both sit in
   community **c4**, alongside their own tests and `src/garden/detectors/override-audit.ts`.
-  The files this change edits are already neighbours, so Unit A lands inside one
-  community rather than across a seam.
+  Units A and C land inside one community rather than across a seam.
 - `sdd-report.ts` **defines a god node**: `main()`, rank #10 with 24 edges. Unit A adds
   one file read to `main()`, which widens the repo's 10th-widest node — accepted
-  deliberately, because the alternative is I/O inside the pure renderer (see Unit A).
-  It is also the argument against putting the seeder here.
+  deliberately, because the alternative is I/O inside the pure renderer. It is also the
+  argument against putting the seeder here.
 - `src/features/migrate-code-tags.ts` is in community **c44**, alongside
   `src/core/fd-load.ts` and `src/features/propose-pointers.ts`, with
   **no god nodes and no cross-community edges — an interior file**. A sibling seeder
@@ -106,137 +106,225 @@ From `pnpm noldor design graph-context` against a freshly regenerated graph
 `renderReportMd` ([`src/garden/sdd-report.ts:881`](../../../src/garden/sdd-report.ts))
 is pure: it takes grouped gaps plus four report sections and returns markdown, with no
 file access of its own. That purity is worth keeping, so the prior report is read in
-`main()` — which already does the report I/O — and reaches the renderer as data.
+`main()` — which already owns the report I/O — and reaches the renderer as data. The
+function is currently unexported with a single call site; this change **exports** it so
+the purity claim is testable rather than only reviewable.
 
-`main()` reads the existing report at `resolveReportOutPath(...)` before writing,
-extracts the body of its `### Tests with incomplete co-tag` section, and passes it in.
-When the co-tag category's gap set is exactly the stale meta-gap and a prior section
-exists, the renderer emits that prior body under a banner naming the date it came from
-and how many rows it holds, plus the regen instruction the meta-gap already carries.
-When no prior report exists, it emits the bare meta-gap and no count — an absent number
-is honest, a zero is not.
+**Which file is read.** `main()` reads the path `resolveReportOutPath(...)` resolves —
+the file it is about to overwrite — not the canonical `docs/sdd-report.md`. A redirected
+run therefore carries forward its own target's history or nothing, and never splices the
+canonical report's rows into an unrelated file. The consequence is deliberate and is the
+common case for redirected runs: the release preflight regenerates into a tmpdir
+(`src/release/preflight-probes.ts:649-656`), where no prior report exists, so preflight
+regens never carry forward and never emit a banner.
 
-Re-running while still stale must not re-date the banner: the second run's "prior
-section" is the first run's carried section, banner included, so the banner is carried
-verbatim rather than recomputed. That makes the operation idempotent and keeps the date
-pointing at the last *fresh* scan rather than the last *run*.
+**What counts as a baseline.** Only a prior section that held real findings. A prior
+section whose content is the degraded meta-gap is not a baseline — carrying it would
+label a meta-gap as one historical finding and date it to a degraded run. The renderer
+tells the two apart by the marker below, and by testing the gap set with the existing
+`isStaleGraphGap` ([`src/garden/graph-fd-lookup.ts:115`](../../../src/garden/graph-fd-lookup.ts))
+rather than re-deriving the predicate. `META_GAP_CATEGORY` is currently unexported at
+`graph-fd-lookup.ts:40` and duplicated as a bare literal at `sdd-report.ts:469`; this
+change exports it and both sites use the export, so the section parser is not a third copy.
 
-`renderReportMd` already takes seven positional parameters; an eighth would be a review
-finding on arrival. This change converts its parameter list to a single options object
-in the same commit — a contained refactor, one internal function and its call site.
+**The marker.** A carried section opens with
+
+```
+<!-- noldor:carried-forward date=YYYY-MM-DD rows=N -->
+```
+
+directly under its `###` heading, followed by the regen instruction and then the carried
+bullets. On a **first** carry the date comes from the prior report's `Generated:` line
+([`docs/sdd-report.md:5`](../../../docs/sdd-report.md)) and `N` from the counted bullets.
+On a **re-carry** — a degraded run whose prior section already has a marker — the marker
+is copied verbatim, so the date keeps naming the last *fresh* scan rather than the last
+run. That marker is the mechanism behind the repeated-run guarantee; without it the
+renderer cannot distinguish fresh rows from already-carried rows.
+
+**Both degrade paths.** Preservation triggers on any `!loadResult.ok` — stale *and*
+missing graph — because both replace the rows and the goal is about degraded runs, not
+about staleness specifically.
 
 ### Unit B — `@tests:` co-tag seeder
 
-A new module beside `migrate-code-tags.ts`, mirroring its shape (that file is 68 lines,
-and its `insertFdTag` at line 22 is the pattern to follow). For each test file the
-detector flags, rewrite the existing `// @tests:` line to include the missing slugs,
-sorted and comma-separated. It reuses `getImportOwnersForTest`
-([`src/garden/graph-fd-lookup.ts:216`](../../../src/garden/graph-fd-lookup.ts)) and
-`buildFileToFdsMap`, so no new graph logic is introduced — the owner set the seeder
-writes is the same set the detector reports.
+A new module beside `migrate-code-tags.ts`. It mirrors that file's shape, but only its
+**merge** behaviour: `insertFdTag` (`src/features/migrate-code-tags.ts:22-33`) inserts a
+tag line when none exists, and the seeder must not — a test with no `// @tests:` line is
+detector 10's business, so when the tag regex misses, the seeder returns the content
+unchanged. Where a tag line exists, the missing slugs are merged into it, sorted and
+comma-separated.
 
-Three properties matter more than the mechanics. It **refuses on a stale graph**:
-seeding from a stale graph writes tags that are confidently wrong, which is worse than
-the honest gap this feature exists to surface. It is **idempotent**, so running it
-twice is a no-op and it is safe in a sweep. And it **defaults to a dry run**, printing
-what it would write; `--apply` performs the write, and a path filter scopes it to a
-subset so the 183-row backlog can be drained in reviewable batches.
+Its freshness gate calls `loadFreshGraphOrWarn` with `scanRoots()` from
+[`src/core/repo-paths.ts:34`](../../../src/core/repo-paths.ts) — the same function
+`sdd-report.ts:1005` calls, where it is imported under the alias `resolveScanRoots`. A
+hardcoded root set would let the seeder call fresh a graph the detector called stale,
+which is exactly the confidently-wrong-tags failure the gate exists to prevent.
+
+It **defaults to a dry run**, printing what it would write; `--apply` performs the write,
+and `--path` scopes it so the backlog drains in reviewable batches.
+
+**Batching needs a regen between batches, and that is stated rather than implied.** A
+successful `--apply` rewrites test files under `scanPaths`, which bumps their mtimes and
+makes the graph stale by the gate's own definition. The next batch therefore refuses —
+correctly, since the seeder cannot distinguish its own writes from a real source change.
+The workflow is: regen the graph, apply one batch, regen, apply the next. The refusal
+message names the regen step. Idempotence is defined **against a refreshed graph**: after
+a regen, a second run over already-seeded files exits 0 having written nothing. A run
+that refuses because of its own prior writes is a distinct outcome with a non-zero exit,
+and must not be mistaken for the idempotent no-op.
+
+### Unit C — one shared missing-co-tag computation
+
+`detectMissingCoTags` (`sdd-report.ts:456-474`) does more than call
+`getImportOwnersForTest`: it applies the `TEST_FILE_RE` filter, the `e2ePrefix` skip, the
+`source_location !== 'L1'` node filter, and the declared-tag diff. The seeder needs
+exactly that chain, and copying it would make "the seeder writes what the detector
+reports" an assertion rather than a structural fact.
+
+So the chain is extracted as `computeMissingCoTags(features, testInputs, graph)`,
+returning per-test missing-slug sets. `detectMissingCoTags` becomes a thin renderer over
+it, and the seeder consumes the same function. Equality of the two sets is then a
+property of there being one implementation, and is pinned by a test that runs both over
+the same inputs.
+
+### Deliverables
+
+- `src/garden/sdd-report.ts` — exported `renderReportMd` with an options-object parameter
+  list (it has seven positional parameters today; an eighth would be a review finding),
+  the carry-forward splice, and the prior-section read in `main()`.
+- `src/garden/graph-fd-lookup.ts` — exported `META_GAP_CATEGORY`, plus
+  `computeMissingCoTags`.
+- `src/features/<seeder>.ts` — the seeder, and its leaf in
+  [`src/cli/manifest.ts`](../../../src/cli/manifest.ts).
+- [`docs/noldor/script-catalog.md`](../../../docs/noldor/script-catalog.md) — required:
+  `src/cli/validate-script-catalog.ts:29-33,47` blocks when a manifest leaf's `src` path
+  and its `pnpm noldor <group> <sub>` token are not cited there.
+- Tests beside each.
 
 ## Acceptance criteria
 
-1. With a stale graph and a prior report on disk, the regenerated report's
-   `### Tests with incomplete co-tag` section contains the prior section's bullets.
-2. That section carries a banner stating the date it came from and the number of rows
-   it holds.
-3. With a stale graph and no prior report on disk, the section contains exactly the
-   stale meta-gap bullet and states no row count.
-4. A stale run immediately following another stale run leaves the banner's date and
-   count unchanged.
-5. A fresh run's section is computed from the graph and carries no banner.
-6. `detectMissingCoTags` still returns exactly one gap on a stale graph.
-7. `isStaleGraphGap` still matches that gap, and `garden detect --ci` still exits 1.
-8. `renderReportMd` performs no file I/O; the prior section reaches it as an argument.
-9. The seeder, against a fresh graph and a test file with an incomplete `// @tests:`
-   line, adds exactly the slugs the detector names for that file.
-10. Running the seeder twice in a row produces no diff on the second run.
-11. The seeder exits non-zero and writes nothing when the graph is stale or missing.
-12. The seeder leaves a test file that carries no `// @tests:` line untouched.
-13. Without `--apply` the seeder writes no file; with a path filter it writes only
-    within that filter.
+1. Stale graph + a prior report whose co-tag section held real findings → the
+   regenerated section contains those bullets.
+2. That section opens with a `noldor:carried-forward` marker stating the source date and
+   the row count.
+3. A missing graph produces the same carry-forward behaviour as a stale graph.
+4. A prior section whose only content was the degraded meta-gap is not treated as a
+   baseline: the new section is the bare meta-gap, with no marker and no row count.
+5. A degraded run whose prior section already carries a marker copies that marker
+   verbatim — date and count unchanged.
+6. No prior report at the resolved out path → bare meta-gap, no marker, no fabricated
+   count.
+7. A run with `--out <path>` reads the prior report at `<path>`, not at
+   `docs/sdd-report.md`.
+8. A fresh run's section is computed from the graph and carries no marker.
+9. `detectMissingCoTags` returns exactly one gap on a stale graph and on a missing
+   graph; `isStaleGraphGap` still matches the stale one and `garden detect --ci` still
+   exits 1.
+10. `renderReportMd` is exported and performs no file I/O — the prior section reaches it
+    as an argument.
+11. Against a fresh graph, the seeder adds to a test file's `// @tests:` line exactly the
+    slugs `computeMissingCoTags` names for that file.
+12. A test file with no `// @tests:` line is returned unchanged.
+13. Without `--apply` no file is written; with `--path` only files under that filter are.
+14. The seeder exits non-zero, writes nothing, and names the regen step when the graph is
+    stale or missing — including when its own prior `--apply` caused the staleness.
+15. After a regen following a successful `--apply`, a second run over the same files
+    exits 0 and writes nothing.
+16. `detectMissingCoTags` and the seeder, run over identical inputs, produce equal
+    missing-slug sets.
 
 ## Risks / trade-offs
 
-The carried-forward section can be wrong in a specific way: it lists gaps as of the
-last fresh scan, so a co-tag an operator fixed since then still appears. The banner is
-what makes that readable rather than misleading, and the alternative — showing nothing
-— is the defect being fixed. Carrying stale-but-labelled findings is the lesser error.
+The carried-forward section can be wrong in a specific way: it lists gaps as of the last
+fresh scan, so a co-tag an operator fixed since then still appears. The marker is what
+makes that readable rather than misleading, and the alternative — showing nothing — is
+the defect being fixed. Carrying stale-but-labelled findings is the lesser error.
 
-Unit A adds a file read to `main()`, a rank-#10 god node. The design accepts that
-rather than pushing I/O into the pure renderer, but it does make a wide node wider.
+Unit A adds a file read to `main()`, a rank-#10 god node, and converts
+`renderReportMd`'s parameter list to an options object. Both are accepted: the read
+belongs where the other report I/O already is, and seven positional parameters is already
+at the limit.
 
-The banner is a new non-volatile line in the report, so `onlyVolatileSectionsChanged`
-([`src/release/sdd-report-diff.ts:67`](../../../src/release/sdd-report-diff.ts)) would
-see it as a real delta and the release script would abort on a dirty report. That is
-the correct outcome — the release sweep regenerates the graph before the report, so a
-banner appearing there means the sweep's regen did not take — and the guard already
-fails safe toward aborting, so the failure is loud rather than silent. No change needed;
-recorded so the first occurrence is recognised rather than debugged.
+Reading the resolved out path rather than the canonical report means redirected runs never
+carry forward. The release preflight is exactly such a run, so preflight regens are
+unaffected by this feature — no banner can appear there, and the
+`onlyVolatileSectionsChanged` dirty-report guard
+([`src/release/sdd-report-diff.ts:67`](../../../src/release/sdd-report-diff.ts)) sees no
+new line. The cost is that a redirected run gives up the preservation this feature adds;
+the benefit is that it can never splice one file's findings into another.
 
-The seeder's blast radius is the larger risk. A single `--apply` over 183 test files is
-a 183-file diff that no reviewer will read line by line, and it lands `@tests:` tags
-that then drive `links.tests` via `pnpm sync:test-links` — so a systematic error in the
-owner computation propagates into 86 feature docs. That is why the dry run is the
-default, why the path filter exists, and why "drain the backlog" is a non-goal: the tool
-and its first use should not be the same review.
+The seeder's blast radius is the larger risk. A single `--apply` over 183 test files is a
+183-file diff that no reviewer will read line by line, and it lands `@tests:` tags that
+then drive `links.tests` via `pnpm sync:test-links` — so a systematic error in the owner
+computation propagates into 86 feature docs. That is why the dry run is the default, why
+`--path` exists, and why "drain the backlog" is a non-goal: the tool and its first use
+should not be the same review. The forced regen between batches is friction, but it is
+also the thing that keeps each batch's tags derived from a graph that reflects the
+previous batch's writes.
 
 Finally, the coupling the entry names is not solved here and gets worse as `links.code`
 gaps close. This ships a pump, not a fix for the leak.
 
 ## User Story
 
-- As an operator reading `docs/sdd-report.md` with a stale graph, I want the co-tag
-  findings from the last fresh scan kept and labelled, so a regen between release
-  sweeps stops trading 181 actionable rows for one advisory line.
+- As an operator reading `docs/sdd-report.md` with a stale or missing graph, I want the
+  co-tag findings from the last fresh scan kept and labelled with their date, so a regen
+  between release sweeps stops trading 181 actionable rows for one advisory line.
 - As an agent draining SDD gaps, I want `@tests:` co-tags seeded mechanically from the
-  graph, so closing the backlog is a command I can run in batches instead of a by-hand
-  audit of 183 files that will never happen.
+  graph, so closing the backlog is a batched command instead of a by-hand audit of 183
+  files that will never happen.
 
 ## Usage
 
 ```bash
-# regen between sweeps: the co-tag section is kept and marked carried-forward
+# regen between sweeps: the co-tag section is kept, marked with its source date
 pnpm noldor garden sdd-report
 
-# drain the backlog (fresh graph required — the seeder refuses on a stale one)
-pnpm noldor features seed-test-tags                       # dry run, prints the diff
-pnpm noldor features seed-test-tags --path src/design      # scope to a batch
+# drain the backlog, one reviewable batch at a time
+/graphify --ast-only && pnpm toon                          # fresh graph (required)
+pnpm noldor features seed-test-tags --path src/design       # dry run, prints the diff
 pnpm noldor features seed-test-tags --path src/design --apply
-pnpm noldor sync test-links                                # propagate into FD links.tests
+/graphify --ast-only && pnpm toon                          # regen: the apply staled it
+pnpm noldor features seed-test-tags --path src/metrics --apply
+pnpm noldor sync test-links                                 # propagate into FD links.tests
 ```
+
+Skipping the regen between batches is not a silent failure — the next `--apply` refuses
+and names the step.
 
 ## Open questions (resolved)
 
 1. *Where does the prior-section read live — inside the renderer, or in `main()`?*
-   -> **`main()`, passed in as data.** (D1) `renderReportMd` is pure today and its tests
-   rely on that; `main()` already owns the report I/O.
+   -> **`main()`, passed in as data.** (D1) `renderReportMd` is pure today; `main()`
+   already owns the report I/O.
 
-2. *Should a stale-after-stale run re-date the banner?*
-   -> **No — carry the banner verbatim.** (D2) The date must name the last *fresh* scan,
-   not the last run, and carrying it makes the operation idempotent.
+2. *Should a degraded-after-degraded run re-date the banner?*
+   -> **No — copy the marker verbatim.** (D2) The date must name the last *fresh* scan,
+   and the marker is what makes that decidable.
 
 3. *`renderReportMd` has seven positional parameters. Add an eighth, or refactor?*
-   -> **Refactor to an options object in the same commit.** (D3) Eight positional
-   parameters is a guaranteed review finding; the refactor is one internal function and
-   its call site.
+   -> **Refactor to an options object, and export it.** (D3) Eight positional parameters
+   is a guaranteed review finding, and the export is what makes AC10 testable.
 
-4. *Does the seeder live under `features` or `garden`?*
-   -> **`features`.** (D4) `migrate-code-tags.ts` is its twin and is an interior file,
+4. *Read the canonical `docs/sdd-report.md`, or the resolved `--out` path?*
+   -> **The resolved out path.** (D4) Reading the canonical report would splice its rows
+   into an unrelated redirected file. Accepting that redirected runs never carry forward
+   is the cheaper error, and it also means the release preflight is untouched.
+
+5. *Does the seeder live under `features` or `garden`?*
+   -> **`features`.** (D5) `migrate-code-tags.ts` is its twin and is an interior file,
    while `sdd-report.ts` already defines a rank-#10 god node.
 
-5. *Dry run by default, or write immediately?*
-   -> **Dry run by default, `--apply` to write.** (D5) A 183-file diff is not something
+6. *Dry run by default, or write immediately?*
+   -> **Dry run by default, `--apply` to write.** (D6) A 183-file diff is not something
    to produce by accident, and the dry run is the batching surface.
 
-6. *Should the carry-forward generalise to every gap category?*
-   -> **No, co-tag only.** (D6) It is the only category that substitutes a meta-gap for
+7. *Should the carry-forward generalise to every gap category?*
+   -> **No, co-tag only.** (D7) It is the only category that substitutes a meta-gap for
    its rows; a general mechanism would be speculative surface.
+
+8. *Should the seeder relax the freshness gate so batches can run back to back?*
+   -> **No — keep the gate and document the regen.** (D8) The seeder cannot distinguish
+   its own comment-only writes from a real source change without reimplementing the
+   staleness rule, and a seeder that guesses wrong writes confidently wrong tags. Forced
+   regen is friction; a wrong tag propagates into 86 feature docs.
