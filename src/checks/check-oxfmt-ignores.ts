@@ -18,7 +18,11 @@
 //
 // Read-only and advisory by contract: the file is consumer-owned, so no caller
 // may rewrite it on this finding, and no caller may fail on it — a red here
-// would fail `pnpm verify` for a repo whose only sin is an older scaffold.
+// would fail `pnpm verify` for a repo whose only sin is an older scaffold. The
+// result carries no `advisory` flag for that reason: unlike the lefthook and
+// install checks, where the flag separates "could not look" from "repo is
+// broken" and callers branch on it, EVERY status here is warn-only, so a field
+// that never varies would be dead surface. Callers branch on `status`.
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -41,20 +45,13 @@ export const REPAIR = `add '${GRAPHIFY_IGNORE_PATTERNS[0]}' to 'ignorePatterns' 
 
 /**
  * Why the exemption is not verified-present. `ok` is the only passing state;
- * the two advisory members are this check declining to look (no config, or one
- * it cannot parse), which is never evidence of a defect.
+ * `no-config` and `unparseable` are this check declining to look, which is never
+ * evidence of a defect, while `graphify-not-ignored` is the real finding.
  */
 export type OxfmtIgnoresStatus = 'ok' | 'no-config' | 'unparseable' | 'graphify-not-ignored';
 
 export interface OxfmtIgnoresResult {
   readonly status: OxfmtIgnoresStatus;
-  /**
-   * True when the finding is a limitation of this check rather than a defect in
-   * the repo. Callers may warn; they must not fail. Today EVERY result is
-   * advisory (see the module header) — the field stays so a caller reading it
-   * keeps behaving correctly if a blocking member is ever added.
-   */
-  readonly advisory: boolean;
   /** Operator-facing sentence: what breaks, and the one-line repair. */
   readonly detail: string;
 }
@@ -77,7 +74,6 @@ export function checkOxfmtIgnores(cwd: string): OxfmtIgnoresResult {
   if (!existsSync(path)) {
     return {
       status: 'no-config',
-      advisory: true,
       detail: `no ${OXFMT_CONFIG} — oxfmt is not configured here, so there is nothing to exempt.`,
     };
   }
@@ -88,19 +84,17 @@ export function checkOxfmtIgnores(cwd: string): OxfmtIgnoresResult {
   } catch (e) {
     return {
       status: 'unparseable',
-      advisory: true,
       detail: `${OXFMT_CONFIG} does not parse (${e instanceof Error ? e.message : String(e)}), so its ignore list is unverified — confirm by hand that it exempts ${GRAPHIFY_IGNORE_PATTERNS[0]}.`,
     };
   }
 
   const patterns = ignorePatterns(doc);
   if (GRAPHIFY_IGNORE_PATTERNS.some((p) => patterns.includes(p))) {
-    return { status: 'ok', advisory: true, detail: `${OXFMT_CONFIG} exempts graphify-out/` };
+    return { status: 'ok', detail: `${OXFMT_CONFIG} exempts graphify-out/` };
   }
 
   return {
     status: 'graphify-not-ignored',
-    advisory: true,
     detail: `${OXFMT_CONFIG} does not exempt graphify-out/, so 'pnpm fmt:check' will fail on the generated graph report the moment the release sweep tracks it (the sweep stages graphify-out/ by design). Repair: ${REPAIR}.`,
   };
 }

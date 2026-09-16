@@ -22,9 +22,7 @@ describe('checkOxfmtIgnores', () => {
     writeFile(join(cwd, '.oxfmtrc.json'), JSON.stringify(body, null, 2), 'utf8');
 
   it('reports no-config when the consumer has no .oxfmtrc.json', () => {
-    const r = checkOxfmtIgnores(cwd);
-    expect(r.status).toBe('no-config');
-    expect(r.advisory).toBe(true);
+    expect(checkOxfmtIgnores(cwd).status).toBe('no-config');
   });
 
   it('is ok when ignorePatterns carries graphify-out/**', async () => {
@@ -51,9 +49,7 @@ describe('checkOxfmtIgnores', () => {
 
   it('reports unparseable on malformed JSON without throwing', async () => {
     await writeFile(join(cwd, '.oxfmtrc.json'), '{ not json', 'utf8');
-    const r = checkOxfmtIgnores(cwd);
-    expect(r.status).toBe('unparseable');
-    expect(r.advisory).toBe(true);
+    expect(checkOxfmtIgnores(cwd).status).toBe('unparseable');
   });
 
   it('names both accepted patterns', () => {
