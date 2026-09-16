@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-09-06 by `pnpm sdd:report`.
+Generated: 2026-09-16 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
@@ -10,17 +10,17 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ## Summary
 
-- Total features: 86
+- Total features: 88
 - Untriaged ideas: 0
-- Backlog entries: 27
+- Backlog entries: 28
 - Gap categories with issues: 4 / 15
 
 ## Code clones
 
-- 293 clone group(s), 8.65% duplicated tokens across 418 file(s)
+- 232 clone group(s), 7.89% duplicated tokens across 421 file(s)
 - src/dashboard/views.ts:831-886 and src/dashboard/views.ts:909-1013 (323 tokens)
-- src/features/phase-flip-done-cli.ts:4-45 and src/features/phase-revert-cli.ts:4-45 (277 tokens)
 - src/dashboard/views.ts:750-759 and src/dashboard/views.ts:1018-1027 (252 tokens)
+- src/features/phase-flip-done-cli.ts:12-45 and src/features/phase-revert-cli.ts:12-45 (233 tokens)
 - src/dashboard/views.ts:836-859 and src/dashboard/views.ts:962-985 and src/dashboard/views.ts:1056-1131 (176 tokens)
 - src/features/validate-features.ts:187-223 and src/features/validate-features.ts:344-380 (171 tokens)
 
@@ -29,15 +29,42 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 ### Tier distribution
 
 - `full` (brainstorm + spec + plan): 40
-- `specs-only` (no brainstorm): 46
+- `specs-only` (no brainstorm): 48
 
 ### Override usage (last 30 days)
 
-No overrides in the last 30 days.
+- `683b356` — cr-arbitration f523dc86756e — reviewer approved and verifier verified; both remaining codex blockers were fixed in this commit, not carried, and the round cap is spent
+- `5377b5d` — cr-arbitration 2613fe542270 — all 5 blockers accepted and fixed in this tree; the sinks predate it and every flagged sentence is grep-absent
+- `4b85199` — cr-arbitration cbda7d58035b — reviewer lane approved and verifier was green every round; both remaining blockers are accepted and already fixed in this tree (win32 test literals skipIf-guarded, second-spelling decision recorded in the FD and Q-0221 as the reviewer proposed); the round cap refuses a further dispatch to confirm it
+- `3b8ad2f` — cr-arbitration a90e58f1bf62 — the sole open blocker (a mirror test row) is applied in this tree at detect.test.ts:473-476 and passing; the 4-round cap refuses the dispatch that would observe it. codex: no actionable issues; verifier: verified.
+- `43f7a46` — cr-arbitration 3 blockers — 2 already fixed at 42d0263 (the sink is stale round-4 output), 1 declined as pre-existing and out of scope; codex green, verifier verified, suite 5461 green, push-gates green
+- `5c6da4d` — code-stage CR stopped at 2 red rounds — the mandatory codex lane never reviewed (OpenAI workspace spend cap), so no round can go green; both reviewer rounds' blockers are fixed but the round-2 fixes are not themselves re-reviewed
+- `87b6c12` — code CR arbitrated after 6 rounds without convergence. Every finding was applied, none waived (~30 findings, ~11 high); verifier lane passed all 6 rounds. Rounds 5 and 6 each reversed a round-3 decision, and every round found defects in the prior round's fix — the documented no-fixed-point shape, since each fix is fresh surface. The cap fired correctly on its own review at round 4 and marked it terminal; rounds 5-6 ran only after an operator-authorised ledger reset, preserved at .noldor/cr/autofix/<slug>-code.json.forced-reset. Residual risk is asymmetric: a round is marked terminal only when a lane that ran that round filed a real non-integrity finding, so every degraded path (crashed lane, corrupt sink, stale sink, nothing resolved) is non-terminal and an undiscovered bug of this family under-enforces rather than wedging. Harder half carved to Q-0209. tests 5259, lint, typecheck, template-sync and push-gates all green.
+- `86ed29a` — operator-waived review receipt at the CR re-round cap after 3 rounds and 23 fixed findings; all mechanical gates green
+- `c601952` — reviewer approve + codex clean at round 7; verify lane red is infra-only (own transcript reports success, then a dispatch timeout) — receipt could not be amended on a red aggregate
+- `4d506ad` — eight code-stage CR rounds without convergence; remaining findings carved to Q-0197; mechanical gates green at this tip
+- `f311816` — code-stage CR closed after 7 rounds — verifier green throughout, reviewer approve at round 5, rounds 5-7 self-fed on symlink hardening of an advisory heuristic; all findings reproduced and fixed, sinks in .noldor/cr
+- `366cb50` — cr-non-convergence after 8 rounds; rounds 7/8 mutually contradictory on skipIf(root) and the chmod fixture; all security findings through round 7 fixed and probe-verified; residue recorded in the FD Changelog
+- `5a1b323` — review-loop-converged-on-prose
+- `58e9539` — micro-chore lane omits `.noldor/config.json`, and the CR-gate exemption this release needs can only live there. Diff is README + ideas + one config entry; zero source files.
+- `57134eb` — micro-chore lane rejects `.noldor/id-counter.json` — `MICRO_CHORE_GLOBS` omits the counter that `triage mint-id` bumps, so the framework bookkeeping this commit carries cannot land through its own lane (precedent: #346, #335). Diff is docs + queue bookkeeping only, zero source files.
+- `c488b25` — code CR arbitrated after 12 rounds — verifier green, all 12 reviewer findings fixed (final one in this commit), codex mandate ran 12x with ~17 findings fixed and its last 3 blockers oscillating against its own round-4 demands; full sink record in .noldor/cr and rationale at each noldor:cut site
+- `51ac63d` — codex-tail-at-cap — reviewer and verifier lanes green on rounds 1+2; codex regenerated finer-grain findings each round (legit subset applied, remainder declined with rationale in session); operator-approved override
+- `fd05534` — eight CR rounds, never green; rounds 5-8 only found defects in prior rounds fixes, past the documented 2-re-round cap. Operator accepted at the cap.
+- `6549d4e` — five code-stage CR rounds; the residual build-lock window is irreducible on POSIX (no conditional unlink) and is declared in code with a noldor:cut plus its upgrade path. The concurrency path is evidenced by a four-builder stress run (one build, three refusals) rather than by reviewer assent. Every other gate is green: 4157 tests under NOLDOR\_RUNTIME unset/dist/source, contract fixture, template-sync, clones, summary-body.
+- `9461457` — CR round ran reviewer + verifier; verifier verdict pass (it stripped and re-added the entry to prove the offender count moves 2 -> 1), reviewer verdict approve with one med design blocker arguing the waiver treats the symptom rather than the allowlist gap. Operator accepted the blocker and filed it to ideas.md rather than widening this release into a gate refactor. No unaddressed correctness finding stands.
+- `46994e9` — roadmap triage on main, no gate session — the entries
+- `985dcb8` — queue-document triage with no gate session — parking two backlog entries touches only docs/backlog.md and the ID counter, the same shape as the preceding triage commit
+- `fd2ce3b` — verify lane hit Q-0137 — reviewer approved, codex found no blocking issue, and the verifier's own payload reports "Verified feature at tip 421f7a6 ... exercised whole promised surface through real CLI", so the red is that lane's known serialization failure rather than a finding. Q-0137 documents this exact case: a green verification must never block a ship on a formatting failure.
+- `5dba1c7` — code CR ran four rounds; every finding was applied. Rounds 1-2 caught real defects (no-sink error paths, a contradictory child payload parsing as a pass, mutate-then-timeout escaping the integrity check). Rounds 3-4 found only defects in the previous round's fixes, each smaller than the last, which is the self-feeding tail the round cap exists to stop. Round 4's remaining blockers are applied in this commit, so the tree carries no known unaddressed finding; the verifier lane returned pass. Operator accepted the red rather than dispatching a fifth round.
+- `2221d4c` — codex code-lane red after 7 non-converging rounds; reviewer+verifier green on full range; operator escalate decision 2026-08-20
+- `0be9ffe` — bookkeeping-only diff — framework runbooks, their templates twins and ideas.md, zero code. Same posture as the preceding triage commit: the verify lane fail-closes on a change with no behaviour to verify (Q-0137), so a code-stage round cannot go green on it.
+- `04c9799` — bookkeeping-only diff — four queue documents and the ID counter, zero code. The verify lane fail-closes on a change with no behaviour to verify (Q-0137, filed in this very commit), so a review round could not go green on it.
+- `5c35053` — code-stage CR ran 7 dispatches; verifier green on behaviour, reviewer findings since round 2 were documentation-consistency only, each fixed. Operator elected override rather than a further dispatch per prose fix.
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 0
+Gated commits missing `Noldor-Reviewed` trailer: 101
 
 ## Metrics
 
@@ -48,7 +75,7 @@ Gated commits missing `Noldor-Reviewed` trailer: 0
   "medianDays": 20.6,
   "p90Days": 56.5,
   "medianByPath": {
-    "unknown": 10.2,
+    "unknown": 14.9,
     "full-new": 20.6,
     "specs-only-new": 25.8
   },
@@ -104,13 +131,13 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
 ```json
 {
   "lastRun": {
-    "shipped": 2,
-    "skipped": 1,
+    "shipped": 1,
+    "skipped": 0,
     "retried": 0
   },
   "history": {
     "salvaged": 2,
-    "escalatedTotal": 16,
+    "escalatedTotal": 18,
     "escalatedBySlug": {
       "trailer-scope-alias-map": 2,
       "prefix-skills-with-noldor": 2,
@@ -121,9 +148,10 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "queue-drain-selection-and-staleness-guards": 1,
       "roadmap-has-block-predicate": 1,
       "spec-lint-prior-art-requirement": 1,
-      "mandatory-codex-review-round": 1
+      "mandatory-codex-review-round": 1,
+      "clones-ratchet-and-clone-group-check-disagree-on-attribution": 2
     },
-    "meanDurationMs": 835955
+    "meanDurationMs": 813426
   }
 }
 ```
@@ -178,7 +206,12 @@ blind spots: Only trailer-carrying overrides count; env-var bypasses (the releas
   "kind-less-cr-aggregate-re-reds-on-a-stale-addressed-spec-sink": 81078,
   "size-aware-iteration-timeout-for-the-drain-runner": 21561,
   "pr-body-lists-only-one-plan-part": 31301,
-  "task-id-as-the-first-scope-bullet-in-a-pr-summary": 189201
+  "task-id-as-the-first-scope-bullet-in-a-pr-summary": 189201,
+  "stale-specs-detector-is-blind-to-attach-flow-orphan-specs": 67559,
+  "garden-skill-checklist-enumerates-a-fixed-section-list": 38724,
+  "clones-ratchet-and-clone-group-check-disagree-on-attribution": 24183,
+  "oscillation-detector-r3-fires-on-every-greenfield-finding": 35367,
+  "clones-check-wont-name-the-files-that-moved-the-token-total": 60566
 }
 ```
 
@@ -189,24 +222,25 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Done features missing introduced
 
-- `cr-re-round-cap-enforcement-and-oscillation-detector` — CR Re-Round Cap Enforcement and Oscillation Detector is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `main-module-guard-fails-on-percent-encoded-paths` — Main-Module Guard Fails on Percent-Encoded Paths is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `test-suites-read-live-repo-state-shifting-full-suite-failures` — Test Suites Read Live Repo State — Shifting Full-Suite Failures is phase=done but introduced is unset (release script should fill on next pnpm release)
 
 ### Stale backlog entries (>90 days)
 
-- `Real-Codex Integration Smoke Test` — Real-Codex Integration Smoke Test (tooling) has been in backlog for 119 days since 2026-05-10
+- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 96 days since 2026-06-12
 
 ### Code files not referenced by any feature
 
-- `src/checks/check-install-freshness.ts` — src/checks/check-install-freshness.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, noldor, version-aware-upgrade-and-migration-chain
+- `src/checks/check-install-freshness.ts` — src/checks/check-install-freshness.ts is not referenced by any feature MD links.code — probable owner: version-aware-upgrade-and-migration-chain, make-noldor-agent-agnostic, noldor
 - `src/checks/check-push-gates.ts` — src/checks/check-push-gates.ts is not referenced by any feature MD links.code
-- `src/core/blob-id.ts` — src/core/blob-id.ts is not referenced by any feature MD links.code — probable owner: ui-design-review-lane, acceptance-verify-lane, de-superpowers-vendor-spec-plan-and-worktree-flows
+- `src/core/blob-id.ts` — src/core/blob-id.ts is not referenced by any feature MD links.code — probable owner: pendev-ui-design-phase, de-superpowers-vendor-spec-plan-and-worktree-flows
 - `src/core/init-vscode-settings.ts` — src/core/init-vscode-settings.ts is not referenced by any feature MD links.code
-- `src/core/receipt-store.ts` — src/core/receipt-store.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, pendev-ui-design-phase
-- `src/features/attach-milestone-cli.ts` — src/features/attach-milestone-cli.ts is not referenced by any feature MD links.code
-- `src/features/attach-milestone.ts` — src/features/attach-milestone.ts is not referenced by any feature MD links.code
-- `src/graphify/enrich-doc-nodes.ts` — src/graphify/enrich-doc-nodes.ts is not referenced by any feature MD links.code — probable owner: pendev-ui-design-phase, de-superpowers-vendor-spec-plan-and-worktree-flows
-- `src/hooks/noldor-enforce-arbitration.ts` — src/hooks/noldor-enforce-arbitration.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, noldor, unvalidated-slug-path-traversal-across-cli-entry-points
-- `src/milestones/show-cli.ts` — src/milestones/show-cli.ts is not referenced by any feature MD links.code — probable owner: decouple-milestones-from-semver, outcome-telemetry-and-effectiveness-metrics, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/core/receipt-store.ts` — src/core/receipt-store.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, ui-design-review-lane, acceptance-verify-lane
+- `src/features/attach-milestone-cli.ts` — src/features/attach-milestone-cli.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/features/attach-milestone.ts` — src/features/attach-milestone.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/graphify/enrich-doc-nodes.ts` — src/graphify/enrich-doc-nodes.ts is not referenced by any feature MD links.code — probable owner: pendev-ui-design-phase
+- `src/hooks/noldor-enforce-arbitration.ts` — src/hooks/noldor-enforce-arbitration.ts is not referenced by any feature MD links.code — probable owner: architecture-decision-record-surface, framework-pr-flow-agent-auto-merge, noldor
+- `src/milestones/show-cli.ts` — src/milestones/show-cli.ts is not referenced by any feature MD links.code — probable owner: decouple-milestones-from-semver, outcome-telemetry-and-effectiveness-metrics, framework-milestones-support-poc-mvp-100
 - `src/utils/word-count.ts` — src/utils/word-count.ts is not referenced by any feature MD links.code — probable owner: framework-auto-split-suggestion-for-big-features-and-plans
 
 ### Tests with incomplete co-tag
@@ -292,6 +326,7 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/cr/__tests__/delta.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, ui-design-review-lane
 - `src/cr/__tests__/run-codex.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, specs-cr-gate-multi-reviewer
 - `src/cr/__tests__/codex-failure.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
+- `src/cr/__tests__/arbitration-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, noldor, unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/cr/__tests__/expected-lanes-guard.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, noldor
 - `src/cr/__tests__/findings-schema.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, ui-design-review-lane
 - `src/cr/__tests__/orchestrate.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, rules-cascade-v1, ui-design-review-lane
@@ -321,12 +356,13 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/release/__tests__/release-session.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor, pendev-ui-design-phase, rules-cascade-v1
 - `src/release/__tests__/release-cr-gate-e2e.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement
 - `src/release/__tests__/preflight-probes.test.ts` — imports files owned by FDs missing from @tests: tag — add: autonomous-plan-to-pr-merge, outcome-telemetry-and-effectiveness-metrics, pendev-ui-design-phase, pnpm-release-resume, release-bypass-retirement, release-script-self-provisions-its-own-session-marker, rules-cascade-v1
-- `src/release/__tests__/release-cr-gate.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement
+- `src/release/__tests__/release-cr-gate.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement, test-suites-read-live-repo-state-shifting-full-suite-failures
 - `src/release/__tests__/release-config-flow.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase, self-boundaries-declaration-and-cycle-break, trailer-scope-alias-map, ui-design-review-lane
 - `src/release/__tests__/release-resume.test.ts` — imports files owned by FDs missing from @tests: tag — add: dynamic-fd-changelog, framework-pr-flow-agent-auto-merge, registry-distribution-for-the-noldor-package, release-bypass-retirement, release-script-sddreport-skip-if-only-count-line-changed, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening
 - `src/release/__tests__/preflight-render.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-script-sddreport-skip-if-only-count-line-changed
-- `src/release/__tests__/preflight.test.ts` — imports files owned by FDs missing from @tests: tag — add: autonomous-plan-to-pr-merge, outcome-telemetry-and-effectiveness-metrics, pendev-ui-design-phase, pnpm-release-resume, release-bypass-retirement, release-script-self-provisions-its-own-session-marker, rules-cascade-v1
+- `src/release/__tests__/preflight.test.ts` — imports files owned by FDs missing from @tests: tag — add: autonomous-plan-to-pr-merge, outcome-telemetry-and-effectiveness-metrics, pendev-ui-design-phase, pnpm-release-resume, release-bypass-retirement, release-script-self-provisions-its-own-session-marker, rules-cascade-v1, test-suites-read-live-repo-state-shifting-full-suite-failures
 - `src/release/__tests__/release-commits.test.ts` — imports files owned by FDs missing from @tests: tag — add: dynamic-fd-changelog
+- `src/release/__tests__/run-command.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-sweep-process-hardening
 - `src/release/__tests__/ui-design-freshness.test.ts` — imports files owned by FDs missing from @tests: tag — add: de-superpowers-vendor-spec-plan-and-worktree-flows, release-sweep-process-hardening
 - `src/triage/__tests__/remove-block-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor
 - `src/triage/__tests__/has-block.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor

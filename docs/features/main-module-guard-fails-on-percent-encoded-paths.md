@@ -16,6 +16,7 @@ phase: done
 since: 2026-08-14T00:00:00.000Z
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 42 module entrypoints decided whether to run their CLI body by comparing `import.meta.url` to a hand-built string, in four spellings. 35 of them used a `` `file://${process.argv[1]}` `` template, which is false whenever the repository path needs percent-encoding — one space in a directory name is enough — so the module was imported, ran nothing, and exited 0 with no diagnostic. The CLI router rewrites `process.argv[1]` to the dispatched module's path before importing it, so those guards were live: eight were `src/hooks/` gates and six more were validators, meaning on such a checkout the framework reported success precisely when it had checked nothing.
@@ -55,3 +56,15 @@ No new command surface — existing behaviour becomes correct where it was silen
 <!-- @prs-since-last-release: main-module-guard-fails-on-percent-encoded-paths -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Code:**
+  - [`src/core/cli-entry.ts`](../../src/core/cli-entry.ts)
+- **Tests:**
+  - [`src/core/__tests__/cli-entry.test.ts`](../../src/core/__tests__/cli-entry.test.ts)
+  - [`src/core/__tests__/entrypoint-guard-spaced-path.test.ts`](../../src/core/__tests__/entrypoint-guard-spaced-path.test.ts)
+
+<!-- /generated: resources -->
