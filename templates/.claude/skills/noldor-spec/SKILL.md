@@ -81,6 +81,12 @@ Turn an idea into a reviewed design document through collaborative dialogue. No 
 
    Cover architecture, units (one purpose each, clear interfaces, independently testable), data flow, error handling, testing. YAGNI ruthlessly.
 6. **Finish the spec.** The file already exists from step 2.5; bring it fully in line with the `pnpm noldor prep format spec` contract and make sure every confirmed section still reads the way the operator approved it.
+6.5. **Decision records — ask before the spec is reviewed, not after it is archived.** Read back the finished spec and list every decision that **closed a named alternative for a reason that outlives this feature** — a boundary, a data model, an enforcement posture, a dependency declined. Step 4's approaches comparison is the usual source, but `## Design` H3 units and the open-questions answers carry them too. A choice with no rejected alternative, or one the code will state plainly, is not on the list.
+
+   Present the list (usually zero to two entries; more than two means the spec bundles concerns) with a one-line "what this rules out" for each, and ask the operator which deserve a record — `pnpm noldor docs adr --check`'s contract and the append-only push gate are described in [`docs/noldor/doc-conventions.md`](../../../docs/noldor/doc-conventions.md). For each confirmed entry run `pnpm noldor adr new <slug>`, fill `Context` / `Decision` / `Consequences` from the spec's own prose, link the record from the spec section it came from, and commit it as its own `docs(adr): <title>` commit on the branch.
+
+   **Zero is the common and correct answer** — most specs decide nothing that outlives them, and a record per feature would make the folder unreadable, which is worse than an empty one. Ask anyway, every time: the spec is archived at gate Step 4 and rewritten by the next enhancement, so this is the last moment the reasoning exists anywhere durable. Never write a record for a decision the operator did not confirm — the surface is append-only, so a wrong record can only be superseded, never withdrawn.
+
 7. **Self-review, fix inline:** placeholder scan (TBD/TODO/vague requirements), internal contradictions, scope (single implementation plan's worth?), ambiguity (a requirement readable two ways → pick one, state it).
 8. **Report the artifact link and stop.** Re-link the spec in every later prompt or summary that references it. The gate owns what happens next (Step 2.5: lint → commit → CR lanes → continue dialog). Do not chain into planning or implementation.
 
