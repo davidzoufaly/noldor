@@ -28,6 +28,16 @@ Noldor-Path: fast-track
 - Unknown slugs and malformed tokens fail the commit, same as subject scopes.
 - Page changelog derivation (`pnpm noldor changelog`) reads the trailer, so sibling pages keep their history.
 - Never auto-injected — add it deliberately; the `noldor-scope` failure message prints the exact trailer line to add.
+- **A combined `/noldor-triage` + `/noldor-absorb` batch needs this trailer, every time.** Triage writes `docs/roadmap.md` + `ideas.md`; absorb writes `docs/noldor/*.md` and their `templates/docs/noldor/` twins. One batch, one commit — and `validate noldor-scope` then refuses `docs(triage)` on a diff touching `docs/noldor/`, demanding `docs(noldor)` or a sibling trailer. The diff is mixed (the roadmap/ideas edits sit outside `docs/noldor/`), so the trailer is honored; name every absorbed page:
+
+  ```
+  docs(triage): triage 8 ideas, absorb 5 lessons
+
+  Noldor-Sibling-Scope: noldor:cr-pipeline, noldor:gotchas
+  Noldor-Path: micro-chore
+  ```
+
+  This is the normal shape of a triage batch, not an edge case — it landed that way as PR #450 and again as PR #455, each costing a rejected commit and a retry.
 
 ## Integration — direct-to-main or PR flow
 

@@ -277,6 +277,25 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 - **Waive the UI-design step only after a wake attempt.** A closed editor and
   an absent editor look identical from Node, and recording `uiWaiver` for the
   first one buys permanent baseline debt for a fixable five-second problem.
+- **Exactly ONE VS Code window owns the pencil socket, and a `.pen` open in any
+  other window is invisible to the MCP.** `~/.pencil/socket/pencil-<app>.sock`
+  is a single global file; one extension host holds the listener. The server
+  asks *that* window, which truthfully answers `A file needs to be open in the
+  editor` — true from where it stands, and maximally misleading to an operator
+  looking straight at a rendered canvas in a different window. The misdirection
+  is total: a direct stdio probe of the server binary returns the same error, so
+  the usual triage step ("probe the binary to tell a broken bridge from a broken
+  Claude Code connection") reports a healthy bridge as broken. `design
+  pen-bridge` cannot help — it exits 0 printing `open requested`, and its
+  `code -r` reuses the LAST-ACTIVE window, which is usually not the owner. With
+  several windows open, find the owner before anything else:
+  `lsof -U | grep pencil` names the listening pid. One session was lost to this
+  with six windows open (2026-09-16). Two adjacent papercuts ride along:
+  `checks pen-bridge` calls a `visual_studio_code` pin an ERROR and tells you to
+  set `--app desktop` — wrong advice for a working VS Code setup, already
+  documented above as "do not follow it"; and the extension rewrites the MCP
+  server binary on self-update, killing an already-connected stdio server so the
+  tools vanish mid-session with no diagnostic.
 
 ## Release & publish
 
