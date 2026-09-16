@@ -1,5 +1,5 @@
 {
-  "duplicatedTokens": 25875,
+  "duplicatedTokens": 25908,
   "perFile": {
     "src/autonomous/drain-io.ts": 154,
     "src/autonomous/drain-loop.ts": 108,
@@ -69,7 +69,7 @@
     "src/features/phase-revert-cli.ts": 266,
     "src/features/validate-features.ts": 780,
     "src/garden/backlog-demote.ts": 51,
-    "src/garden/detectors/allowlist-drift.ts": 215,
+    "src/garden/detectors/allowlist-drift.ts": 230,
     "src/garden/detectors/bootstrap-override-audit.ts": 123,
     "src/garden/detectors/fd-command-rot.ts": 64,
     "src/garden/detectors/fd-link-rot.ts": 64,
@@ -79,7 +79,7 @@
     "src/garden/detectors/plan-without-fd.ts": 71,
     "src/garden/detectors/skill-code-drift.ts": 67,
     "src/garden/detectors/tier-mismatch.ts": 94,
-    "src/garden/detectors/trailer-scope-mismatch.ts": 210,
+    "src/garden/detectors/trailer-scope-mismatch.ts": 228,
     "src/garden/garden-detect.ts": 292,
     "src/garden/garden-receipt.ts": 156,
     "src/garden/sdd-report.ts": 685,
@@ -123,10 +123,10 @@
     "src/worktrees/worktree-conflicts.ts": 284,
     "src/worktrees/worktree-status.ts": 284
   },
-  "duplicationPct": 7.8950499943552295,
-  "totalTokens": 327737,
+  "duplicationPct": 7.882438846294268,
+  "totalTokens": 328680,
   "groups": 232,
-  "filesScanned": 421,
+  "filesScanned": 423,
   "options": {
     "minTokens": 50,
     "minLines": 5,
@@ -134,5 +134,5 @@
     "includeTests": false,
     "noisePolicy": 1
   },
-  "recordedAt": "2026-09-15T21:36:57.092Z"
+  "recordedAt": "2026-09-16T18:56:57.178Z"
 }
