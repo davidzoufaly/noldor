@@ -65,18 +65,18 @@ function commit(cwd: string, file: string, body: string, trailers: string[]): st
 // ---------------------------------------------------------------------------
 
 describe('release-cr-gate e2e', () => {
-  it('passes on a single review receipt (tree value not re-checked)', () => {
+  it('passes on a single review receipt (tree value not re-checked)', async () => {
     const cwd = initRepo();
     const base = tagBase(cwd);
 
     commit(cwd, 'src/a.ts', 'feat: add feature', ['Noldor-Reviewed-Subagent: <tree>']);
 
-    const r = checkCrGate({ from: base, to: 'HEAD', cwd });
+    const r = await checkCrGate({ from: base, to: 'HEAD', cwd });
     expect(r.ok).toBe(true);
     expect(r.offenders).toHaveLength(0);
   });
 
-  it('passes when the receipt sits mid-body under a Co-authored-by tail (squash shape)', () => {
+  it('passes when the receipt sits mid-body under a Co-authored-by tail (squash shape)', async () => {
     const cwd = initRepo();
     const base = tagBase(cwd);
 
@@ -96,23 +96,23 @@ describe('release-cr-gate e2e', () => {
     ].join('\n');
     commit(cwd, 'src/b.ts', body, []);
 
-    const r = checkCrGate({ from: base, to: 'HEAD', cwd });
+    const r = await checkCrGate({ from: base, to: 'HEAD', cwd });
     expect(r.ok).toBe(true);
   });
 
-  it('skips doc-only commits', () => {
+  it('skips doc-only commits', async () => {
     const cwd = initRepo();
     const base = tagBase(cwd);
 
     // docs/foo.md matches the MICRO_CHORE_GLOBS allowlist — no trailers needed
     commit(cwd, 'docs/foo.md', 'docs: update readme', []);
 
-    const r = checkCrGate({ from: base, to: 'HEAD', cwd });
+    const r = await checkCrGate({ from: base, to: 'HEAD', cwd });
     expect(r.ok).toBe(true);
     expect(r.offenders).toHaveLength(0);
   });
 
-  it('fails when no review evidence exists on a code-touching commit', () => {
+  it('fails when no review evidence exists on a code-touching commit', async () => {
     const cwd = initRepo();
     const base = tagBase(cwd);
 
@@ -120,7 +120,7 @@ describe('release-cr-gate e2e', () => {
       // no receipt, no override
     ]);
 
-    const r = checkCrGate({ from: base, to: 'HEAD', cwd });
+    const r = await checkCrGate({ from: base, to: 'HEAD', cwd });
     expect(r.ok).toBe(false);
     expect(r.offenders).toHaveLength(1);
     expect(r.offenders[0].sha).toBe(sha);

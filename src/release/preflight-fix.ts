@@ -4,18 +4,15 @@
 // it cannot destroy operator state: nothing commits, nothing regenerates the
 // graph, nothing touches a dirty tree, and no live gate session is deleted.
 // Every other blocking row carries a `fix` line the operator runs by hand.
-import { execFile } from 'node:child_process';
 import { existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
 import { loadConfigSync, resolveSessionTtlHours } from '../core/config.js';
 import { isSessionStale, readSession } from '../core/session.js';
 import { autoStampOnCleanDetect } from './auto-restamp.js';
 import { inspectTreeState } from './clean-tree.js';
+import { defaultRunCommand, runOrThrow, type RunCommand } from './run-command.js';
 import type { PreflightRowId } from './preflight-types.js';
-
-const execFileP = promisify(execFile);
 
 /**
  * Ordered: ref-moving fixes first, so later pass-1 evaluations see the
@@ -36,6 +33,12 @@ export const SAFE_FIXES: readonly PreflightRowId[] = [
  * the two could disagree about staleness — and the row that promised "--fix will
  * NOT remove a live marker" would remove it anyway.
  *
+ * `run` is the same spawn seam the probes were given, and it is threaded for
+ * the same reason: `fixOriginSync` re-reads `inspectTreeState`, which fetches.
+ * Injecting the runner into the probe pass while leaving the fix pass spawning
+ * for real would leave a test that passes `fixes: ['origin-sync']` reaching the
+ * network — the fix pass is where the remaining `git fetch` would have lived.
+ *
  * @returns a one-line description of what was done, or `null` when the guard
  *   declined (the row then stays blocking and its `fix` line stands).
  */
@@ -43,12 +46,13 @@ export async function applyFix(
   id: PreflightRowId,
   cwd: string,
   nowMs: number,
+  run: RunCommand = defaultRunCommand,
 ): Promise<string | null> {
   switch (id) {
     case 'session-marker':
       return fixSessionMarker(cwd, nowMs);
     case 'origin-sync':
-      return fixOriginSync(cwd);
+      return fixOriginSync(cwd, run);
     case 'garden-receipt':
       return fixGardenReceipt(cwd);
     default:
@@ -82,11 +86,14 @@ function fixSessionMarker(cwd: string, nowMs: number): string | null {
  * the tree is clean. A diverged history needs a human; a dirty tree must never
  * be moved under the operator's feet.
  */
-async function fixOriginSync(cwd: string): Promise<string | null> {
-  const { branch, dirty, ahead, behind, remoteMissing } = await inspectTreeState(cwd);
+async function fixOriginSync(cwd: string, run: RunCommand): Promise<string | null> {
+  const { branch, dirty, ahead, behind, remoteMissing } = await inspectTreeState(cwd, run);
   if (remoteMissing) return null;
   if (branch !== 'main' || dirty.length > 0 || ahead > 0 || behind === 0) return null;
-  await execFileP('git', ['merge', '--ff-only', 'origin/main'], { cwd });
+  // Throws on a non-zero exit, as `execFileP` did. A fast-forward that failed
+  // but reported success would have `runPreflight` log "fast-forwarded main"
+  // over a tree that never moved, and pass 2 would then contradict the log.
+  await runOrThrow(run, 'git', ['merge', '--ff-only', 'origin/main'], { cwd });
   return `fast-forwarded main ${behind} commit(s) onto origin/main`;
 }
 

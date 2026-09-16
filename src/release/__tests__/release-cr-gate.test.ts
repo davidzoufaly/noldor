@@ -1,6 +1,7 @@
 // @tests: noldor
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { checkCrGate } from '../release-cr-gate.js';
+import type { RunCommand } from '../run-command.js';
 
 interface Commit {
   sha: string;
@@ -9,9 +10,18 @@ interface Commit {
   paths: string[];
 }
 
-function makeGitFake(commits: Commit[]) {
+/**
+ * Scripted git, as a {@link RunCommand} so it plugs into the same seam the
+ * `cr-gate` probe hands down — one fake shape for the whole release module
+ * rather than a bespoke synchronous one only this file can drive.
+ *
+ * Unmocked args throw rather than answering an empty string: the gate reads
+ * "no commits in range" as a clean pass, so a fake that quietly answered
+ * nothing would turn every one of these cases green regardless of its trailers.
+ */
+function makeGitFake(commits: Commit[]): RunCommand {
   const bySha = new Map(commits.map((c) => [c.sha, c]));
-  return vi.fn((args: string[]): string => {
+  const answer = (args: string[]): string => {
     if (args[0] === 'rev-list')
       return commits
         .map((c) => c.sha)
@@ -26,7 +36,8 @@ function makeGitFake(commits: Commit[]) {
       return bySha.get(sha)!.tree;
     }
     throw new Error(`unmocked git args: ${args.join(' ')}`);
-  });
+  };
+  return (_cmd, args) => Promise.resolve({ code: 0, stdout: answer(args), stderr: '' });
 }
 
 const trailers = (...lines: string[]) => '\n\n' + lines.join('\n') + '\n';
@@ -55,7 +66,7 @@ const squashBody = (receiptLine: string) =>
   ].join('\n');
 
 describe('checkCrGate', () => {
-  it('passes on a legacy Noldor-Reviewed trailer', () => {
+  it('passes on a legacy Noldor-Reviewed trailer', async () => {
     const commits: Commit[] = [
       {
         sha: 's1',
@@ -64,11 +75,11 @@ describe('checkCrGate', () => {
         paths: ['src/a.ts'],
       },
     ];
-    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(true);
   });
 
-  it('passes on a subagent receipt embedded mid-body in a squash message', () => {
+  it('passes on a subagent receipt embedded mid-body in a squash message', async () => {
     const commits: Commit[] = [
       {
         sha: 's1',
@@ -77,11 +88,11 @@ describe('checkCrGate', () => {
         paths: ['src/a.ts'],
       },
     ];
-    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(true);
   });
 
-  it('rejects a squash message whose embedded trailers carry no receipt', () => {
+  it('rejects a squash message whose embedded trailers carry no receipt', async () => {
     const commits: Commit[] = [
       {
         sha: 's1',
@@ -90,20 +101,20 @@ describe('checkCrGate', () => {
         paths: ['src/a.ts'],
       },
     ];
-    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(false);
     expect(r.offenders).toEqual([{ sha: 's1', subject: 'feat(core): thing (#42)' }]);
   });
 
-  it('skips doc-only commits (allowlist match)', () => {
+  it('skips doc-only commits (allowlist match)', async () => {
     const commits: Commit[] = [
       { sha: 's1', tree: 't1', message: 'docs: x', paths: ['docs/foo.md'] },
     ];
-    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(true);
   });
 
-  it('skips release-automation commits', () => {
+  it('skips release-automation commits', async () => {
     const commits: Commit[] = [
       {
         sha: 's1',
@@ -112,11 +123,11 @@ describe('checkCrGate', () => {
         paths: ['package.json'],
       },
     ];
-    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(true);
   });
 
-  it('skips release-sweep commits', () => {
+  it('skips release-sweep commits', async () => {
     const commits: Commit[] = [
       {
         sha: 's1',
@@ -125,11 +136,11 @@ describe('checkCrGate', () => {
         paths: ['graphify-out/graph.json'],
       },
     ];
-    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(true);
   });
 
-  it('does NOT exempt a mixed squash where only one embedded path is release-sweep', () => {
+  it('does NOT exempt a mixed squash where only one embedded path is release-sweep', async () => {
     const commits: Commit[] = [
       {
         sha: 's1',
@@ -139,7 +150,7 @@ describe('checkCrGate', () => {
         paths: ['src/a.ts'],
       },
     ];
-    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(false);
     expect(r.offenders[0].sha).toBe('s1');
   });
@@ -150,7 +161,7 @@ describe('checkCrGate', () => {
   // to the file allowlist — where `ideas.md` is micro-chore-only and
   // `graphify-out/**` is sweep-only, so neither lane covers the diff and the
   // gate reddened over a diff carrying zero code.
-  it('skips a sweep squash whose diff mixes micro-chore and sweep bookkeeping', () => {
+  it('skips a sweep squash whose diff mixes micro-chore and sweep bookkeeping', async () => {
     const commits: Commit[] = [
       {
         sha: 's1',
@@ -161,12 +172,12 @@ describe('checkCrGate', () => {
         paths: ['ideas.md', 'graphify-out/graph.json', 'docs/sdd-report.md'],
       },
     ];
-    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(true);
     expect(r.offenders).toEqual([]);
   });
 
-  it('rejects a code-touching commit with no receipt and no override', () => {
+  it('rejects a code-touching commit with no receipt and no override', async () => {
     const commits: Commit[] = [
       {
         sha: 's1',
@@ -175,13 +186,13 @@ describe('checkCrGate', () => {
         paths: ['src/a.ts'],
       },
     ];
-    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(false);
     expect(r.offenders).toEqual([{ sha: 's1', subject: 'feat: x' }]);
     expect(r.reason).toContain('no review receipt or override');
   });
 
-  it('accepts override trailers in lieu of reviews', () => {
+  it('accepts override trailers in lieu of reviews', async () => {
     const commits: Commit[] = [
       {
         sha: 's1',
@@ -190,11 +201,11 @@ describe('checkCrGate', () => {
         paths: ['src/a.ts'],
       },
     ];
-    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(true);
   });
 
-  it('rejects empty-valued receipts and overrides', () => {
+  it('rejects empty-valued receipts and overrides', async () => {
     const commits: Commit[] = [
       {
         sha: 's1',
@@ -203,7 +214,7 @@ describe('checkCrGate', () => {
         paths: ['src/a.ts'],
       },
     ];
-    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(false);
   });
 });
@@ -217,12 +228,12 @@ describe('checkCrGate exemptions (release.crGateExemptCommits)', () => {
     paths: ['.github/workflows/verify.yml'],
   };
 
-  it('skips a commit whose full SHA starts with an exemption prefix and reports it', () => {
-    const r = checkCrGate({
+  it('skips a commit whose full SHA starts with an exemption prefix and reports it', async () => {
+    const r = await checkCrGate({
       from: 'v0',
       to: 'HEAD',
       cwd: '/tmp',
-      runGit: makeGitFake([bareCommit]),
+      run: makeGitFake([bareCommit]),
       exemptions: [{ sha: '19a74a10e8', reason: 'pre-rollout-marker CI chore (#117)' }],
     });
     expect(r.ok).toBe(true);
@@ -236,12 +247,12 @@ describe('checkCrGate exemptions (release.crGateExemptCommits)', () => {
     ]);
   });
 
-  it('still fails when no exemption matches (gate not weakened)', () => {
-    const r = checkCrGate({
+  it('still fails when no exemption matches (gate not weakened)', async () => {
+    const r = await checkCrGate({
       from: 'v0',
       to: 'HEAD',
       cwd: '/tmp',
-      runGit: makeGitFake([bareCommit]),
+      run: makeGitFake([bareCommit]),
       exemptions: [{ sha: 'aaaaaaaa', reason: 'unrelated entry' }],
     });
     expect(r.ok).toBe(false);
@@ -249,18 +260,18 @@ describe('checkCrGate exemptions (release.crGateExemptCommits)', () => {
     expect(r.exempted).toEqual([]);
   });
 
-  it('does not launder other offenders in the same range', () => {
+  it('does not launder other offenders in the same range', async () => {
     const other: Commit = {
       sha: 'faceb00cfaceb00cfaceb00cfaceb00cfaceb00c',
       tree: 't2',
       message: 'feat: bare' + trailers('Noldor-Path: fast-track'),
       paths: ['src/a.ts'],
     };
-    const r = checkCrGate({
+    const r = await checkCrGate({
       from: 'v0',
       to: 'HEAD',
       cwd: '/tmp',
-      runGit: makeGitFake([bareCommit, other]),
+      run: makeGitFake([bareCommit, other]),
       exemptions: [{ sha: '19a74a10e8', reason: 'pre-rollout-marker CI chore (#117)' }],
     });
     expect(r.ok).toBe(false);
@@ -270,12 +281,12 @@ describe('checkCrGate exemptions (release.crGateExemptCommits)', () => {
     expect(r.exempted).toHaveLength(1);
   });
 
-  it('returns exempted: [] when no exemptions are configured', () => {
-    const r = checkCrGate({
+  it('returns exempted: [] when no exemptions are configured', async () => {
+    const r = await checkCrGate({
       from: 'v0',
       to: 'HEAD',
       cwd: '/tmp',
-      runGit: makeGitFake([bareCommit]),
+      run: makeGitFake([bareCommit]),
     });
     expect(r.ok).toBe(false);
     expect(r.exempted).toEqual([]);

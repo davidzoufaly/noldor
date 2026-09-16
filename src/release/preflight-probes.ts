@@ -71,7 +71,12 @@ export interface ProbeContext {
   cwd: string;
   scanPaths: string[];
   nowMs: number;
-  /** Memoized `inspectTreeState` — three rows read it, and it runs a `git fetch`. */
+  /**
+   * Memoized `inspectTreeState` — three rows read it, and it runs a `git fetch`.
+   * That fetch goes through {@link ProbeContext.runCommand} like every other
+   * command, so the memoization bounds how often a pass repeats it and the seam
+   * bounds whether it leaves the process at all.
+   */
   treeState: () => Promise<TreeState>;
   /** Memoized `findPreviousTag` — `cr-gate` and `npm-name` both need it. */
   previousTag: () => Promise<string>;
@@ -100,19 +105,46 @@ export function makeProbeContext(base: {
   let tree: Promise<TreeState> | null = null;
   let tag: Promise<string> | null = null;
   let cfg: { v: NoldorConfig | null } | null = null;
+  // Wrapped, not merely defaulted: `RunCommand`'s "resolves rather than
+  // rejects" contract cannot be typed (`Promise<never>` satisfies any promise
+  // type), so a hand-written fake that throws would otherwise crash the probe
+  // into runProbe's generic catch instead of the row the probe meant.
+  //
+  // Bound to a local so the memoized git lookups below get the SAME normalized
+  // runner the probes get. Reading `base.runCommand` there would hand them the
+  // raw fake, undoing the wrap for exactly the calls that spawn git.
+  const runCommand = normalizeRunner(base.runCommand ?? defaultRunCommand);
   return {
     ...base,
-    // Wrapped, not merely defaulted: `RunCommand`'s "resolves rather than
-    // rejects" contract cannot be typed (`Promise<never>` satisfies any promise
-    // type), so a hand-written fake that throws would otherwise crash the probe
-    // into runProbe's generic catch instead of the row the probe meant.
-    runCommand: normalizeRunner(base.runCommand ?? defaultRunCommand),
+    runCommand,
     budgetMs: base.budgetMs ?? PROBE_TIMEOUT_MS,
     // Both take the context's cwd, not process.cwd(): a probe must evaluate the
     // repo it was handed, or a fixture-backed test silently asserts against the
-    // developer's own working tree.
-    treeState: () => (tree ??= inspectTreeState(base.cwd)),
-    previousTag: () => (tag ??= findPreviousTag(base.cwd)),
+    // developer's own working tree. They take its runner for the same reason
+    // one rung up — `inspectTreeState` spawns `git fetch`, so a context that
+    // kept its own spawn would put unbounded network I/O behind every probe
+    // pass however carefully the caller injected a fake.
+    //
+    // These two are the ONE exception to `runProbe`'s deadline, and the
+    // exception is structural rather than an oversight. `runProbe` scopes a
+    // fresh abort signal per probe by replacing `runCommand` on a spread copy;
+    // these closures captured `runCommand` when the context was built, and they
+    // are memoized ACROSS probes precisely so `git fetch` runs once per pass
+    // instead of three times. A value three probes share cannot carry any one
+    // probe's deadline. So `git fetch origin main` and `git describe` run
+    // unbounded: the probe still returns its timeout row on budget, but the git
+    // child outlives it.
+    //
+    // Giving them a context-level deadline instead is the obvious fix and is
+    // WRONG as the code stands, which is why it is written down rather than
+    // done. `findPreviousTag` maps every non-zero exit to `v0.0.0`, so an
+    // aborted `git describe` would become "no previous tag" and the `cr-gate`
+    // row would report `skipped` — a release shipping unaudited because a probe
+    // was slow. Bounding these needs `RunResult` to distinguish an abort from a
+    // command that ran and failed; until it does, unbounded-and-stated beats
+    // bounded-and-silently-green.
+    treeState: () => (tree ??= inspectTreeState(base.cwd, runCommand)),
+    previousTag: () => (tag ??= findPreviousTag(base.cwd, runCommand)),
     // Explicit path: loadConfigSync's default is RELATIVE, so a bare call would
     // resolve against process.cwd() instead of the repo we were handed.
     config: () => (cfg ??= { v: loadConfigSync(join(base.cwd, '.noldor/config.json')) }).v,
@@ -263,10 +295,16 @@ export async function runProbe(id: PreflightRowId, ctx: ProbeContext): Promise<P
 async function runCli(ctx: ProbeContext, args: string[]): Promise<{ code: number; out: string }> {
   const [cmd, cmdArgs] = noldorCliCommand(args);
   // No deadline is passed here on purpose: `runProbe` scopes `ctx.runCommand` so
-  // every command it issues already carries the probe's abort signal. That is
-  // what kills the child when the budget expires — without it a hung CLI would
-  // outlive the probe and the sdd-report probe would never reach its tmpdir
-  // cleanup.
+  // every command a probe issues THROUGH IT already carries the probe's abort
+  // signal. That is what kills the child when the budget expires — without it a
+  // hung CLI would outlive the probe and the sdd-report probe would never reach
+  // its tmpdir cleanup.
+  //
+  // "Through it" is the whole claim: `makeProbeContext`'s memoized `treeState`
+  // and `previousTag` closed over the unscoped runner before `runProbe` existed
+  // to wrap it, so those two git spawns are outside this guarantee. See the
+  // comment on those closures for why bounding them needs a change to
+  // `RunResult` first.
   const { code, stdout, stderr } = await ctx.runCommand(cmd, cmdArgs, { cwd: ctx.cwd });
   return { code, out: `${stdout}${stderr}`.trim() };
 }
@@ -751,10 +789,11 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     if (previousTag === 'v0.0.0') {
       return { id: 'cr-gate', status: 'skipped', detail: 'no previous tag — first release' };
     }
-    const result = checkCrGate({
+    const result = await checkCrGate({
       from: previousTag,
       to: 'HEAD',
       cwd: ctx.cwd,
+      run: ctx.runCommand,
       exemptions: ctx.config()?.release?.crGateExemptCommits ?? [],
     });
     if (result.ok) {

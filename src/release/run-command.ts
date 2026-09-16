@@ -93,6 +93,37 @@ export const defaultRunCommand: RunCommand = async (cmd, args, opts) => {
 };
 
 /**
+ * Run a command through the seam and THROW when it exits non-zero.
+ *
+ * The seam resolves every outcome — that is exactly what lets the `npm-name`
+ * probe read an unpublished package name out of `stderr`. The git callers
+ * routed through here came from `execFile` / `execFileSync`, which reject
+ * instead, and that difference is load-bearing rather than stylistic: a failed
+ * `git rev-list` resolving to empty stdout turns "the range could not be read"
+ * into "no commits in range", which the CR gate then reports as a clean pass.
+ * Resolve-everywhere is right for a probe that reads its answer out of a
+ * failure; it is wrong for a command whose failure carries no answer at all.
+ *
+ * Returns the whole {@link RunResult} rather than just stdout, because the two
+ * callers disagree about `stderr`: `inspectTreeState` forwards git's fetch
+ * progress to the process, the CR gate discards it. A flag for that would be
+ * one knob serving one caller.
+ */
+export async function runOrThrow(
+  run: RunCommand,
+  cmd: string,
+  args: string[],
+  opts?: RunOptions,
+): Promise<RunResult> {
+  const result = await run(cmd, args, opts);
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || result.stdout.trim() || 'no output';
+    throw new Error(`${cmd} ${args.join(' ')} failed (exit ${result.code}): ${detail}`);
+  }
+  return result;
+}
+
+/**
  * Wrap a runner so a rejection becomes a {@link RunResult} whatever it was
  * handed. This is the enforcement point for "resolves rather than rejects":
  * without it a hand-written fake that throws crashes the probe into
