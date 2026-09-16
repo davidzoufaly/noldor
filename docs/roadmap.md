@@ -52,18 +52,6 @@ Running the test suite silently changes `docs/sdd-report.md`, so a release that 
 
 The `ui-design-freshness` gate prints a remedy no lane can land. Its fix line reads "declare `consumer.uiCapture` for the surface if it has none, run `pnpm noldor design capture --surface app`, then commit the baseline and its receipt" — but `.noldor/config.json` is absent from `MICRO_CHORE_GLOBS`, `RELEASE_SWEEP_GLOBS` and `CODE_GLOBS` alike, so the declaration cannot ride the micro-chore or sweep lanes, and on a code lane a config edit with no behaviour drags in a review receipt. The allowlist already carves out `.noldor/id-counter.json`, `.noldor/retired-entry-ids.json` and `.noldor/rollout-marker` as framework bookkeeping the gate itself writes; a `consumer.uiCapture` declaration the gate is *asking for by name* is the same class. The failure is quiet, too: with no command declared, `design capture --vouch-only` still stamps a receipt reading `(no capture command declared) (vouched by hand, not re-run)`, so the surface looks captured while nothing has ever run. Wanted: `.noldor/config.json` on the micro-chore list, or a `noldor design declare-capture --surface <s> --command <cmd>` that writes it as bookkeeping. Deletion test: the remedy the gate prints can be executed and committed without an override. (found 2026-09-15 releasing charuy v0.7.0)
 
-### gate-compliance Has No Exempt List or Since Floor
-
-- id: Q-0242
-- area: tooling
-- type: fix
-- since: 2026-09-16
-- size: S
-- impact: high
-- confidence: med
-
-`gate-compliance` reports rows that name already-merged commits and offers no way to accept them. charuy's preflight lists 29 `trailerScopeMismatch` and 2 `allowlistDrift` rows, every one naming a squash commit on `main` — `scope-missing-fd-slug` where `feat(scene): …` was judged against FD `an-outside-writers-edit-is-still-indistinguishable-from-any-other`, and two framework-upgrade commits that touched `.noldor/config.json` before anything allowlisted it. None is fixable without rewriting published history, and unlike `cr-gate`'s `release.crGateExemptCommits` there is no config escape — so the only exit is `RELEASE_SKIP_GATE_COMPLIANCE`, which the sweep skill itself calls break-glass only and logs to `.noldor/overrides.log`. A gate whose sole remedy is the break-glass var trains operators to reach for the break-glass var. The scope rule is also near-unsatisfiable as written: a conventional-commit scope is one short token and an FD slug is a sentence, so `scope-missing-fd-slug` fires on almost every well-formed commit. Wanted: a `release.gateComplianceExemptCommits` twin of the CR-gate list, or a `since:` floor so the audit only judges commits after the consumer adopted the rule. Deletion test: a consumer clears gate-compliance by recording decisions in committed config, the way it clears cr-gate. (found 2026-09-15 releasing charuy v0.7.0)
-
 ### Full-Suite Flake: route-sweep and sdd-report Still Unexplained
 
 - id: Q-0238

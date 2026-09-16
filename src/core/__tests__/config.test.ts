@@ -301,6 +301,39 @@ describe('release.crGateExemptCommits block', () => {
   });
 });
 
+describe('release.gateCompliance* block', () => {
+  it('parses an exemption list and a since floor', () => {
+    const parsed = noldorConfigSchema.parse({
+      release: {
+        gateComplianceExemptCommits: [
+          { sha: 'abc1234def', reason: 'squashed on main before the scope rule' },
+        ],
+        gateComplianceSince: 'fedcba9876',
+      },
+    });
+    expect(parsed.release?.gateComplianceExemptCommits).toHaveLength(1);
+    expect(parsed.release?.gateComplianceExemptCommits[0]?.reason).toBe(
+      'squashed on main before the scope rule',
+    );
+    expect(parsed.release?.gateComplianceSince).toBe('fedcba9876');
+  });
+
+  it('defaults the exemption list to [] and leaves the since floor unset', () => {
+    const parsed = noldorConfigSchema.parse({ release: {} });
+    expect(parsed.release?.gateComplianceExemptCommits).toEqual([]);
+    expect(parsed.release?.gateComplianceSince).toBeUndefined();
+  });
+
+  it('rejects a since floor that is not a 7-40 char hex prefix', () => {
+    expect(() =>
+      noldorConfigSchema.parse({ release: { gateComplianceSince: 'abc123' } }),
+    ).toThrow();
+    expect(() =>
+      noldorConfigSchema.parse({ release: { gateComplianceSince: 'v1.10.0' } }),
+    ).toThrow();
+  });
+});
+
 describe('release.publish block', () => {
   it('defaults enabled=false, public npm registry, latest dist-tag', () => {
     const parsed = noldorConfigSchema.parse({ release: { publish: {} } });

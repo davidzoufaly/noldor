@@ -160,6 +160,33 @@ export type ReleasePublishConfig = z.infer<typeof releasePublishConfigSchema>;
 /** Release-enforcement tuning — the `release:` block of `.noldor/config.json`. */
 export const releaseConfigSchema = z.object({
   crGateExemptCommits: z.array(crGateExemptionSchema).default([]),
+  /**
+   * Per-SHA acknowledgments for the gate-compliance audit — the twin of
+   * {@link crGateExemptionSchema} for `garden detect --gate-compliance`.
+   *
+   * The audit judges commits that are already on `main`, so its findings are
+   * unfixable by construction: a `trailerScopeMismatch` on a squash commit can
+   * only be cleared by rewriting published history. Without this list the sole
+   * exit is `RELEASE_SKIP_GATE_COMPLIANCE`, a break-glass var the sweep skill
+   * logs to `.noldor/overrides.log` — so a gate whose only remedy is the
+   * break-glass var trains operators to reach for the break-glass var.
+   */
+  gateComplianceExemptCommits: z.array(crGateExemptionSchema).default([]),
+  /**
+   * Floor for the gate-compliance audit's commit scan: only commits reachable
+   * after this SHA are judged. Absent ⇒ the scan range is unchanged
+   * (`.noldor/rollout-marker`..HEAD, or all of HEAD with no marker).
+   *
+   * Distinct from the rollout marker, which `noldor init` stamps once at
+   * scaffold and never moves: a consumer that adopts a gate-compliance rule
+   * *later* has no way to say so, and every pre-adoption commit is reported
+   * forever. This is that statement. A hex prefix, min 7 chars, same as an
+   * exemption `sha` — resolved by git, so a tag or branch name is not accepted.
+   */
+  gateComplianceSince: z
+    .string()
+    .regex(/^[0-9a-f]{7,40}$/)
+    .optional(),
   publish: releasePublishConfigSchema.optional(),
 });
 

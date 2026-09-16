@@ -1,8 +1,12 @@
 import { execFileSync } from 'node:child_process';
 
 import { loadScopeAliases } from '../../core/consumer-config.js';
-import { readRolloutMarker } from '../../core/rollout-marker.js';
 import { parseTrailers } from '../../core/trailers.js';
+import {
+  gateComplianceRange,
+  isGateComplianceExempt,
+  loadGateComplianceScope,
+} from './gate-compliance-scope.js';
 
 const SUBJECT_RE = /^(?:\w+)(?:\((?<scope>[^)]+)\))?(?:!)?:/;
 
@@ -47,6 +51,9 @@ export interface TrailerScopeMismatchFinding {
  * that the Conventional Commit scope contains `:<slug>` (or equals the slug).
  * Flags any commit where the scope does not include the FD slug.
  *
+ * Commits below `release.gateComplianceSince` are outside the scan, and
+ * commits acknowledged by `release.gateComplianceExemptCommits` are skipped.
+ *
  * @param opts.cwd - Repository root.
  * @returns One TrailerScopeMismatchFinding per flagged commit.
  */
@@ -56,8 +63,8 @@ export async function detectTrailerScopeMismatch(opts: {
 }): Promise<TrailerScopeMismatchFinding[]> {
   const { cwd } = opts;
   const aliases = opts.scopeAliases ?? loadScopeAliases(cwd);
-  const marker = readRolloutMarker(cwd);
-  const range = marker ? [`${marker}..HEAD`] : ['HEAD'];
+  const gateScope = await loadGateComplianceScope(cwd);
+  const range = gateComplianceRange(cwd, gateScope.since);
   const rootShas = rootCommitShas(cwd);
 
   let raw: string;
@@ -85,6 +92,7 @@ export async function detectTrailerScopeMismatch(opts: {
     const sha = trimmed.slice(0, firstNull).trim();
     // Genesis import commits predate the gate flow — skip (see rootCommitShas).
     if (rootShas.has(sha)) continue;
+    if (isGateComplianceExempt(sha, gateScope.exemptions)) continue;
     const subject = trimmed.slice(firstNull + 1, secondNull).trim();
     const body = trimmed.slice(secondNull + 1);
 

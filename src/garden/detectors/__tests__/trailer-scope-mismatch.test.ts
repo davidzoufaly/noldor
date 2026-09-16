@@ -25,6 +25,12 @@ function addCommit(dir: string, msg: string): string {
   return r.stdout.trim();
 }
 
+/** Write a `.noldor/config.json` carrying only the `release:` block under test. */
+function writeConfig(dir: string, release: Record<string, unknown>): void {
+  mkdirSync(join(dir, '.noldor'), { recursive: true });
+  writeFileSync(join(dir, '.noldor', 'config.json'), JSON.stringify({ release }));
+}
+
 describe('detectTrailerScopeMismatch', () => {
   let repo: string;
 
@@ -178,5 +184,63 @@ describe('detectTrailerScopeMismatch', () => {
     });
     expect(findings).toHaveLength(1);
     expect(findings[0]!.scope).toBeNull();
+  });
+
+  describe('release.gateCompliance* scope', () => {
+    it('still flags a mismatch when an exemption names a different SHA', async () => {
+      const other = addCommit(repo, 'chore: genesis');
+      addCommit(repo, 'feat(other-feature): unrelated\n\nNoldor-FD: my-feature');
+      writeConfig(repo, {
+        gateComplianceExemptCommits: [{ sha: other.slice(0, 10), reason: 'x' }],
+      });
+
+      const findings = await detectTrailerScopeMismatch({ cwd: repo });
+      expect(findings).toHaveLength(1);
+      expect(findings[0]!.fdSlug).toBe('my-feature');
+    });
+
+    it('drops a mismatch acknowledged by release.gateComplianceExemptCommits', async () => {
+      addCommit(repo, 'chore: genesis');
+      const bad = addCommit(repo, 'feat(other-feature): unrelated\n\nNoldor-FD: my-feature');
+      writeConfig(repo, {
+        gateComplianceExemptCommits: [{ sha: bad.slice(0, 10), reason: 'squashed on main' }],
+      });
+
+      const findings = await detectTrailerScopeMismatch({ cwd: repo });
+      expect(findings).toHaveLength(0);
+    });
+
+    it('still flags a mismatch committed after the since floor', async () => {
+      addCommit(repo, 'chore: genesis');
+      const floor = addCommit(repo, 'chore: adopt the rule');
+      addCommit(repo, 'feat(late-scope): after adoption\n\nNoldor-FD: my-feature');
+      writeConfig(repo, { gateComplianceSince: floor.slice(0, 10) });
+
+      const findings = await detectTrailerScopeMismatch({ cwd: repo });
+      expect(findings).toHaveLength(1);
+      expect(findings[0]!.scope).toBe('late-scope');
+    });
+
+    it('drops a mismatch below release.gateComplianceSince', async () => {
+      addCommit(repo, 'chore: genesis');
+      addCommit(repo, 'feat(early-scope): before adoption\n\nNoldor-FD: my-feature');
+      const floor = addCommit(repo, 'chore: adopt the rule');
+      writeConfig(repo, { gateComplianceSince: floor.slice(0, 10) });
+
+      const findings = await detectTrailerScopeMismatch({ cwd: repo });
+      expect(findings).toHaveLength(0);
+    });
+
+    it('prefers the since floor over an earlier rollout marker', async () => {
+      const marker = addCommit(repo, 'chore: genesis');
+      mkdirSync(join(repo, '.noldor'), { recursive: true });
+      writeFileSync(join(repo, '.noldor', 'rollout-marker'), `${marker}\n`);
+      addCommit(repo, 'feat(early-scope): between marker and floor\n\nNoldor-FD: my-feature');
+      const floor = addCommit(repo, 'chore: adopt the rule');
+      writeConfig(repo, { gateComplianceSince: floor.slice(0, 10) });
+
+      const findings = await detectTrailerScopeMismatch({ cwd: repo });
+      expect(findings).toHaveLength(0);
+    });
   });
 });

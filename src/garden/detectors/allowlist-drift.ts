@@ -1,8 +1,12 @@
 import { execFileSync } from 'node:child_process';
 
 import { isMicroChoreAllowed, microChoreOffenders } from '../../core/allowlist.js';
-import { readRolloutMarker } from '../../core/rollout-marker.js';
 import { parseTrailers } from '../../core/trailers.js';
+import {
+  gateComplianceRange,
+  isGateComplianceExempt,
+  loadGateComplianceScope,
+} from './gate-compliance-scope.js';
 
 export interface AllowlistDriftFinding {
   readonly sha: string;
@@ -17,6 +21,9 @@ export interface AllowlistDriftFinding {
  * that the touched files are covered by the micro-chore allowlist. Flags
  * any commit where non-allowlisted files escaped the hook.
  *
+ * Commits below `release.gateComplianceSince` are outside the scan, and
+ * commits acknowledged by `release.gateComplianceExemptCommits` are skipped.
+ *
  * @param opts.cwd - Repository root.
  * @returns One AllowlistDriftFinding per flagged commit.
  */
@@ -24,8 +31,8 @@ export async function detectAllowlistDrift(opts: {
   cwd: string;
 }): Promise<AllowlistDriftFinding[]> {
   const { cwd } = opts;
-  const marker = readRolloutMarker(cwd);
-  const range = marker ? [`${marker}..HEAD`] : ['HEAD'];
+  const scope = await loadGateComplianceScope(cwd);
+  const range = gateComplianceRange(cwd, scope.since);
 
   // Gather current-branch commits with Noldor-Path: micro-chore trailer.
   let raw: string;
@@ -52,6 +59,7 @@ export async function detectAllowlistDrift(opts: {
     if (secondNull === -1) continue;
 
     const sha = trimmed.slice(0, firstNull).trim();
+    if (isGateComplianceExempt(sha, scope.exemptions)) continue;
     const subject = trimmed.slice(firstNull + 1, secondNull).trim();
     const body = trimmed.slice(secondNull + 1);
 
