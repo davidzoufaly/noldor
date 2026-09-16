@@ -15,8 +15,8 @@ packages:
 phase: done
 since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.10.0
 ---
-
 ## Summary
 
 `npx vitest run` failed on a shifting set of files that each passed in isolation, so a green suite was a matter of timing. Q-0171 recorded two runs ten minutes apart on 2026-08-20 with disjoint failure sets across `sdd-report.test.ts`, `preflight.test.ts` and `route-sweep.test.ts`.
@@ -52,6 +52,16 @@ No new command or UI. `pnpm test`, `pnpm verify` and `pnpm noldor release run --
 <!-- @prs-since-last-release: test-suites-read-live-repo-state-shifting-full-suite-failures -->
 
 ## Changelog
+
+### Initial Release (v1.10.0)
+
+#### Summary
+
+Preflight probes now go through one injectable command seam (#464).
+
+#### PRs
+
+- #464: route preflight probes through one injectable command seam ([link](https://github.com/davidzoufaly/noldor/pull/464))
 
 <!-- generated: resources -->
 

@@ -1,5 +1,27 @@
 # Release Notes
 
+## v1.10.0 — 2026-09-16
+
+### Tooling
+
+#### Code-Clone Detector *(updated)*
+
+Duplication detection no longer counts import headers and pure delegations (#453).
+
+[Feature page](/features/code-clone-detector)
+
+#### Main-Module Guard Fails on Percent-Encoded Paths
+
+Every direct-invocation guard now routes through one encoder (#454).
+
+[Feature page](/features/main-module-guard-fails-on-percent-encoded-paths)
+
+#### Test Suites Read Live Repo State — Shifting Full-Suite Failures
+
+Preflight probes now go through one injectable command seam (#464).
+
+[Feature page](/features/test-suites-read-live-repo-state-shifting-full-suite-failures)
+
 ## v1.9.0 — 2026-09-06
 
 ### Tooling

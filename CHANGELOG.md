@@ -1,5 +1,43 @@
 # Changelog
 
+## v1.10.0 — 2026-09-16
+
+### Features
+
+- feat(cr): give the arbitration record a CLI instead of a hand-edit (#462) ([b9f6693](https://github.com/davidzoufaly/noldor/commit/b9f66939377657080167a9570d77c119edeeedf8)) ([#462](https://github.com/davidzoufaly/noldor/pull/462))
+
+### Fixes
+
+- fix(release): route preflight's git spawns through the command seam (#465) ([52e3b85](https://github.com/davidzoufaly/noldor/commit/52e3b852ad28c09b719534a7080ee94e3b24a361)) ([#465](https://github.com/davidzoufaly/noldor/pull/465))
+- fix(release): route preflight probes through one injectable command seam (#464) ([683b356](https://github.com/davidzoufaly/noldor/commit/683b35638c6eda70af8635bc4331d783e2967d07)) ([#464](https://github.com/davidzoufaly/noldor/pull/464))
+- fix(cr): tell the truth about which exits a capped round actually has (#460) ([27b5160](https://github.com/davidzoufaly/noldor/commit/27b51602fcde9d0eac4876e640cf3daf7a3af2a8)) ([#460](https://github.com/davidzoufaly/noldor/pull/460))
+- fix(hooks): verify an arbitration override against the record when the ledger is gone (#458) ([24943e9](https://github.com/davidzoufaly/noldor/commit/24943e97ff90ffdf794db6ea94531a8274b564a8)) ([#458](https://github.com/davidzoufaly/noldor/pull/458))
+- fix(skills): never treat a TODO stub as hand-curated under --refresh --yes (#456) ([e47f3e5](https://github.com/davidzoufaly/noldor/commit/e47f3e5668a767f0106e9d703bde4cd066b9d9c3)) ([#456](https://github.com/davidzoufaly/noldor/pull/456))
+- fix(core): route every direct-invocation guard through one encoder (#454) ([4b85199](https://github.com/davidzoufaly/noldor/commit/4b851997eca644fd9f959a44744cb96ceecebd2e)) ([#454](https://github.com/davidzoufaly/noldor/pull/454))
+- fix(clones): stop counting import headers and pure delegations as duplication (#453) ([3b8ad2f](https://github.com/davidzoufaly/noldor/commit/3b8ad2fb3515ee98c16d5c0ea53317d4cc9a2b1d)) ([#453](https://github.com/davidzoufaly/noldor/pull/453))
+- fix(cr): start R3's introduced-line window at the first reviewed head (#451) ([2030c85](https://github.com/davidzoufaly/noldor/commit/2030c852f25235fc078427352bbc362d1db76344)) ([#451](https://github.com/davidzoufaly/noldor/pull/451))
+- fix(clones): name the files that moved the ratchet total (#449) ([030e8b3](https://github.com/davidzoufaly/noldor/commit/030e8b3cdac1227208b71d01a48a3d01593fb799)) ([#449](https://github.com/davidzoufaly/noldor/pull/449))
+- fix(cr): scope R3's introduced-line range to files that existed at the base (#447) ([cda4dfb](https://github.com/davidzoufaly/noldor/commit/cda4dfb6e400a7a4b6cbc439c79832b31650942a)) ([#447](https://github.com/davidzoufaly/noldor/pull/447))
+- fix(garden): render the checklist from the payload's keys, not a fixed list (#446) ([54f5be7](https://github.com/davidzoufaly/noldor/commit/54f5be7e1ea447a56b3a3ee4f324852768faba1d)) ([#446](https://github.com/davidzoufaly/noldor/pull/446))
+- fix(garden): resolve attach-flow orphan specs by their parent slug (#445) ([c0eedde](https://github.com/davidzoufaly/noldor/commit/c0eeddef6009eacd2410d7a49fec26a5bebb6207)) ([#445](https://github.com/davidzoufaly/noldor/pull/445))
+- fix(pr-flow): reuse an existing open PR instead of re-creating it (#444) ([485a0ca](https://github.com/davidzoufaly/noldor/commit/485a0ca9d2934d490a248f4576eec48d75c33d5e)) ([#444](https://github.com/davidzoufaly/noldor/pull/444))
+
+### Other changes
+
+- chore(garden): regen sdd-report after 30-day window aged out an override record (#469) ([094a87e](https://github.com/davidzoufaly/noldor/commit/094a87e9aeb06871b4733e08d9cd9d385a8da991)) ([#469](https://github.com/davidzoufaly/noldor/pull/469))
+- chore(release-sweep): pre-empt sdd:report drift (#468) ([0161fe1](https://github.com/davidzoufaly/noldor/commit/0161fe1615d266b3545a7673b517c6289252664d)) ([#468](https://github.com/davidzoufaly/noldor/pull/468))
+- docs(triage): triage 12 ideas, absorb 11 lessons (#467) ([328042e](https://github.com/davidzoufaly/noldor/commit/328042e7c4f29e768451921950cd2f3294c8957e)) ([#467](https://github.com/davidzoufaly/noldor/pull/467))
+- docs(noldor:doc-conventions): tell authors when to write a decision record (#466) ([b92f65a](https://github.com/davidzoufaly/noldor/commit/b92f65a63ce63964b1af73b17ae74ca3fddb7286)) ([#466](https://github.com/davidzoufaly/noldor/pull/466))
+- docs(noldor:testing-principles): table both directions of a data-losing predicate (#463) ([f45f717](https://github.com/davidzoufaly/noldor/commit/f45f717f1d6720ba9229139de715c6825640e07f)) ([#463](https://github.com/davidzoufaly/noldor/pull/463))
+- docs(skills): link the artifact before asking the operator to confirm it (#461) ([fcbe397](https://github.com/davidzoufaly/noldor/commit/fcbe3972d561f4b6078628abfeb3ad1625ce03dd)) ([#461](https://github.com/davidzoufaly/noldor/pull/461))
+- docs(rules): scope abstraction-cost's rebaseline advice to the ratchet verdict (#459) ([8ce58fc](https://github.com/davidzoufaly/noldor/commit/8ce58fc0936dc73545fa4934c372d6361f0cf237)) ([#459](https://github.com/davidzoufaly/noldor/pull/459))
+- docs(rules): require state-file schema additions to be optional (#457) ([5377b5d](https://github.com/davidzoufaly/noldor/commit/5377b5d9bbf5306a86cec5dab7e4f77a40f014ea)) ([#457](https://github.com/davidzoufaly/noldor/pull/457))
+- docs(triage): file the 2026-09-08 triage+absorb batch — Q-0222..Q-0234 (#455) ([69a4310](https://github.com/davidzoufaly/noldor/commit/69a43102a096661208396ac236c9e77390ea468e)) ([#455](https://github.com/davidzoufaly/noldor/pull/455))
+- docs(skills): make the release-sweep step order and preflight preamble followable (#452) ([346b6ce](https://github.com/davidzoufaly/noldor/commit/346b6ce56251da8c61042f5c3a27bdec4e2a0d28)) ([#452](https://github.com/davidzoufaly/noldor/pull/452))
+- docs(triage): file the 2026-09-07 lesson batch — Q-0215..Q-0220 (#450) ([6829935](https://github.com/davidzoufaly/noldor/commit/6829935cb64a24ba93622c9e574b890f55e8e1b4)) ([#450](https://github.com/davidzoufaly/noldor/pull/450))
+- docs(roadmap): split Q-0193 into a reporting slice and a policy slice (#448) ([cc7dab0](https://github.com/davidzoufaly/noldor/commit/cc7dab019c5aacf0d95fc3b4c236bb1486fcf0cf)) ([#448](https://github.com/davidzoufaly/noldor/pull/448))
+- refactor(core): give state-file the writeJsonState half it was missing (#443) ([62ae0fe](https://github.com/davidzoufaly/noldor/commit/62ae0fe85c94b75aff1300c052b84ddfeb9eae3e)) ([#443](https://github.com/davidzoufaly/noldor/pull/443))
+
 ## v1.9.0 — 2026-09-06
 
 ### Features

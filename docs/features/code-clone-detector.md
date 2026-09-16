@@ -29,6 +29,7 @@ phase: done
 since: 2026-07-11T00:00:00.000Z
 noldor-tier: full
 introduced: 1.0.0
+updated: 1.10.0
 ---
 ## Summary
 
@@ -60,6 +61,16 @@ As a framework maintainer, I want a deterministic token-based clone report over 
 <!-- @prs-since-last-release: code-clone-detector -->
 
 ## Changelog
+
+### 1.10.0
+
+#### Summary
+
+Duplication detection no longer counts import headers and pure delegations (#453).
+
+#### PRs
+
+- #453: stop counting import headers and pure delegations as duplication ([link](https://github.com/davidzoufaly/noldor/pull/453))
 
 <!-- generated: resources -->
 
