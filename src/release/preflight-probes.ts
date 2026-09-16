@@ -725,7 +725,11 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
           id: 'gate-compliance',
           status: 'blocking',
           detail: firstLine(out),
-          fix: 'Run `pnpm noldor garden detect --gate-compliance` and address each finding.',
+          fix:
+            'Run `pnpm noldor garden detect --gate-compliance` and address each finding. ' +
+            'Findings naming already-merged commits cannot be fixed without rewriting history — ' +
+            'record them in `release.gateComplianceExemptCommits`, or set `release.gateComplianceSince` ' +
+            'to the commit where this repo adopted the rule, instead of reaching for RELEASE_SKIP_GATE_COMPLIANCE.',
         };
   },
 

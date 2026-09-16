@@ -66,9 +66,15 @@ skip the sweep; minor and major bumps MUST NOT.
      Expected self-host override noise is declared per-entry in
      `garden.overrideAudit.expected` (`.noldor/config.json`) so it stops
      counting toward the override-audit WARN threshold — see
-     [`cr-pipeline.md`](cr-pipeline.md). `RELEASE_SKIP_GATE_COMPLIANCE=1
-     pnpm release` remains a logged break-glass hatch for findings that
-     can't be fixed without rewriting public history, not the norm.
+     [`cr-pipeline.md`](cr-pipeline.md). An individual finding that names
+     an already-merged commit — so it cannot be fixed without rewriting
+     public history — is acknowledged per-SHA in
+     `release.gateComplianceExemptCommits` (same `{ sha, reason }` shape as
+     `release.crGateExemptCommits`); a repo that adopted a gate-compliance
+     rule after its Noldor rollout sets `release.gateComplianceSince` to the
+     adoption commit instead, and the audit judges nothing below it.
+     `RELEASE_SKIP_GATE_COMPLIANCE=1 pnpm release` remains a logged
+     break-glass hatch, not the norm — and no longer the only exit.
    - `pnpm noldor garden sdd-report --release` — and `docs/sdd-report.md` must have no
      resulting diff (un-committed report regen aborts). The `--release`
      flag includes the Gate compliance section (tier distribution,

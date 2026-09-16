@@ -38,6 +38,12 @@ function addCommit(dir: string, msg: string, files: Record<string, string> = {})
   return r.stdout.trim();
 }
 
+/** Write a `.noldor/config.json` carrying only the `release:` block under test. */
+function writeConfig(dir: string, release: Record<string, unknown>): void {
+  mkdirSync(join(dir, '.noldor'), { recursive: true });
+  writeFileSync(join(dir, '.noldor', 'config.json'), JSON.stringify({ release }));
+}
+
 describe('detectAllowlistDrift', () => {
   let repo: string;
 
@@ -94,6 +100,68 @@ describe('detectAllowlistDrift', () => {
 
     const findings = await detectAllowlistDrift({ cwd: repo });
     expect(findings).toHaveLength(0);
+  });
+
+  it('still flags a bad micro-chore commit when an exemption names a different SHA', async () => {
+    const other = addCommit(repo, 'chore: unrelated', { 'README.md': '# Readme\n' });
+    addCommit(repo, 'chore(garden): micro-chore with code\n\nNoldor-Path: micro-chore', {
+      'src/index.ts': 'export const x = 1;',
+    });
+    writeConfig(repo, { gateComplianceExemptCommits: [{ sha: other.slice(0, 10), reason: 'x' }] });
+
+    const findings = await detectAllowlistDrift({ cwd: repo });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.offendingFiles).toContain('src/index.ts');
+  });
+
+  it('drops a bad micro-chore commit acknowledged by release.gateComplianceExemptCommits', async () => {
+    const bad = addCommit(
+      repo,
+      'chore(garden): micro-chore with code\n\nNoldor-Path: micro-chore',
+      {
+        'src/index.ts': 'export const x = 1;',
+      },
+    );
+    writeConfig(repo, {
+      gateComplianceExemptCommits: [{ sha: bad.slice(0, 10), reason: 'squashed on main' }],
+    });
+
+    const findings = await detectAllowlistDrift({ cwd: repo });
+    expect(findings).toHaveLength(0);
+  });
+
+  it('still flags a bad micro-chore commit committed after the since floor', async () => {
+    const floor = addCommit(repo, 'chore: adopt the rule', { 'README.md': '# Readme\n' });
+    addCommit(repo, 'chore(garden): micro-chore with code\n\nNoldor-Path: micro-chore', {
+      'src/after.ts': 'export const x = 1;',
+    });
+    writeConfig(repo, { gateComplianceSince: floor.slice(0, 10) });
+
+    const findings = await detectAllowlistDrift({ cwd: repo });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.offendingFiles).toContain('src/after.ts');
+  });
+
+  it('drops a bad micro-chore commit below release.gateComplianceSince', async () => {
+    addCommit(repo, 'chore(garden): micro-chore with code\n\nNoldor-Path: micro-chore', {
+      'src/before.ts': 'export const x = 1;',
+    });
+    const floor = addCommit(repo, 'chore: adopt the rule', { 'README.md': '# Readme\n' });
+    writeConfig(repo, { gateComplianceSince: floor.slice(0, 10) });
+
+    const findings = await detectAllowlistDrift({ cwd: repo });
+    expect(findings).toHaveLength(0);
+  });
+
+  it('reports every finding when the config is malformed rather than crashing', async () => {
+    addCommit(repo, 'chore(garden): micro-chore with code\n\nNoldor-Path: micro-chore', {
+      'src/index.ts': 'export const x = 1;',
+    });
+    mkdirSync(join(repo, '.noldor'), { recursive: true });
+    writeFileSync(join(repo, '.noldor', 'config.json'), '{ not json');
+
+    const findings = await detectAllowlistDrift({ cwd: repo });
+    expect(findings).toHaveLength(1);
   });
 
   it('ignores bad micro-chore commits reachable only from another branch', async () => {

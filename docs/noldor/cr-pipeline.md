@@ -259,6 +259,23 @@ and/or `reasonIncludes`, with a required `note`); matched overrides
 stop counting toward the override-audit WARN threshold but stay listed
 in `/noldor-garden` output and the SDD report with an `(expected)` marker.
 
+The gate-compliance audit (`garden detect --gate-compliance`) has the same
+pair, because its `trailerScopeMismatch` and `allowlistDrift` findings also
+name commits already squashed onto `main`:
+
+- `release.gateComplianceExemptCommits` — the twin of
+  `release.crGateExemptCommits`, same `{ sha, reason }` shape. A matching
+  commit is skipped outright rather than reported with a marker: the point
+  of the entry is to remove the row.
+- `release.gateComplianceSince` — a commit-SHA prefix below which nothing is
+  judged. Use it when a rule was adopted *after* the repo's Noldor rollout,
+  which is the case `.noldor/rollout-marker` cannot express — `noldor init`
+  stamps that marker once and it never moves, so it dates the rollout, not
+  the rule. When both are set, the floor wins over the marker.
+
+Reach for either before `RELEASE_SKIP_GATE_COMPLIANCE=1`, which silences the
+whole audit including findings that are still fixable.
+
 ## Verify lane
 
 The `verify` lane (code artifacts only) is the behavioral third signal beside
