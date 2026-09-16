@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Route Preflight's git Spawns Through the Command Seam
-
-- id: Q-0237
-- area: testing
-- type: fix
-- since: 2026-09-15
-- size: S
-- impact: high
-- confidence: high
-- split-from: Q-0171
-
-Q-0171 seamed `gh` and `npm` out of `src/release/preflight-probes.ts` and measured what was left: `preflight.test.ts` went 31s → ~5s alone but only ~14s inside the full parallel suite, because the dominant cost is `git`, not `gh`. `inspectTreeState` spawns `git fetch origin main` on its own `execFile` at `src/release/clean-tree.ts:55`, once per probe context — roughly 38 spawns across that file's 19 `runPreflight` calls — and `findPreviousTag` (`release-version.ts`) and `checkCrGate` (`release-cr-gate.ts`) spawn git too. None goes through `ctx.runCommand`. This is a larger claim than a speed-up: `git fetch` against a repo that *does* have a remote is unbounded network I/O inside a unit suite, so the hazard class Q-0171 closed for `gh` and `npm` is still open for the one command every probe context runs. Thread the existing `RunCommand` seam (`src/release/run-command.ts`) through `clean-tree.ts` and the two other git callers. Deletion test: `preflight.test.ts`'s injected runner records a `git` command, and the file's full-suite duration drops below 10s. Touches: src/release/clean-tree.ts, src/release/release-version.ts, src/release/release-cr-gate.ts, src/release/preflight-probes.ts, src/release/__tests__/preflight.test.ts (found 2026-09-15 shipping Q-0171)
-
 ### Full-Suite Flake: route-sweep and sdd-report Still Unexplained
 
 - id: Q-0238
