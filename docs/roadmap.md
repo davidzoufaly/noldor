@@ -16,6 +16,74 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Graph-Freshness / Fmt-Collision Follow-Ups
+
+- id: Q-0011
+- area: tooling
+- type: fix
+- since: 2026-07-01
+- size: S
+- impact: high
+- confidence: med
+- parent: noldor
+
+Residual design follow-ups from the v0.4.0 near-miss (`pnpm release` hard-gates on committed-fresh `graphify-out/graph.json` vs fmt lefthook erroring on an all-ignored file set; immediate fix PR #114, broader all-ignored no-op guard shipped as `noldor fmt` in PR #184). Trigger: pick up only if the fmt/graph gate collision class recurs despite the PR #184 guard.
+
+- (b) ~~have the release-sweep own the graph commit end-to-end so the two gates can't deadlock~~ — DONE: release-sweep step 6 commits `graphify-out/` before `pnpm release`.
+- (c) reconsider whether `graph.json` should be tracked at all vs regenerated in a release-time step. Still parked.
+- **A consumer that stops tracking `graphify-out/graph.json` can never clear `graph-freshness` again, and no `RELEASE_SKIP_` exists for it.** `evaluateGraphFreshness` reads `git log -1 --format=%ct -- graphify-out/graph.json` and treats an *empty* result as "graphify is OPTIONAL → skipped". But `git log` finds the commit that **deleted** a path just as readily as one that wrote it, so a repo that tracked the graph once and later dropped it gets a frozen timestamp — charuy's is 2026-07-07, the PR that removed the file — which every later source commit outruns. The verdict is `stale` forever, on a consumer whose `.gitignore` says in as many words that nothing under `graphify-out/` is a source. Unlike `cr-gate` (`release.crGateExemptCommits`) and `gate-compliance` / `adr` / `architecture` / `readme` (their `RELEASE_SKIP_*` vars), this gate has no escape at all, so the only way to release is to re-track a 1.1 MB generated JSON. Wanted: test tracked-ness in the current tree (`git ls-tree HEAD -- graphify-out/graph.json`) rather than presence anywhere in history — an untracked graph is exactly the documented optional case and should read `skipped`. Deletion test: a consumer with `graphify-out/` gitignored and the file in its history releases without re-adding it. (found 2026-09-15 releasing charuy v0.7.0)
+- **`git add graphify-out` makes `pnpm verify` red, and the file that would exempt it is in no lane allowlist.** Step 6 of the sweep stages `graphify-out/` and `RELEASE_SWEEP_GLOBS` admits `graphify-out/**`, so tracking the graph report is the sanctioned shape. But graphify writes markdown headings with no following blank line, `oxfmt` normalizes that, and `pnpm fmt:check` passes `--ignore-path=.gitignore` — so the moment the report stops being gitignored it starts failing the format gate. The template `.oxfmtrc.json` ignores `graphify-out/**`, but a consumer whose config predates that line (charuy's carries no `ignorePatterns` at all) has no exemption, and neither `.prettierignore` nor `.oxfmtrc.json` appears in `MICRO_CHORE_GLOBS`, `RELEASE_SWEEP_GLOBS` or `CODE_GLOBS` — so no lane can add one. The sweep dead-ends between a step that says to track the file and a gate that says the file is malformed. Wanted: the sweep skill formats the report after generating it, or `noldor doctor` flags a consumer `.oxfmtrc.json` missing the `graphify-out/**` ignore. Deletion test: a consumer that follows step 6 verbatim gets a green `pnpm verify` at step 7. (found 2026-09-15 releasing charuy v0.7.0)
+
+Verified 2026-07-14 (gate pickup): trigger not fired — `src/core/fmt-guard.ts` maps all-ignored→exit 0 + release-sweep pre-commits graph; no collision recurrence since PR #184. Remaining scope = (c) only. **Trigger FIRED 2026-09-15** releasing charuy v0.7.0 — the collision class recurred on a consumer, in both directions at once (untracked graph can never read fresh; tracked graph can never read formatted), which is why this moved backlog → roadmap top and its impact rose low → high.
+
+### Shipped-Skill Commands Must Run in a Consumer
+
+- id: Q-0239
+- area: tooling
+- type: fix
+- since: 2026-09-16
+- size: S
+- impact: high
+- confidence: high
+
+Two command blocks in the `noldor-release-sweep` skill only work inside the noldor repo, and the skill ships to consumers. Pre-flight step 3 writes the session marker with `pnpm exec tsx -e "... import('./src/core/session.ts') ..."` — a path no consumer has, so the operator hand-writes `.noldor/session.json` and hopes the schema matches. Steps 2 and 5 say `pnpm toon`, which is not a script in charuy; the renderer is `pnpm noldor graphify graph-to-toon <graph.json>`, and it prints usage rather than defaulting when given no argument, so the bare form fails twice over. Step 5.5 already carries a `<!-- noldor-skill-drift-ignore -->` note that `pnpm docs:build` is not a script in the consumer — the same class of host/consumer confusion, caught for one command and missed for the other three. Wanted: every command block in a shipped skill written against the consumer-facing CLI, with any noldor-repo-only form marked as such, and ideally a check that reads the command blocks out of `.claude/skills/**` and fails on a `pnpm <script>` the consumer template does not define. Deletion test: a consumer can run every command block in the sweep skill verbatim. (found 2026-09-15 releasing charuy v0.7.0)
+
+### mtime Graph-Freshness Is Poisoned by Test Artifacts
+
+- id: Q-0240
+- area: tooling
+- type: fix
+- since: 2026-09-16
+- size: S
+- impact: high
+- confidence: high
+
+Running the test suite silently changes `docs/sdd-report.md`, so a release that runs e2e poisons its own next attempt. The report's `probable owner:` hints come from `requireFreshGraph` → `loadFreshGraphOrWarn`, which judges freshness by **mtime**: `newestMtimeInRoots(cwd, srcRoots) > statSync(graphPath).mtimeMs`, over `consumer.scanPaths` (`apps`, `packages`, `scripts`). Playwright writes its artifacts to `apps/web/test-results/` — inside a scanned root — so one `pnpm test:e2e` leaves ~112 files newer than `graphify-out/graph.json`, the detector drops into degraded mode, every hint vanishes, and the regenerated report no longer matches the committed copy. Charuy hit the full loop: release attempt 2 aborted on e2e, and attempt 3 then aborted on `sdd-report` with nobody having touched a file — attempt 2's own e2e run had staled the graph. `git status` is clean throughout, because the directory is gitignored, so the operator is told a committed doc is wrong with no diff to explain it. The workaround was `touch graphify-out/graph.json`. Wanted: judge freshness by the same git-commit comparison `evaluateGraphFreshness` already uses, or at minimum exclude gitignored paths from `newestMtimeInRoots` — a freshness check that a test run can invalidate is measuring the wrong thing. Deletion test: running the full suite twice in a row leaves `docs/sdd-report.md` byte-identical. (found 2026-09-15 releasing charuy v0.7.0)
+
+### Consumer Config Belongs in a Lane
+
+- id: Q-0241
+- area: tooling
+- type: fix
+- since: 2026-09-16
+- size: XS
+- impact: med
+- confidence: high
+
+The `ui-design-freshness` gate prints a remedy no lane can land. Its fix line reads "declare `consumer.uiCapture` for the surface if it has none, run `pnpm noldor design capture --surface app`, then commit the baseline and its receipt" — but `.noldor/config.json` is absent from `MICRO_CHORE_GLOBS`, `RELEASE_SWEEP_GLOBS` and `CODE_GLOBS` alike, so the declaration cannot ride the micro-chore or sweep lanes, and on a code lane a config edit with no behaviour drags in a review receipt. The allowlist already carves out `.noldor/id-counter.json`, `.noldor/retired-entry-ids.json` and `.noldor/rollout-marker` as framework bookkeeping the gate itself writes; a `consumer.uiCapture` declaration the gate is *asking for by name* is the same class. The failure is quiet, too: with no command declared, `design capture --vouch-only` still stamps a receipt reading `(no capture command declared) (vouched by hand, not re-run)`, so the surface looks captured while nothing has ever run. Wanted: `.noldor/config.json` on the micro-chore list, or a `noldor design declare-capture --surface <s> --command <cmd>` that writes it as bookkeeping. Deletion test: the remedy the gate prints can be executed and committed without an override. (found 2026-09-15 releasing charuy v0.7.0)
+
+### gate-compliance Has No Exempt List or Since Floor
+
+- id: Q-0242
+- area: tooling
+- type: fix
+- since: 2026-09-16
+- size: S
+- impact: high
+- confidence: med
+
+`gate-compliance` reports rows that name already-merged commits and offers no way to accept them. charuy's preflight lists 29 `trailerScopeMismatch` and 2 `allowlistDrift` rows, every one naming a squash commit on `main` — `scope-missing-fd-slug` where `feat(scene): …` was judged against FD `an-outside-writers-edit-is-still-indistinguishable-from-any-other`, and two framework-upgrade commits that touched `.noldor/config.json` before anything allowlisted it. None is fixable without rewriting published history, and unlike `cr-gate`'s `release.crGateExemptCommits` there is no config escape — so the only exit is `RELEASE_SKIP_GATE_COMPLIANCE`, which the sweep skill itself calls break-glass only and logs to `.noldor/overrides.log`. A gate whose sole remedy is the break-glass var trains operators to reach for the break-glass var. The scope rule is also near-unsatisfiable as written: a conventional-commit scope is one short token and an FD slug is a sentence, so `scope-missing-fd-slug` fires on almost every well-formed commit. Wanted: a `release.gateComplianceExemptCommits` twin of the CR-gate list, or a `since:` floor so the audit only judges commits after the consumer adopted the rule. Deletion test: a consumer clears gate-compliance by recording decisions in committed config, the way it clears cr-gate. (found 2026-09-15 releasing charuy v0.7.0)
+
 ### Full-Suite Flake: route-sweep and sdd-report Still Unexplained
 
 - id: Q-0238
@@ -28,6 +96,18 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 - split-from: Q-0171
 
 Q-0171 removed one sufficient cause of the shifting full-suite failures — unbounded `gh`/`npm` I/O in `preflight.test.ts` — but explains neither of the other two observed red files, and it is honest about that rather than claiming the flake fixed. `src/dashboard/__tests__/route-sweep.test.ts` (8 of the 10 reds on 2026-08-20) performs no external I/O at all: it binds an ephemeral port and renders live-repo pages in-process at 949–1472 ms per route against a 10s bound, so nothing in Q-0171 makes it faster or more deterministic. `src/garden/__tests__/sdd-report.test.ts` shells `tsx src/garden/sdd-report.ts` against the live repo four times (`cwd: process.cwd()`, plus a `pnpm fmt:check`), 17.4s for the file. Both sit in the measured slow tail under a 10s per-test bound, which is the surviving hypothesis, but neither has been reproduced on demand — two full-suite runs on 2026-09-15, one under six busy-loop CPU hogs, were green. Wanted first: a way to reproduce, or per-file evidence of what a red run actually reported (timeout vs assertion). Only then a remedy. Deletion test: a documented reproduction, or a retired hypothesis. (found 2026-09-15 shipping Q-0171)
+
+### Integrity-Only Capped Round Has No Legal Exit
+
+- id: Q-0243
+- area: tooling
+- type: fix
+- since: 2026-09-16
+- size: S
+- impact: high
+- confidence: med
+
+A round that goes red on integrity blockers alone writes an arbitration record no operator can ever fill. `buildSkeleton` drops every `integrity: true` blocker on purpose — "this verdict cannot be trusted" is not something you accept, reject or defer — while `aggregate` can go red on integrity blockers alone (unreadable sink, JSON parse error, non-conforming filename). At the cap that combination writes a record whose `blockers` array is empty; `isFilled` reports an empty list as unfilled; `decideArbitration` then refuses the push with "the arbitration record has a blocker with no disposition", over a disposition that cannot exist because there is no blocker to dispose. Shipping Q-0224 the reviewer caught this on the *new* record-fallback path and it was fixed there (`resolveRounds` requires `blockerCount > 0`), but the pre-existing ledger-present branch still dead-ends the same way: a session whose ledger survives to push time and whose last round was integrity-only has no legal exit at all. Wanted: decide what an integrity-only capped round *means* — most likely that it is not arbitrable and the remedy is to re-run the lane, not to override — and say so in the refusal text instead of asking for a disposition. Deletion test: a push whose arbitration record carries zero blockers is told to re-run the lane, never asked to dispose a blocker that does not exist. (found 2026-09-15 shipping Q-0224)
 
 ### Co-Tag Detector: Degraded-Mode Honesty + Mechanical Seeding
 
@@ -256,6 +336,8 @@ The PR summary printed at the end of the flow is sometimes not a clickable link,
 
 The dashboard's roadmap entry rendering does not display the show-more control, so long entry bodies are truncated with no way to expand them — reproduced against Charuy's dashboard. Since every roadmap block now carries a full paragraph plus optional sub-bullets, truncation without an expander makes the roadmap view unusable for exactly the entries that need reading. Deletion test: a roadmap entry whose body exceeds the collapse threshold renders a working show-more control. (surfaced 2026-09-08)
 
+- Still reproducing on charuy's dashboard as of 2026-09-16 — the bug has outlived one release on the consumer side, so it is not a transient render state.
+
 ### Self-Explanatory Code Over Comments Rule
 
 - id: Q-0232
@@ -291,3 +373,52 @@ A fast-track ships without attaching to any feature MD, so when one or more fast
 - confidence: med
 
 Extract the shared tsconfig reader into a neutral module. `src/invariants/toolchain-floor.ts` and `src/indirection/detect.ts` each carry their own tsconfig discovery — `findPackageManifests`/`isTsconfigName` on one side, `findTsconfigFiles`/`readTsconfig`/`resolveExtends` on the other — and `detect.ts` already imports `stripJsonc` from `toolchain-floor.ts`, so importing discovery back would close a module cycle. PR #436 duplicated it deliberately and promised this entry in the spec's Risks section. The two walks are not a clean lift (async `readdir` + `WORKSPACE_SCAN_DEPTH` here, sync `readdirSync` + configured scan roots there), so the shared helper has to be designed rather than moved, and it touches the indirection ratchet. `clones check` was green on #436, so this is cohesion debt rather than a live gate failure. Deletion test: both modules import their tsconfig discovery from one place, and neither declares a private copy. (surfaced 2026-09-05, spec CR on nested-tsconfig-lib-floor)
+
+### Path Pick Cannot See the Shared-File Block
+
+- id: Q-0244
+- area: tooling
+- type: fix
+- since: 2026-09-16
+- size: S
+- impact: med
+- confidence: high
+
+An XS entry whose whole diff is `.claude/skills/**` routes to `fast-track`, and the worktree then refuses the commit. `sizeToPath()` keys on size alone, so `/noldor-gate` Step 0 stamps `suggestedPath: fast-track` on a pure-prose skill edit; `checks shared-files` blocks `^\.claude/skills/[^/]+` from a feature worktree, so the whole fast-track scaffold is wasted — worktree created, roadmap block retired and committed on the branch, then the real commit is refused. Shipping Q-0222 that cost a full worktree teardown and redo on `main`. The evidence that micro-chore is the intended lane is already in `MICRO_CHORE_GLOBS`, which lists `.claude/**` *and* `templates/.claude/**` with the comment "template-sync forces editing both, so the twin must share the micro-chore lane". The gate's own Step 0 prose says "downgrade to `micro-chore` only when the diff is pure-doc", but nothing computes that: the operator is asked to predict the diff before writing it. Wanted: make the shared-files block list and the micro-chore allowlist reachable from the path pick — either `split-check --entry` warns when an entry's `Touches:` is entirely inside `MICRO_CHORE_GLOBS`, or `worktrees create` refuses up front for a slug whose expected paths are all shared-root. Deletion test: picking `fast-track` for an entry that only touches `.claude/skills/**` surfaces the conflict before the worktree is built. (found 2026-09-15 shipping Q-0222)
+
+### Rules Must Not Snapshot Another Module's Shape
+
+- id: Q-0245
+- area: tooling
+- type: docs
+- since: 2026-09-16
+- size: S
+- impact: med
+- confidence: med
+
+A prose rule that audits the codebase's *current* shape is a self-feeding CR loop. Shipping Q-0223 (PR #457) the new `state-file-schema-additive` rule carried a paragraph characterising `config.json`'s schemas, and four consecutive review rounds each found one level deeper: round 1 said the break is required-ness not `.strict()`; round 2 said the `consumer:` block is strict and required-heavy; round 3 said `noldorConfigSchema`'s *nested* blocks are required-heavy too; round 4's verifier ran the real CLI and falsified the whole consequence claim (a rejected config makes `clones check` exit 0 and silently switch the gate off, because four call sites swallow the throw). Every round's finding was correct, and the round cap plus an arbitration override was the only way out. The rule only became stable once it stopped asserting what other schemas look like and said "audit the nesting level you are editing; establish the consequence by running the command". Wanted: a line in the rule-authoring guidance — a rule states a constraint and how to check it, never a snapshot of another module's field shapes, because the snapshot is wrong the moment it is written and every CR round finds the next exception. Deletion test: a new enforce rule that names another module's field list is caught at authoring time, not at round four. (found 2026-09-15 shipping Q-0223)
+
+### Duplicate PR ID in the Changelog
+
+- id: Q-0246
+- area: tooling
+- type: fix
+- since: 2026-09-16
+- size: XS
+- impact: low
+- confidence: med
+
+A changelog entry renders its PR ID twice. The reference is carried into the entry from the commit subject and appended again by the link-rendering step, so a single squash commit comes out reading `(#444) (#444)`. Cosmetic, but it lands in the published release notes every release and every consumer sees it. Deletion test: a changelog generated from a squash commit whose subject already ends in `(#NNN)` renders that reference exactly once. (surfaced 2026-09-16)
+
+### UI Baseline Validity, Not Just Recency
+
+- id: Q-0247
+- area: tooling
+- type: fix
+- since: 2026-09-16
+- size: M
+- impact: med
+- confidence: med
+- blocked-by: Q-0184
+
+`ui-design-freshness` only asks whether the baseline is RECENT, so a `.pen` that is fresh, invalid and half-covered passes. It compares commit shas. charuy's `app.pen` read `fresh` for a month while all four of these were true: its `variables` block was **empty** (`tokensFromCss` matched nothing once the theme axis moved every `--color-*` behind a `var()`), so the canvas emitted `$viewport-bg` and rendered as `pen-render`'s `#FF00FF` miss marker — a 0.8971 diff against a 0.10 ceiling, i.e. no baseline had actually been written since 2026-09-03; it declared `version: "2.13"` against an installed schema of **2.17**; it carried a page for a surface deleted two PRs earlier, whose driver timed out and failed the whole run; and it covered only the dark theme, though light is a shipped, contrast-tested axis. The capture's own fidelity gate cannot catch any of it, by construction: it re-renders the emitted document through `pen-render` — a browser, same fonts the extractor measured — so it agrees with itself, scoring 0.008 on pages Pencil drew with text stacked on top of itself. The schema pass that would have caught the version drift never ran either, because the harness looked only in `/Applications/Pencil.app` while the pen.dev VS Code extension ships the same schema as plain files, so every run printed `schema: skipped` and nobody noticed. Wanted: freshness as one of three checks rather than the only one — (a) the committed `.pen` parses and validates against the INSTALLED pen schema, (b) a declared coverage set is present as pages, so a surface can say "these states, in these modes" and be held to it, (c) the sha comparison it already does. A stale baseline is obvious to its owner; a fresh, invalid, dark-only one is not. Deletion test: a baseline whose variables block is empty, or which carries only one of the modes its surface declares, is reported by `checks ui-design-freshness` rather than passing it. (found 2026-09-16 regenerating charuy's UI baseline)
