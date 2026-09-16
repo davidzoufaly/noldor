@@ -393,5 +393,9 @@
   "Q-0237": {
     "slug": "route-preflights-git-spawns-through-the-command-seam",
     "retiredAt": "2026-09-16"
+  },
+  "Q-0011": {
+    "slug": "graph-freshness-fmt-collision-follow-ups",
+    "retiredAt": "2026-09-16"
   }
 }

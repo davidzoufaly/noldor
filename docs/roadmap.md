@@ -16,26 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Graph-Freshness / Fmt-Collision Follow-Ups
-
-- id: Q-0011
-- area: tooling
-- type: fix
-- since: 2026-07-01
-- size: S
-- impact: high
-- confidence: med
-- parent: noldor
-
-Residual design follow-ups from the v0.4.0 near-miss (`pnpm release` hard-gates on committed-fresh `graphify-out/graph.json` vs fmt lefthook erroring on an all-ignored file set; immediate fix PR #114, broader all-ignored no-op guard shipped as `noldor fmt` in PR #184). Trigger: pick up only if the fmt/graph gate collision class recurs despite the PR #184 guard.
-
-- (b) ~~have the release-sweep own the graph commit end-to-end so the two gates can't deadlock~~ — DONE: release-sweep step 6 commits `graphify-out/` before `pnpm release`.
-- (c) reconsider whether `graph.json` should be tracked at all vs regenerated in a release-time step. Still parked.
-- **A consumer that stops tracking `graphify-out/graph.json` can never clear `graph-freshness` again, and no `RELEASE_SKIP_` exists for it.** `evaluateGraphFreshness` reads `git log -1 --format=%ct -- graphify-out/graph.json` and treats an *empty* result as "graphify is OPTIONAL → skipped". But `git log` finds the commit that **deleted** a path just as readily as one that wrote it, so a repo that tracked the graph once and later dropped it gets a frozen timestamp — charuy's is 2026-07-07, the PR that removed the file — which every later source commit outruns. The verdict is `stale` forever, on a consumer whose `.gitignore` says in as many words that nothing under `graphify-out/` is a source. Unlike `cr-gate` (`release.crGateExemptCommits`) and `gate-compliance` / `adr` / `architecture` / `readme` (their `RELEASE_SKIP_*` vars), this gate has no escape at all, so the only way to release is to re-track a 1.1 MB generated JSON. Wanted: test tracked-ness in the current tree (`git ls-tree HEAD -- graphify-out/graph.json`) rather than presence anywhere in history — an untracked graph is exactly the documented optional case and should read `skipped`. Deletion test: a consumer with `graphify-out/` gitignored and the file in its history releases without re-adding it. (found 2026-09-15 releasing charuy v0.7.0)
-- **`git add graphify-out` makes `pnpm verify` red, and the file that would exempt it is in no lane allowlist.** Step 6 of the sweep stages `graphify-out/` and `RELEASE_SWEEP_GLOBS` admits `graphify-out/**`, so tracking the graph report is the sanctioned shape. But graphify writes markdown headings with no following blank line, `oxfmt` normalizes that, and `pnpm fmt:check` passes `--ignore-path=.gitignore` — so the moment the report stops being gitignored it starts failing the format gate. The template `.oxfmtrc.json` ignores `graphify-out/**`, but a consumer whose config predates that line (charuy's carries no `ignorePatterns` at all) has no exemption, and neither `.prettierignore` nor `.oxfmtrc.json` appears in `MICRO_CHORE_GLOBS`, `RELEASE_SWEEP_GLOBS` or `CODE_GLOBS` — so no lane can add one. The sweep dead-ends between a step that says to track the file and a gate that says the file is malformed. Wanted: the sweep skill formats the report after generating it, or `noldor doctor` flags a consumer `.oxfmtrc.json` missing the `graphify-out/**` ignore. Deletion test: a consumer that follows step 6 verbatim gets a green `pnpm verify` at step 7. (found 2026-09-15 releasing charuy v0.7.0)
-
-Verified 2026-07-14 (gate pickup): trigger not fired — `src/core/fmt-guard.ts` maps all-ignored→exit 0 + release-sweep pre-commits graph; no collision recurrence since PR #184. Remaining scope = (c) only. **Trigger FIRED 2026-09-15** releasing charuy v0.7.0 — the collision class recurred on a consumer, in both directions at once (untracked graph can never read fresh; tracked graph can never read formatted), which is why this moved backlog → roadmap top and its impact rose low → high.
-
 ### Shipped-Skill Commands Must Run in a Consumer
 
 - id: Q-0239

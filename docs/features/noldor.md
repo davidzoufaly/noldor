@@ -69,6 +69,7 @@ links:
     - src/triage/has-block-cli.ts
   tests:
     - src/checks/__tests__/check-install-freshness.test.ts
+    - src/checks/__tests__/check-oxfmt-ignores.test.ts
     - src/cli/__tests__/command-registry.test.ts
     - src/core/__tests__/changelog.test.ts
     - src/core/__tests__/commit-wrapper.test.ts
@@ -130,7 +131,6 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
-
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
