@@ -385,5 +385,9 @@
   "Q-0229": {
     "slug": "two-directional-test-tables-for-data-losing-predicates",
     "retiredAt": "2026-09-15"
+  },
+  "Q-0171": {
+    "slug": "test-suites-read-live-repo-state-shifting-full-suite-failures",
+    "retiredAt": "2026-09-15"
   }
 }

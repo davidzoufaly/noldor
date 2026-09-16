@@ -12,6 +12,7 @@ import { blockingIds, recordOverrides, runPreflight } from '../preflight.js';
 import { SAFE_FIXES } from '../preflight-fix.js';
 import { writeReleaseState } from '../release-state.js';
 import type { PreflightRow } from '../preflight-types.js';
+import type { RunCommand, RunResult } from '../run-command.js';
 
 const HOUR_MS = 3_600_000;
 
@@ -38,6 +39,46 @@ const byId = (rows: PreflightRow[], id: string): PreflightRow => {
   return row;
 };
 
+/**
+ * Scripted runner: maps "cmd arg arg" prefixes to results, recording every
+ * command it was asked to run so a case can assert what the probes reached for.
+ *
+ * `gh` answers "present and authenticated"; every other key answers a failed
+ * spawn with no output, which is what the real noldor CLI does against this
+ * bare fixture — no `.noldor/config.json`, no graph, no `docs/`. One test
+ * ('does not claim a garden re-stamp') depends on that failure, so the default
+ * mirrors reality rather than being conveniently green.
+ *
+ * Injecting this is the point of the file: evaluating these probes for real
+ * spawns `gh --version` + `gh auth status` per `runPreflight` call, 19 times
+ * over, under vitest's 10s bound.
+ */
+function runner(script: Record<string, Partial<RunResult>> = {}): {
+  run: RunCommand;
+  calls: string[];
+  cwds: (string | undefined)[];
+} {
+  const calls: string[] = [];
+  const cwds: (string | undefined)[] = [];
+  const run: RunCommand = (cmd, args, opts) => {
+    const key = [cmd, ...args].join(' ');
+    calls.push(key);
+    // Recorded separately because the cwd is the thing most easily dropped and
+    // least visible when it is: a probe that forgets it runs against the
+    // developer's live repo instead of this test's mkdtemp fixture, and every
+    // assertion on the returned rows still passes.
+    cwds.push(opts?.cwd);
+    for (const [prefix, res] of Object.entries(script)) {
+      if (key.startsWith(prefix)) {
+        return Promise.resolve({ code: 0, stdout: '', stderr: '', ...res });
+      }
+    }
+    if (key.startsWith('gh ')) return Promise.resolve({ code: 0, stdout: '', stderr: '' });
+    return Promise.resolve({ code: 1, stdout: '', stderr: '' });
+  };
+  return { run, calls, cwds };
+}
+
 const run = (cwd: string, over: Partial<Parameters<typeof runPreflight>[0]> = {}) =>
   runPreflight({
     cwd,
@@ -45,6 +86,7 @@ const run = (cwd: string, over: Partial<Parameters<typeof runPreflight>[0]> = {}
     nowMs: 0,
     fixes: [],
     log: () => {},
+    runCommand: runner().run,
     ...over,
   });
 
@@ -169,13 +211,75 @@ describe('runPreflight', () => {
    * earlier rows were already blocking — so `pnpm release` from a dirty tree
    * rewrote a tracked file and then aborted, leaving unexplained drift.
    */
-  it('leaves docs/sdd-report.md byte-identical while evaluating', async () => {
+  it('regenerates the sdd report to a path outside the repo, leaving the tracked one untouched', async () => {
     const report = join(cwd, 'docs/sdd-report.md');
     mkdirSync(join(cwd, 'docs'), { recursive: true });
     writeFileSync(report, '# SDD report\n\nhand-written sentinel\n', 'utf8');
     const before = readFileSync(report, 'utf8');
-    await run(cwd);
+    const { run: runCommand, calls } = runner();
+
+    await run(cwd, { runCommand });
+
     expect(readFileSync(report, 'utf8')).toBe(before);
+    // The byte-comparison above passes trivially against any runner that writes
+    // nothing, so assert the mechanism too: the probe must hand the CLI an
+    // `--out` that is not the tracked report. An in-place variant once rewrote
+    // that file and then aborted the release, leaving unexplained drift.
+    const sdd = calls.find((c) => c.includes('sdd-report'));
+    expect(sdd, 'sdd-report probe never invoked the CLI').toBeDefined();
+    const argv = sdd!.split(' ');
+    const flag = argv.indexOf('--out');
+    // Assert the flag is PRESENT before reading past it. Without this, dropping
+    // `--out` makes indexOf return -1, `argv[0]` is the node executable, and both
+    // path assertions below pass against a probe that now writes in place.
+    expect(flag, '--out flag absent from the sdd-report invocation').toBeGreaterThan(-1);
+    const out = argv[flag + 1];
+    expect(out).toBeDefined();
+    expect(out).not.toBe(report);
+    expect(out!.startsWith(cwd)).toBe(false);
+  });
+
+  it('routes every external command through the injected runner, gh included', async () => {
+    const { run: runCommand, calls } = runner();
+    const rows = await run(cwd, { runCommand });
+
+    // The fake RECORDING `gh` is the proof: a probe that spawned around the
+    // seam would leave nothing here, and the real `gh auth status` would run
+    // under vitest's 10s bound — the hazard this seam removes. `runCli`'s
+    // noldor-CLI spawn is in the same list, so all three call sites are covered.
+    expect(calls).toContain('gh --version');
+    expect(calls).toContain('gh auth status');
+    expect(calls.some((c) => c.includes('validate features'))).toBe(true);
+    // And the answers reach the rows, rather than the fake being merely called.
+    expect(byId(rows, 'gh-auth').status).toBe('ok');
+  });
+
+  it('hands every probe command the fixture cwd, never the developer tree', async () => {
+    // `makeProbeContext`'s own comment names this failure: without the cwd "a
+    // fixture-backed test silently asserts against the developer's own working
+    // tree". Nothing else in the suite catches it — the rows come back identical
+    // either way, which is what makes it worth an explicit assertion.
+    const { run: runCommand, cwds } = runner();
+    await run(cwd, { runCommand });
+    expect(cwds.length).toBeGreaterThan(0);
+    for (const seen of cwds) expect(seen).toBe(cwd);
+  });
+
+  it('reports gh as blocking when the runner says the binary is missing', async () => {
+    const { run: runCommand } = runner({ 'gh --version': { code: 1, stderr: 'not found' } });
+    const rows = await run(cwd, { runCommand });
+    const row = byId(rows, 'gh-auth');
+    expect(row.status).toBe('blocking');
+    expect(row.detail).toContain('missing or unauthenticated');
+  });
+
+  it('reports gh as blocking when it is present but unauthenticated', async () => {
+    const { run: runCommand, calls } = runner({ 'gh auth status': { code: 1 } });
+    const rows = await run(cwd, { runCommand });
+    expect(byId(rows, 'gh-auth').status).toBe('blocking');
+    // Ordering matters: `--version` must be probed before `auth status`, or a
+    // missing binary reports as an auth failure.
+    expect(calls.indexOf('gh --version')).toBeLessThan(calls.indexOf('gh auth status'));
   });
 
   it('writes no overrides.log during evaluation, even with a skip-var set', async () => {

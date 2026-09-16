@@ -4,6 +4,7 @@
 // `preflight.ts` (orchestration) imports the probes and the fixes, so if the
 // probes imported their types back from `preflight.ts` that would be a module
 // cycle — forbidden by the `no-module-cycles` boundary rule.
+import type { RunCommand } from './run-command.js';
 
 export type PreflightStatus = 'ok' | 'blocking' | 'warn' | 'skipped';
 
@@ -70,4 +71,15 @@ export interface PreflightInput {
   fixes: readonly PreflightRowId[];
   /** Test seam — defaults to `console.log`. */
   log?: (msg: string) => void;
+  /**
+   * Spawn seam — defaults to the real `defaultRunCommand`. A test injects a
+   * scripted fake so the suite never reaches `gh` or the npm registry.
+   */
+  runCommand?: RunCommand;
+  /**
+   * Budget for ONE probe, shared by every command in it. Defaults to
+   * `PROBE_TIMEOUT_MS`. A caller bounded by its own harness passes something
+   * under that bound so a slow probe yields a row instead of being killed.
+   */
+  budgetMs?: number;
 }

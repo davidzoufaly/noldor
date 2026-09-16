@@ -1,5 +1,5 @@
 {
-  "duplicatedTokens": 25775,
+  "duplicatedTokens": 25875,
   "perFile": {
     "src/autonomous/drain-io.ts": 154,
     "src/autonomous/drain-loop.ts": 108,
@@ -99,7 +99,7 @@
     "src/prep/discover.ts": 207,
     "src/prep/prep-fanout.ts": 533,
     "src/prep/prep-promote.ts": 384,
-    "src/release/preflight-probes.ts": 102,
+    "src/release/preflight-probes.ts": 202,
     "src/release/release-changelog.ts": 272,
     "src/release/release-fd-changelog.ts": 140,
     "src/release/release-markers.ts": 92,
@@ -123,10 +123,10 @@
     "src/worktrees/worktree-conflicts.ts": 284,
     "src/worktrees/worktree-status.ts": 284
   },
-  "duplicationPct": 7.87867302055027,
-  "totalTokens": 327149,
-  "groups": 231,
-  "filesScanned": 420,
+  "duplicationPct": 7.8950499943552295,
+  "totalTokens": 327737,
+  "groups": 232,
+  "filesScanned": 421,
   "options": {
     "minTokens": 50,
     "minLines": 5,
@@ -134,5 +134,5 @@
     "includeTests": false,
     "noisePolicy": 1
   },
-  "recordedAt": "2026-09-15T19:26:50.975Z"
+  "recordedAt": "2026-09-15T21:36:57.092Z"
 }

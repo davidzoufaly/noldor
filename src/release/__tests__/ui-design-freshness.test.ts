@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { blobIdOfWorktreeFile, receiptRelPath } from '../../design/ui-capture.js';
-import { runProbe, type ProbeContext } from '../preflight-probes.js';
+import { PROBE_TIMEOUT_MS, runProbe, type ProbeContext } from '../preflight-probes.js';
 import { classifyAncestry, evaluateUiDesignFreshness } from '../ui-design-freshness.js';
 
 const exec = (cmd: string, args: string[], cwd: string, env?: Record<string, string>) =>
@@ -470,6 +470,12 @@ describe('release preflight — ui-design-freshness row', () => {
       throw new Error('not needed by this probe');
     },
     config: () => null,
+    // This probe spawns nothing, but the field is required: a context with no
+    // runner would reach the real spawn if the probe ever grew one.
+    runCommand: () => {
+      throw new Error('not needed by this probe');
+    },
+    budgetMs: PROBE_TIMEOUT_MS,
   });
 
   it('does not block a release on a surface that merely lacks a capture receipt', async () => {
