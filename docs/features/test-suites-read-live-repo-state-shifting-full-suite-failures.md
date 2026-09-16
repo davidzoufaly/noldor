@@ -16,6 +16,7 @@ phase: done
 since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 `npx vitest run` failed on a shifting set of files that each passed in isolation, so a green suite was a matter of timing. Q-0171 recorded two runs ten minutes apart on 2026-08-20 with disjoint failure sets across `sdd-report.test.ts`, `preflight.test.ts` and `route-sweep.test.ts`.
@@ -51,3 +52,15 @@ No new command or UI. `pnpm test`, `pnpm verify` and `pnpm noldor release run --
 <!-- @prs-since-last-release: test-suites-read-live-repo-state-shifting-full-suite-failures -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Code:**
+  - [`src/release/run-command.ts`](../../src/release/run-command.ts)
+- **Tests:**
+  - [`src/release/__tests__/no-probe-spawns.test.ts`](../../src/release/__tests__/no-probe-spawns.test.ts)
+  - [`src/release/__tests__/run-command.test.ts`](../../src/release/__tests__/run-command.test.ts)
+
+<!-- /generated: resources -->
