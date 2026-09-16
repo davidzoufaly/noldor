@@ -209,7 +209,7 @@ Ask: "Type `release now` to proceed, or `cancel` to stop. Anything else = cancel
 
 If the user types `release now` (exact match, case-insensitive): run `pnpm release` and tail the output.
 
-`pnpm release` runs clean — never prefix it with `RELEASE_SKIP_*` env vars. If the CR gate reports a new receipt-less offender, add a `release.crGateExemptCommits` entry (`{ "sha": "<7-40 hex chars>", "reason": "..." }`) to `.noldor/config.json`; if the override audit WARNs on known self-host noise, declare it under `garden.overrideAudit.expected` (`shaPrefix` / `reasonIncludes` + `note`). Both are committed config, reviewed in the PR diff. The `RELEASE_SKIP_*` vars stay break-glass only — every use appends a `(release)`-tagged line to `.noldor/overrides.log`.
+`pnpm release` runs clean — never prefix it with `RELEASE_SKIP_*` env vars. If the CR gate reports a new receipt-less offender, add a `release.crGateExemptCommits` entry (`{ "sha": "<7-40 hex chars>", "reason": "..." }`) to `.noldor/config.json`; if the override audit WARNs on known self-host noise, declare it under `garden.overrideAudit.expected` (`shaPrefix` / `reasonIncludes` + `note`); if gate-compliance reports `trailerScopeMismatch` / `allowlistDrift` rows naming commits already squashed onto `main`, record them under `release.gateComplianceExemptCommits` (same `{ "sha", "reason" }` shape), or set `release.gateComplianceSince` to the commit where the repo adopted the rule when the whole pre-adoption span is noise. All are committed config, reviewed in the PR diff. The `RELEASE_SKIP_*` vars stay break-glass only — every use appends a `(release)`-tagged line to `.noldor/overrides.log`.
 
 If anything else: tell the user the sweep PR is merged and they can run `pnpm release` manually when ready.
 
