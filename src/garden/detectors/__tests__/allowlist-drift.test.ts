@@ -153,6 +153,18 @@ describe('detectAllowlistDrift', () => {
     expect(findings).toHaveLength(0);
   });
 
+  it('ignores a hex-shaped since floor that names no commit, rather than greening the gate', async () => {
+    addCommit(repo, 'chore(garden): micro-chore with code\n\nNoldor-Path: micro-chore', {
+      'src/index.ts': 'export const x = 1;',
+    });
+    // Shape-valid per the schema, but `deadbeef..HEAD` makes git exit non-zero.
+    writeConfig(repo, { gateComplianceSince: 'deadbeef' });
+
+    const findings = await detectAllowlistDrift({ cwd: repo });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.offendingFiles).toContain('src/index.ts');
+  });
+
   it('reports every finding when the config is malformed rather than crashing', async () => {
     addCommit(repo, 'chore(garden): micro-chore with code\n\nNoldor-Path: micro-chore', {
       'src/index.ts': 'export const x = 1;',

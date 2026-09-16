@@ -6,7 +6,6 @@ import {
   gateComplianceRange,
   isGateComplianceExempt,
   loadGateComplianceScope,
-  type GateComplianceScope,
 } from './gate-compliance-scope.js';
 
 export interface AllowlistDriftFinding {
@@ -26,15 +25,13 @@ export interface AllowlistDriftFinding {
  * commits acknowledged by `release.gateComplianceExemptCommits` are skipped.
  *
  * @param opts.cwd - Repository root.
- * @param opts.scope - Committed floor + exemptions; loaded from config when omitted.
  * @returns One AllowlistDriftFinding per flagged commit.
  */
 export async function detectAllowlistDrift(opts: {
   cwd: string;
-  scope?: GateComplianceScope;
 }): Promise<AllowlistDriftFinding[]> {
   const { cwd } = opts;
-  const scope = opts.scope ?? (await loadGateComplianceScope(cwd));
+  const scope = await loadGateComplianceScope(cwd);
   const range = gateComplianceRange(cwd, scope.since);
 
   // Gather current-branch commits with Noldor-Path: micro-chore trailer.

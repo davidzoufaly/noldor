@@ -6,7 +6,6 @@ import {
   gateComplianceRange,
   isGateComplianceExempt,
   loadGateComplianceScope,
-  type GateComplianceScope,
 } from './gate-compliance-scope.js';
 
 const SUBJECT_RE = /^(?:\w+)(?:\((?<scope>[^)]+)\))?(?:!)?:/;
@@ -56,17 +55,15 @@ export interface TrailerScopeMismatchFinding {
  * commits acknowledged by `release.gateComplianceExemptCommits` are skipped.
  *
  * @param opts.cwd - Repository root.
- * @param opts.scope - Committed floor + exemptions; loaded from config when omitted.
  * @returns One TrailerScopeMismatchFinding per flagged commit.
  */
 export async function detectTrailerScopeMismatch(opts: {
   cwd: string;
   scopeAliases?: Record<string, string[]>;
-  scope?: GateComplianceScope;
 }): Promise<TrailerScopeMismatchFinding[]> {
   const { cwd } = opts;
   const aliases = opts.scopeAliases ?? loadScopeAliases(cwd);
-  const gateScope = opts.scope ?? (await loadGateComplianceScope(cwd));
+  const gateScope = await loadGateComplianceScope(cwd);
   const range = gateComplianceRange(cwd, gateScope.since);
   const rootShas = rootCommitShas(cwd);
 
