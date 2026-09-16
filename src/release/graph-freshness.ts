@@ -36,12 +36,45 @@ export const GRAPH_IRRELEVANT_EXCLUDES: readonly string[] = [
   ':(exclude,glob)**/*.md',
 ];
 
+/** The graph report's path, as the release sweep tracks it. */
+const GRAPH_PATH = 'graphify-out/graph.json';
+
 /** Committer timestamp (unix seconds) of the latest commit touching `paths`, or '' when none. */
 async function latestCommitTs(paths: string[], cwd: string): Promise<string> {
   const { stdout } = await execFileAsync('git', ['log', '-1', '--format=%ct', '--', ...paths], {
     cwd,
   });
   return stdout.trim();
+}
+
+/**
+ * Is the graph report tracked in the CURRENT tree?
+ *
+ * Deliberately `ls-tree HEAD` and not `git log`: git log finds the commit that
+ * *deleted* a path just as readily as one that wrote it, so a repo that tracked
+ * the graph once and later gitignored it kept a frozen timestamp — the removal
+ * commit — that every later source commit outruns. The verdict was `stale`
+ * forever on a consumer whose `.gitignore` says in as many words that nothing
+ * under `graphify-out/` is a source, and this gate has no `RELEASE_SKIP_` twin,
+ * so the only exit was re-tracking a megabyte of generated JSON. An untracked
+ * graph is exactly the documented optional case and reads `skipped`.
+ *
+ * Any git failure (no commits yet, not a repo) reads as untracked — a check
+ * that cannot look must not invent a stale verdict.
+ */
+async function graphTracked(cwd: string): Promise<boolean> {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['ls-tree', '--name-only', 'HEAD', '--', GRAPH_PATH],
+      {
+        cwd,
+      },
+    );
+    return stdout.trim().length > 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Verdict of {@link evaluateGraphFreshness} — reported, never thrown. */
@@ -69,10 +102,11 @@ export async function evaluateGraphFreshness(
   scanPaths: string[],
   cwd: string = process.cwd(),
 ): Promise<GraphFreshnessVerdict> {
-  const graphTs = await latestCommitTs(['graphify-out/graph.json'], cwd);
-  if (graphTs.length === 0) {
-    return { status: 'skipped', detail: 'no graphify-out/graph.json tracked' };
+  if (!(await graphTracked(cwd))) {
+    return { status: 'skipped', detail: `no ${GRAPH_PATH} tracked in the current tree` };
   }
+  // Tracked in HEAD ⇒ some commit wrote it, so this is never empty.
+  const graphTs = await latestCommitTs([GRAPH_PATH], cwd);
   if (scanPaths.length === 0) {
     return { status: 'skipped', detail: 'consumer declares no scanPaths' };
   }

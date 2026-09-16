@@ -47,6 +47,17 @@ describe('evaluateGraphFreshness', () => {
     expect((await evaluateGraphFreshness(['src'], cwd)).status).toBe('skipped');
   });
 
+  it('skips when the graph was tracked once but is absent from the current tree', async () => {
+    await commit('graphify-out/graph.json', '{}\n', 1000);
+    await exec('git', ['rm', '-q', 'graphify-out/graph.json'], cwd);
+    await exec('git', ['commit', '-q', '-m', 'drop graph'], cwd, {
+      GIT_AUTHOR_DATE: '@2000 +0000',
+      GIT_COMMITTER_DATE: '@2000 +0000',
+    });
+    await commit('src/app.ts', 'export const a = 5;\n', 3000);
+    expect((await evaluateGraphFreshness(['src'], cwd)).status).toBe('skipped');
+  });
+
   it('skips when scanPaths is empty even if a graph exists', async () => {
     await commit('graphify-out/graph.json', '{}\n', 1000);
     await commit('src/app.ts', 'export const a = 2;\n', 2000);

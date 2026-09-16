@@ -27,6 +27,7 @@ import {
   penBridgeRowLevel,
   renderPenBridgeRow,
 } from '../../checks/check-pen-bridge.js';
+import { checkOxfmtIgnores } from '../../checks/check-oxfmt-ignores.js';
 import { loadUiConfig } from '../../core/consumer-config.js';
 import { evaluateUiDesignFreshness } from '../../release/ui-design-freshness.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
@@ -123,6 +124,17 @@ if (freshness.status !== 'ok' && freshness.status !== 'no-lockfile') {
 for (const row of checkPenBridge(process.cwd())) {
   const level = { finding: 'warn', healthy: 'ok', undetermined: 'unknown' }[penBridgeRowLevel(row)];
   console.log(`${level.padEnd(12)} ${renderPenBridgeRow(row)}`);
+}
+
+// Formatter exemption for the generated graph report: advisory only (does NOT
+// affect exit code). `.oxfmtrc.json` is scaffold-only, so the drift pass above
+// skips it by design and a consumer scaffolded before the template gained its
+// `graphify-out/**` line never learns of it — until the release sweep tracks the
+// report and `fmt:check` goes red on generated markdown. Failing here would red
+// `pnpm verify` for a repo whose only sin is an older scaffold, so: warn.
+const oxfmt = checkOxfmtIgnores(process.cwd());
+if (oxfmt.status !== 'ok' && oxfmt.status !== 'no-config') {
+  console.log(`${'warn'.padEnd(12)} fmt-config: ${oxfmt.detail}`);
 }
 
 // Framework-version skew: advisory only (does NOT affect exit code). A consumer
