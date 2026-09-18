@@ -405,5 +405,9 @@
   "Q-0243": {
     "slug": "integrity-only-capped-round-has-no-legal-exit",
     "retiredAt": "2026-09-18"
+  },
+  "Q-0241": {
+    "slug": "consumer-config-belongs-in-a-lane",
+    "retiredAt": "2026-09-18"
   }
 }
