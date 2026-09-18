@@ -12,12 +12,15 @@ import {
   roundVerdict,
 } from '../cr/autofix-ledger.js';
 import {
+  INTEGRITY_ONLY_DIAGNOSIS,
   arbitrationPath,
   arbitrationRecordSchema,
+  integrityOnlyRemedy,
   isFilled,
   parseArbitrationTrailer,
   recordDigest,
 } from '../cr/arbitration.js';
+import type { ArtifactKind } from '../cr/findings-schema.js';
 import { readFileNoFollow } from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
 import { parseTrailers } from '../core/trailers.js';
@@ -41,6 +44,14 @@ export interface RecordFacts {
   readonly rounds: LedgerFacts['rounds'];
   /** How many arbitrable blockers the record carries. Zero is a real case. */
   readonly blockerCount: number;
+  /**
+   * The pair the record names, carried so a refusal can print the remedy with
+   * real flags. Read off the record rather than plumbed in beside it: the
+   * decision is already a function of record facts, and a second source for the
+   * same pair could disagree with the file it is describing.
+   */
+  readonly slug: string;
+  readonly kind: ArtifactKind;
 }
 
 /**
@@ -60,14 +71,14 @@ export interface RecordFacts {
  * removes it, an unfreshened fallback would refuse honest bare overrides in
  * every later session on the same slug.
  *
- * Gated on a non-empty blocker list for a second reason. `buildSkeleton` drops
- * every `integrity: true` blocker — "this verdict cannot be trusted" is not
- * something an operator can accept, reject or defer — while `aggregate` can go
- * red on integrity blockers alone (an unreadable sink, a parse error). That
- * combination yields a record with no arbitrable blockers, which `isFilled`
- * reports as unfilled, so demanding a filled record there asks for something
- * that cannot be supplied. Falling through to the warning leaves such a push
- * exactly where it was before this fallback existed.
+ * NOT gated on a non-empty blocker list. It was, while an empty record had no
+ * legal exit: demanding a filled one asked for a disposition that cannot exist,
+ * so the fallback declined to resolve rounds at all, and the push fell through
+ * to a warning that blamed a missing ledger for something else entirely.
+ * {@link integrityOnlyRound} now answers that case by name, so both branches
+ * read the same history and print the same diagnosis — where before a
+ * ledger-deleted session passed on a misleading warning while a ledger-present
+ * one dead-ended on an impossible demand.
  */
 function resolveRounds(
   ledger: LedgerFacts | null,
@@ -75,8 +86,20 @@ function resolveRounds(
 ): LedgerFacts['rounds'] | null {
   if (ledger !== null) return ledger.rounds;
   if (record === null || record.boundTree !== record.currentTree) return null;
-  if (record.blockerCount === 0) return null;
   return record.rounds;
+}
+
+/**
+ * True when the record describes a round that went red on integrity blockers
+ * alone — nothing an operator could ever dispose of. See
+ * {@link INTEGRITY_ONLY_DIAGNOSIS} for what produces that state.
+ *
+ * Tree-gated for the same reason {@link resolveRounds} is: a record bound to
+ * another tree describes work this push no longer carries, so its emptiness says
+ * nothing about the round being pushed.
+ */
+function integrityOnlyRound(record: RecordFacts): boolean {
+  return record.boundTree === record.currentTree && record.blockerCount === 0;
 }
 
 export interface ArbitrationDecision {
@@ -113,6 +136,38 @@ export function decideArbitration(input: {
   const red = rounds.filter((r) => r.verdict === 'red').length;
   const lastRed = rounds.at(-1)?.verdict === 'red';
   if (red <= AUTOFIX_ROUND_CAP || !lastRed) return { ok: true };
+
+  // Before anything is asked of the record, ask whether this round can be
+  // arbitrated at all. An integrity-only round cannot, and this guard has no
+  // business refusing it.
+  //
+  // Fail OPEN, loudly, for the same reason the missing-ledger branch above does.
+  // What this guard closes is one hole: a bare free-text override standing in
+  // for an arbitration that a real reviewed red verdict demanded. Here no lane
+  // ever returned a verdict, so there is no arbitration for the override to
+  // stand in for.
+  //
+  // And a refusal would have no exit to offer, because the remedy does not live
+  // at push time. It is upstream — repair the sink, clear the round ledger,
+  // re-run the lane — and none of that moves the tree, since `.noldor/cr/` is
+  // gitignored, so the record this decision reads would still be the empty one.
+  // Refusing would just teach operators to `rm` a gitignored file: the same
+  // fail-open, with the hole hidden instead of printed.
+  //
+  // The warning is the product. It says what happened and names the whole
+  // remedy, ledger clear included — never "dispose of a blocker", which is what
+  // the filled check below used to demand of a record that carries none.
+  //
+  // Safe only because `priorRecordStands` refuses to let an empty record stand
+  // for a later round at the same tree. Were it sticky, a genuinely arbitrable
+  // round could reach this branch and be waved through.
+  if (input.record !== null && integrityOnlyRound(input.record))
+    return {
+      ok: true,
+      warning:
+        `pre-push: ${INTEGRITY_ONLY_DIAGNOSIS}. The override stands, but nothing here was ` +
+        `reviewed — ${integrityOnlyRemedy(input.record.slug, input.record.kind)}`,
+    };
 
   const claimed = parseArbitrationTrailer(input.override);
   if (claimed === null)
@@ -251,6 +306,8 @@ function readRecordFacts(cwd: string, git: GitRunner, slug: string): RecordFacts
       currentTree: tree.status === 0 ? tree.stdout.trim() : '',
       rounds: rec.rounds.map((r) => ({ round: r.round, verdict: r.verdict })),
       blockerCount: rec.blockers.length,
+      slug: rec.slug,
+      kind: rec.kind,
     };
   } catch {
     return null;

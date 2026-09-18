@@ -39,7 +39,13 @@ import { readSession } from '../core/session.js';
 import { ruleR1, ruleR2, ruleR3 } from './reflag.js';
 import type { RuleBlocker } from './reflag.js';
 import { markerScopes, scanSource } from './cut-scan.js';
-import { arbitrationPath, arbitrationRecordSchema } from './arbitration.js';
+import {
+  INTEGRITY_ONLY_DIAGNOSIS,
+  arbitrationPath,
+  arbitrationRecordSchema,
+  integrityOnlyRemedy,
+  isIntegrityOnly,
+} from './arbitration.js';
 import type { ArbitrationRecord } from './arbitration.js';
 import type { CutScope } from './cut-scan.js';
 import { laneFindingsSchema } from './findings-schema.js';
@@ -601,6 +607,25 @@ export function buildSkeleton(
 }
 
 /**
+ * Whether a record already on disk still speaks for this tree.
+ *
+ * Same tree is the first half — a record bound to another tree arbitrated
+ * different work. An EMPTY record is the second, and it is what keeps the
+ * fail-open branch in the pre-push guard honest. The early return exists to
+ * protect dispositions the operator has already filled in; an integrity-only
+ * record has none to protect, because the schema refuses a disposition naming a
+ * blocker the record does not carry. Left standing, it is sticky per-tree: the
+ * remedy for an integrity-only round (repair the sink, clear the ledger, re-run)
+ * moves nothing into git, so the NEXT cap cycle at the same tree — one with real
+ * reviewed blockers — would hit this return, print "already present", and leave
+ * `blockerCount` at 0. The guard would then read a genuinely arbitrable round as
+ * "nothing was reviewed" and wave a bare override through.
+ */
+export function priorRecordStands(prior: ArbitrationRecord, tree: string): boolean {
+  return prior.boundTree === tree && !isIntegrityOnly(prior);
+}
+
+/**
  * Write the skeleton, unless a record for this tree already exists.
  *
  * Re-running orchestrate at the cap refuses again and reaches here again, so
@@ -623,7 +648,7 @@ export async function writeSkeletonIfAbsent(
     const existing = await readFileNoFollowAsync(path).catch(() => null);
     if (existing !== null) {
       const prior = arbitrationRecordSchema.safeParse(JSON.parse(existing));
-      if (prior.success && prior.data.boundTree === tree) {
+      if (prior.success && priorRecordStands(prior.data, tree)) {
         console.error(`arbitration record already present: ${path}`);
         return;
       }
@@ -654,24 +679,57 @@ export async function writeSkeletonIfAbsent(
     await mkdir(dirname(path), { recursive: true });
     await writeJsonAtomic(path, rec);
     console.error(`arbitration skeleton written: ${path}`);
-    console.error(`  ${rec.blockers.length} unresolved blockers await a disposition:`);
+    for (const line of renderSkeletonExit(rec, slug, kind, stale.length > 0)) console.error(line);
+  } catch (err) {
+    console.error(`arbitration skeleton not written: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * What to print once the skeleton is on disk — the blockers awaiting a
+ * disposition, or the fact that there are none to await.
+ *
+ * Pure, because the branch it owns is the one the I/O wrapper kept getting
+ * wrong: a record whose `blockers` array is empty was announced as
+ * "0 unresolved blockers await a disposition" and followed by dispose commands
+ * that can never succeed — see {@link INTEGRITY_ONLY_DIAGNOSIS} for why that
+ * list is empty and why no disposition fills it.
+ *
+ * Printed AFTER {@link renderCapRefusal}, whose exit lines are generic — so on
+ * an integrity-only round these lines are the last word and say so. This is the
+ * FIRST place the operator meets the state; the pre-push guard repeats the same
+ * diagnosis from the same constant if they push without acting on it.
+ */
+export function renderSkeletonExit(
+  rec: ArbitrationRecord,
+  slug: string,
+  kind: ArtifactKind,
+  stale: boolean,
+): string[] {
+  if (isIntegrityOnly(rec))
+    return [
+      `  NOTHING TO ARBITRATE — ${INTEGRITY_ONLY_DIAGNOSIS}.`,
+      '  Ignore the dispose instructions above: there is nothing to accept, reject, or defer, and',
+      '  filling this record is not a close pre-push can verify. Instead,',
+      `    ${integrityOnlyRemedy(slug, kind)}`,
+    ];
+  return [
+    `  ${rec.blockers.length} unresolved blockers await a disposition:`,
     // The ids, not just the count: they are what `--blocker` takes, and a
     // `fingerprintBlocker` id is not something an operator can derive. The
     // message is reviewer-controlled text, so its newlines are collapsed —
     // otherwise one could forge an extra `    <id>  [high] …` row no lane filed.
-    for (const b of rec.blockers) {
-      console.error(`    ${b.id}  [${b.severity}] ${b.message.replace(/\r\n|\r|\n/g, ' ⏎ ')}`);
-    }
-    if (stale.length > 0) {
-      console.error(
-        '  CHECK EACH ONE AGAINST THE CODE FIRST — the sinks they came from predate this tree, ' +
-          'so some may already be fixed.',
-      );
-    }
-    for (const line of arbitrationExit(slug, kind)) console.error(line);
-  } catch (err) {
-    console.error(`arbitration skeleton not written: ${(err as Error).message}`);
-  }
+    ...rec.blockers.map(
+      (b) => `    ${b.id}  [${b.severity}] ${b.message.replace(/\r\n|\r|\n/g, ' ⏎ ')}`,
+    ),
+    ...(stale
+      ? [
+          '  CHECK EACH ONE AGAINST THE CODE FIRST — the sinks they came from predate this tree, ' +
+            'so some may already be fixed.',
+        ]
+      : []),
+    ...arbitrationExit(slug, kind),
+  ];
 }
 
 /**

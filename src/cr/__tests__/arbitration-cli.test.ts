@@ -325,12 +325,14 @@ describe('cr arbitration digest', () => {
     expect(r.stderr).not.toContain('bound to tree');
   });
 
-  it('exits 1 on a record with no arbitrable blockers, which cannot be filled', () => {
+  it('exits 1 on a record with no arbitrable blockers, naming the lane re-run as the way out', () => {
     // `buildSkeleton` drops integrity blockers, so an aggregate that went red on
-    // those alone writes this — and no disposition can ever make it filled.
+    // those alone writes this — and no disposition can ever make it filled, so
+    // the reason has to point somewhere other than `dispose`.
     writeRecord({ blockers: [] });
     const r = run('digest', '--slug', 'slug', '--kind', 'code');
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('no arbitrable blockers');
+    expect(r.stderr).toContain('integrity blockers alone');
+    expect(r.stderr).toContain('re-run the lane');
   });
 });

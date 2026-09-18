@@ -112,6 +112,54 @@ export function arbitrationPath(cwd: string, slug: Slug, kind: ArtifactKind): st
   return slugKindJsonPath(cwd, ['.noldor', 'cr', 'arbitration'], slug, kind, 'arbitration record');
 }
 
+/**
+ * What an empty `blockers` array means, said ONCE.
+ *
+ * Three surfaces report this state — the skeleton banner, `cr arbitration
+ * digest`, and the pre-push guard — and they drifted into three near-identical
+ * sentences that disagreed about the remedy. `arbitrationExit` in
+ * `orchestrate.ts` is the file's own precedent for naming a remedy once so every
+ * refusal cites the same one.
+ *
+ * The state itself: `buildSkeleton` drops every `integrity: true` blocker on
+ * purpose ("this verdict cannot be trusted" is not something to accept, reject
+ * or defer), while `aggregate` can go red on those alone — an unreadable sink, a
+ * JSON parse error, a schema error, a lane mismatch, a non-conforming filename.
+ * So an empty list is not "nothing was wrong". It is "every blocker said the
+ * review did not happen", and no disposition settles that.
+ */
+export const INTEGRITY_ONLY_DIAGNOSIS =
+  'this round went red on integrity blockers alone — a lane sink that could not be read, parsed, ' +
+  'or matched to its lane — so no lane ever returned a verdict and the record carries no blockers ' +
+  'to dispose of';
+
+/**
+ * The remedy, for a caller that knows which pair it is talking about.
+ *
+ * Deleting the sink rather than editing it: the thing that went wrong is that
+ * the file could not be read as lane findings, and a hand-repaired sink would
+ * then stand for a review that never ran.
+ *
+ * The ledger clear is part of the remedy, not a footnote one surface adds. Past
+ * the cap `capVerdict` refuses every dispatch once the closing round is spent,
+ * so "re-run the lane" on its own names a command that exits 3 — the same
+ * unrunnable-remedy trap this whole fix exists to remove. Clearing is
+ * defensible rather than a cap dodge: an integrity round spent budget without
+ * any lane having reviewed anything.
+ */
+export function integrityOnlyRemedy(slug: string, kind: ArtifactKind): string {
+  return (
+    'delete the unreadable sink under .noldor/cr/, clear the round ledger under ' +
+    '.noldor/cr/autofix/ (a spent closing round refuses the dispatch, and an unread sink ' +
+    `reviewed nothing to spend it on), then re-run the lane: pnpm noldor cr orchestrate --slug ${slug} --kind ${kind}`
+  );
+}
+
+/** True when the record describes a round with nothing an operator could dispose. */
+export function isIntegrityOnly(rec: Pick<ArbitrationRecord, 'blockers'>): boolean {
+  return rec.blockers.length === 0;
+}
+
 /** Blocker ids still awaiting a disposition, in record order. */
 export function undisposed(rec: ArbitrationRecord): string[] {
   const disposed = new Set(rec.dispositions.map((d) => d.blockerId));
