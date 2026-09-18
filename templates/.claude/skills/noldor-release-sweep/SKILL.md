@@ -1,12 +1,23 @@
 ---
 name: noldor-release-sweep
-description: Orchestrate the full pre-release sweep — /graphify (AST-only by default) → pnpm toon → /noldor-refactor against the new GRAPH_REPORT.md → README drift check → /graphify + pnpm toon to capture the refactor → commit sweep results → pause for explicit user confirmation → pnpm release. Full-semantic graphify is an explicit opt-in (--full-semantic). Use when the user signals they're ready to release. Never runs pnpm release without explicit confirmation.
+description: Orchestrate the full pre-release sweep — /graphify (AST-only by default) → graph-to-toon → /noldor-refactor against the new GRAPH_REPORT.md → README drift check → /graphify + graph-to-toon to capture the refactor → commit sweep results → pause for explicit user confirmation → the release pipeline. Full-semantic graphify is an explicit opt-in (--full-semantic). Use when the user signals they're ready to release. Never runs pnpm release without explicit confirmation.
 user_invocable: true
 ---
 
 # Release sweep — graphify → refactor → README → graphify → release
 
 This skill runs the non-negotiable pre-release sweep documented in [`docs/noldor/graph-integration.md`](../../../docs/noldor/graph-integration.md) as a single continuous flow, instead of stopping after graphify like the bare `/graphify` skill does.
+
+## Commands in this skill
+
+This skill ships to consumer repos, so every command block below is written against the consumer-facing CLI (`pnpm noldor …`) and can be run verbatim from any repo that installs the framework. No block reaches into `./src/`, and none assumes a `package.json` script the framework does not install.
+
+Two forms are deliberate exceptions, because they name a *repo script* rather than a framework command:
+
+- **`pnpm verify`** — your repo's own full-check script (lint + format + typecheck + tests). Substitute whatever your `package.json` calls it; the framework does not define it.
+- **`pnpm release`** — a convenience alias that exists only in the noldor repo itself <!-- noldor-skill-drift-ignore -->. In a consumer, the equivalent is `pnpm noldor release run`, and the read-only gate aggregate is `pnpm noldor release run --preflight`. Read every `pnpm release …` below as `pnpm noldor release run …`.
+
+Anything else that is noldor-repo-only carries a `<!-- noldor-skill-drift-ignore -->` marker at its point of use.
 
 ## Pre-flight
 
@@ -21,11 +32,14 @@ This skill runs the non-negotiable pre-release sweep documented in [`docs/noldor
    git switch -c "release-sweep/$ts"
    ```
 
-   Then write `.noldor/session.json` via:
+   Then write `.noldor/session.json`:
 
    ```bash
-   pnpm exec tsx -e "(async () => { const {writeSession} = await import('./src/core/session.ts'); writeSession(process.cwd(), { path: 'release-sweep', startedAt: new Date().toISOString() }); })()"
+   mkdir -p .noldor
+   printf '{\n  "path": "release-sweep",\n  "startedAt": "%s"\n}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .noldor/session.json
    ```
+
+   That is the whole marker, not an abbreviation of one: `SessionMarkerSchema` ([`src/core/session.ts`](../../../src/core/session.ts)) is `.strict()`, so `path` and `startedAt` are the only fields a `release-sweep` marker may carry and any extra key fails the parse. Writing the file directly is exactly what `writeSession` does. There is no framework CLI for minting an arbitrary marker, and the form this replaced imported the module by relative path — a path that exists only inside the noldor repo, so no consumer could ever run it.
 
    All sweep-step commits below land on this branch; `noldor-inject-trailers` reads the session marker and stamps `Noldor-Path: release-sweep` on every commit automatically. No manual `Noldor-Path-Override` trailers needed.
 
@@ -46,8 +60,10 @@ Invoke the `graphify` skill (Skill tool, name `graphify`) with args `--ast-only 
 ### 2. Toon files
 
 ```bash
-pnpm toon
+pnpm noldor graphify graph-to-toon graphify-out/graph.json
 ```
+
+The graph path is a required argument — the subcommand prints usage and exits non-zero when given none, so there is no bare form to fall back on.
 
 This regenerates `graphify-out/graph.brainstorm.toon`, `graphify-out/graph.brainstorm-summary.toon`. Required for downstream toon-aware reads.
 
@@ -73,7 +89,7 @@ If README looks current, say so explicitly: "README reflects current state — n
 
 ### 5. Second graphify pass + toon
 
-Invoke the `graphify` skill again — same mode as step 1 (AST-only by default; full-semantic only if the operator opted in there) — to capture the refactor. Then `pnpm toon` again. The post-refactor graph is the snapshot that ships with the release tag.
+Invoke the `graphify` skill again — same mode as step 1 (AST-only by default; full-semantic only if the operator opted in there) — to capture the refactor. Then re-run `pnpm noldor graphify graph-to-toon graphify-out/graph.json`. The post-refactor graph is the snapshot that ships with the release tag.
 
 ### 5.5. Drift pre-empt — sdd:report
 
@@ -183,8 +199,10 @@ If the ff-only fails — **most likely cause is a concurrent PR merging to `orig
 2. **Clear the session marker now** — not at step 10:
 
    ```bash
-   pnpm exec tsx -e "(async () => { const {clearSession} = await import('./src/core/session.ts'); clearSession(); })()"
+   rm -f .noldor/session.json
    ```
+
+   Deleting the file *is* what `clearSession` does ([`src/core/session.ts`](../../../src/core/session.ts)) — it unlinks rather than truncates, so `readSession` unambiguously returns null afterwards.
 
    The preflight has a blocking `session-marker` row, so a live `release-sweep` marker reds the aggregate on a literal top-to-bottom reading. Clearing here is safe: step 8 already merged and fast-forwarded, so no further sweep commit is expected. If a by-hand preflight fix *does* turn out to need a commit, it is a separate micro-chore on its own branch — never a sweep commit on `main`.
 
@@ -215,10 +233,10 @@ If anything else: tell the user the sweep PR is merged and they can run `pnpm re
 
 ### 10. Confirm the session marker is clear
 
-Step 9's preamble already cleared it. Confirm — and, if step 9 was entered out of order or the marker was rewritten since, clear it now. `clearSession` is idempotent, so running it again costs nothing:
+Step 9's preamble already cleared it. Confirm — and, if step 9 was entered out of order or the marker was rewritten since, clear it now. `rm -f` is idempotent, so running it again costs nothing:
 
 ```bash
-pnpm exec tsx -e "(async () => { const {clearSession} = await import('./src/core/session.ts'); clearSession(); })()"
+rm -f .noldor/session.json
 ```
 
 Do this regardless of release outcome (run, cancelled, deferred). The release-sweep session ends here. The next gate path writes its own session marker; leaving the stale `release-sweep` marker would cause subsequent commits to be misclassified.
