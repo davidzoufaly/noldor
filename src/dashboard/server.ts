@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { readFile as readFileAsync } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { resolve as resolvePath, sep } from 'node:path';
@@ -392,6 +393,54 @@ async function handleApiRemove(
  * the dashboard process was launched from.
  */
 const STATIC_ROOT = fileURLToPath(new URL('./static/dist', import.meta.url));
+
+/**
+ * How often {@link watchInstall} re-checks that this server's own package files
+ * are still on disk. One `existsSync` per tick, so the interval only bounds how
+ * long a zombie can keep answering probes — not anything expensive.
+ */
+const INSTALL_WATCHDOG_INTERVAL_MS = 30_000;
+
+/**
+ * Report when this server's own installed package is deleted underneath it.
+ *
+ * Upgrading the `@david.zoufaly/noldor` dependency prunes the old store
+ * directory while the detached dashboard spawned from that version is still
+ * listening. Its routes keep answering out of memory — `/health` and
+ * `/identity` both pass — so `planPort` classifies it as this project's
+ * dashboard and returns `reuse` at every session start, while every route that
+ * reads a file 500s (`ENOENT … /dist/dashboard/static/dist/drag.js`). Nothing
+ * else notices the state, so the zombie holds the port until an operator finds
+ * it with `lsof` and kills it by hand.
+ *
+ * Exiting on the report is the whole fix: the port frees and the next
+ * `dashboard ensure` spawns a server from the install that actually exists. A
+ * dashboard that cannot read its own files is strictly worse than no dashboard,
+ * which is also why a transient miss mid-reinstall needs no guard — respawning
+ * is the right answer either way.
+ *
+ * @param opts - `root` to watch (default {@link STATIC_ROOT}), `intervalMs`,
+ *   and `onVanished`, called once with the missing root. The first two are
+ *   injection seams for tests.
+ * @returns A stop function. The timer is unref'd, so a watchdog never keeps an
+ *   otherwise-finished process alive.
+ */
+export function watchInstall(opts: {
+  root?: string;
+  intervalMs?: number;
+  onVanished: (root: string) => void;
+}): () => void {
+  const root = opts.root ?? STATIC_ROOT;
+  const timer = setInterval(() => {
+    if (existsSync(root)) return;
+    // Stop before reporting: the root does not come back, so every later tick
+    // would re-report the same thing to a caller that is already shutting down.
+    clearInterval(timer);
+    opts.onVanished(root);
+  }, opts.intervalMs ?? INSTALL_WATCHDOG_INTERVAL_MS);
+  timer.unref();
+  return () => clearInterval(timer);
+}
 
 /**
  * Reject any `/static/<anything>` request whose filename portion did not
@@ -1000,6 +1049,18 @@ async function main(): Promise<void> {
     try {
       const { baseUrl } = await startServer({ port: plan.port, host });
       console.log(`dashboard → ${baseUrl}`);
+      // Only the long-lived daemon needs the watchdog: the `port === 0` branch
+      // above is the throwaway/test run, which never outlives an upgrade.
+      watchInstall({
+        onVanished: (root) => {
+          console.error(
+            `dashboard: ${root} no longer exists — this server is running from a deleted ` +
+              `install, so every route that reads a file returns 500. Exiting so the next ` +
+              `'noldor dashboard ensure' respawns from the current install.`,
+          );
+          process.exit(0);
+        },
+      });
       process.on('SIGINT', () => process.exit(0));
       return;
     } catch (err) {
