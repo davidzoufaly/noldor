@@ -65,18 +65,6 @@ The `ui-design-freshness` gate prints a remedy no lane can land. Its fix line re
 
 Q-0171 removed one sufficient cause of the shifting full-suite failures — unbounded `gh`/`npm` I/O in `preflight.test.ts` — but explains neither of the other two observed red files, and it is honest about that rather than claiming the flake fixed. `src/dashboard/__tests__/route-sweep.test.ts` (8 of the 10 reds on 2026-08-20) performs no external I/O at all: it binds an ephemeral port and renders live-repo pages in-process at 949–1472 ms per route against a 10s bound, so nothing in Q-0171 makes it faster or more deterministic. `src/garden/__tests__/sdd-report.test.ts` shells `tsx src/garden/sdd-report.ts` against the live repo four times (`cwd: process.cwd()`, plus a `pnpm fmt:check`), 17.4s for the file. Both sit in the measured slow tail under a 10s per-test bound, which is the surviving hypothesis, but neither has been reproduced on demand — two full-suite runs on 2026-09-15, one under six busy-loop CPU hogs, were green. Wanted first: a way to reproduce, or per-file evidence of what a red run actually reported (timeout vs assertion). Only then a remedy. Deletion test: a documented reproduction, or a retired hypothesis. (found 2026-09-15 shipping Q-0171)
 
-### Integrity-Only Capped Round Has No Legal Exit
-
-- id: Q-0243
-- area: tooling
-- type: fix
-- since: 2026-09-16
-- size: S
-- impact: high
-- confidence: med
-
-A round that goes red on integrity blockers alone writes an arbitration record no operator can ever fill. `buildSkeleton` drops every `integrity: true` blocker on purpose — "this verdict cannot be trusted" is not something you accept, reject or defer — while `aggregate` can go red on integrity blockers alone (unreadable sink, JSON parse error, non-conforming filename). At the cap that combination writes a record whose `blockers` array is empty; `isFilled` reports an empty list as unfilled; `decideArbitration` then refuses the push with "the arbitration record has a blocker with no disposition", over a disposition that cannot exist because there is no blocker to dispose. Shipping Q-0224 the reviewer caught this on the *new* record-fallback path and it was fixed there (`resolveRounds` requires `blockerCount > 0`), but the pre-existing ledger-present branch still dead-ends the same way: a session whose ledger survives to push time and whose last round was integrity-only has no legal exit at all. Wanted: decide what an integrity-only capped round *means* — most likely that it is not arbitrable and the remedy is to re-run the lane, not to override — and say so in the refusal text instead of asking for a disposition. Deletion test: a push whose arbitration record carries zero blockers is told to re-run the lane, never asked to dispose a blocker that does not exist. (found 2026-09-15 shipping Q-0224)
-
 ### Co-Tag Detector: Degraded-Mode Honesty + Mechanical Seeding
 
 - id: Q-0172

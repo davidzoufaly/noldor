@@ -401,5 +401,9 @@
   "Q-0242": {
     "slug": "gate-compliance-has-no-exempt-list-or-since-floor",
     "retiredAt": "2026-09-16"
+  },
+  "Q-0243": {
+    "slug": "integrity-only-capped-round-has-no-legal-exit",
+    "retiredAt": "2026-09-18"
   }
 }
