@@ -1,9 +1,17 @@
 import { isNoReviewLaneAllowed } from '../core/allowlist.js';
+import { CONSUMER_CONFIG_PATH, retroactiveWaiversTouched } from '../core/config-waiver-guard.js';
 import { defaultRunCommand, runOrThrow, type RunCommand } from './run-command.js';
 
 export interface CrGateOffender {
   sha: string;
   subject: string;
+  /**
+   * Why this commit failed, when the default "no review receipt or override
+   * trailer" would mislead. A commit refused for moving a retroactive waiver
+   * has no receipt either, but that is not the thing to fix — re-landing it
+   * through a review lane is.
+   */
+  detail?: string;
 }
 
 /**
@@ -124,13 +132,32 @@ export async function checkCrGate(input: CrGateInput): Promise<CrGateResult> {
       .filter(Boolean);
 
     if (files.length === 0) continue;
-    if (isNoReviewLaneAllowed(files)) continue;
+
+    // The no-review lanes are judged by file list alone, so a commit takes that
+    // exemption whatever its `Noldor-Path` says — or with none at all.
+    // `.noldor/config.json` is on the list and holds the keys that wave commits
+    // past this very gate, so a commit that moved one is denied the exemption
+    // and falls through to the ordinary receipt check: a review receipt is the
+    // sanctioned way to change a waiver, and only the free pass is withdrawn.
+    // The hooks' guard is `--no-verify`-bypassable and the post-hoc detector
+    // reads only `Noldor-Path: micro-chore`, so this is the one check that sees
+    // a waiver landed under any other label.
+    const movedWaivers = await waiversMovedIn(git, sha, files);
+    if (isNoReviewLaneAllowed(files) && movedWaivers.length === 0) continue;
 
     const reviewed = REVIEW_RECEIPT_KEYS.some((k) => hasNonEmpty(t, k));
     const overridden = OVERRIDE_KEYS.some((k) => hasNonEmpty(t, k));
     if (reviewed || overridden) continue;
 
     const subject = message.split(/\r?\n/, 1)[0]?.trim() ?? '';
+    if (movedWaivers.length > 0) {
+      offenders.push({
+        sha,
+        subject,
+        detail: `moves ${movedWaivers.join(', ')} with no review receipt — re-land it through a review lane`,
+      });
+      continue;
+    }
     offenders.push({ sha, subject });
   }
 
@@ -150,9 +177,42 @@ function hasNonEmpty(t: Map<string, string[]>, key: string): boolean {
   return (t.get(key) ?? []).some((v) => v.trim() !== '');
 }
 
+/**
+ * The {@link RETROACTIVE_WAIVER_KEYS} a commit moved, or `[]` when it does not
+ * touch the consumer config at all.
+ *
+ * Reads through the injected `git` seam rather than
+ * {@link retroactiveWaiversInCommit}'s own spawn, so the gate stays testable
+ * with a scripted runner; the comparison itself is the same pure function the
+ * hooks use, which is what keeps the two from drifting. A `git show` of a path
+ * absent at that revision exits non-zero — including `<sha>^` on a root commit
+ * — and reads as "no waivers declared", matching the pre-commit baseline.
+ */
+async function waiversMovedIn(
+  git: (args: string[]) => Promise<string>,
+  sha: string,
+  files: string[],
+): Promise<string[]> {
+  if (!files.includes(CONSUMER_CONFIG_PATH)) return [];
+  const at = async (revspec: string): Promise<string | null> => {
+    try {
+      return await git(['show', revspec]);
+    } catch {
+      return null;
+    }
+  };
+  return retroactiveWaiversTouched(
+    await at(`${sha}^:${CONSUMER_CONFIG_PATH}`),
+    await at(`${sha}:${CONSUMER_CONFIG_PATH}`),
+  );
+}
+
 function formatReason(offenders: CrGateOffender[]): string {
   return offenders
-    .map((o) => `  ${o.sha.slice(0, 10)}: no review receipt or override trailer — ${o.subject}`)
+    .map(
+      (o) =>
+        `  ${o.sha.slice(0, 10)}: ${o.detail ?? 'no review receipt or override trailer'} — ${o.subject}`,
+    )
     .join('\n');
 }
 

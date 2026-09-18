@@ -54,6 +54,43 @@ describe('noldor pre-commit', () => {
     expect(runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL }).ok).toBe(true);
   });
 
+  // Q-0241: the consumer config is on the lane so a gate's printed remedy can be
+  // committed — the `ui-design-freshness` fix line asks for exactly this edit.
+  it('passes a micro-chore consumer-config declaration', () => {
+    const dir = setupRepo();
+    writeFileSync(
+      join(dir, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'micro-chore', startedAt: 'x' }),
+    );
+    writeFileSync(
+      join(dir, '.noldor', 'config.json'),
+      JSON.stringify({ consumer: { name: 'x', uiCapture: { app: { command: 'pnpm cap' } } } }),
+    );
+    execSync('git add .noldor/config.json', { cwd: dir });
+    expect(runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL }).ok).toBe(true);
+  });
+
+  // The other half of that widening: this lane is exempt from the release CR
+  // gate, so it must not be able to carry the list that waives that same gate.
+  it('fails a micro-chore config edit that moves a retroactive waiver', () => {
+    const dir = setupRepo();
+    writeFileSync(
+      join(dir, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'micro-chore', startedAt: 'x' }),
+    );
+    writeFileSync(
+      join(dir, '.noldor', 'config.json'),
+      JSON.stringify({
+        consumer: { name: 'x' },
+        release: { crGateExemptCommits: [{ sha: 'abc1234', reason: 'waved through by hand' }] },
+      }),
+    );
+    execSync('git add .noldor/config.json', { cwd: dir });
+    const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/release\.crGateExemptCommits/);
+  });
+
   it('fails when session is micro-chore but diff escapes allowlist', () => {
     const dir = setupRepo();
     writeFileSync(

@@ -3,12 +3,8 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { readSession, isSessionStale, touchSession, type SessionMarker } from '../core/session.js';
-import {
-  isMicroChoreAllowed,
-  isReleaseSweepAllowed,
-  microChoreOffenders,
-  releaseSweepOffenders,
-} from '../core/allowlist.js';
+import { isReleaseSweepAllowed, releaseSweepOffenders } from '../core/allowlist.js';
+import { microChoreRefusal } from '../core/config-waiver-guard.js';
 import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker.js';
 import { appendOverrideLog } from '../core/overrides-log.js';
 import {
@@ -89,12 +85,8 @@ export function runPreCommit(opts: {
   if (session?.path === 'micro-chore') {
     if (isSessionStale(session, opts.nowMs, opts.ttlHours))
       return staleResult(session, opts.ttlHours);
-    if (!isMicroChoreAllowed(staged)) {
-      return {
-        ok: false,
-        reason: `micro-chore diff includes files outside allowlist: ${microChoreOffenders(staged).join(', ')}`,
-      };
-    }
+    const refusal = microChoreRefusal(opts.cwd, staged);
+    if (refusal !== null) return { ok: false, reason: refusal };
     return { ok: true };
   }
 

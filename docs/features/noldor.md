@@ -73,6 +73,7 @@ links:
     - src/cli/__tests__/command-registry.test.ts
     - src/core/__tests__/changelog.test.ts
     - src/core/__tests__/commit-wrapper.test.ts
+    - src/core/__tests__/config-waiver-guard.test.ts
     - src/core/__tests__/fmt-guard.test.ts
     - src/core/__tests__/init-gitignore.test.ts
     - src/core/__tests__/lint-plan-snippets.test.ts

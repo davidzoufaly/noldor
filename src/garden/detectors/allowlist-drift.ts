@@ -1,6 +1,10 @@
 import { execFileSync } from 'node:child_process';
 
 import { isMicroChoreAllowed, microChoreOffenders } from '../../core/allowlist.js';
+import {
+  CONSUMER_CONFIG_PATH,
+  retroactiveWaiversInCommit,
+} from '../../core/config-waiver-guard.js';
 import { parseTrailers } from '../../core/trailers.js';
 import {
   gateComplianceRange,
@@ -12,7 +16,7 @@ export interface AllowlistDriftFinding {
   readonly sha: string;
   readonly subject: string;
   readonly offendingFiles: readonly string[];
-  readonly reason: 'non-allowlisted-files';
+  readonly reason: 'non-allowlisted-files' | 'retroactive-waiver';
   readonly action: 'investigate';
 }
 
@@ -100,6 +104,27 @@ export async function detectAllowlistDrift(opts: {
         reason: 'non-allowlisted-files',
         action: 'investigate',
       });
+      continue;
+    }
+
+    // Glob-clean, but the consumer config's admission to this lane is
+    // conditional: it may ride a no-review commit only while it leaves the
+    // retroactive waiver keys alone. Both hooks enforcing that are
+    // `--no-verify`-bypassable, so this is where a bypass surfaces — and
+    // without it, putting the file on the glob list would have *reduced*
+    // coverage, since every micro-chore commit touching it used to be flagged
+    // by the branch above.
+    if (files.includes(CONSUMER_CONFIG_PATH)) {
+      const moved = retroactiveWaiversInCommit(cwd, sha);
+      if (moved.length > 0) {
+        findings.push({
+          sha,
+          subject,
+          offendingFiles: [CONSUMER_CONFIG_PATH],
+          reason: 'retroactive-waiver',
+          action: 'investigate',
+        });
+      }
     }
   }
 

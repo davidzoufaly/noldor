@@ -19,9 +19,17 @@ interface Commit {
  * "no commits in range" as a clean pass, so a fake that quietly answered
  * nothing would turn every one of these cases green regardless of its trailers.
  */
-function makeGitFake(commits: Commit[]): RunCommand {
+function makeGitFake(commits: Commit[], blobs: Record<string, string> = {}): RunCommand {
   const bySha = new Map(commits.map((c) => [c.sha, c]));
   const answer = (args: string[]): string => {
+    // `git show <revspec>` with no flags: file content at a revision, which the
+    // waiver check reads. An absent path exits non-zero in real git, and the
+    // caller reads that as "no waivers declared" — so throwing is the fixture.
+    if (args[0] === 'show' && args.length === 2) {
+      const blob = blobs[args[1]];
+      if (blob === undefined) throw new Error(`no such path at ${args[1]}`);
+      return blob;
+    }
     if (args[0] === 'rev-list')
       return commits
         .map((c) => c.sha)
@@ -216,6 +224,100 @@ describe('checkCrGate', () => {
     ];
     const r = await checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', run: makeGitFake(commits) });
     expect(r.ok).toBe(false);
+  });
+});
+
+// The no-review exemption is decided by file list, before any trailer is read,
+// so it is granted under every `Noldor-Path` label and with none at all. These
+// cases cover both directions of the one file on that list that can waive this
+// very gate.
+describe('checkCrGate — a no-review lane cannot carry a retroactive waiver', () => {
+  const CONFIG = '.noldor/config.json';
+  const cfg = (release: Record<string, unknown>) => JSON.stringify({ release });
+  const WAIVER = { sha: 'abc1234', reason: 'waved through by hand, no review' };
+
+  const configCommit = (message: string): Commit[] => [
+    { sha: 'c1', tree: 't1', message, paths: [CONFIG] },
+  ];
+
+  it('exempts a config-only commit that leaves the waiver lists alone', async () => {
+    const r = await checkCrGate({
+      from: 'v0',
+      to: 'HEAD',
+      cwd: '/tmp',
+      run: makeGitFake(
+        configCommit('chore(noldor): declare uiCapture\n\nNoldor-Path: micro-chore'),
+        {
+          [`c1^:${CONFIG}`]: cfg({ crGateExemptCommits: [] }),
+          [`c1:${CONFIG}`]: cfg({ crGateExemptCommits: [], publish: { enabled: true } }),
+        },
+      ),
+    });
+    expect(r.ok).toBe(true);
+    expect(r.offenders).toEqual([]);
+  });
+
+  it('refuses the exemption when the commit appends a CR-gate waiver', async () => {
+    const r = await checkCrGate({
+      from: 'v0',
+      to: 'HEAD',
+      cwd: '/tmp',
+      run: makeGitFake(configCommit('chore(noldor): tweak\n\nNoldor-Path: micro-chore'), {
+        [`c1^:${CONFIG}`]: cfg({ crGateExemptCommits: [] }),
+        [`c1:${CONFIG}`]: cfg({ crGateExemptCommits: [WAIVER] }),
+      }),
+    });
+    expect(r.ok).toBe(false);
+    expect(r.offenders.map((o) => o.sha)).toEqual(['c1']);
+    expect(r.reason).toContain('release.crGateExemptCommits');
+  });
+
+  // The hooks' guard and the post-hoc detector both key on `micro-chore`; the
+  // gate is the only check that sees the same waiver under another label.
+  it('refuses it under a fast-track label too', async () => {
+    const r = await checkCrGate({
+      from: 'v0',
+      to: 'HEAD',
+      cwd: '/tmp',
+      run: makeGitFake(configCommit('chore(noldor): tweak\n\nNoldor-Path: fast-track'), {
+        [`c1^:${CONFIG}`]: cfg({ crGateExemptCommits: [] }),
+        [`c1:${CONFIG}`]: cfg({ crGateExemptCommits: [WAIVER] }),
+      }),
+    });
+    expect(r.ok).toBe(false);
+    expect(r.offenders.map((o) => o.sha)).toEqual(['c1']);
+  });
+
+  it('refuses it with no Noldor-Path trailer at all', async () => {
+    const r = await checkCrGate({
+      from: 'v0',
+      to: 'HEAD',
+      cwd: '/tmp',
+      run: makeGitFake(configCommit('chore(noldor): tweak'), {
+        [`c1^:${CONFIG}`]: cfg({ crGateExemptCommits: [] }),
+        [`c1:${CONFIG}`]: cfg({ crGateExemptCommits: [WAIVER] }),
+      }),
+    });
+    expect(r.ok).toBe(false);
+    expect(r.offenders.map((o) => o.sha)).toEqual(['c1']);
+  });
+
+  // A review receipt is the sanctioned way to move one, and it is read on the
+  // ordinary path below the exemption — the waiver check must not pre-empt it.
+  it('still passes a waiver change that carries a review receipt', async () => {
+    const r = await checkCrGate({
+      from: 'v0',
+      to: 'HEAD',
+      cwd: '/tmp',
+      run: makeGitFake(
+        configCommit('fix(core): record waiver\n\nNoldor-Reviewed-Subagent: deadbee'),
+        {
+          [`c1^:${CONFIG}`]: cfg({ crGateExemptCommits: [] }),
+          [`c1:${CONFIG}`]: cfg({ crGateExemptCommits: [WAIVER] }),
+        },
+      ),
+    });
+    expect(r.ok).toBe(true);
   });
 });
 

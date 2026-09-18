@@ -82,6 +82,54 @@ describe('detectAllowlistDrift', () => {
     expect(findings[0]!.offendingFiles.length).toBeGreaterThan(0);
   });
 
+  // The consumer config is on the glob list, so the branch above no longer
+  // flags it — the content rule is what decides, and these two cases are the
+  // pair that keeps the lane's rule and the audit's rule saying the same thing.
+  const WAIVER = { sha: 'abc1234', reason: 'waved through by hand, no review' };
+  const configFile = (release: Record<string, unknown>): Record<string, string> => ({
+    '.noldor/config.json': JSON.stringify({ release }),
+  });
+
+  it('returns no findings for a micro-chore config commit that leaves waivers alone', async () => {
+    addCommit(repo, 'chore: seed config', configFile({ crGateExemptCommits: [] }));
+    addCommit(
+      repo,
+      'chore(noldor): declare publish\n\nNoldor-Path: micro-chore',
+      configFile({ crGateExemptCommits: [], publish: { enabled: true } }),
+    );
+
+    const findings = await detectAllowlistDrift({ cwd: repo });
+    expect(findings).toHaveLength(0);
+  });
+
+  it('flags a micro-chore config commit that appends a CR-gate exemption', async () => {
+    addCommit(repo, 'chore: seed config', configFile({ crGateExemptCommits: [] }));
+    addCommit(
+      repo,
+      'chore(noldor): tweak config\n\nNoldor-Path: micro-chore',
+      configFile({ crGateExemptCommits: [WAIVER] }),
+    );
+
+    const findings = await detectAllowlistDrift({ cwd: repo });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.reason).toBe('retroactive-waiver');
+    expect(findings[0]!.offendingFiles).toEqual(['.noldor/config.json']);
+  });
+
+  // A hook bypass on the very first commit must not read as "no waivers":
+  // `<sha>^` does not resolve, and the guard treats that as an empty baseline.
+  it('flags a root micro-chore commit that arrives carrying a waiver', async () => {
+    addCommit(
+      repo,
+      'chore(noldor): bootstrap\n\nNoldor-Path: micro-chore',
+      configFile({ crGateExemptCommits: [WAIVER] }),
+    );
+
+    const findings = await detectAllowlistDrift({ cwd: repo });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.reason).toBe('retroactive-waiver');
+  });
+
   it('flags micro-chore commit with mix of allowed and non-allowed files', async () => {
     addCommit(repo, 'chore: mixed micro-chore\n\nNoldor-Path: micro-chore', {
       'docs/something.md': '# doc\n',
