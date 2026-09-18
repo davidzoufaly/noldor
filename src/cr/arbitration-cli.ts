@@ -11,9 +11,12 @@ import { isSlug } from '../core/slug.js';
 import { readFileNoFollowAsync } from '../core/slug-paths.js';
 import {
   DISPOSITIONS,
+  INTEGRITY_ONLY_DIAGNOSIS,
   arbitrationPath,
   arbitrationRecordSchema,
   dispositionSchema,
+  integrityOnlyRemedy,
+  isIntegrityOnly,
   recordDigest,
   undisposed,
   withDisposition,
@@ -123,13 +126,12 @@ function digest(cwd: string, rec: ArbitrationRecord): number {
         `this ${rec.kind} record stays a readable account of how the round was settled, which no gate reads`,
     );
   }
-  if (rec.blockers.length === 0) {
-    // `buildSkeleton` drops every integrity blocker, so an aggregate that went
-    // red on those alone yields this. The pre-push guard reads it as unfilled
-    // and there is nothing an operator can dispose of to change that.
-    problems.push(
-      'the record carries no arbitrable blockers, so pre-push cannot read it as a filled arbitration',
-    );
+  if (isIntegrityOnly(rec)) {
+    // Naming the remedy, not only the symptom: an operator told the record
+    // "cannot be read as filled" reaches for a disposition, and there is none to
+    // write. The skeleton banner and the pre-push guard report this same state
+    // from the same constant.
+    problems.push(`${INTEGRITY_ONLY_DIAGNOSIS} — ${integrityOnlyRemedy(rec.slug, rec.kind)}`);
   } else {
     const left = undisposed(rec);
     if (left.length > 0)

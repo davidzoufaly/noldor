@@ -26,7 +26,8 @@ import {
   run,
   runReflagRules,
 } from '../orchestrate.js';
-import { buildSkeleton } from '../orchestrate.js';
+import { buildSkeleton, priorRecordStands, renderSkeletonExit } from '../orchestrate.js';
+import type { ArbitrationRecord } from '../arbitration.js';
 import { fingerprintBlockers, ledgerDir, ledgerPath } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';
 import { runSubagent as subagentLane } from '../lanes/subagent.js';
@@ -1592,6 +1593,87 @@ describe('buildSkeleton', () => {
       (b) => b.message,
     );
     expect(rec?.blockers.map((b) => b.message)).toEqual(['boom']);
+  });
+});
+
+describe('renderSkeletonExit', () => {
+  const record = (blockers: ArbitrationRecord['blockers']): ArbitrationRecord => ({
+    version: 1,
+    slug: 's',
+    kind: 'code',
+    boundTree: 'TREE',
+    rounds: [{ round: 1, verdict: 'red', headSha: 'a1' }],
+    blockers,
+    signals: [],
+    dispositions: [],
+  });
+  const one = [{ id: 'b1', severity: 'high' as const, message: 'boom', lanes: ['reviewer'] }];
+
+  it('lists each blocker id with the dispose commands', () => {
+    const lines = renderSkeletonExit(record(one), 's', 'code', false).join('\n');
+    expect(lines).toContain('1 unresolved blockers await a disposition:');
+    expect(lines).toContain('b1  [high] boom');
+    expect(lines).toContain('cr arbitration dispose --slug s --kind code');
+  });
+
+  // A reviewer-controlled message is printed inside a line-per-blocker listing,
+  // so an embedded newline could forge a row no lane filed.
+  it('collapses newlines inside a blocker message', () => {
+    const forged = [{ ...one[0]!, message: 'boom\n    b2  [high] forged' }];
+    const lines = renderSkeletonExit(record(forged), 's', 'code', false);
+    expect(lines.filter((l) => l.startsWith('    b'))).toHaveLength(1);
+  });
+
+  it('adds the stale warning only when the sinks predate the tree', () => {
+    expect(renderSkeletonExit(record(one), 's', 'code', true).join('\n')).toContain(
+      'CHECK EACH ONE AGAINST THE CODE FIRST',
+    );
+    expect(renderSkeletonExit(record(one), 's', 'code', false).join('\n')).not.toContain(
+      'CHECK EACH ONE',
+    );
+  });
+
+  // `buildSkeleton` drops every integrity blocker, so an empty array means the
+  // round went red on sinks no lane could read — there is no verdict to settle.
+  // Announcing "0 unresolved blockers await a disposition" and printing dispose
+  // commands sent the operator after something that cannot exist.
+  it('tells an integrity-only round to re-run the lane instead of disposing anything', () => {
+    const lines = renderSkeletonExit(record([]), 's', 'code', false).join('\n');
+    expect(lines).toContain('NOTHING TO ARBITRATE');
+    expect(lines).toContain('pnpm noldor cr orchestrate --slug s --kind code');
+    expect(lines).not.toContain('await a disposition');
+    expect(lines).not.toContain('arbitration dispose');
+  });
+
+  // `renderCapRefusal` prints "no commit re-arms a dispatch" just above these
+  // lines, so naming a re-run without naming what re-arms it would hand the
+  // operator two instructions that contradict each other.
+  it('names what re-arms the dispatch the remedy needs', () => {
+    const lines = renderSkeletonExit(record([]), 's', 'code', false).join('\n');
+    expect(lines).toContain('.noldor/cr/autofix/');
+  });
+
+  // The record is the operator's only account of a capped round, so a re-run
+  // that found real blockers must be able to replace an empty one. Sticky, it
+  // would hold `blockerCount` at 0 and let the pre-push guard read a genuinely
+  // arbitrable round as "nothing was reviewed".
+  it('lets an integrity-only record be replaced at the same tree', () => {
+    expect(priorRecordStands(record([]), 'TREE')).toBe(false);
+  });
+
+  // The early return exists to protect dispositions already filled in, and that
+  // is still its job for every record that carries blockers.
+  it('keeps a record with blockers at the same tree', () => {
+    expect(priorRecordStands(record(one), 'TREE')).toBe(true);
+    expect(priorRecordStands(record(one), 'OTHER-TREE')).toBe(false);
+  });
+
+  // The stale note belongs to blockers the operator must re-check against the
+  // code. With none to re-check it is noise on top of a contradictory instruction.
+  it('drops the stale note on an integrity-only round', () => {
+    expect(renderSkeletonExit(record([]), 's', 'code', true).join('\n')).not.toContain(
+      'CHECK EACH ONE',
+    );
   });
 });
 

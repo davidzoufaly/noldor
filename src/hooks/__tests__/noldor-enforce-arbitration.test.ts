@@ -20,6 +20,8 @@ const freshRecord = (over: Partial<RecordFacts> = {}): RecordFacts => ({
   currentTree: 'T',
   rounds: cappedRounds,
   blockerCount: 2,
+  slug: 'some-feature',
+  kind: 'code',
   ...over,
 });
 
@@ -146,21 +148,6 @@ describe('decideArbitration falling back to the record rounds', () => {
     expect(r.warning).toMatch(/could not verify/i);
   });
 
-  // `buildSkeleton` drops every `integrity: true` blocker while `aggregate` can
-  // go red on integrity blockers alone, so a capped red series really can leave a
-  // record with nothing to arbitrate. `isFilled` calls that unfilled, so treating
-  // it as a ledger would refuse the push over a disposition no operator can ever
-  // write — a dead end where the old fail-open warning used to be.
-  it('warns rather than refusing when the surviving record has no arbitrable blockers', () => {
-    const r = decideArbitration({
-      override: 'cr-arbitration abc123abc123 — why',
-      ledger: null,
-      record: freshRecord({ blockerCount: 0, filled: false }),
-    });
-    expect(r.ok).toBe(true);
-    expect(r.warning).toMatch(/could not verify/i);
-  });
-
   it('allows a bare override when the record shows the series converged green', () => {
     const r = decideArbitration({
       override: 'unrelated infra red',
@@ -182,6 +169,109 @@ describe('decideArbitration falling back to the record rounds', () => {
     });
     expect(r.ok).toBe(true);
     expect(r.reason).toBeUndefined();
+  });
+});
+
+// `buildSkeleton` drops every `integrity: true` blocker while `aggregate` can go
+// red on those alone (unreadable sink, parse error, non-conforming filename), so
+// a capped red series really can leave a record with nothing to arbitrate. No
+// lane returned a verdict there, so there is no arbitration for the override to
+// stand in for — and refusing would leave the push no exit at all, since
+// `.noldor/cr/` is gitignored (a repaired sink never moves the tree) and a spent
+// closing round refuses every re-run. Fail open, loudly, naming the real state.
+describe('decideArbitration on an integrity-only capped round', () => {
+  const integrityOnly = freshRecord({ blockerCount: 0, filled: false });
+
+  it('lets a digest-naming override through, telling it to re-run the lane', () => {
+    const r = decideArbitration({
+      override: 'cr-arbitration abc123abc123 — why',
+      ledger: capped,
+      record: integrityOnly,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.warning).toMatch(/integrity blockers alone/i);
+    expect(r.warning).toContain('pnpm noldor cr orchestrate --slug some-feature --kind code');
+  });
+
+  // "Re-run the lane" alone names a command `capVerdict` exits 3 on once the
+  // closing round is spent — the unrunnable remedy this fix exists to remove. The
+  // clear is what re-arms the dispatch, so it travels with the command.
+  it('names the ledger clear that re-arms the dispatch its remedy needs', () => {
+    const r = decideArbitration({
+      override: 'cr-arbitration abc123abc123 — why',
+      ledger: capped,
+      record: integrityOnly,
+    });
+    expect(r.warning).toContain('.noldor/cr/autofix/');
+  });
+
+  // The defect in one line: the old path reached `isFilled`, which calls an
+  // empty blocker list unfilled, and refused over a disposition for a blocker
+  // that does not exist.
+  it('never asks for a disposition', () => {
+    const r = decideArbitration({
+      override: 'cr-arbitration abc123abc123 — why',
+      ledger: capped,
+      record: integrityOnly,
+    });
+    expect(r.reason).toBeUndefined();
+    expect(r.warning).not.toMatch(/disposition/i);
+  });
+
+  it('lets a bare override through too, rather than demanding a filled record', () => {
+    const r = decideArbitration({
+      override: 'shipping anyway',
+      ledger: capped,
+      record: integrityOnly,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.warning).not.toMatch(/Fill the arbitration record/i);
+  });
+
+  // Both branches now read the same history and print the same diagnosis. Before,
+  // a ledger-deleted session passed on a warning that blamed a missing ledger,
+  // while a ledger-present one dead-ended on the impossible demand.
+  it('says the same thing when the ledger is gone and only the record proves the cap', () => {
+    const r = decideArbitration({
+      override: 'cr-arbitration abc123abc123 — why',
+      ledger: null,
+      record: integrityOnly,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.warning).toMatch(/integrity blockers alone/i);
+    expect(r.warning).not.toMatch(/no round ledger found/i);
+  });
+
+  // The emptiness is evidence only about the tree the record is bound to. Once
+  // HEAD moves on, an empty record says nothing about the round being pushed, so
+  // it must not excuse an override on work it never saw.
+  it('does not read an empty record bound to another tree as integrity-only', () => {
+    const r = decideArbitration({
+      override: 'cr-arbitration abc123abc123 — why',
+      ledger: capped,
+      record: freshRecord({ blockerCount: 0, filled: false, boundTree: 'OLD', currentTree: 'NEW' }),
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/stale/i);
+  });
+
+  // A record WITH blockers still takes the disposition path — the new branch must
+  // not swallow the case the guard was built for.
+  it('still refuses a record that carries blockers with no disposition', () => {
+    const r = decideArbitration({
+      override: 'cr-arbitration abc123abc123 — why',
+      ledger: capped,
+      record: freshRecord({ filled: false }),
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/disposition/i);
+  });
+
+  // ...and a bare override on a real capped red verdict is still refused. The
+  // hole this guard closes must not widen just because a sibling case fails open.
+  it('still refuses a bare override when the record carries real blockers', () => {
+    const r = decideArbitration({ override: 'shipping anyway', ledger: capped, record: null });
+    expect(r.ok).toBe(false);
   });
 });
 
