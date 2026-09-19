@@ -1,5 +1,7 @@
 // @tests: dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard
 
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { renderLayout } from '../layout.js';
@@ -124,5 +126,31 @@ describe('description-toggle visibility CSS', () => {
     expect(html).toMatch(
       /td\.description\[aria-expanded="true"\]\s+\.description-toggle\s*\{[^}]*display:\s*inline-block/,
     );
+  });
+});
+
+describe('description clamp is opt-in to the script that owns the toggle (Q-0231)', () => {
+  it('rests on the full body — preview hidden, full body never hidden — until the cell carries .js-clamp', () => {
+    const html = shell();
+    expect(html).toMatch(/td\.description\s+\.description--clamped\s*\{[^}]*display:\s*none/);
+    expect(html).not.toMatch(/td\.description\s+\.description-full\s*\{[^}]*display:\s*none/);
+    expect(html).toMatch(
+      /td\.description\.js-clamp\s+\.description--clamped\s*\{[^}]*-webkit-line-clamp:\s*6/,
+    );
+    expect(html).toMatch(/td\.description\.js-clamp\s+\.description-full\s*\{[^}]*display:\s*none/);
+  });
+
+  it('lets the expanded state beat the clamp: equal specificity, so the [aria-expanded="true"] rules must follow the .js-clamp rules', () => {
+    const html = shell();
+    const clampRule = html.indexOf('td.description.js-clamp .description-full');
+    const expandedRule = html.indexOf('td.description[aria-expanded="true"] .description-full');
+    expect(clampRule).toBeGreaterThan(-1);
+    expect(expandedRule).toBeGreaterThan(clampRule);
+  });
+
+  it('drag.js adds the very class the CSS keys on, so neither side can rename it alone', () => {
+    const js = readFileSync(new URL('../static/dist/drag.js', import.meta.url), 'utf8');
+    expect(js).toContain("classList.add('js-clamp')");
+    expect(shell()).toContain('td.description.js-clamp');
   });
 });

@@ -133,7 +133,7 @@ const STYLE = `
   td.description .body ul, td.description .body ol { margin: 0.3rem 0; padding-left: 1.4rem; }
   td.description .body pre { margin: 0.4rem 0; }
   /* --- Description clamp + click-to-expand (Task 4) --- */
-  /* Default state: clamp preview visible, full-body hidden. */
+  /* Resting state: toggle hidden; drag.js reveals it once the clamped preview overflows. */
   td.description .description-toggle {
     display: none;
     margin: 0.25rem 0 0;
@@ -150,7 +150,14 @@ const STYLE = `
   td.description[aria-expanded="true"] .description-toggle { display: inline-block; }
   td.description .description-toggle:hover { background: rgba(37,99,235,0.14); border-color: var(--accent); }
   td.description .description-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  td.description .description--clamped {
+  /* The clamp is opt-in: drag.js adds js-clamp to a cell once the Show
+     more/less delegate is wired, and only then does the preview clamp and the
+     full body hide. The resting state is the full body, so a cell the script
+     never reaches is never truncated — CSS alone once clamped every body while
+     a stale-install dashboard 500'd /static/drag.js, leaving them cut off with
+     no control to expand (Q-0231). */
+  td.description .description--clamped { display: none; }
+  td.description.js-clamp .description--clamped {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 6;
@@ -158,7 +165,7 @@ const STYLE = `
     overflow: hidden;
     color: var(--fg);
   }
-  td.description .description-full { display: none; }
+  td.description.js-clamp .description-full { display: none; }
   /* Expanded state: hide the preview, show the full markdown body. */
   td.description[aria-expanded="true"] .description--clamped { display: none; }
   td.description[aria-expanded="true"] .description-full { display: block; }
