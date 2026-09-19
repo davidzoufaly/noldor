@@ -850,11 +850,13 @@ async function refreshExistingPr(opts: {
   if (edit.exitCode !== 0) {
     process.stderr.write(
       `pr-flow: could not refresh PR #${opts.pr.prNumber} ('gh pr edit' exit ${edit.exitCode}); ` +
-        'merging it with its existing title and body.\n',
+        `merging it with its existing title and body: ${opts.pr.prUrl}\n`,
     );
     return;
   }
-  process.stderr.write(`pr-flow: refreshed PR #${opts.pr.prNumber} title + body.\n`);
+  process.stderr.write(
+    `pr-flow: refreshed PR #${opts.pr.prNumber} title + body: ${opts.pr.prUrl}\n`,
+  );
 }
 
 /** Open a new PR for the branch and read its number back off the URL gh prints. */
@@ -931,7 +933,7 @@ export async function openAndAutoMerge(
   if (existing !== null) {
     process.stderr.write(
       `pr-flow: an open PR (#${existing.prNumber}) already exists for ${input.branch} — ` +
-        'reusing it instead of opening a second one.\n',
+        `reusing it instead of opening a second one: ${existing.prUrl}\n`,
     );
     await refreshExistingPr({ pr: existing, input, spawn: input.spawn });
   }
@@ -1009,13 +1011,14 @@ export async function isLinkedWorktree(spawn: SpawnFn): Promise<boolean> {
  */
 async function deleteMergedRemoteBranch(opts: {
   spawn: SpawnFn;
+  prUrl: string;
   branch: string | undefined;
   reason: string;
   onStatus?: (line: string) => void;
 }): Promise<void> {
   if (opts.branch === undefined || opts.branch.length === 0) {
     process.stderr.write(
-      'pr-flow: merged from a worktree but gh pr view reported no headRefName — ' +
+      `pr-flow: merged ${opts.prUrl} from a worktree but gh pr view reported no headRefName — ` +
         'remote branch left in place; delete it by hand.\n',
     );
     return;
@@ -1051,6 +1054,7 @@ async function deleteMergedRemoteBranch(opts: {
  */
 async function deleteRemoteBranchIfLingers(opts: {
   spawn: SpawnFn;
+  prUrl: string;
   branch: string | undefined;
   reason: string;
   onStatus?: (line: string) => void;
@@ -1090,6 +1094,7 @@ export async function mergePrWithFallback(
     // delete-branch-on-merge setting is on — gh never touches it on this leg.
     await deleteRemoteBranchIfLingers({
       spawn: input.spawn,
+      prUrl: input.prUrl,
       branch: merged.headRefName,
       reason: 'auto-merge left it behind',
       ...status,
@@ -1144,7 +1149,7 @@ export async function mergePrWithFallback(
   ]);
   if (view.exitCode !== 0) {
     throw new Error(
-      `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; gh pr view failed: exit ${view.exitCode}`,
+      `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; gh pr view failed: exit ${view.exitCode} — ${input.prUrl}`,
     );
   }
   let viewData: { mergedAt: string | null; state: string; headRefName?: string };
@@ -1156,17 +1161,18 @@ export async function mergePrWithFallback(
     };
   } catch {
     throw new Error(
-      `gh pr view returned unparseable JSON after direct merge fallback: ${view.stdout.slice(0, 200)}`,
+      `gh pr view returned unparseable JSON after direct merge fallback for ${input.prUrl}: ${view.stdout.slice(0, 200)}`,
     );
   }
   if (viewData.state !== 'MERGED' || !viewData.mergedAt) {
     throw new Error(
-      `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; PR state is "${viewData.state}".`,
+      `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; PR state is "${viewData.state}" — ${input.prUrl}`,
     );
   }
   if (inWorktree) {
     await deleteMergedRemoteBranch({
       spawn: input.spawn,
+      prUrl: input.prUrl,
       branch: viewData.headRefName,
       reason: 'worktree context — gh --delete-branch withheld',
       ...status,
@@ -1174,6 +1180,7 @@ export async function mergePrWithFallback(
   } else {
     await deleteRemoteBranchIfLingers({
       spawn: input.spawn,
+      prUrl: input.prUrl,
       branch: viewData.headRefName,
       reason: 'gh --delete-branch left it behind',
       ...status,

@@ -127,14 +127,14 @@ You lose the composed PR body (CR result table, scope block, spec/plan links) bu
 
 Step 3 now looks first — `findOpenPrForBranch` ([`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)) runs `gh pr list --state open --head <branch> --base <base> --json number,url` immediately after the push:
 
-- **A PR exists** → `gh pr edit` refreshes its title and body with what this delivery would have composed, then the flow falls through to step 4 and merges it. The refresh is best-effort: an edit failure warns (`could not refresh PR #<n> ('gh pr edit' exit N); merging it with its existing title and body.`) and the merge proceeds, because a stale body must never be the thing that strands a mergeable branch.
+- **A PR exists** → `gh pr edit` refreshes its title and body with what this delivery would have composed, then the flow falls through to step 4 and merges it. The refresh is best-effort: an edit failure warns (`could not refresh PR #<n> ('gh pr edit' exit N); merging it with its existing title and body: <url>`) and the merge proceeds, because a stale body must never be the thing that strands a mergeable branch.
 - **No PR exists** → `gh pr create`, exactly as before.
 
 `--base` scopes the query, so a PR opened off the same branch against a different base is not mistaken for this delivery's. GitHub permits at most one open PR per head+base pair, so a match is unique and the first row is the row.
 
 The lookup is **fail-open**, matching the idempotency guard beside it: a `gh` failure, unparseable stdout, or an unexpected row shape warns to stderr and proceeds to `gh pr create`, restoring the pre-existing behaviour. A best-effort lookup must never be the thing that blocks a *first* delivery.
 
-Either branch names itself on stderr (`an open PR (#N) already exists for <branch> — reusing it instead of opening a second one.`), so the operator can tell a reuse from a create without opening the PR.
+Either branch names itself on stderr (`an open PR (#N) already exists for <branch> — reusing it instead of opening a second one: <url>`), so the operator can tell a reuse from a create without opening the PR. Every pr-flow line that names a PR — the reuse and refresh lines, a merge failure, the branch left for hand cleanup — carries the PR's URL, never a bare `#N` alone: a number is not a link the operator can follow at the moment the flow says it is done (Q-0230).
 
 ## Auto-merge fallback
 
