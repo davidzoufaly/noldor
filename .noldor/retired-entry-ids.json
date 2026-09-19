@@ -409,5 +409,9 @@
   "Q-0241": {
     "slug": "consumer-config-belongs-in-a-lane",
     "retiredAt": "2026-09-18"
+  },
+  "Q-0239": {
+    "slug": "shipped-skill-commands-must-run-in-a-consumer",
+    "retiredAt": "2026-09-19"
   }
 }
