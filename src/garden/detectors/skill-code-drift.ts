@@ -140,10 +140,32 @@ function inlineCodeSpans(line: string): string[] {
   return spans;
 }
 
+const INSTALLED_SKILLS_PREFIX = '.claude/skills/';
+const TEMPLATE_SKILLS_PREFIX = `templates/${INSTALLED_SKILLS_PREFIX}`;
+
+/**
+ * True when `skillPath` names a skill THIS repo ships to consumers — its copy
+ * under `templates/`, or a working copy with such a twin.
+ *
+ * The portability rule below asks "does this command run where the skill
+ * ships?", and only a shipped skill has a "where" other than here. A consumer
+ * that installs the framework gets this detector and the pre-commit job that
+ * reads it, but no `templates/` tree, so both branches go false and every skill
+ * the consumer wrote is left alone — including the one whose fenced `pnpm test`
+ * is its own script and perfectly portable to the only place it goes. Without
+ * this gate the check refuses a consumer's own commit with a message that is
+ * simply untrue there.
+ */
+function isShippedSkill(repo: string, skillPath: string): boolean {
+  if (skillPath.startsWith(TEMPLATE_SKILLS_PREFIX)) return true;
+  if (!skillPath.startsWith(INSTALLED_SKILLS_PREFIX)) return false;
+  return existsSync(join(repo, 'templates', skillPath));
+}
+
 function checkCommands(
   codeText: string,
   scripts: ReadonlySet<string>,
-  fenced: boolean,
+  portabilityScope: boolean,
   push: (kind: SkillDriftFinding['kind'], token: string, detail: string) => void,
 ): void {
   for (const m of codeText.matchAll(PNPM_SCRIPT_RE)) {
@@ -159,13 +181,14 @@ function checkCommands(
     // ordinary rot, a name backed only by THIS repo's package.json is a
     // portability defect, and only the second has a blocking check.
     //
-    // Fenced blocks only. An inline span in prose ("shipped in the next `pnpm
-    // release`") names a thing; a fenced block is the thing the reader copies
-    // and runs, which is the form that broke charuy. Extending the rule to
-    // prose turns 16 sites into 76 and the markers into noise — and a marker
-    // is only worth reading where it records a real decision.
+    // Fenced blocks in a SHIPPED skill only. An inline span in prose ("shipped
+    // in the next `pnpm release`") names a thing; a fenced block is the thing
+    // the reader copies and runs, which is the form that broke charuy.
+    // Extending the rule to prose turns 16 sites into 76 and the markers into
+    // noise — and a marker is only worth reading where it records a real
+    // decision. See {@link isShippedSkill} for the other half of the scope.
     if (scripts.has(name)) {
-      if (!fenced) continue; // scripts-first, as before: a real script never flags in prose
+      if (!portabilityScope) continue; // scripts-first, as before: a real script never flags
       push(
         NON_PORTABLE_SCRIPT,
         name,
@@ -245,9 +268,10 @@ function checkPaths(
  * backtick spans and markdown link targets, then validating each against
  * `package.json` scripts, the CLI `MANIFEST`, and the filesystem.
  *
- * Inside a FENCED block, a `pnpm <script>` that only this repo's `package.json`
- * defines is reported as `non-portable-script` rather than passing: skills ship
- * to consumers, which receive no scripts. See {@link NON_PORTABLE_SCRIPT}.
+ * Inside a FENCED block of a skill THIS repo ships (see `isShippedSkill`), a
+ * `pnpm <script>` that only this repo's `package.json` defines is reported as
+ * `non-portable-script` rather than passing: such a skill lands in consumer
+ * repos, which receive no scripts. See {@link NON_PORTABLE_SCRIPT}.
  *
  * Template twins are validated against the ROOT `package.json`/tree —
  * templates describe consumer repos, but self-host is the only tree we can
@@ -288,6 +312,7 @@ export async function detectSkillCodeDrift(repo: string): Promise<SkillDriftFind
       ? skillPath.slice('templates/'.length)
       : skillPath;
     const fileDir = dirname(join(repo, installedRel));
+    const shipped = isShippedSkill(repo, skillPath);
     const lines = body.split('\n');
     let inFence = false;
     let fenceSuppressed = false;
@@ -307,7 +332,7 @@ export async function detectSkillCodeDrift(repo: string): Promise<SkillDriftFind
         findings.push({ skillPath, line: i + 1, kind, token, detail, action: 'investigate' });
       };
       const codeSpans = inFence ? [line] : inlineCodeSpans(line);
-      for (const span of codeSpans) checkCommands(span, scripts, inFence, push);
+      for (const span of codeSpans) checkCommands(span, scripts, inFence && shipped, push);
       const pathCandidates = [...codeSpans];
       for (const m of line.matchAll(MD_LINK_RE)) pathCandidates.push(m[1]!);
       checkPaths(pathCandidates, repo, fileDir, push);

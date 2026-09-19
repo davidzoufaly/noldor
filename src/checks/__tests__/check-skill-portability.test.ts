@@ -20,16 +20,27 @@ function fixtureRepo(scripts: Record<string, string>, files: Record<string, stri
 
 const SKILL = '.claude/skills/demo/SKILL.md';
 
+/** A repo whose `demo` skill is SHIPPED — working copy plus `templates/` twin. */
+function shippedSkillRepo(body: string): string {
+  return fixtureRepo({ verify: 'x', test: 'x' }, { [SKILL]: body, [`templates/${SKILL}`]: body });
+}
+
 describe('checks skill-portability', () => {
   it('refuses a fenced block naming a script the framework does not install', async () => {
-    const repo = fixtureRepo({ verify: 'x' }, { [SKILL]: '```bash\npnpm verify\n```\n' });
-    expect(await main(repo)).toBe(1);
+    expect(await main(shippedSkillRepo('```bash\npnpm verify\n```\n'))).toBe(1);
   });
 
   it('accepts the same block once it carries the ignore marker', async () => {
+    const body = '<!-- noldor-skill-drift-ignore -->\n\n```bash\npnpm verify\n```\n';
+    expect(await main(shippedSkillRepo(body))).toBe(0);
+  });
+
+  // A consumer installs this check but no `templates/` tree, so its own skills
+  // are never judged against a portability premise that is false for them.
+  it('accepts a consumer skill with no templates/ twin running its own script', async () => {
     const repo = fixtureRepo(
-      { verify: 'x' },
-      { [SKILL]: '<!-- noldor-skill-drift-ignore -->\n\n```bash\npnpm verify\n```\n' },
+      { test: 'vitest run' },
+      { '.claude/skills/team-thing/SKILL.md': '```bash\npnpm test\n```\n' },
     );
     expect(await main(repo)).toBe(0);
   });
@@ -38,11 +49,11 @@ describe('checks skill-portability', () => {
   // renamed subcommand is visible from this repo, so garden owns them. Blocking
   // on them here would turn every stale link into a refused commit.
   it.each([
-    ['a script no package.json defines', { [SKILL]: '```bash\npnpm nope-script\n```\n' }],
-    ['a subcommand the manifest lacks', { [SKILL]: '```bash\npnpm noldor garden nope-sub\n```\n' }],
-    ['a repo-relative path that is gone', { [SKILL]: 'See [gone](../../../src/gone.ts).\n' }],
-  ])('does not block on %s', async (_label, files) => {
-    expect(await main(fixtureRepo({ verify: 'x' }, files))).toBe(0);
+    ['a script no package.json defines', '```bash\npnpm nope-script\n```\n'],
+    ['a subcommand the manifest lacks', '```bash\npnpm noldor garden nope-sub\n```\n'],
+    ['a repo-relative path that is gone', 'See [gone](../../../src/gone.ts).\n'],
+  ])('does not block on %s in a shipped skill', async (_label, body) => {
+    expect(await main(shippedSkillRepo(body))).toBe(0);
   });
 
   it('accepts a repo with no skills at all', async () => {
