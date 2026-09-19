@@ -156,7 +156,21 @@ function readDotPath(root: unknown, path: string): unknown {
   return cur;
 }
 
-/** Stable-enough serialization for equality: `undefined` and `null` collapse together. */
+/**
+ * Serialization for equality, with absent, `null` and an empty array all
+ * collapsed onto one reading.
+ *
+ * The three list-valued keys are `z.array(...).default([])` in the config
+ * schema, so an absent list and an empty one ARE the same config. Writing
+ * `"crGateExemptCommits": []` into a scaffold waives nothing, and refusing it
+ * would refuse a no-op for a key the commit did not move — on the micro-chore
+ * lane at pre-commit, and again at the release gate.
+ *
+ * The remaining two keys are scalars, which no input serializes to `[]`, so
+ * the collapse cannot reach them.
+ */
 function serialize(value: unknown): string {
-  return value === undefined ? 'null' : JSON.stringify(value);
+  if (value === undefined || value === null) return 'null';
+  if (Array.isArray(value) && value.length === 0) return 'null';
+  return JSON.stringify(value);
 }

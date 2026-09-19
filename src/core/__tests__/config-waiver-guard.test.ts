@@ -155,6 +155,35 @@ describe('retroactiveWaiversTouched — the edits it must stay quiet on', () => 
     ).toEqual([]);
   });
 
+  // The list keys are `z.array(...).default([])`, so an absent list and an
+  // empty one are the same config — hand-writing `[]` into a scaffold moves
+  // nothing and must not be refused for a key the commit did not touch.
+  it('stays quiet when an absent waiver list is written out as empty', () => {
+    expect(
+      retroactiveWaiversTouched(null, config({ release: { crGateExemptCommits: [] } })),
+    ).toEqual([]);
+    expect(
+      retroactiveWaiversTouched(config(), config({ release: { crGateExemptCommits: [] } })),
+    ).toEqual([]);
+    expect(
+      retroactiveWaiversTouched(
+        config({ garden: { overrideAudit: {} } }),
+        config({ garden: { overrideAudit: { expected: [] } } }),
+      ),
+    ).toEqual([]);
+  });
+
+  // The collapse must not swallow a real removal: emptying a populated list
+  // retires nothing but changes which SHAs the gate waves through.
+  it('still reports a populated list emptied out', () => {
+    expect(
+      retroactiveWaiversTouched(
+        config({ release: { crGateExemptCommits: [EXEMPT] } }),
+        config({ release: { crGateExemptCommits: [] } }),
+      ),
+    ).toEqual(['release.crGateExemptCommits']);
+  });
+
   it('reports the key when a newly added file arrives carrying a waiver', () => {
     expect(
       retroactiveWaiversTouched(null, config({ release: { crGateExemptCommits: [EXEMPT] } })),
