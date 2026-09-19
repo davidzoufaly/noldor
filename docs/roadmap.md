@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### pr-flow Leaves a Stale Remote Branch per Micro-Chore
-
-- id: Q-0219
-- area: tooling
-- type: fix
-- since: 2026-09-07
-- size: XS
-- impact: low
-- confidence: high
-- parent: framework-pr-flow-agent-auto-merge
-
-18 stale `origin/micro/*` branches on the remote, one per micro-chore PR ever shipped. `pr-flow` deletes the *local* temp branch after the direct squash-merge but never the remote one, so every micro-chore since PR #318-ish has left an `origin/micro/<epoch>` behind — `origin/micro/changelog-node24-breaking` among them, so the leak predates the epoch naming. Harmless in itself, but it makes `git branch -r` unreadable and any branch-shaped audit noisy. Add a `git push origin --delete <branch>` to pr-flow's post-merge cleanup, guarded on the merge having actually happened (a failed merge must keep the branch), plus a one-off sweep of the existing 18. Deletion test: after a micro-chore PR merges, no `origin/micro/*` branch for it remains. (surfaced 2026-09-07 splitting Q-0193)
-
 ### PR Summary at Flow End Is Sometimes Not a Link
 
 - id: Q-0230

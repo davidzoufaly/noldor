@@ -533,7 +533,7 @@ export async function pollAutoMerge(opts: {
   timeoutMs: number;
   onStatus?: (line: string) => void;
   now?: () => number;
-}): Promise<{ mergedAt: string }> {
+}): Promise<{ mergedAt: string; headRefName?: string }> {
   const now = opts.now ?? Date.now;
   const start = now();
   let extendedDeadline = opts.timeoutMs;
@@ -548,15 +548,21 @@ export async function pollAutoMerge(opts: {
       'view',
       opts.prUrl,
       '--json',
-      'mergedAt,state,mergeStateStatus',
+      'mergedAt,state,mergeStateStatus,headRefName',
     ]);
     if (r.exitCode === 0) {
       const data = JSON.parse(r.stdout) as {
         mergedAt: string | null;
         state: string;
         mergeStateStatus?: string | null;
+        headRefName?: string;
       };
-      if (data.mergedAt) return { mergedAt: data.mergedAt };
+      if (data.mergedAt) {
+        return {
+          mergedAt: data.mergedAt,
+          ...(data.headRefName !== undefined ? { headRefName: data.headRefName } : {}),
+        };
+      }
       if (data.state === 'CLOSED') throw new PrClosedWithoutMergeError(opts.prUrl);
       // BEHIND lives in mergeStateStatus — `state` is only OPEN/CLOSED/MERGED,
       // so comparing it there left the extended deadline unreachable.
@@ -993,15 +999,18 @@ export async function isLinkedWorktree(spawn: SpawnFn): Promise<boolean> {
 }
 
 /**
- * Delete the merged PR's remote head branch by hand. Only used on the
+ * Delete the merged PR's remote head branch by hand. Called directly on the
  * worktree-context path, where `gh pr merge --delete-branch` is withheld (see
- * {@link mergePrWithFallback}) and would otherwise have deleted it. Best-effort
- * and never throws: the merge already succeeded server-side, so a failed branch
- * delete is cosmetic cleanup, not a ship failure.
+ * {@link mergePrWithFallback}) and would otherwise have deleted it, and via
+ * {@link deleteRemoteBranchIfLingers} on the legs where gh or GitHub owned the
+ * delete and left the ref behind. Best-effort and never throws: the merge already
+ * succeeded server-side, so a failed branch delete is cosmetic cleanup, not a
+ * ship failure. `reason` names why pr-flow, not gh, did the delete.
  */
 async function deleteMergedRemoteBranch(opts: {
   spawn: SpawnFn;
   branch: string | undefined;
+  reason: string;
   onStatus?: (line: string) => void;
 }): Promise<void> {
   if (opts.branch === undefined || opts.branch.length === 0) {
@@ -1020,26 +1029,31 @@ async function deleteMergedRemoteBranch(opts: {
     );
     return;
   }
-  opts.onStatus?.(
-    `pr-flow: deleted remote branch ${opts.branch} (worktree context — gh --delete-branch withheld).`,
-  );
+  opts.onStatus?.(`pr-flow: deleted remote branch ${opts.branch} (${opts.reason}).`);
 }
 
 /**
- * Verify that `gh pr merge --delete-branch` really removed the remote head
- * branch. Only used on the main-checkout path, where the flag *is* passed and gh
- * owns the delete: the merge verdict comes from `gh pr view`, which says nothing
- * about the branch, so a gh-side delete failure is otherwise silent there. This
- * is the reporting counterpart to {@link deleteMergedRemoteBranch}'s worktree
- * path, which deletes the ref itself and says so.
+ * Delete the merged PR's remote head branch when it survived a merge that was
+ * supposed to remove it. Used on the two legs where pr-flow does not own the
+ * delete: the main-checkout direct merge, where `gh pr merge --delete-branch`
+ * runs a local post-merge step (check out the base, pull, delete the local head)
+ * that can fail — a dirty tree is enough — and takes the remote delete down with
+ * it; and the auto-merge leg, where GitHub removes the head only when the repo's
+ * delete-branch-on-merge setting is on. This used to only warn on the first leg
+ * and did nothing on the second, and the warning went unactioned: `origin/micro/*`
+ * gained one branch per micro-chore (Q-0219). A survivor is now deleted, not
+ * reported.
  *
+ * Runs only after the merge is verified, so a failed merge keeps its branch.
  * Best-effort and never throws — the merge already succeeded, so a lingering
- * branch is cosmetic. A failed probe stays quiet rather than warning about a ref
- * it could not see: a false "still there" is worse noise than none.
+ * branch is cosmetic. A failed probe stays quiet rather than deleting a ref it
+ * could not see.
  */
-async function warnIfRemoteBranchLingers(opts: {
+async function deleteRemoteBranchIfLingers(opts: {
   spawn: SpawnFn;
   branch: string | undefined;
+  reason: string;
+  onStatus?: (line: string) => void;
 }): Promise<void> {
   if (opts.branch === undefined || opts.branch.length === 0) return;
   // Full `refs/heads/<branch>` — a bare branch name is a tail-matching pattern to
@@ -1051,10 +1065,7 @@ async function warnIfRemoteBranchLingers(opts: {
     `refs/heads/${opts.branch}`,
   ]);
   if (ls.exitCode !== 0 || ls.stdout.trim().length === 0) return;
-  process.stderr.write(
-    `pr-flow: remote branch ${opts.branch} still exists after gh pr merge --delete-branch; ` +
-      `delete it by hand: git push origin --delete ${opts.branch}\n`,
-  );
+  await deleteMergedRemoteBranch(opts);
 }
 
 /** Merge an open PR: queue auto-merge and poll, falling back to a direct
@@ -1064,16 +1075,26 @@ async function warnIfRemoteBranchLingers(opts: {
 export async function mergePrWithFallback(
   input: MergePrWithFallbackInput,
 ): Promise<{ mergedAt: string }> {
+  const status = input.onStatus !== undefined ? { onStatus: input.onStatus } : {};
   const merge = await input.spawn('gh', ['pr', 'merge', input.prUrl, '--auto', '--squash']);
 
   if (merge.exitCode === 0) {
-    return pollAutoMerge({
+    const merged = await pollAutoMerge({
       prUrl: input.prUrl,
       spawn: input.spawn,
       intervalMs: input.intervalMs ?? DEFAULT_POLL_INTERVAL_MS,
       timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-      ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
+      ...status,
     });
+    // GitHub merged it, and GitHub deletes the head branch only when the repo's
+    // delete-branch-on-merge setting is on — gh never touches it on this leg.
+    await deleteRemoteBranchIfLingers({
+      spawn: input.spawn,
+      branch: merged.headRefName,
+      reason: 'auto-merge left it behind',
+      ...status,
+    });
+    return { mergedAt: merged.mergedAt };
   }
 
   // `gh pr merge --auto` fails with `enablePullRequestAutoMerge` when the
@@ -1092,7 +1113,7 @@ export async function mergePrWithFallback(
     spawn: input.spawn,
     intervalMs: input.intervalMs ?? DEFAULT_POLL_INTERVAL_MS,
     timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
+    ...status,
   });
   // `--delete-branch` makes gh do *local* post-merge cleanup: check out the base
   // branch, then delete the local head branch. From a linked worktree that
@@ -1147,10 +1168,16 @@ export async function mergePrWithFallback(
     await deleteMergedRemoteBranch({
       spawn: input.spawn,
       branch: viewData.headRefName,
-      ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
+      reason: 'worktree context — gh --delete-branch withheld',
+      ...status,
     });
   } else {
-    await warnIfRemoteBranchLingers({ spawn: input.spawn, branch: viewData.headRefName });
+    await deleteRemoteBranchIfLingers({
+      spawn: input.spawn,
+      branch: viewData.headRefName,
+      reason: 'gh --delete-branch left it behind',
+      ...status,
+    });
   }
   return { mergedAt: viewData.mergedAt };
 }
