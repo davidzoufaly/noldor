@@ -417,5 +417,9 @@
   "Q-0219": {
     "slug": "pr-flow-leaves-a-stale-remote-branch-per-micro-chore",
     "retiredAt": "2026-09-19"
+  },
+  "Q-0230": {
+    "slug": "pr-summary-at-flow-end-is-sometimes-not-a-link",
+    "retiredAt": "2026-09-19"
   }
 }

@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### PR Summary at Flow End Is Sometimes Not a Link
-
-- id: Q-0230
-- area: tooling
-- type: fix
-- since: 2026-09-08
-- size: XS
-- impact: low
-- confidence: med
-
-The PR summary printed at the end of the flow is sometimes not a clickable link, so the operator has to go find the PR by hand at exactly the moment the flow claims to be done. Intermittent rather than always, which suggests one branch of the summary composition emits a bare number or title where the others emit the URL. Deletion test: every terminal path of the flow that mentions a PR prints its URL. (surfaced 2026-09-08)
-
 ### Roadmap Entry Show-More Not Rendered
 
 - id: Q-0231
