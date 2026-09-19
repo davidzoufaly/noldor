@@ -1075,6 +1075,7 @@ async function deleteRemoteBranchIfLingers(opts: {
 export async function mergePrWithFallback(
   input: MergePrWithFallbackInput,
 ): Promise<{ mergedAt: string }> {
+  const status = input.onStatus !== undefined ? { onStatus: input.onStatus } : {};
   const merge = await input.spawn('gh', ['pr', 'merge', input.prUrl, '--auto', '--squash']);
 
   if (merge.exitCode === 0) {
@@ -1083,7 +1084,7 @@ export async function mergePrWithFallback(
       spawn: input.spawn,
       intervalMs: input.intervalMs ?? DEFAULT_POLL_INTERVAL_MS,
       timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-      ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
+      ...status,
     });
     // GitHub merged it, and GitHub deletes the head branch only when the repo's
     // delete-branch-on-merge setting is on — gh never touches it on this leg.
@@ -1091,7 +1092,7 @@ export async function mergePrWithFallback(
       spawn: input.spawn,
       branch: merged.headRefName,
       reason: 'auto-merge left it behind',
-      ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
+      ...status,
     });
     return { mergedAt: merged.mergedAt };
   }
@@ -1112,7 +1113,7 @@ export async function mergePrWithFallback(
     spawn: input.spawn,
     intervalMs: input.intervalMs ?? DEFAULT_POLL_INTERVAL_MS,
     timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
+    ...status,
   });
   // `--delete-branch` makes gh do *local* post-merge cleanup: check out the base
   // branch, then delete the local head branch. From a linked worktree that
@@ -1168,14 +1169,14 @@ export async function mergePrWithFallback(
       spawn: input.spawn,
       branch: viewData.headRefName,
       reason: 'worktree context — gh --delete-branch withheld',
-      ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
+      ...status,
     });
   } else {
     await deleteRemoteBranchIfLingers({
       spawn: input.spawn,
       branch: viewData.headRefName,
       reason: 'gh --delete-branch left it behind',
-      ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
+      ...status,
     });
   }
   return { mergedAt: viewData.mergedAt };
