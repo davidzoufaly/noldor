@@ -1445,16 +1445,24 @@ describe('mergePrWithFallback', () => {
   });
 
   it('throws with both exit codes when both merge legs fail and PR stays open', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
     const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      calls.push({ cmd, args });
       if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 1 };
       if (cmd === 'gh' && args[1] === 'view') {
-        return { stdout: JSON.stringify({ mergedAt: null, state: 'OPEN' }), exitCode: 0 };
+        return {
+          stdout: JSON.stringify({ mergedAt: null, state: 'OPEN', headRefName: 'micro/1' }),
+          exitCode: 0,
+        };
       }
       return { stdout: '', exitCode: 1 };
     });
     await expect(mergePrWithFallback({ prUrl, spawn })).rejects.toThrow(
       /gh pr merge --auto failed: exit 1; direct merge fallback exit 1; PR state is "OPEN"/,
     );
+    // A failed merge must keep its branch: no probe, no delete.
+    expect(calls.some((c) => c.cmd === 'git' && c.args[0] === 'ls-remote')).toBe(false);
+    expect(calls.some((c) => c.cmd === 'git' && c.args.includes('--delete'))).toBe(false);
   });
 
   it('refuses the direct-merge fallback when a check has failed', async () => {
@@ -1598,51 +1606,43 @@ describe('mergePrWithFallback', () => {
     expect(calls.some((c) => c.cmd === 'git' && c.args.includes('--delete'))).toBe(false);
   });
 
-  it('warns when the remote branch survives gh --delete-branch in the main checkout', async () => {
-    const warn = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
-    try {
-      const { spawn, calls } = fallbackSpawn({
-        gitDirs: MAIN_DIRS,
-        headRefName: 'fast/x',
-        lsRemote: { stdout: 'deadbeef\trefs/heads/fast/x\n', exitCode: 0 },
-      });
-      await mergePrWithFallback({ prUrl, spawn });
-      expect(calls).toContainEqual({
-        cmd: 'git',
-        args: ['ls-remote', '--heads', 'origin', 'refs/heads/fast/x'],
-      });
-      expect(
-        warn.mock.calls.some(([m]) => String(m).includes('remote branch fast/x still exists')),
-      ).toBe(true);
-    } finally {
-      warn.mockRestore();
-    }
+  it('deletes the remote branch when it survives gh --delete-branch in the main checkout', async () => {
+    const { spawn, calls } = fallbackSpawn({
+      gitDirs: MAIN_DIRS,
+      headRefName: 'fast/x',
+      lsRemote: { stdout: 'deadbeef\trefs/heads/fast/x\n', exitCode: 0 },
+    });
+    const lines: string[] = [];
+    await mergePrWithFallback({ prUrl, spawn, onStatus: (l) => lines.push(l) });
+    expect(calls).toContainEqual({
+      cmd: 'git',
+      args: ['ls-remote', '--heads', 'origin', 'refs/heads/fast/x'],
+    });
+    // The probe must come first: pr-flow deletes what it saw survive, never blind.
+    const probeAt = calls.findIndex((c) => c.cmd === 'git' && c.args[0] === 'ls-remote');
+    const deleteAt = calls.findIndex((c) => c.cmd === 'git' && c.args.includes('--delete'));
+    expect(calls[deleteAt]).toEqual({ cmd: 'git', args: ['push', 'origin', '--delete', 'fast/x'] });
+    expect(deleteAt).toBeGreaterThan(probeAt);
+    expect(lines.some((l) => l.includes('deleted remote branch fast/x'))).toBe(true);
   });
 
-  it('stays quiet in the main checkout when the remote branch is gone', async () => {
-    const warn = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
-    try {
-      const { spawn } = fallbackSpawn({ gitDirs: MAIN_DIRS, headRefName: 'fast/x' });
-      await mergePrWithFallback({ prUrl, spawn });
-      expect(warn.mock.calls.some(([m]) => String(m).includes('still exists'))).toBe(false);
-    } finally {
-      warn.mockRestore();
-    }
+  it('leaves the remote alone in the main checkout when the branch is already gone', async () => {
+    const { spawn, calls } = fallbackSpawn({ gitDirs: MAIN_DIRS, headRefName: 'fast/x' });
+    const lines: string[] = [];
+    await mergePrWithFallback({ prUrl, spawn, onStatus: (l) => lines.push(l) });
+    expect(calls.some((c) => c.cmd === 'git' && c.args[0] === 'ls-remote')).toBe(true);
+    expect(calls.some((c) => c.cmd === 'git' && c.args.includes('--delete'))).toBe(false);
+    expect(lines.some((l) => l.includes('deleted remote branch'))).toBe(false);
   });
 
-  it('stays quiet in the main checkout when the ls-remote probe itself fails', async () => {
-    const warn = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
-    try {
-      const { spawn } = fallbackSpawn({
-        gitDirs: MAIN_DIRS,
-        headRefName: 'fast/x',
-        lsRemote: { stdout: '', exitCode: 128 },
-      });
-      await mergePrWithFallback({ prUrl, spawn });
-      expect(warn.mock.calls.some(([m]) => String(m).includes('still exists'))).toBe(false);
-    } finally {
-      warn.mockRestore();
-    }
+  it('does not delete in the main checkout when the ls-remote probe itself fails', async () => {
+    const { spawn, calls } = fallbackSpawn({
+      gitDirs: MAIN_DIRS,
+      headRefName: 'fast/x',
+      lsRemote: { stdout: '', exitCode: 128 },
+    });
+    await mergePrWithFallback({ prUrl, spawn });
+    expect(calls.some((c) => c.cmd === 'git' && c.args.includes('--delete'))).toBe(false);
   });
 
   it('does not probe the remote in worktree context — it deletes the ref itself', async () => {
@@ -1662,6 +1662,72 @@ describe('mergePrWithFallback', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+
+  /** Shared mock for the auto-merge leg: `gh pr merge --auto` queues and the first
+   *  poll already reports MERGED. `lsRemote` scripts whether the head branch
+   *  survived — GitHub keeps it unless the repo's delete-branch-on-merge is on. */
+  function autoMergeSpawn(opts: {
+    headRefName?: string;
+    lsRemote?: { stdout: string; exitCode: number };
+  }): {
+    spawn: SpawnFn;
+    calls: Array<{ cmd: string; args: string[] }>;
+  } {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      calls.push({ cmd, args });
+      if (cmd === 'git' && args[0] === 'ls-remote')
+        return opts.lsRemote ?? { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args.includes('--delete')) return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[1] === 'view') {
+        return {
+          stdout: JSON.stringify({
+            mergedAt: '2026-09-19T09:00:00Z',
+            state: 'MERGED',
+            ...(opts.headRefName !== undefined ? { headRefName: opts.headRefName } : {}),
+          }),
+          exitCode: 0,
+        };
+      }
+      return { stdout: '', exitCode: 1 };
+    });
+    return { spawn, calls };
+  }
+
+  it('deletes the remote head branch after auto-merge when GitHub left it behind', async () => {
+    const { spawn, calls } = autoMergeSpawn({
+      headRefName: 'micro/1789485177',
+      lsRemote: { stdout: 'deadbeef\trefs/heads/micro/1789485177\n', exitCode: 0 },
+    });
+    const lines: string[] = [];
+    const result = await mergePrWithFallback({ prUrl, spawn, onStatus: (l) => lines.push(l) });
+    expect(result.mergedAt).toBe('2026-09-19T09:00:00Z');
+    // No direct-merge fallback ran — this is the --auto leg end to end.
+    expect(calls.filter((c) => c.cmd === 'gh' && c.args[1] === 'merge')).toHaveLength(1);
+    expect(calls).toContainEqual({
+      cmd: 'git',
+      args: ['push', 'origin', '--delete', 'micro/1789485177'],
+    });
+    expect(lines.some((l) => l.includes('deleted remote branch micro/1789485177'))).toBe(true);
+  });
+
+  it('leaves the remote alone after auto-merge when the head branch is already gone', async () => {
+    const { spawn, calls } = autoMergeSpawn({ headRefName: 'micro/1789485177' });
+    await mergePrWithFallback({ prUrl, spawn });
+    expect(calls).toContainEqual({
+      cmd: 'git',
+      args: ['ls-remote', '--heads', 'origin', 'refs/heads/micro/1789485177'],
+    });
+    expect(calls.some((c) => c.cmd === 'git' && c.args.includes('--delete'))).toBe(false);
+  });
+
+  it('skips the remote probe after auto-merge when gh pr view carries no headRefName', async () => {
+    const { spawn, calls } = autoMergeSpawn({});
+    const result = await mergePrWithFallback({ prUrl, spawn });
+    expect(result.mergedAt).toBe('2026-09-19T09:00:00Z');
+    expect(calls.some((c) => c.cmd === 'git')).toBe(false);
   });
 });
 
