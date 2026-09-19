@@ -421,5 +421,9 @@
   "Q-0230": {
     "slug": "pr-summary-at-flow-end-is-sometimes-not-a-link",
     "retiredAt": "2026-09-19"
+  },
+  "Q-0231": {
+    "slug": "roadmap-entry-show-more-not-rendered",
+    "retiredAt": "2026-09-19"
   }
 }

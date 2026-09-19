@@ -16,20 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Roadmap Entry Show-More Not Rendered
-
-- id: Q-0231
-- area: tooling
-- type: fix
-- since: 2026-09-08
-- size: XS
-- impact: low
-- confidence: med
-
-The dashboard's roadmap entry rendering does not display the show-more control, so long entry bodies are truncated with no way to expand them — reproduced against Charuy's dashboard. Since every roadmap block now carries a full paragraph plus optional sub-bullets, truncation without an expander makes the roadmap view unusable for exactly the entries that need reading. Deletion test: a roadmap entry whose body exceeds the collapse threshold renders a working show-more control. (surfaced 2026-09-08)
-
-- Still reproducing on charuy's dashboard as of 2026-09-16 — the bug has outlived one release on the consumer side, so it is not a transient render state.
-
 ### Duplicate PR ID in the Changelog
 
 - id: Q-0246
