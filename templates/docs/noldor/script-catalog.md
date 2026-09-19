@@ -83,6 +83,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** automatic on commit and push. See [`rules.md`](rules.md) § Template sync.
 - **Source:** [`src/checks/check-template-sync.ts`](../../src/checks/check-template-sync.ts)
 
+### `check:skill-portability`
+
+- **Trigger:** `pnpm noldor checks skill-portability`. Runs in `pre-commit` (`validate.skill-portability` job) whenever a skill under `.claude/skills/` or `templates/.claude/skills/`, or `package.json`, is staged.
+- **Inputs:** the `non-portable-script` rows from `detectSkillCodeDrift` (`src/garden/detectors/skill-code-drift.ts`) — every fenced command block in a skill markdown file, joined against this repo's `package.json` scripts.
+- **Outputs:** exit 0 when every fenced command block in a shipped skill runs in a consumer; exit 1 listing `<skill>:<line>` for each block that names a script only this repo defines. Only the `non-portable-script` class blocks — the detector's other three (`pnpm-script`, `noldor-subcommand`, `missing-path`) stay advisory in `garden detect`. Inline backtick spans in prose are never checked: a fenced block is what a reader copies and runs. Exempt a deliberate repo-script reference by putting `<!-- noldor-skill-drift-ignore -->` alone on a line above the fence (or on the command line itself).
+- **When to use:** automatic on every commit that touches a skill. A skill ships to consumer repos, which receive the CLI but none of this repo's `package.json` scripts — so a `pnpm verify` / `pnpm release` / `pnpm toon` block resolves in every test here and breaks the first consumer that runs it (Q-0239, found releasing charuy v0.7.0). See [`garden-and-drift.md`](garden-and-drift.md).
+- **Source:** [`src/checks/check-skill-portability.ts`](../../src/checks/check-skill-portability.ts)
+
 ### `check:push-gates`
 
 - **Trigger:** `pnpm noldor checks push-gates`. Run by `/noldor-gate` Step 4 as the push-range preflight, before the code-stage review earns the `Noldor-Reviewed-Subagent` receipt.
