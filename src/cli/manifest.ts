@@ -364,6 +364,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'checks/check-readme.ts',
         desc: 'README command + doc-surface link checks; exit 1 on findings — callers choose whether that blocks',
       },
+      'skill-portability': {
+        src: 'checks/check-skill-portability.ts',
+        desc: 'Block a shipped-skill command block naming a script the framework does not install',
+      },
       'pen-bridge': {
         src: 'checks/check-pen-bridge.ts',
         desc: 'Harness + pencil MCP --app pin + pen.dev extension presence; exit 1 on an unsupported harness, mismatch or missing extension',

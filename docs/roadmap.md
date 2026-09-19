@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Shipped-Skill Commands Must Run in a Consumer
-
-- id: Q-0239
-- area: tooling
-- type: fix
-- since: 2026-09-16
-- size: S
-- impact: med
-- confidence: high
-
-Nothing stops a shipped skill from growing a command block that only runs inside the noldor repo. The `noldor-release-sweep` skill had four — a session-marker write that imported `./src/core/session.ts` by relative path, two `pnpm toon` blocks naming a script the consumer does not define, and the same for the clear at step 10 — and they were only caught by an operator hitting them while releasing charuy v0.7.0. The prose half is fixed: every block in that skill is now written against `pnpm noldor …`, and the two remaining repo-script forms (`pnpm verify`, `pnpm release`) are marked in a "Commands in this skill" section. What is still missing is the guard. Wanted: a check that reads the fenced command blocks out of `.claude/skills/**` and fails on a `pnpm <script>` form that is neither a framework CLI command nor marked `<!-- noldor-skill-drift-ignore -->`. `src/cli/validate-script-catalog.ts` and `src/cli/command-registry.ts` already carry the catalog machinery, and `src/docs/readme-content.ts` already does the same scan for README (Q-0148), so this is a third consumer of existing parts rather than new infrastructure. Deletion test: adding a `pnpm <made-up-script>` block to any shipped skill fails a check, not a consumer's release. (found 2026-09-15 releasing charuy v0.7.0; prose half shipped 2026-09-18)
-
 ### mtime Graph-Freshness Is Poisoned by Test Artifacts
 
 - id: Q-0240

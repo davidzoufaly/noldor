@@ -6,15 +6,17 @@ import { MANIFEST } from '../../cli/manifest.js';
 /**
  * One skill-vs-code drift finding: a skill markdown file referencing a
  * `pnpm` script, `noldor` subcommand, or repo-relative path that no longer
- * exists. Advisory (`action: 'investigate'`) — the operator fixes or
- * suppresses; nothing is auto-rewritten.
+ * exists, or a command that runs here but not in a consumer. Advisory
+ * (`action: 'investigate'`) — the operator fixes or suppresses; nothing is
+ * auto-rewritten. `non-portable-script` is additionally gated by
+ * `pnpm noldor checks skill-portability`, which blocks on that kind alone.
  */
 export interface SkillDriftFinding {
   /** Repo-relative path of the skill markdown file. */
   readonly skillPath: string;
   /** 1-based line of the offending token. */
   readonly line: number;
-  readonly kind: 'pnpm-script' | 'noldor-subcommand' | 'missing-path';
+  readonly kind: 'pnpm-script' | 'non-portable-script' | 'noldor-subcommand' | 'missing-path';
   /** The offending script name / subcommand / path. */
   readonly token: string;
   /** One-line human explanation. */
@@ -23,15 +25,34 @@ export interface SkillDriftFinding {
 }
 
 /**
+ * The finding kind that blocks. Split out because the check and the detector's
+ * own tests both name it, and a string literal repeated across a module
+ * boundary is the shape that silently survives a rename.
+ */
+export const NON_PORTABLE_SCRIPT: SkillDriftFinding['kind'] = 'non-portable-script';
+
+/**
  * Lines carrying this marker (conventionally `<!-- noldor-skill-drift-ignore -->`
- * at end of line, or alone on the preceding line) are excluded from all three
+ * at end of line, or alone on the preceding line) are excluded from all four
  * drift classes — the affordance for intentional negative references such as
  * "`pnpm docs:build` is not a script in this repo".
+ *
+ * A marker-only line sitting **above an opening fence** exempts that whole
+ * fenced block. Without that form the only way to exempt a command block is a
+ * marker on the command line itself, inside the fence, where it renders as part
+ * of the block and travels with anything the reader copies.
  */
 export const SKILL_DRIFT_IGNORE_MARKER = 'noldor-skill-drift-ignore';
 
-/** pnpm built-ins that are not package.json scripts. `test` is deliberately absent —
- * scripts-first validation lets a real `test` script win over the builtin. */
+/**
+ * pnpm built-ins that are not package.json scripts, plus `noldor` — the one
+ * launcher word that makes what follows a framework command rather than a repo
+ * script, and so the only `pnpm <word>` form a consumer is guaranteed to have.
+ *
+ * `test` is deliberately absent. It resolves through a `test` script, which a
+ * consumer may not define; treating it as a built-in would exempt the most
+ * commonly assumed script in the ecosystem from the portability rule below.
+ */
 const PNPM_BUILTINS = new Set([
   'install',
   'i',
@@ -97,6 +118,21 @@ function collectSkillMd(root: string): string[] {
   return out;
 }
 
+/**
+ * True when the nearest non-blank line above `idx` is a marker-only HTML
+ * comment. Blank lines are skipped because a marker is usually written with one
+ * between it and the fence it guards — CommonMark does not require the blank,
+ * but every hand-written instance in this repo has it.
+ */
+function markerAbove(lines: readonly string[], idx: number): boolean {
+  for (let j = idx - 1; j >= 0; j--) {
+    const text = lines[j]!.trim();
+    if (text === '') continue;
+    return text === `<!-- ${SKILL_DRIFT_IGNORE_MARKER} -->`;
+  }
+  return false;
+}
+
 /** Extract inline backtick spans from a prose line. */
 function inlineCodeSpans(line: string): string[] {
   const spans: string[] = [];
@@ -104,17 +140,65 @@ function inlineCodeSpans(line: string): string[] {
   return spans;
 }
 
+const INSTALLED_SKILLS_PREFIX = '.claude/skills/';
+const TEMPLATE_SKILLS_PREFIX = `templates/${INSTALLED_SKILLS_PREFIX}`;
+
+/**
+ * True when `skillPath` names a skill THIS repo ships to consumers — its copy
+ * under `templates/`, or a working copy with such a twin.
+ *
+ * The portability rule below asks "does this command run where the skill
+ * ships?", and only a shipped skill has a "where" other than here. A consumer
+ * that installs the framework gets this detector and the pre-commit job that
+ * reads it, but no `templates/` tree, so both branches go false and every skill
+ * the consumer wrote is left alone — including the one whose fenced `pnpm test`
+ * is its own script and perfectly portable to the only place it goes. Without
+ * this gate the check refuses a consumer's own commit with a message that is
+ * simply untrue there.
+ */
+function isShippedSkill(repo: string, skillPath: string): boolean {
+  if (skillPath.startsWith(TEMPLATE_SKILLS_PREFIX)) return true;
+  if (!skillPath.startsWith(INSTALLED_SKILLS_PREFIX)) return false;
+  return existsSync(join(repo, 'templates', skillPath));
+}
+
 function checkCommands(
   codeText: string,
   scripts: ReadonlySet<string>,
+  portabilityScope: boolean,
   push: (kind: SkillDriftFinding['kind'], token: string, detail: string) => void,
 ): void {
   for (const m of codeText.matchAll(PNPM_SCRIPT_RE)) {
     const name = m[1]!;
     if (name.startsWith('-')) continue;
-    if (scripts.has(name)) continue; // scripts-first: a real script never flags
     if (PNPM_BUILTINS.has(name)) continue;
     if (PLACEHOLDER_RE.test(name)) continue;
+    // A script this repo happens to define is NOT evidence the command runs
+    // where the skill ships. `pnpm verify` / `pnpm release` / `pnpm toon` each
+    // resolved here and each broke a consumer mid-release (Q-0239), because
+    // the framework installs skills but not scripts. So the two outcomes are
+    // reported apart rather than collapsed: a name with no script anywhere is
+    // ordinary rot, a name backed only by THIS repo's package.json is a
+    // portability defect, and only the second has a blocking check.
+    //
+    // Fenced blocks in a SHIPPED skill only. An inline span in prose ("shipped
+    // in the next `pnpm release`") names a thing; a fenced block is the thing
+    // the reader copies and runs, which is the form that broke charuy.
+    // Extending the rule to prose turns 16 sites into 76 and the markers into
+    // noise — and a marker is only worth reading where it records a real
+    // decision. See {@link isShippedSkill} for the other half of the scope.
+    if (scripts.has(name)) {
+      if (!portabilityScope) continue; // scripts-first, as before: a real script never flags
+      push(
+        NON_PORTABLE_SCRIPT,
+        name,
+        `\`pnpm ${name}\` is a script in this repo's package.json, not a framework command — ` +
+          `a consumer that installs this skill has no such script. Rewrite it against ` +
+          `\`pnpm noldor …\`, or put \`<!-- ${SKILL_DRIFT_IGNORE_MARKER} -->\` above the block ` +
+          `and say in prose which repo script it stands for`,
+      );
+      continue;
+    }
     push('pnpm-script', name, `\`pnpm ${name}\` matches no package.json script`);
   }
   for (const m of codeText.matchAll(NOLDOR_CMD_RE)) {
@@ -184,6 +268,11 @@ function checkPaths(
  * backtick spans and markdown link targets, then validating each against
  * `package.json` scripts, the CLI `MANIFEST`, and the filesystem.
  *
+ * Inside a FENCED block of a skill THIS repo ships (see `isShippedSkill`), a
+ * `pnpm <script>` that only this repo's `package.json` defines is reported as
+ * `non-portable-script` rather than passing: such a skill lands in consumer
+ * repos, which receive no scripts. See {@link NON_PORTABLE_SCRIPT}.
+ *
  * Template twins are validated against the ROOT `package.json`/tree —
  * templates describe consumer repos, but self-host is the only tree we can
  * stat; accepted imprecision.
@@ -223,21 +312,27 @@ export async function detectSkillCodeDrift(repo: string): Promise<SkillDriftFind
       ? skillPath.slice('templates/'.length)
       : skillPath;
     const fileDir = dirname(join(repo, installedRel));
+    const shipped = isShippedSkill(repo, skillPath);
     const lines = body.split('\n');
     let inFence = false;
+    let fenceSuppressed = false;
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]!;
       if (/^\s*(```|~~~)/.test(line)) {
+        // An opening delimiter reads the marker above it and carries that
+        // verdict to every line of the block; a closing one clears it.
+        fenceSuppressed = inFence ? false : markerAbove(lines, i);
         inFence = !inFence;
         continue;
       }
+      if (fenceSuppressed) continue;
       if (line.includes(SKILL_DRIFT_IGNORE_MARKER)) continue;
       if (i > 0 && lines[i - 1]!.trim() === `<!-- ${SKILL_DRIFT_IGNORE_MARKER} -->`) continue;
       const push = (kind: SkillDriftFinding['kind'], token: string, detail: string): void => {
         findings.push({ skillPath, line: i + 1, kind, token, detail, action: 'investigate' });
       };
       const codeSpans = inFence ? [line] : inlineCodeSpans(line);
-      for (const span of codeSpans) checkCommands(span, scripts, push);
+      for (const span of codeSpans) checkCommands(span, scripts, inFence && shipped, push);
       const pathCandidates = [...codeSpans];
       for (const m of line.matchAll(MD_LINK_RE)) pathCandidates.push(m[1]!);
       checkPaths(pathCandidates, repo, fileDir, push);

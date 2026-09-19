@@ -19,7 +19,9 @@ Refactoring without structure leads to silent breakage — a renamed export brea
 
 3. **Climb the lazy decision ladder + scan for cut markers** — the `lazy-decision-ladder` rule (`.noldor/rules/lazy-decision-ladder.md`, enforce bucket for `**/*.ts` at stage `code`) applies to refactors too. Before restructuring anything, climb and stop at the first rung that holds: does this refactor need to exist at all (YAGNI — is the "smell" actually costing anything)? Does an existing helper already do what the extraction would create (reuse, don't rewrite)? Then `grep -rn "noldor:cut" <target files>` — each `// noldor:cut <ceiling> — <upgrade path>` marks a *deliberate, bounded* corner-cut carrying its own ceiling and upgrade path. Record every marker hit; Phase 2 disposes of them.
 
-4. **Capture the baseline** — run typecheck and tests BEFORE any changes:
+4. **Capture the baseline** — run typecheck and tests BEFORE any changes. `typecheck` and `test` name your repo's own `package.json` scripts, not framework commands — substitute whatever yours are called.
+
+   <!-- noldor-skill-drift-ignore -->
 
    ```bash
    pnpm typecheck 2>&1 | tail -5
@@ -80,7 +82,9 @@ Make changes in a logical order:
 
 ### Phase 4: Verify
 
-Run typecheck and tests AFTER changes:
+Run typecheck and tests AFTER changes — the same repo scripts as the baseline step:
+
+<!-- noldor-skill-drift-ignore -->
 
 ```bash
 pnpm typecheck 2>&1 | tail -5

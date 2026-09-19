@@ -5,8 +5,10 @@ deps: []
 entry-id: Q-0030
 links:
   code:
+    - src/checks/check-skill-portability.ts
     - src/garden/detectors/skill-code-drift.ts
   tests:
+    - src/checks/__tests__/check-skill-portability.test.ts
     - src/garden/detectors/__tests__/skill-code-drift.test.ts
   spec: docs/design/specs/archive/2026-07-13-skill-vs-code-drift-detector-design.md
 name: Skill-vs-Code Drift Detector
@@ -17,7 +19,6 @@ since: 2026-07-11T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.0.0
 ---
-
 ## Summary
 
 Skills reference CLI commands, `package.json` scripts, and `src/` paths that rot after reorgs (release-sweep needed a full path audit, PR #124; the gate skill body carried the same class of drift). Add a garden detector that scans `.claude/skills/**/SKILL.md` + `templates/.claude/skills/**` for `pnpm <script>` invocations not in `package.json` scripts, `noldor <sub>` commands not in the CLI manifest, and repo-relative paths that don't exist. Carried out of the drained release-sweep-skill-path-audit roadmap entry.
@@ -30,7 +31,8 @@ As a framework maintainer, I want `garden detect` to flag skill bodies whose `pn
 
 **Agent/Programmatic API**
 
-- `pnpm noldor garden detect` — JSON output gains the `skillDrift` category: one row per drifted reference with `skillPath`, `line`, `kind` (`pnpm-script` | `noldor-subcommand` | `missing-path`), `token`, and `detail`.
+- `pnpm noldor garden detect` — JSON output gains the `skillDrift` category: one row per drifted reference with `skillPath`, `line`, `kind` (`pnpm-script` | `non-portable-script` | `noldor-subcommand` | `missing-path`), `token`, and `detail`.
+- `pnpm noldor checks skill-portability` — the blocking half, wired into `pre-commit` (`validate.skill-portability`). Exit 1 on any `non-portable-script` row: a **fenced** command block, in a skill this repo ships, naming a script only this repo's `package.json` defines. Such a skill lands in consumer repos, which receive the CLI but none of these scripts, so the block resolves in every test here and breaks the first consumer that runs it. Scope is the `templates/.claude/skills/` tree and its working twins, so in a consumer — which has no `templates/` — the check is a no-op over the skills that consumer wrote. The detector's other three classes stay advisory.
 - `detectSkillCodeDrift(repo)` (`src/garden/detectors/skill-code-drift.ts`) — direct API; findings sorted by `skillPath`, then `line`.
 - Findings count toward the release auto-restamp gate via `runGardenDetectViaCli` (`src/garden/garden-detect-runner.ts`) and surface in the `/noldor-garden` checklist as investigate-only items.
 - Suppress an intentional negative reference (e.g. documenting that a script does NOT exist) by putting `<!-- noldor-skill-drift-ignore -->` on the line or alone on the preceding line.

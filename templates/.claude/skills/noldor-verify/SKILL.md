@@ -79,7 +79,9 @@ Skipping any step is lying, not verifying.
 
 ## Key patterns
 
-**Tests / verify:**
+**Tests / verify:** — `pnpm test` / `pnpm verify` stand in for your repo's own scripts here; the shape is the point, not the script name.
+
+<!-- noldor-skill-drift-ignore -->
 
 ```
 ✅ run `pnpm test` → see "34/34 pass" → "tests pass"

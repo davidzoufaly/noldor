@@ -83,6 +83,9 @@ pre-commit:
           - name: skill-catalog
             glob: '{.claude/skills/**/*,docs/noldor/skill-catalog.md}'
             run: pnpm noldor validate skill-catalog
+          - name: skill-portability
+            glob: '{.claude/skills/**/*,templates/.claude/skills/**/*,package.json}'
+            run: pnpm noldor checks skill-portability
           - name: script-catalog
             glob: '{src/cli/manifest.ts,docs/noldor/script-catalog.md}'
             run: pnpm noldor validate script-catalog

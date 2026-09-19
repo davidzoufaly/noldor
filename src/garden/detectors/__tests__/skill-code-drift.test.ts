@@ -52,6 +52,89 @@ describe('detectSkillCodeDrift — pnpm scripts (class 1)', () => {
   });
 });
 
+describe('detectSkillCodeDrift — consumer portability (class 4)', () => {
+  const SCRIPTS = { verify: 'x', release: 'x', typecheck: 'x', test: 'x' };
+
+  /** A fenced block holding `lines`, with `above` written before the fence. */
+  const fenced = (lines: readonly string[], above: readonly string[] = []): string =>
+    [...above, '```bash', ...lines, '```', ''].join('\n');
+
+  /** A repo whose `demo` skill is SHIPPED — working copy plus `templates/` twin. */
+  const shippedSkillRepo = (body: string, scripts: Record<string, string> = SCRIPTS): string =>
+    fixtureRepo({ scripts, files: { [SKILL]: body, [`templates/${SKILL}`]: body } });
+
+  // MUST FIRE — a fenced block in a shipped skill naming a script only this repo defines.
+  it.each([
+    ['a lone command', ['pnpm verify']],
+    ['a command with args', ['pnpm release --preflight']],
+    ['a command under a pipe', ['pnpm typecheck 2>&1 | tail -5']],
+  ])('flags %s that resolves only through this repo package.json', async (_label, lines) => {
+    const findings = await detectSkillCodeDrift(shippedSkillRepo(fenced(lines)));
+    // Both copies of a shipped skill are scanned, and both are the same defect.
+    expect(findings.map((f) => [f.kind, f.skillPath, f.line])).toEqual([
+      ['non-portable-script', SKILL, 2],
+      ['non-portable-script', `templates/${SKILL}`, 2],
+    ]);
+  });
+
+  it('reports every offending command in one block, at its own line', async () => {
+    const findings = await detectSkillCodeDrift(
+      shippedSkillRepo(fenced(['pnpm typecheck', 'pnpm test'])),
+    );
+    expect(findings.filter((f) => f.skillPath === SKILL).map((f) => [f.token, f.line])).toEqual([
+      ['typecheck', 2],
+      ['test', 3],
+    ]);
+  });
+
+  it('suppression ends at the closing fence — a later unmarked block still flags', async () => {
+    const body =
+      fenced(['pnpm verify'], ['<!-- noldor-skill-drift-ignore -->', '']) + fenced(['pnpm verify']);
+    const findings = await detectSkillCodeDrift(shippedSkillRepo(body));
+    expect(findings.filter((f) => f.skillPath === SKILL).map((f) => [f.kind, f.line])).toEqual([
+      ['non-portable-script', 7],
+    ]);
+  });
+
+  // MUST STAY QUIET — every shape the portability rule deliberately does not own.
+  it.each([
+    ['an inline span in prose', 'Ships in the next `pnpm release`; run `pnpm verify` first.\n'],
+    ['a framework command in a fence', fenced(['pnpm noldor garden detect'])],
+    ['a pnpm builtin in a fence', fenced(['pnpm install --frozen-lockfile'])],
+    [
+      'a block marked by a preceding line, blank-separated',
+      fenced(['pnpm verify'], ['<!-- noldor-skill-drift-ignore -->', '']),
+    ],
+    [
+      'a block marked by the line directly above the fence',
+      fenced(['pnpm verify'], ['<!-- noldor-skill-drift-ignore -->']),
+    ],
+    [
+      'a marked command line inside the fence',
+      fenced(['pnpm verify <!-- noldor-skill-drift-ignore -->']),
+    ],
+  ])('does not flag %s', async (_label, body) => {
+    expect(await detectSkillCodeDrift(shippedSkillRepo(body))).toEqual([]);
+  });
+
+  // The consumer case: the framework installs this detector and the pre-commit
+  // job that reads it, but ships no `templates/` tree, so a skill the consumer
+  // wrote has no twin — and `pnpm test` there is the consumer's own script,
+  // portable to the only repo it ever runs in.
+  it('leaves a skill with no templates/ twin alone', async () => {
+    const repo = fixtureRepo({
+      scripts: SCRIPTS,
+      files: { '.claude/skills/team-thing/SKILL.md': fenced(['pnpm test']) },
+    });
+    expect(await detectSkillCodeDrift(repo)).toEqual([]);
+  });
+
+  it('a fenced script no package.json defines stays ordinary rot, not a portability defect', async () => {
+    const findings = await detectSkillCodeDrift(shippedSkillRepo(fenced(['pnpm nope-script'])));
+    expect([...new Set(findings.map((f) => f.kind))]).toEqual(['pnpm-script']);
+  });
+});
+
 describe('detectSkillCodeDrift — noldor subcommands (class 2)', () => {
   it('flags unknown group and unknown sub; passes real ones', async () => {
     const repo = fixtureRepo({

@@ -17,7 +17,7 @@ Two forms are deliberate exceptions, because they name a *repo script* rather th
 - **`pnpm verify`** — your repo's own full-check script (lint + format + typecheck + tests). Substitute whatever your `package.json` calls it; the framework does not define it.
 - **`pnpm release`** — a convenience alias that exists only in the noldor repo itself <!-- noldor-skill-drift-ignore -->. In a consumer, the equivalent is `pnpm noldor release run`, and the read-only gate aggregate is `pnpm noldor release run --preflight`. Read every `pnpm release …` below as `pnpm noldor release run …`.
 
-Anything else that is noldor-repo-only carries a `<!-- noldor-skill-drift-ignore -->` marker at its point of use.
+Anything else that is noldor-repo-only carries a `<!-- noldor-skill-drift-ignore -->` marker at its point of use — on the line, or alone above a fenced block to exempt the whole block. `pnpm noldor checks skill-portability` enforces this at commit time: a fenced block naming a `package.json` script the framework does not install fails the check unless it is marked.
 
 ## Pre-flight
 
@@ -159,6 +159,8 @@ If `git status` shows nothing, skip the commit silently — a no-delta re-run is
 
 ### 7. Final verify
 
+<!-- noldor-skill-drift-ignore -->
+
 ```bash
 pnpm verify
 ```
@@ -209,6 +211,8 @@ If the ff-only fails — **most likely cause is a concurrent PR merging to `orig
 Step 10 below is then a no-op confirmation rather than the first clear.
 
 Now run the read-only gate aggregate so the confirmation is informed rather than hopeful:
+
+<!-- noldor-skill-drift-ignore -->
 
 ```
 pnpm release --preflight
