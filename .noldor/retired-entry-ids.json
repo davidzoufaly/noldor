@@ -413,5 +413,9 @@
   "Q-0239": {
     "slug": "shipped-skill-commands-must-run-in-a-consumer",
     "retiredAt": "2026-09-19"
+  },
+  "Q-0219": {
+    "slug": "pr-flow-leaves-a-stale-remote-branch-per-micro-chore",
+    "retiredAt": "2026-09-19"
   }
 }
