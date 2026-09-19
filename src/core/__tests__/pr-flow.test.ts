@@ -1059,6 +1059,39 @@ describe('openAndAutoMerge', () => {
     expect(result.mergedAt).toBeNull();
     expect(calls.some((c) => c.cmd === 'gh' && c.args[1] === 'merge')).toBe(false);
   });
+
+  /**
+   * Q-0230: the reuse leg used to name the PR as a bare `#353` on both of its status
+   * lines while every other leg printed the URL — so exactly the intermittent re-run
+   * left the operator hunting for the PR by number. Every line that names a PR
+   * carries its URL.
+   */
+  it('names the reused PR by URL on both status lines, not by bare number', async () => {
+    const warn = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    try {
+      await openAndAutoMerge({ ...shipInput, spawn: reuseSpawn({}) });
+      const lines = warn.mock.calls.map(([m]) => String(m));
+      const reuse = lines.find((l) => l.includes('already exists for'));
+      const refreshed = lines.find((l) => l.includes('refreshed PR'));
+      expect(reuse).toContain('https://github.com/davidzoufaly/acme/pull/353');
+      expect(refreshed).toContain('https://github.com/davidzoufaly/acme/pull/353');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('names the PR by URL when the refresh fails and it merges with its stale body', async () => {
+    const warn = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    try {
+      await openAndAutoMerge({ ...shipInput, spawn: reuseSpawn({ editExitCode: 1 }) });
+      const line = warn.mock.calls
+        .map(([m]) => String(m))
+        .find((l) => l.includes('could not refresh'));
+      expect(line).toContain('https://github.com/davidzoufaly/acme/pull/353');
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 
 describe('findOpenPrForBranch', () => {
@@ -1457,9 +1490,13 @@ describe('mergePrWithFallback', () => {
       }
       return { stdout: '', exitCode: 1 };
     });
-    await expect(mergePrWithFallback({ prUrl, spawn })).rejects.toThrow(
+    const err: unknown = await mergePrWithFallback({ prUrl, spawn }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(
       /gh pr merge --auto failed: exit 1; direct merge fallback exit 1; PR state is "OPEN"/,
     );
+    // Q-0230: the failure names the PR it leaves open by URL, not only by exit codes.
+    expect((err as Error).message).toContain(prUrl);
     // A failed merge must keep its branch: no probe, no delete.
     expect(calls.some((c) => c.cmd === 'git' && c.args[0] === 'ls-remote')).toBe(false);
     expect(calls.some((c) => c.cmd === 'git' && c.args.includes('--delete'))).toBe(false);
@@ -1658,7 +1695,11 @@ describe('mergePrWithFallback', () => {
       const result = await mergePrWithFallback({ prUrl, spawn });
       expect(result.mergedAt).toBe('2026-08-06T09:00:00Z');
       expect(calls.some((c) => c.cmd === 'git' && c.args.includes('--delete'))).toBe(false);
-      expect(warn.mock.calls.some(([m]) => String(m).includes('no headRefName'))).toBe(true);
+      const line = warn.mock.calls
+        .map(([m]) => String(m))
+        .find((l) => l.includes('no headRefName'));
+      // Q-0230: the branch is left for the operator to delete, so the warning names the PR by URL.
+      expect(line).toContain(prUrl);
     } finally {
       warn.mockRestore();
     }
