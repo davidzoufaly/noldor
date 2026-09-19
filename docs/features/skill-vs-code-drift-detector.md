@@ -5,6 +5,7 @@ deps: []
 entry-id: Q-0030
 links:
   code:
+    - src/checks/check-skill-portability.ts
     - src/garden/detectors/skill-code-drift.ts
   tests:
     - src/checks/__tests__/check-skill-portability.test.ts
