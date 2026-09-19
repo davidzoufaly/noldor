@@ -15,6 +15,33 @@ export const MICRO_CHORE_GLOBS = [
   // own paperwork — can only land through a `Noldor-Path-Override`.
   '.noldor/id-counter.json',
   '.noldor/retired-entry-ids.json',
+  // Consumer config. On the lane because gates *print remedies that edit it*:
+  // `ui-design-freshness` tells the operator to declare `consumer.uiCapture` for
+  // a surface by name, and until this entry the declaration could not be
+  // committed at all — micro-chore rejected the file and a code lane demanded a
+  // review receipt for a diff with no behaviour to review. A gate whose printed
+  // remedy needs a `Noldor-Path-Override` teaches operators to reach for the
+  // override.
+  //
+  // The widening is per-file, and this file carries gate knobs too. For the
+  // forward-looking ones — `crLanes`, `clones.thresholdPct`, `boundaries` — that
+  // is the trade `lefthook.yml` above already takes: they change what the next
+  // check does, the next check still runs, and the audit trail is the committed
+  // diff on a squash-merged PR.
+  //
+  // Four keys are NOT that trade, because they reach backwards and wave commits
+  // already on `main` past a gate — and this lane is itself exempt from the
+  // release CR gate via NO_REVIEW_LANE_GLOBS, so a commit appending to
+  // `release.crGateExemptCommits` would be waved through by the list it just
+  // extended. A glob cannot see inside a file, so that self-waiver is closed by
+  // a content guard instead: see RETROACTIVE_WAIVER_KEYS in
+  // `core/config-waiver-guard.ts`, enforced at pre-commit and re-checked at
+  // commit-msg. `lefthook.yml` needs no such guard — it cannot rewrite the
+  // verdict on a commit that already landed.
+  //
+  // Also a CODE_GLOBS member, so a config PR renders a code Test Plan rather
+  // than claiming a doc-only change.
+  '.noldor/config.json',
 ] as const;
 
 /**
@@ -85,6 +112,9 @@ export const RETIREMENT_GLOBS = ['docs/roadmap.md', '.noldor/retired-entry-ids.j
  * micro-chore membership, which merely correlates. `lefthook.yml` is on both
  * this list and {@link MICRO_CHORE_GLOBS}: it wires the hook chain, so editing
  * it changes what runs on every commit, whatever lane lands it.
+ * `.noldor/config.json` is the same shape — `boundaries`, `clones.thresholdPct`
+ * and `crLanes` decide what every framework check does — so a config-only PR
+ * earns a code Test Plan instead of rendering "Doc-only change".
  *
  * This is also not the negation of {@link BOOKKEEPING_GLOBS}: `docs/noldor/**`,
  * root `*.md` and the `templates/` prose twins are neither bookkeeping nor code,
@@ -98,6 +128,7 @@ export const CODE_GLOBS = [
   'lefthook.yml',
   '.github/workflows/**',
   '.noldor/rules/**',
+  '.noldor/config.json', // consumer config — tunes every check; `*.json` below is root-level only
   '*.json', // root-level manifests only (package.json, tsconfig.json, …)
   '**/*.ts',
   '**/*.tsx',

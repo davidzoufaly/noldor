@@ -83,9 +83,21 @@ describe('micro-chore allowlist', () => {
       ]),
     ).toBe(true);
   });
-  it('rejects other .noldor json (only the two counters are admitted)', () => {
-    expect(isMicroChoreAllowed(['.noldor/config.json'])).toBe(false);
+  // The `ui-design-freshness` remedy tells the operator to declare
+  // `consumer.uiCapture` by name; before Q-0241 that declaration was on no lane.
+  it('accepts the consumer config the gates ask operators to edit', () => {
+    expect(isMicroChoreAllowed(['.noldor/config.json'])).toBe(true);
+  });
+  it('accepts the consumer config mixed with docs markdown', () => {
+    expect(isMicroChoreAllowed(['.noldor/config.json', 'docs/noldor/release.md'])).toBe(true);
+  });
+  it('rejects the consumer config + code file (tainted)', () => {
+    expect(isMicroChoreAllowed(['.noldor/config.json', 'src/core/allowlist.ts'])).toBe(false);
+  });
+  it('rejects the other .noldor json — the session marker and the ratchet baselines', () => {
     expect(isMicroChoreAllowed(['.noldor/session.json'])).toBe(false);
+    expect(isMicroChoreAllowed(['.noldor/clones-baseline.json'])).toBe(false);
+    expect(isMicroChoreAllowed(['.noldor/indirection-baseline.json'])).toBe(false);
   });
 });
 
@@ -233,6 +245,12 @@ describe('isBookkeepingOnly', () => {
     expect(isBookkeepingOnly(['docs/noldor/pr-flow.md'])).toBe(false);
   });
 
+  // On the micro-chore lane since Q-0241, but a config knob changes what the
+  // checks do — so its PR still owes a Why/How/What body.
+  it('rejects the consumer config despite its micro-chore lane', () => {
+    expect(isBookkeepingOnly(['.noldor/config.json'])).toBe(false);
+  });
+
   // An empty set proves nothing; callers decide what emptiness means.
   it('returns false for an empty set', () => {
     expect(isBookkeepingOnly([])).toBe(false);
@@ -283,6 +301,19 @@ describe('touchesCode', () => {
     expect(MICRO_CHORE_GLOBS).toContain('lefthook.yml');
   });
 
+  // Same shape as lefthook.yml: it tunes every check, so a config-only PR must
+  // render a code Test Plan rather than "Doc-only change". `*.json` is
+  // root-level only, so the nested path needs its own glob to match at all.
+  it('accepts .noldor/config.json despite its micro-chore lane', () => {
+    expect(touchesCode(['.noldor/config.json'])).toBe(true);
+    expect(MICRO_CHORE_GLOBS).toContain('.noldor/config.json');
+  });
+
+  it('still rejects the other .noldor json the root-level glob never covered', () => {
+    expect(touchesCode(['.noldor/retired-entry-ids.json'])).toBe(false);
+    expect(touchesCode(['.noldor/id-counter.json'])).toBe(false);
+  });
+
   it('rejects prose that is neither bookkeeping nor code', () => {
     expect(touchesCode(['docs/noldor/pr-flow.md'])).toBe(false);
     expect(touchesCode(['README.md'])).toBe(false);
@@ -330,6 +361,21 @@ describe('isNoReviewLaneAllowed', () => {
   it('rejects a set carrying source code', () => {
     expect(isNoReviewLaneAllowed(['graphify-out/graph.json', 'src/core/session.ts'])).toBe(false);
     expect(isNoReviewLaneAllowed(['ideas.md', 'templates/src/foo.ts'])).toBe(false);
+  });
+
+  // Q-0241: the consumer config's micro-chore membership also exempts a
+  // config-only commit from the release CR gate. That is safe only because a
+  // glob is not the whole guard — `retroactiveWaiverRefusal` keeps the keys that
+  // could waive review for other commits off this lane. Pinned here so the pair
+  // stays visible: widening this list again means checking the content guard.
+  it('exempts a config-only commit from the release CR gate', () => {
+    expect(isNoReviewLaneAllowed(['.noldor/config.json'])).toBe(true);
+  });
+
+  it('still rejects a config change riding alongside source', () => {
+    expect(isNoReviewLaneAllowed(['.noldor/config.json', 'src/release/release-cr-gate.ts'])).toBe(
+      false,
+    );
   });
 
   it('rejects empty input', () => {

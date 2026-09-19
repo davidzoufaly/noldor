@@ -40,18 +40,6 @@ Nothing stops a shipped skill from growing a command block that only runs inside
 
 Running the test suite silently changes `docs/sdd-report.md`, so a release that runs e2e poisons its own next attempt. The report's `probable owner:` hints come from `requireFreshGraph` → `loadFreshGraphOrWarn`, which judges freshness by **mtime**: `newestMtimeInRoots(cwd, srcRoots) > statSync(graphPath).mtimeMs`, over `consumer.scanPaths` (`apps`, `packages`, `scripts`). Playwright writes its artifacts to `apps/web/test-results/` — inside a scanned root — so one `pnpm test:e2e` leaves ~112 files newer than `graphify-out/graph.json`, the detector drops into degraded mode, every hint vanishes, and the regenerated report no longer matches the committed copy. Charuy hit the full loop: release attempt 2 aborted on e2e, and attempt 3 then aborted on `sdd-report` with nobody having touched a file — attempt 2's own e2e run had staled the graph. `git status` is clean throughout, because the directory is gitignored, so the operator is told a committed doc is wrong with no diff to explain it. The workaround was `touch graphify-out/graph.json`. Wanted: judge freshness by the same git-commit comparison `evaluateGraphFreshness` already uses, or at minimum exclude gitignored paths from `newestMtimeInRoots` — a freshness check that a test run can invalidate is measuring the wrong thing. Deletion test: running the full suite twice in a row leaves `docs/sdd-report.md` byte-identical. (found 2026-09-15 releasing charuy v0.7.0)
 
-### Consumer Config Belongs in a Lane
-
-- id: Q-0241
-- area: tooling
-- type: fix
-- since: 2026-09-16
-- size: XS
-- impact: med
-- confidence: high
-
-The `ui-design-freshness` gate prints a remedy no lane can land. Its fix line reads "declare `consumer.uiCapture` for the surface if it has none, run `pnpm noldor design capture --surface app`, then commit the baseline and its receipt" — but `.noldor/config.json` is absent from `MICRO_CHORE_GLOBS`, `RELEASE_SWEEP_GLOBS` and `CODE_GLOBS` alike, so the declaration cannot ride the micro-chore or sweep lanes, and on a code lane a config edit with no behaviour drags in a review receipt. The allowlist already carves out `.noldor/id-counter.json`, `.noldor/retired-entry-ids.json` and `.noldor/rollout-marker` as framework bookkeeping the gate itself writes; a `consumer.uiCapture` declaration the gate is *asking for by name* is the same class. The failure is quiet, too: with no command declared, `design capture --vouch-only` still stamps a receipt reading `(no capture command declared) (vouched by hand, not re-run)`, so the surface looks captured while nothing has ever run. Wanted: `.noldor/config.json` on the micro-chore list, or a `noldor design declare-capture --surface <s> --command <cmd>` that writes it as bookkeeping. Deletion test: the remedy the gate prints can be executed and committed without an override. (found 2026-09-15 releasing charuy v0.7.0)
-
 ### Full-Suite Flake: route-sweep and sdd-report Still Unexplained
 
 - id: Q-0238

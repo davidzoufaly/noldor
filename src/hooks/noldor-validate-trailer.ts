@@ -9,12 +9,8 @@ import { ARCHIVE_DIR } from '../core/design-artifact-names.js';
 import { renameDestExists, toRepoRelative } from '../core/branch-added.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { PATHS, sessionMarkerExists } from '../core/session.js';
-import {
-  isMicroChoreAllowed,
-  isReleaseSweepAllowed,
-  microChoreOffenders,
-  releaseSweepOffenders,
-} from '../core/allowlist.js';
+import { isReleaseSweepAllowed, releaseSweepOffenders } from '../core/allowlist.js';
+import { microChoreRefusal } from '../core/config-waiver-guard.js';
 import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { isEntrypoint } from '../core/cli-entry.js';
@@ -165,12 +161,8 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
       encoding: 'utf8',
     });
     const staged = (r.stdout ?? '').split('\n').filter(Boolean);
-    if (!isMicroChoreAllowed(staged)) {
-      return {
-        ok: false,
-        reason: `micro-chore diff escapes allowlist: ${microChoreOffenders(staged).join(', ')}`,
-      };
-    }
+    const refusal = microChoreRefusal(opts.cwd, staged);
+    if (refusal !== null) return { ok: false, reason: refusal };
     return { ok: true };
   }
 

@@ -93,8 +93,26 @@ The pre-commit hook enforces that `micro-chore` diffs match this set of globs on
 - `docs/**` template twins `templates/docs/**/*.md`
 - `lefthook.yml`, `.gitignore`, `.noldor/rollout-marker` (framework config edits)
 - `.noldor/id-counter.json`, `.noldor/retired-entry-ids.json` (triage bookkeeping the gate writes: `triage mint-id` bumps the counter into the same commit as the roadmap block, and `roadmap remove-block` records the retired ID)
+- `.noldor/config.json` (consumer config — on the lane because gates print remedies that edit it: `ui-design-freshness` tells you to declare `consumer.uiCapture` for a surface by name, and that declaration needs somewhere to land. Subject to the content guard below.)
 
 Any diff that escapes the allowlist must use a heavier path (`fast-track` at minimum). The rejection names only the offending paths, not the whole staged set.
+
+### Content guard on `.noldor/config.json`
+
+The micro-chore lane is exempt from the release CR gate, and `.noldor/config.json` holds the keys that wave *other* commits past that same gate. So a glob is not the whole rule: pre-commit also refuses a staged config diff that moves any of these (`RETROACTIVE_WAIVER_KEYS` in `src/core/config-waiver-guard.ts`), and commit-msg re-checks it:
+
+- `release.crGateExemptCommits`
+- `release.gateComplianceExemptCommits`
+- `release.gateComplianceSince`
+- `garden.overrideAudit.expected`
+- `garden.overrideAudit.threshold`
+
+Each retires a finding against commits already on `main`, so a no-review commit carrying one would be exempted by the list it just extended. Land those edits through `/noldor-gate` `fast-track`, where they earn a review receipt. Every other knob in the file — `crLanes`, `clones.thresholdPct`, `boundaries`, `consumer.*` — is forward-looking and rides the micro-chore lane freely.
+
+Both enforcement points are hooks, and a hook is `--no-verify`-bypassable, so two post-hoc checks ask the same question of commits that already landed:
+
+- `garden detect`'s allowlist-drift detector reports a bypass as `retroactive-waiver`. Without it the file's admission to the lane would have *removed* audit coverage: before it was allowlisted, any micro-chore commit touching it was already flagged as a non-allowlisted file.
+- The release CR gate withholds the no-review exemption from any commit that moved one of these keys, whatever its `Noldor-Path` says or if it carries none. The commit still passes with a review receipt — only the free pass is withdrawn, since the detector above reads `Noldor-Path: micro-chore` and would not see a waiver landed under another label.
 
 ## Override
 
