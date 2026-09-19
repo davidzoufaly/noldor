@@ -267,6 +267,14 @@ function syncOverflow(cell) {
 }
 function wireDescriptionOverflow() {
   const cells = document.querySelectorAll('td.description');
+  // Opt each cell into the clamp only now that the Show more/less delegate is
+  // wired (init() runs wireDescriptionToggles first). The CSS resting state is
+  // the full body, so a cell this script never reaches is never truncated: a
+  // stale-install dashboard once served the page but 500'd /static/drag.js, and
+  // the CSS-only clamp cut every body off with no control to expand it (Q-0231).
+  // The class goes on before the measurement below — syncOverflow reads the
+  // clamped geometry, which does not exist until the clamp applies.
+  cells.forEach((cell) => cell.classList.add('js-clamp'));
   cells.forEach(syncOverflow);
   if (typeof ResizeObserver === 'undefined') return;
   const ro = new ResizeObserver((entries) => {
