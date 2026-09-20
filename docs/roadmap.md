@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Duplicate PR ID in the Changelog
-
-- id: Q-0246
-- area: tooling
-- type: fix
-- since: 2026-09-16
-- size: XS
-- impact: low
-- confidence: med
-
-A changelog entry renders its PR ID twice. The reference is carried into the entry from the commit subject and appended again by the link-rendering step, so a single squash commit comes out reading `(#444) (#444)`. Cosmetic, but it lands in the published release notes every release and every consumer sees it. Deletion test: a changelog generated from a squash commit whose subject already ends in `(#NNN)` renders that reference exactly once. (surfaced 2026-09-16)
-
 ### Path Pick Cannot See the Shared-File Block
 
 - id: Q-0244
