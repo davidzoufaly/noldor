@@ -109,7 +109,13 @@ export function classifyCommits(commits: Commit[]): ClassifiedCommits {
   return { features, fixes, other };
 }
 
-const PR_IN_SUBJECT_RE = /\(#(\d+)\)\s*$/;
+/**
+ * Trailing `(#N)` PR-number suffix on a commit subject — the shape `gh pr merge
+ * --squash` writes. The leading `\s*` is what makes the pattern safe to use as a
+ * stripper as well as a harvester: a renderer that re-emits the number as a link
+ * must first remove the suffix, or the entry reads `(#444) ([#444](…))`.
+ */
+export const PR_IN_SUBJECT_RE = /\s*\(#(\d+)\)\s*$/;
 const PR_TRAILER_RE = /^PR-#:\s*(\d+)\s*$/m;
 
 async function refExists(ref: string): Promise<boolean> {

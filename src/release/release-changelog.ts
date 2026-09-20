@@ -1,4 +1,4 @@
-import type { Commit } from './release-commits.js';
+import { PR_IN_SUBJECT_RE, type Commit } from './release-commits.js';
 
 /**
  * Inputs to {@link renderChangelogEntry}.
@@ -15,13 +15,20 @@ export interface ChangelogInput {
 function renderCommit(c: Commit, repoUrl: string): string {
   const shortSha = c.sha.slice(0, 7);
   const commitLink = `([${shortSha}](${repoUrl}/commit/${c.sha}))`;
-  const prLink = c.prNumber ? ` ([#${c.prNumber}](${repoUrl}/pull/${c.prNumber}))` : '';
-  return `- ${c.subject} ${commitLink}${prLink}`;
+  if (!c.prNumber) {
+    return `- ${c.subject} ${commitLink}`;
+  }
+  // `prNumber` is harvested from the subject's own `(#N)` suffix, so re-emitting
+  // it as a link without stripping renders the reference twice. Strip only on
+  // this branch: with no link to carry it, a bare suffix is the whole reference.
+  const subject = c.subject.replace(PR_IN_SUBJECT_RE, '');
+  return `- ${subject} ${commitLink} ([#${c.prNumber}](${repoUrl}/pull/${c.prNumber}))`;
 }
 
 /**
- * Render a single CHANGELOG entry. Omits empty sections; PR suffix
- * `(#N)` appears only when the commit carries a `prNumber`.
+ * Render a single CHANGELOG entry. Omits empty sections; the PR reference
+ * `(#N)` appears exactly once per commit — as a link when the commit carries a
+ * `prNumber`, otherwise as whatever the subject itself says.
  *
  * @param input - Version + date + classified commits
  * @returns The rendered Markdown entry (no surrounding newlines)

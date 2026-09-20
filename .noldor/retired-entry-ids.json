@@ -425,5 +425,9 @@
   "Q-0231": {
     "slug": "roadmap-entry-show-more-not-rendered",
     "retiredAt": "2026-09-19"
+  },
+  "Q-0246": {
+    "slug": "duplicate-pr-id-in-the-changelog",
+    "retiredAt": "2026-09-20"
   }
 }
