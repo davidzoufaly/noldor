@@ -1421,9 +1421,12 @@ describe('renderBacklog drag removal', () => {
 });
 
 describe('sortEntries', () => {
+  // Deliberately NOT in name order, and not in any mode's expected output
+  // order. A name-sorted fixture makes the two name-asc fallback cases
+  // vacuous: they pass against a `return [...entries]` stub, so they pin the
+  // fallback's existence and nothing about it sorting. Keep this shuffled —
+  // re-sorting it silently guts those assertions.
   const sample = [
-    { name: 'Alpha', size: 'M', impact: 'high', since: '2026-05-01', area: 'web', type: 'feat' },
-    { name: 'Bravo', size: 'XS', impact: 'low', since: '2026-05-10', area: 'tooling', type: 'fix' },
     {
       name: 'Charlie',
       size: 'XL',
@@ -1440,11 +1443,21 @@ describe('sortEntries', () => {
       area: 'docs',
       type: undefined,
     },
+    { name: 'Alpha', size: 'M', impact: 'high', since: '2026-05-01', area: 'web', type: 'feat' },
+    { name: 'Bravo', size: 'XS', impact: 'low', since: '2026-05-10', area: 'tooling', type: 'fix' },
   ];
 
   it('defaults to name-asc when sort mode is empty', () => {
     const sorted = sortEntries(sample, '').map((e) => e.name);
     expect(sorted).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta']);
+  });
+
+  it('honours an explicit defaultSort when sort mode is empty', () => {
+    // The only production call site passes `'priority'` (file order) as the
+    // default — see renderQueueView. Without this case the parameter can be
+    // ignored entirely and every other assertion here stays green.
+    const sorted = sortEntries(sample, '', 'priority').map((e) => e.name);
+    expect(sorted).toEqual(['Charlie', 'Delta', 'Alpha', 'Bravo']);
   });
 
   it('orders size-asc as XS < S < M < L < XL with undefined last', () => {

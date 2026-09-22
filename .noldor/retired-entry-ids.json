@@ -429,5 +429,9 @@
   "Q-0246": {
     "slug": "duplicate-pr-id-in-the-changelog",
     "retiredAt": "2026-09-20"
+  },
+  "Q-0248": {
+    "slug": "sortentries-fallback-tests-red-on-main",
+    "retiredAt": "2026-09-22"
   }
 }
