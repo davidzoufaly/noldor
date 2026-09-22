@@ -40,11 +40,18 @@ links:
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
   spec: >-
-    docs/design/specs/2026-09-22-cr-lane-verdicts-blocked-by-serialization-not-substance-design.md
+    docs/design/specs/archive/2026-09-22-cr-lane-verdicts-blocked-by-serialization-not-substance-design.md
+  plan:
+    - >-
+      docs/design/plans/archive/2026-09-23-cr-lane-verdicts-blocked-by-serialization-not-substance-part1.md
+    - >-
+      docs/design/plans/archive/2026-09-23-cr-lane-verdicts-blocked-by-serialization-not-substance-part2.md
+    - >-
+      docs/design/plans/archive/2026-09-23-cr-lane-verdicts-blocked-by-serialization-not-substance-part3.md
 name: 'CR Lane Verdicts Blocked by Serialization, Not Substance'
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-09-22T00:00:00.000Z
 noldor-tier: full
 ---
@@ -78,7 +85,7 @@ As an operator or agent shipping a change through the CR gate, I want each lane'
 **Agent/Programmatic API**
 
 - `pnpm noldor cr orchestrate --slug <slug> --artifact <path> --kind <spec|plan|code>` works as before. Each agent lane (reviewer, verifier, ui-reviewer, render-export) now gets a per-dispatch answer path and returns its verdict as one JSON object in that file. A codex-mapped role has the file written by the codex CLI (`--output-last-message`) and keeps a read-only sandbox.
-- `pnpm noldor cr aggregate --slug <slug> [--kind <kind>]` also works as before, but a reviewer blocker now appears only for a finding the reviewer marked `blocking` that is neither `minor` nor prefixed `maybe:` / `unverified:`. Every other finding sits in `suggestions`. The sink `summary` is derived from the findings (`approve` or `blockers found (N)`), and the reviewer's own one-line assessment is in `notes`. An answer that needed the one repair round says so in `notes`.
+- `pnpm noldor cr aggregate --slug <slug> [--kind <kind>]` also works as before, but a reviewer blocker now appears only for a finding the reviewer marked `blocking` that is neither `minor` nor prefixed `maybe:` / `unverified:`. Every other finding sits in `suggestions`, and a codex blocker marked `maybe:` or `unverified:` is demoted there too. The sink `summary` is derived from the findings (`approve` or `blockers found (N)`), and the reviewer's own one-line assessment is in `notes`. An answer that needed the one repair round says so in `notes`.
 - `.noldor/cr/answers/<slug>-<kind>-<lane>.json` holds each lane's latest raw answer, for debugging a round.
 
 ## PRs
