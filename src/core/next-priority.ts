@@ -62,10 +62,12 @@ export function findBlocked(entries: ReadonlyArray<BacklogEntry>): BlockedEntry[
 /**
  * Drop blocked entries, so the gate never hands out an entry whose first act is
  * impossible (file order is priority, but a blocker ordered below its dependent
- * must still ship first). When EVERY entry is blocked the queue holds a cycle —
- * a finite acyclic set always has an unblocked member — and dropping them all
- * would read as "queue empty, ship-ready". The list is returned unfiltered then;
- * garden's `circular-blocked-by` reports the cycle.
+ * must still ship first). When the candidates block EACH OTHER so that none is
+ * open, they hold a cycle — a finite acyclic set always has an unblocked member
+ * — and dropping them all would read as "queue empty, ship-ready". The list is
+ * returned unfiltered then; garden's `circular-blocked-by` reports the cycle.
+ * Candidates emptied by blockers outside them (entries in `--skip`) are not a
+ * cycle: they stay held, and the warning names them.
  *
  * @param sorted - The candidates, in priority order.
  * @param queue - Every queued entry. Defaults to `sorted`; the drain passes the
@@ -79,7 +81,8 @@ function holdBack(
   const blocked = findBlocked(queue).filter((b) => candidates.has(b.slug));
   const heldSlugs = new Set(blocked.map((b) => b.slug));
   const open = sorted.filter((e) => !heldSlugs.has(e.slug));
-  return open.length === 0 ? { open: sorted, held: [] } : { open, held: blocked };
+  const cycle = open.length === 0 && findBlocked(sorted).length === sorted.length;
+  return cycle ? { open: sorted, held: [] } : { open, held: blocked };
 }
 
 function warnBlocked(blocked: ReadonlyArray<BlockedEntry>): void {

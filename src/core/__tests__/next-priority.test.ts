@@ -589,6 +589,13 @@ Body.
     expect(s.topPriority.map((e) => e.slug)).toEqual(['entry-c']);
   });
 
+  it('holds back, and names, an entry whose only blocker is skipped', () => {
+    const raw = [entry('Entry A', '- blocked-by: entry-b\n'), entry('Entry B')].join('\n');
+    const s = getSuggestions(raw, input, new Set(['entry-b']));
+    expect(s.topPriority).toEqual([]);
+    expect(s.blocked).toEqual([{ slug: 'entry-a', blockedBy: ['entry-b'] }]);
+  });
+
   it('never reports an empty queue when every entry is blocked (a cycle)', () => {
     const raw = [
       entry('Entry A', '- blocked-by: entry-b\n'),
