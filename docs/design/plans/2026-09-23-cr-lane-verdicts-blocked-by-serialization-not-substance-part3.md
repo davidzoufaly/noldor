@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Execute this plan task-by-task inline — read each task, use your normal file-edit and shell tools, follow the TDD step order exactly, commit at each task's Commit step, tick `- [ ] → - [x]` as you go. Do not delegate execution to a sub-skill or separate executor.
 
-**Goal:** A reviewer finding blocks only when the reviewer marks it blocking under one written definition. A `minor`, `maybe:` or `unverified:` finding never blocks. `(none)` can never become a blocker, and the reviewer sink's summary can never read `approve` over a red round. Codex fills its `blockers` array under the same definition.
+**Goal:** A reviewer finding blocks only when the reviewer marks it blocking under one written definition. A `minor`, `maybe:` or `unverified:` finding never blocks. `(none)` can never become a blocker, and the reviewer sink's summary can never read `approve` over a red round. Codex fills its `blockers` array under the same definition, and a codex blocker marked `maybe:` or `unverified:` is demoted to a suggestion in code, just as the reviewer's is.
 
 **Architecture:** One exported constant, `BLOCKING_DEFINITION` (`src/cr/blocking-definition.ts`), is rendered by the reviewer prompt and by both codex prompt builders. The reviewer moves onto `createAnswerSeam` (Parts 1–2) with a JSON contract: `{assessment, strengths, findings: [{severity, blocking, class, message}]}`. `runSubagent` lifts any leftover `[mechanical]`/`[design]` message prefix into `class`, then computes effective blocking per finding. It maps blockers and suggestions from that one value and derives the sink summary from it. `parseSubagentMarkdown` and its markdown fixtures are deleted. Requires Parts 1 and 2.
 
@@ -12,8 +12,9 @@
 
 ## File Structure
 
-- `src/cr/blocking-definition.ts` (new): `BLOCKING_DEFINITION`, the one text saying what blocks.
+- `src/cr/blocking-definition.ts` (new): `BLOCKING_DEFINITION`, the one text saying what blocks, and `isNeverBlockingMessage`, its code half, which both lanes call.
 - `src/cr/run-codex.ts`: both prompt builders render the definition.
+- `src/cr/review-with-codex.ts`: `toFindings` demotes a never-blocking codex blocker to a suggestion.
 - `src/cr/lanes/subagent-dispatch.ts`: reviewer answer schema, JSON prompt tail, repair prompt, `REVIEWER_ANSWER`, answer seam.
 - `src/cr/lanes/subagent.ts`: `normalizeFinding`, `isEffectivelyBlocking`, `toSinkFinding`, a derived summary; the markdown parser is deleted.
 - `src/cr/__tests__/fixtures/subagent-markdown-{clean,issues,bolded,malformed}.md`: deleted.
@@ -28,12 +29,33 @@
 **Files:**
 - Create: `src/cr/blocking-definition.ts`
 - Modify: `src/cr/run-codex.ts`
+- Modify: `src/cr/review-with-codex.ts`
 - Test: `src/cr/__tests__/run-codex.test.ts`
 
-- [ ] **Step 1: Write the failing test.** In `src/cr/__tests__/run-codex.test.ts`, add this import below the existing imports:
+- [ ] **Step 1: Write the failing tests.** In `src/cr/__tests__/run-codex.test.ts`, add these imports below the existing imports:
 
 ```ts
 import { BLOCKING_DEFINITION } from '../blocking-definition.js';
+import { toFindings } from '../review-with-codex.js';
+```
+
+and append at the end of the file:
+
+```ts
+describe('toFindings never-blocks demotion (Q-0250)', () => {
+  it('moves a codex blocker marked maybe: or unverified: to the suggestions', () => {
+    const record = {
+      summary: 's',
+      blockers: [
+        { file: 'a.ts', line: 1, severity: 'high' as const, message: 'real defect', suggestion: null },
+        { file: 'a.ts', line: 2, severity: 'high' as const, message: 'maybe: a race', suggestion: null },
+        { file: 'a.ts', line: 3, severity: null, message: 'Unverified: typecheck may fail', suggestion: null },
+      ],
+      suggestions: [],
+    };
+    expect(toFindings(record, 'x').map((f) => f.severity)).toEqual(['high', 'med', 'med']);
+  });
+});
 ```
 
 and add this test inside `describe('cut-marker contract in the codex prompt (Q-0170)', …)`, after `'tells codex the same on a SPEC review, where the markers actually live'`:
@@ -58,7 +80,7 @@ and add this test inside `describe('cut-marker contract in the codex prompt (Q-0
 pnpm vitest run src/cr/__tests__/run-codex.test.ts
 ```
 
-Expected: FAIL with `Failed to load url ../blocking-definition.js`.
+Expected: FAIL with `Failed to load url ../blocking-definition.js`. Once that loads, the demotion test fails on `['high', 'high', 'high']`.
 
 - [ ] **Step 3: Create the definition.** Create `src/cr/blocking-definition.ts`:
 
@@ -70,7 +92,7 @@ Expected: FAIL with `Failed to load url ../blocking-definition.js`.
  * prompt never said so, and the codex prompt gave no definition at all. The round-cause
  * forensics behind Q-0250 found reviewers approving over Important items they had filed, and
  * nits keeping rounds red on their own. Kept in ONE place so the reviewer and codex prompts
- * cannot drift apart; `runSubagent` enforces the never-blocks classes in code as well.
+ * cannot drift apart; {@link isNeverBlockingMessage} is its code half.
  */
 export const BLOCKING_DEFINITION = `What blocks the merge: a finding blocks only when shipping the change as it is would
 - produce wrong behaviour;
@@ -80,6 +102,18 @@ export const BLOCKING_DEFINITION = `What blocks the merge: a finding blocks only
 - leave a test that cannot fail; or
 - put a false statement into docs that an agent or operator will act on.
 Everything else never blocks: cleanup, naming, wording, formatting, cross-references, style, and any finding marked \`maybe:\` or \`unverified:\`. If you would approve this change, no finding blocks.`;
+
+/** Never-blocks prefixes, matched on the trimmed message, case-insensitively. */
+const NEVER_BLOCKS_PREFIX = /^(?:maybe|unverified):/i;
+
+/**
+ * The code half of the definition: true when a message marks its finding `maybe:` or
+ * `unverified:`, which never blocks whatever a lane put it under. Prompt text is not
+ * enforcement, so every lane that sorts blockers calls this.
+ */
+export function isNeverBlockingMessage(message: string): boolean {
+  return NEVER_BLOCKS_PREFIX.test(message.trim());
+}
 ```
 
 - [ ] **Step 4: Render it in both codex prompts.** In `src/cr/run-codex.ts`, add this import below the existing imports:
@@ -118,26 +152,40 @@ with
     CODEX_BLOCKING,
 ```
 
-- [ ] **Step 5: Run the test to verify it passes.**
+- [ ] **Step 5: Demote never-blocking codex blockers.** In `src/cr/review-with-codex.ts`, add this import below the existing imports:
+
+```ts
+import { isNeverBlockingMessage } from './blocking-definition.js';
+```
+
+and in `toFindings`, replace the line `...record.blockers.map((b) => map(b, 'high')),` with:
+
+```ts
+    // A codex blocker marked `maybe:` or `unverified:` never blocks (Q-0250): demote it to a
+    // suggestion rather than trusting the prompt alone to keep it out of `blockers`.
+    ...record.blockers.map((b) => map(b, isNeverBlockingMessage(b.message) ? 'med' : 'high')),
+```
+
+- [ ] **Step 6: Run the tests to verify they pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/run-codex.test.ts && pnpm typecheck
 ```
 
-Expected: PASS (the new test and every existing codex test green), and `tsc` prints nothing.
+Expected: PASS (both new tests and every existing codex test green), and `tsc` prints nothing.
 
-- [ ] **Step 6: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
+- [ ] **Step 7: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 feat(cr): tell codex what blocks, from one shared definition
 
-BLOCKING_DEFINITION states once what makes a finding block a merge: wrong behaviour, a broken contract or caller, a security hole, lost data, a test that cannot fail, or a false statement in docs someone will act on. Cleanup, wording, style, maybe: and unverified: findings never block. Both codex prompt builders now render it, so codex fills its blockers array by the same rule the reviewer will follow.
+BLOCKING_DEFINITION states once what makes a finding block a merge: wrong behaviour, a broken contract or caller, a security hole, lost data, a test that cannot fail, or a false statement in docs someone will act on. Cleanup, wording, style, maybe: and unverified: findings never block. Both codex prompt builders now render it, so codex fills its blockers array by the same rule the reviewer will follow, and toFindings demotes a codex blocker marked maybe: or unverified: to a suggestion, because prompt text alone is not enforcement.
 
 Noldor-FD: cr-lane-verdicts-blocked-by-serialization-not-substance
 ```
 
 ```bash
-git add src/cr/blocking-definition.ts src/cr/run-codex.ts src/cr/__tests__/run-codex.test.ts
+git add src/cr/blocking-definition.ts src/cr/run-codex.ts src/cr/review-with-codex.ts src/cr/__tests__/run-codex.test.ts
 git commit -F "$(git rev-parse --git-dir)/PLAN_MSG"
 ```
 
@@ -535,6 +583,7 @@ export const dispatchSubagent = seam.dispatch;
 (a) Replace `import { dispatchSubagent } from './subagent-dispatch.js';` with:
 
 ```ts
+import { isNeverBlockingMessage } from '../blocking-definition.js';
 import type { LaneAnswer } from '../lane-answer.js';
 import { dispatchSubagent, type ReviewerAnswer, type ReviewerFinding } from './subagent-dispatch.js';
 ```
@@ -555,9 +604,6 @@ export function normalizeFinding(f: ReviewerFinding): ReviewerFinding {
   return { ...f, message: tagged.message, ...(cls ? { class: cls } : {}) };
 }
 
-/** Never-blocks prefixes, matched on the trimmed message, case-insensitively. */
-const NEVER_BLOCKS_PREFIX = /^(?:maybe|unverified):/i;
-
 /**
  * Whether a reviewer finding actually blocks: the reviewer said so, it is not `minor`, and it
  * is not marked `maybe:` or `unverified:`. The never-blocks classes are enforced here, not only
@@ -565,7 +611,7 @@ const NEVER_BLOCKS_PREFIX = /^(?:maybe|unverified):/i;
  * round on it (Q-0250).
  */
 export function isEffectivelyBlocking(f: ReviewerFinding): boolean {
-  return f.blocking && f.severity !== 'minor' && !NEVER_BLOCKS_PREFIX.test(f.message.trim());
+  return f.blocking && f.severity !== 'minor' && !isNeverBlockingMessage(f.message);
 }
 
 /**

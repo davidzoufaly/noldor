@@ -191,7 +191,7 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
 };
 ```
 
-- [ ] **Step 6: Render the codex flag.** In `src/core/agent-runner/runners/codex.ts`, change the options type of `buildCodexArgv` to:
+- [ ] **Step 6: Render the codex flag.** In `src/core/agent-runner/runners/codex.ts`, replace the `buildCodexArgv` function (its doc comment above it stays) with:
 
 ```ts
 export function buildCodexArgv(opts: {
@@ -200,12 +200,23 @@ export function buildCodexArgv(opts: {
   lastMessagePath?: string;
   model?: string;
 }): string[] {
-```
-
-and directly after the line `if (opts.schemaPath) argv.push('--output-schema', opts.schemaPath);` add:
-
-```ts
+  const argv = [
+    'exec',
+    '--sandbox',
+    opts.needsWrite ? 'workspace-write' : 'read-only',
+    '--skip-git-repo-check',
+  ];
+  if (opts.schemaPath) argv.push('--output-schema', opts.schemaPath);
   if (opts.lastMessagePath) argv.push('--output-last-message', opts.lastMessagePath);
+  if (opts.model) argv.push('--model', opts.model);
+  // Trailing `-` is the documented explicit spelling of "read the prompt from stdin"
+  // (`codex exec [OPTIONS] [PROMPT]`: absent PROMPT *or* `-` both mean stdin). Behaviour
+  // preserving, since every consumer already delivers the prompt via stdin per
+  // CODEX_PROMPT_VIA — but it makes that contract legible at the argv level instead of
+  // depending on a reader knowing what an absent positional implies.
+  argv.push('-');
+  return argv;
+}
 ```
 
 - [ ] **Step 7: Honour the pinned model and gate the new option.** In `src/core/agent-runner/registry.ts`, replace
@@ -840,6 +851,13 @@ describe('createAnswerSeam', () => {
     expect(calls[0]!.prompt).not.toContain('write your answer to the file');
   });
 
+  it('does not repair a child that produced nothing at all', async () => {
+    const { at } = repo();
+    const calls = child([{}]);
+    expect(await seam.dispatch({}, at)).toMatchObject({ ok: false, detail: 'no answer file was written' });
+    expect(calls).toHaveLength(1);
+  });
+
   it('does not repair a dispatch that timed out', async () => {
     const { at } = repo();
     const calls = child([{ timedOut: true, exitCode: -1 }]);
@@ -1052,6 +1070,16 @@ export function createAnswerSeam<I extends { timeoutMs?: number }, T>(
     const first = await runChild(input, undefined, at);
     const read1 = readLaneAnswer(first.answerText, opts.contract);
     if (read1.ok) return { ok: true, answer: read1.answer, notes: [] };
+    if ((first.answerText ?? '').trim() === '' && first.stdout.trim() === '') {
+      // The child said nothing at all, so there is nothing to transcribe. A repair round
+      // handed only "(none captured)" could manufacture a verdict, such as a verifier's
+      // `cannot-verify`, which never blocks. It fails the way an unrepaired answer does.
+      return {
+        ok: false,
+        detail: read1.error,
+        notes: ['no repair round — the child produced no answer and no output'],
+      };
+    }
     const kept = [
       ...(first.answerText !== null && first.answerText.trim() !== ''
         ? [`rejected answer (kept verbatim): ${keepRaw(first.answerText)}`]
@@ -1096,14 +1124,14 @@ export function createAnswerSeam<I extends { timeoutMs?: number }, T>(
 pnpm vitest run src/cr/__tests__/lane-spawn.test.ts && pnpm typecheck
 ```
 
-Expected: PASS (all eight `createAnswerSeam` tests green), and `tsc` prints nothing.
+Expected: PASS (all nine `createAnswerSeam` tests green), and `tsc` prints nothing.
 
 - [ ] **Step 6: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 feat(cr): add an answer-file dispatcher seam for CR lanes
 
-createAnswerSeam resolves the lane's runner once and pins runner and model, names a per-dispatch answer path in the prompt (or hands it to a cli-writes CLI as --output-last-message), reads only that file, and runs at most one repair round with the rejected answer, the reason and the child's output. setLaneSpawn lets tests stand in for the child.
+createAnswerSeam resolves the lane's runner once and pins runner and model, names a per-dispatch answer path in the prompt (or hands it to a cli-writes CLI as --output-last-message), reads only that file, and runs at most one repair round with the rejected answer, the reason and the child's output. A child that produced nothing at all gets no repair round, so a repair cannot manufacture a verdict out of silence. setLaneSpawn lets tests stand in for the child.
 
 Noldor-FD: cr-lane-verdicts-blocked-by-serialization-not-substance
 ```
@@ -1243,6 +1271,18 @@ import { reapPort, runVerify, setSmokeRunner } from '../../lanes/verify.js';
     const sink = readSink(cwd);
     expect(sink.verdict).toBe('pass');
     expect(JSON.stringify(sink.evidence)).toContain('```bash');
+  });
+
+  it('an empty child fails closed in blocking mode, with no repair round', async () => {
+    let calls = 0;
+    setVerifyDispatcher(async () => {
+      calls++;
+      return null;
+    });
+    const { cwd, input } = repo('blocking');
+    expect((await runVerify(input)).ok).toBe(false);
+    expect(calls).toBe(1);
+    expect(readSink(cwd)).toMatchObject({ verdict: 'fail', reason: 'malformed-output' });
   });
 
   it('drops placeholder mismatches before judging the verdict', async () => {
