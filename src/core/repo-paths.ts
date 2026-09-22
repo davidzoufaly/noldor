@@ -358,7 +358,9 @@ export function newestMtimeInRoots(cwd: string, roots: readonly string[]): numbe
  * Empty when git cannot answer — not a repository, git absent, the root
  * missing. That filters nothing, so the walk errs toward false-stale, the
  * direction the freshness gate already treats as harmless, rather than calling a
- * graph fresh on evidence it could not collect.
+ * graph fresh on evidence it could not collect. The same direction covers a
+ * followed link: git does not descend into symlinks, so an ignored file reached
+ * through `src/generated -> ../generated` still counts.
  */
 function gitIgnoredPaths(root: string): string[] {
   const r = defaultRunGit(root)(
