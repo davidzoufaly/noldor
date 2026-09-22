@@ -32,11 +32,10 @@
 - Modify: `src/cr/review-with-codex.ts`
 - Test: `src/cr/__tests__/run-codex.test.ts`
 
-- [ ] **Step 1: Write the failing tests.** In `src/cr/__tests__/run-codex.test.ts`, add these imports below the existing imports:
+- [x] **Step 1: Write the failing tests.** In `src/cr/__tests__/run-codex.test.ts`, change the `reviewWithCodex` import to `import { reviewWithCodex, toFindings } from '../review-with-codex.js';`, add this import below the existing imports:
 
 ```ts
 import { BLOCKING_DEFINITION } from '../blocking-definition.js';
-import { toFindings } from '../review-with-codex.js';
 ```
 
 and append at the end of the file:
@@ -74,7 +73,7 @@ and add this test inside `describe('cut-marker contract in the codex prompt (Q-0
   });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails.**
+- [x] **Step 2: Run the test to verify it fails.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/run-codex.test.ts
@@ -82,7 +81,7 @@ pnpm vitest run src/cr/__tests__/run-codex.test.ts
 
 Expected: FAIL with `Failed to load url ../blocking-definition.js`. Once that loads, the demotion test fails on `['high', 'high', 'high']`.
 
-- [ ] **Step 3: Create the definition.** Create `src/cr/blocking-definition.ts`:
+- [x] **Step 3: Create the definition.** Create `src/cr/blocking-definition.ts`:
 
 ```ts
 /**
@@ -116,7 +115,7 @@ export function isNeverBlockingMessage(message: string): boolean {
 }
 ```
 
-- [ ] **Step 4: Render it in both codex prompts.** In `src/cr/run-codex.ts`, add this import below the existing imports:
+- [x] **Step 4: Render it in both codex prompts.** In `src/cr/run-codex.ts`, add this import below the existing imports:
 
 ```ts
 import { BLOCKING_DEFINITION } from './blocking-definition.js';
@@ -152,7 +151,7 @@ with
     CODEX_BLOCKING,
 ```
 
-- [ ] **Step 5: Demote never-blocking codex blockers.** In `src/cr/review-with-codex.ts`, add this import below the existing imports:
+- [x] **Step 5: Demote never-blocking codex blockers.** In `src/cr/review-with-codex.ts`, add this import below the existing imports:
 
 ```ts
 import { isNeverBlockingMessage } from './blocking-definition.js';
@@ -166,7 +165,7 @@ and in `toFindings`, replace the line `...record.blockers.map((b) => map(b, 'hig
     ...record.blockers.map((b) => map(b, isNeverBlockingMessage(b.message) ? 'med' : 'high')),
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass.**
+- [x] **Step 6: Run the tests to verify they pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/run-codex.test.ts && pnpm typecheck
@@ -174,7 +173,7 @@ pnpm vitest run src/cr/__tests__/run-codex.test.ts && pnpm typecheck
 
 Expected: PASS (both new tests and every existing codex test green), and `tsc` prints nothing.
 
-- [ ] **Step 7: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
+- [x] **Step 7: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 feat(cr): tell codex what blocks, from one shared definition
