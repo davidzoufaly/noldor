@@ -776,7 +776,7 @@ git commit -F "$(git rev-parse --git-dir)/PLAN_MSG"
 - Modify: `docs/noldor/cr-pipeline.md`, `templates/docs/noldor/cr-pipeline.md`
 - Modify: `docs/features/cr-lane-verdicts-blocked-by-serialization-not-substance.md`
 
-- [ ] **Step 1: Mark the `(none)` trap resolved.** In `docs/noldor/cr-pipeline.md`, replace the bullet that begins `- **A reviewer lane that writes \`- (none)\` under an empty severity bucket reds` and ends `a lane's serialization defect blocking a ship its own content approved.` with:
+- [x] **Step 1: Mark the `(none)` trap resolved.** In `docs/noldor/cr-pipeline.md`, replace the bullet that begins `- **A reviewer lane that writes \`- (none)\` under an empty severity bucket reds` and ends `a lane's serialization defect blocking a ship its own content approved.` with:
 
 ```markdown
 - **Resolved (Q-0250): a reviewer that wrote `- (none)` under an empty severity bucket
@@ -796,7 +796,7 @@ cp docs/noldor/cr-pipeline.md templates/docs/noldor/cr-pipeline.md && node bin/n
 
 Expected: `template-sync` exits 0.
 
-- [ ] **Step 2: Point the feature doc at what shipped.** In `docs/features/cr-lane-verdicts-blocked-by-serialization-not-substance.md`, replace the `links.code` and `links.tests` lists with:
+- [x] **Step 2: Point the feature doc at what shipped.** In `docs/features/cr-lane-verdicts-blocked-by-serialization-not-substance.md`, replace the `links.code` and `links.tests` lists with:
 
 ```yaml
   code:
@@ -810,6 +810,7 @@ Expected: `template-sync` exits 0.
     - src/cr/extract-json.ts
     - src/cr/blocking-definition.ts
     - src/cr/run-codex.ts
+    - src/cr/review-with-codex.ts
     - src/cr/lanes/prompt-parts.ts
     - src/cr/lanes/verify-dispatch.ts
     - src/cr/lanes/verify.ts
@@ -835,7 +836,7 @@ Expected: `template-sync` exits 0.
     - src/cr/__tests__/lanes/subagent.test.ts
 ```
 
-- [ ] **Step 3: Validate.**
+- [x] **Step 3: Validate.**
 
 ```bash
 node bin/noldor.mjs validate features && pnpm typecheck && pnpm vitest run src/cr src/core/agent-runner
@@ -843,7 +844,7 @@ node bin/noldor.mjs validate features && pnpm typecheck && pnpm vitest run src/c
 
 Expected: `Validated … feature MD(s) — all OK.`, `tsc` prints nothing, and every test is green.
 
-- [ ] **Step 4: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
+- [x] **Step 4: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 docs(features:cr-lane-verdicts-blocked-by-serialization-not-substance): record the reviewer answer contract and the shipped files

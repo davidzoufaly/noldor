@@ -526,20 +526,13 @@ persisted diff image before arguing with the ratio.
   fence is just characters inside a JSON string. If a verify round still reds with
   `reason: malformed-output`, read the rejected answer the sink keeps verbatim in `notes` before
   blaming the transport.
-- **A reviewer lane that writes `- (none)` under an empty severity bucket reds
-  the round with phantom blockers.** Shipping Q-0246 the code-stage reviewer
-  returned `summary: "approve"` with a single Strengths note, yet its sink carried
-  `[high]` and `[med]` blockers plus a `[low]` suggestion whose `message` was the
-  literal string `(none)`. `cr aggregate` read `ok=false` and exited 1, no
-  `Noldor-Reviewed-Subagent` receipt was minted, and `cr autofix plan` declined
-  `no-mechanical` and routed both to the operator as `D1`/`D2` — there is nothing
-  to apply, the messages are empty. The lane prompt
-  (`src/cr/lanes/subagent-dispatch.ts`) does say to leave a bucket's bullet list
-  empty, so this is a model formatting slip the parser has no guard against. It is
-  **non-deterministic**: an identical re-dispatch over the same tree came back
-  with `blockers: []` and went green. Re-dispatch before you override. Same class
-  as the verify-lane fence bullet above — a lane's serialization defect blocking a
-  ship its own content approved.
+- **Resolved (Q-0250): a reviewer that wrote `- (none)` under an empty severity bucket
+  red the round with phantom blockers.** Shipping Q-0246, the reviewer approved and its sink
+  still carried blockers whose message was the literal `(none)`. The reviewer now answers with
+  one JSON object in its answer file. An empty list is `[]`, and placeholder entries such as
+  `(none)` or `N/A` are dropped before validation. A finding blocks only when the reviewer marks
+  it `blocking`, and never when it is `minor` or marked `maybe:` or `unverified:`. The sink
+  `summary` is derived from those flags, so it can no longer read `approve` over a red round.
 
 More sink/receipt traps:
 
