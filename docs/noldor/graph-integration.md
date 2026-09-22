@@ -123,6 +123,14 @@ mtime of files under tracked source roots (typically
 graph, the detector skips with a single meta-gap that includes regen
 instructions, rather than emitting stale findings.
 
+Files git ignores never count. Scan roots are also where build and test
+tools write their output — Playwright's `test-results/` under `apps/web`
+is the case that surfaced this — and before the exclusion one e2e run
+staled the graph with no source change, so a release that ran its tests
+aborted its next attempt on report drift nobody had caused. A tracked
+file that matches an ignore pattern, and a new file not yet added, still
+count. Outside a git repository nothing is excluded.
+
 Implemented in `loadFreshGraphOrWarn` (see above). Mtime-based staleness
 is intentionally cheap; the pre-release sweep already forces a fresh
 `/graphify` regen, so any false-stale (e.g. after `git checkout`) is
