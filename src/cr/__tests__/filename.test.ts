@@ -1,6 +1,10 @@
 // @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer
+import { mkdirSync, mkdtempSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { inferLaneFromFilename } from '../filename.js';
+import type { Slug } from '../../core/slug.js';
+import { inferLaneFromFilename, laneAnswerDebugPath, laneAnswerPath } from '../filename.js';
 
 describe('inferLaneFromFilename', () => {
   it('resolves manual', () => {
@@ -46,5 +50,42 @@ describe('inferLaneFromFilename — render-compare', () => {
     expect(inferLaneFromFilename('s-code-render-compare.json')).toBe('render-compare');
     expect(inferLaneFromFilename('s-code-ui-reviewer.json')).toBe('ui-reviewer');
     expect(inferLaneFromFilename('s-code-reviewer.json')).toBe('reviewer');
+  });
+});
+
+describe('laneAnswerPath', () => {
+  const root = mkdtempSync(join(tmpdir(), 'noldor-answer-path-'));
+  const slug = 'feat-x' as Slug;
+
+  it('gives each dispatch its own file under .noldor/cr/answers/', () => {
+    const a = laneAnswerPath(root, slug, 'code', 'verifier', 'id-1');
+    const b = laneAnswerPath(root, slug, 'code', 'verifier', 'id-2');
+    expect(a).toEqual({
+      ok: true,
+      path: join(root, '.noldor', 'cr', 'answers', 'feat-x-code-verifier-id-1.json'),
+    });
+    expect(b).toEqual({
+      ok: true,
+      path: join(root, '.noldor', 'cr', 'answers', 'feat-x-code-verifier-id-2.json'),
+    });
+  });
+
+  it('keeps the latest debug copy under a per-lane name', () => {
+    expect(laneAnswerDebugPath(root, slug, 'spec', 'reviewer')).toEqual({
+      ok: true,
+      path: join(root, '.noldor', 'cr', 'answers', 'feat-x-spec-reviewer.json'),
+    });
+  });
+
+  it('refuses a symlinked answer file segment', () => {
+    mkdirSync(join(root, '.noldor', 'cr', 'answers'), { recursive: true });
+    symlinkSync(
+      '/etc/hosts',
+      join(root, '.noldor', 'cr', 'answers', 'feat-x-code-verifier-evil.json'),
+    );
+    expect(laneAnswerPath(root, slug, 'code', 'verifier', 'evil')).toMatchObject({
+      ok: false,
+      error: { kind: 'unsafe-symlink' },
+    });
   });
 });

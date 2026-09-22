@@ -308,7 +308,7 @@ git commit -F "$(git rev-parse --git-dir)/PLAN_MSG"
 - Modify: `src/cr/filename.ts`
 - Test: `src/cr/__tests__/filename.test.ts`
 
-- [ ] **Step 1: Write the failing tests.** In `src/cr/__tests__/filename.test.ts`, replace the import block with:
+- [x] **Step 1: Write the failing tests.** In `src/cr/__tests__/filename.test.ts`, replace the import block with:
 
 ```ts
 import { mkdirSync, mkdtempSync, symlinkSync } from 'node:fs';
@@ -357,7 +357,7 @@ describe('laneAnswerPath', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails.**
+- [x] **Step 2: Run the test to verify it fails.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/filename.test.ts
@@ -365,7 +365,7 @@ pnpm vitest run src/cr/__tests__/filename.test.ts
 
 Expected: FAIL with `laneAnswerPath is not a function`.
 
-- [ ] **Step 3: Add the builders.** In `src/cr/filename.ts`, add directly after the `laneSinkPath` function:
+- [x] **Step 3: Add the builders.** In `src/cr/filename.ts`, add directly after the `laneSinkPath` function:
 
 ```ts
 /**
@@ -398,7 +398,7 @@ export function laneAnswerDebugPath(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes.**
+- [x] **Step 4: Run the test to verify it passes.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/filename.test.ts
@@ -406,7 +406,7 @@ pnpm vitest run src/cr/__tests__/filename.test.ts
 
 Expected: PASS (all `inferLaneFromFilename` and `laneAnswerPath` tests green).
 
-- [ ] **Step 5: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
+- [x] **Step 5: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 feat(cr): build per-dispatch CR lane answer paths through slugPath
