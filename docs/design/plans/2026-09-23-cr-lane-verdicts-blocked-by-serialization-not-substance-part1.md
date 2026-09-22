@@ -429,7 +429,7 @@ git commit -F "$(git rev-parse --git-dir)/PLAN_MSG"
 - Create: `src/cr/lane-answer.ts`
 - Test: `src/cr/__tests__/lane-answer.test.ts`
 
-- [ ] **Step 1: Write the failing tests.** Create `src/cr/__tests__/lane-answer.test.ts`:
+- [x] **Step 1: Write the failing tests.** Create `src/cr/__tests__/lane-answer.test.ts`:
 
 ```ts
 // @tests: cr-lane-verdicts-blocked-by-serialization-not-substance
@@ -530,7 +530,7 @@ describe('readLaneAnswer', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails.**
+- [x] **Step 2: Run the test to verify it fails.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lane-answer.test.ts
@@ -538,7 +538,7 @@ pnpm vitest run src/cr/__tests__/lane-answer.test.ts
 
 Expected: FAIL with `Failed to load url ../lane-answer.js` (the module does not exist yet).
 
-- [ ] **Step 3: Implement the reader.** Create `src/cr/lane-answer.ts`:
+- [x] **Step 3: Implement the reader.** Create `src/cr/lane-answer.ts`:
 
 ```ts
 import type { Slug } from '../core/slug.js';
@@ -702,7 +702,7 @@ export function keepRaw(raw: string): string {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes.**
+- [x] **Step 4: Run the test to verify it passes.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lane-answer.test.ts && pnpm typecheck
@@ -710,7 +710,7 @@ pnpm vitest run src/cr/__tests__/lane-answer.test.ts && pnpm typecheck
 
 Expected: PASS (all four `describe` blocks green), and `tsc` prints nothing.
 
-- [ ] **Step 5: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
+- [x] **Step 5: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 feat(cr): read a CR lane answer file with an ends-only placeholder rule
