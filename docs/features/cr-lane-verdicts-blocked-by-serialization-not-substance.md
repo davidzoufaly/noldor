@@ -33,17 +33,32 @@ Getting a green CR check is unreliable for reasons that have nothing to do with 
 
 ## Diagram
 
-<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
-     two beside it for readers that do not render mermaid. No shape worth drawing?
-     Replace this comment with: noldor:cut <reason> -->
+Component view of one lane dispatch. The lane asks the answer seam for a verdict. The seam resolves the runner once and names a per-dispatch answer file. Either the child writes that file (claude, opencode, stub), or the codex CLI writes the child's final message there. The reader then unwraps a whole-file fence, drops placeholder entries and validates. One repair round retries an invalid answer before the lane writes its sink, where only effectively blocking findings become blockers.
+
+```mermaid
+flowchart LR
+  lane["CR lane: reviewer, verifier, ui-reviewer, render-export"] --> seam["createAnswerSeam: resolve runner once, pin runner and model"]
+  seam -->|"agent-writes: claude, opencode, stub"| child["child writes the answer file"]
+  seam -->|"cli-writes: codex"| cli["codex CLI writes the final message (--output-last-message)"]
+  child --> file[(".noldor/cr/answers/slug-kind-lane-id.json")]
+  cli --> file
+  file --> reader["readLaneAnswer: unwrap fence, drop placeholders, zod validate"]
+  reader -->|invalid| repair["one repair round"]
+  repair --> file
+  reader -->|valid| sink["lane sink: blockers only where effectively blocking"]
+```
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an operator or agent shipping a change through the CR gate, I want each lane's real verdict to reach the aggregate however its answer quotes code or leaves a list empty, and a finding to block only when the lane would refuse the merge over it, so that a green review is never blocked by serialization or a nit and every red round names something worth stopping the merge for.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**Agent/Programmatic API**
+
+- `pnpm noldor cr orchestrate --slug <slug> --artifact <path> --kind <spec|plan|code>` works as before. Each agent lane (reviewer, verifier, ui-reviewer, render-export) now gets a per-dispatch answer path and returns its verdict as one JSON object in that file. A codex-mapped role has the file written by the codex CLI (`--output-last-message`) and keeps a read-only sandbox.
+- `pnpm noldor cr aggregate --slug <slug> [--kind <kind>]` also works as before, but a reviewer blocker now appears only for a finding the reviewer marked `blocking` that is neither `minor` nor prefixed `maybe:` / `unverified:`. Every other finding sits in `suggestions`. The sink `summary` is derived from the findings (`approve` or `blockers found (N)`), and the reviewer's own one-line assessment is in `notes`. An answer that needed the one repair round says so in `notes`.
+- `.noldor/cr/answers/<slug>-<kind>-<lane>.json` holds each lane's latest raw answer, for debugging a round.
 
 ## PRs
 
