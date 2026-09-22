@@ -734,7 +734,7 @@ git commit -F "$(git rev-parse --git-dir)/PLAN_MSG"
 - Modify: `src/cr/lane-spawn.ts`
 - Test: `src/cr/__tests__/lane-spawn.test.ts`
 
-- [ ] **Step 1: Write the failing tests.** Create `src/cr/__tests__/lane-spawn.test.ts`:
+- [x] **Step 1: Write the failing tests.** Create `src/cr/__tests__/lane-spawn.test.ts`:
 
 ```ts
 // @tests: cr-lane-verdicts-blocked-by-serialization-not-substance
@@ -858,11 +858,14 @@ describe('createAnswerSeam', () => {
     expect(calls).toHaveLength(1);
   });
 
-  it('does not repair a dispatch that timed out', async () => {
-    const { at } = repo();
-    const calls = child([{ timedOut: true, exitCode: -1 }]);
+  it('does not repair a dispatch that timed out, and leaves no orphaned answer file', async () => {
+    const { root, at } = repo();
+    const calls = child([{ file: '{"verdict":"pass"', timedOut: true, exitCode: -1 }]);
     await expect(seam.dispatch({}, at)).rejects.toThrow(/timeout/);
     expect(calls).toHaveLength(1);
+    expect(readdirSync(join(root, '.noldor', 'cr', 'answers'))).toEqual([
+      'feat-x-code-verifier.json',
+    ]);
   });
 
   it('fails the dispatch when the answers directory cannot be made', async () => {
@@ -890,7 +893,7 @@ describe('createAnswerSeam', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails.**
+- [x] **Step 2: Run the test to verify it fails.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lane-spawn.test.ts
@@ -898,7 +901,7 @@ pnpm vitest run src/cr/__tests__/lane-spawn.test.ts
 
 Expected: FAIL with `createAnswerSeam is not a function` (and `setLaneSpawn is not a function`).
 
-- [ ] **Step 3: Add the answer instruction.** In `src/cr/lanes/prompt-parts.ts`, add this import at the top of the file, below the header comment:
+- [x] **Step 3: Add the answer instruction.** In `src/cr/lanes/prompt-parts.ts`, add this import at the top of the file, below the header comment:
 
 ```ts
 import type { RunnerCapabilities } from '../../core/agent-runner/types.js';
@@ -925,7 +928,7 @@ export function answerInstruction(
 }
 ```
 
-- [ ] **Step 4: Add the seam.** In `src/cr/lane-spawn.ts`, replace the three import lines at the top (`spawnAgent`, `DEFAULT_DISPATCH_TIMEOUT_MS`, `AgentRole`) with:
+- [x] **Step 4: Add the seam.** In `src/cr/lane-spawn.ts`, replace the three import lines at the top (`spawnAgent`, `DEFAULT_DISPATCH_TIMEOUT_MS`, `AgentRole`) with:
 
 ```ts
 import { randomUUID } from 'node:crypto';
@@ -973,10 +976,10 @@ export function setLaneSpawn(impl: LaneSpawnFn | undefined): void {
 export type ChildAnswer = string | null;
 
 /**
- * Read one dispatch's answer file, then keep it as the lane's latest debug copy. An absent
- * file means the child wrote nothing (`null`). The rename is best-effort by design: the copy
- * is for a human reading a red round, and failing a dispatch over it would trade a verdict
- * for a log line.
+ * Read one dispatch's answer file, then settle it as the lane's latest debug copy, so no
+ * per-dispatch file outlives its dispatch. An absent file means the child wrote nothing
+ * (`null`). A failed rename is reported and tolerated: the copy is for a human reading a red
+ * round, and failing a dispatch over it would trade a verdict for a log line.
  */
 async function takeAnswerFile(path: string, at: AnswerLocation, lane: string): Promise<ChildAnswer> {
   let text: string;
@@ -987,7 +990,11 @@ async function takeAnswerFile(path: string, at: AnswerLocation, lane: string): P
     throw err;
   }
   const debug = laneAnswerDebugPath(at.repoRoot, at.slug, at.kind, lane);
-  if (debug.ok) await rename(path, debug.path).catch(() => undefined);
+  if (debug.ok) {
+    await rename(path, debug.path).catch((err: unknown) => {
+      process.stderr.write(`cr: could not keep the ${lane} answer copy: ${(err as Error).message}\n`);
+    });
+  }
   return text;
 }
 
@@ -1059,11 +1066,13 @@ export function createAnswerSeam<I extends { timeoutMs?: number }, T>(
       site: opts.site,
       ...(channel === 'cli-writes' ? { lastMessagePath: built.path } : {}),
     });
+    // Settled before the failure checks, so a timed-out or crashed child leaves no orphan.
+    const answerText = await takeAnswerFile(built.path, at, opts.contract.lane);
     if (r.timedOut) opts.onFailure({ reason: 'timeout', exitCode: r.exitCode, timedOut: true });
     if (r.exitCode !== 0) {
       opts.onFailure({ reason: 'dispatch-failed', exitCode: r.exitCode, timedOut: false });
     }
-    return { answerText: await takeAnswerFile(built.path, at, opts.contract.lane), stdout: r.stdout };
+    return { answerText, stdout: r.stdout };
   };
 
   const dispatch = async (input: I, at: AnswerLocation): Promise<LaneAnswer<T>> => {
@@ -1118,7 +1127,7 @@ export function createAnswerSeam<I extends { timeoutMs?: number }, T>(
 }
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass.**
+- [x] **Step 5: Run the tests to verify they pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lane-spawn.test.ts && pnpm typecheck
@@ -1126,7 +1135,7 @@ pnpm vitest run src/cr/__tests__/lane-spawn.test.ts && pnpm typecheck
 
 Expected: PASS (all nine `createAnswerSeam` tests green), and `tsc` prints nothing.
 
-- [ ] **Step 6: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
+- [x] **Step 6: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 feat(cr): add an answer-file dispatcher seam for CR lanes
