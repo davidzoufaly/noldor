@@ -22,7 +22,72 @@ export function getTopPriorityNext(roadmapRaw: string): BacklogEntry | null {
   if (roadmapRaw.length === 0) return null;
   const all = parseRoadmap(roadmapRaw);
   const sorted = all.toSorted((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
-  return sorted[0] ?? null;
+  return holdBack(sorted).open[0] ?? null;
+}
+
+/** A queued entry held back because a `blocked-by` ref still names a queued entry. */
+export interface BlockedEntry {
+  readonly slug: string;
+  /** The refs (slug or entry ID, as written) that resolve to a still-queued entry. */
+  readonly blockedBy: readonly string[];
+}
+
+/**
+ * Find the entries whose `blocked-by` (or legacy `deps:`) names another entry
+ * still in `entries`. A ref resolves by entry ID or slug; a ref to anything
+ * outside the list (a shipped FD, a retired ID, a typo) is not a blocker here —
+ * `validate triage`'s `unknown-blocked-by-ref` owns the typo case. Self-refs are
+ * ignored (garden's `circular-blocked-by` reports them).
+ *
+ * @param entries - Queued entries, in priority order.
+ * @returns One {@link BlockedEntry} per blocked entry, in the input order.
+ */
+export function findBlocked(entries: ReadonlyArray<BacklogEntry>): BlockedEntry[] {
+  const queued = new Map<string, string>();
+  for (const e of entries) {
+    queued.set(e.slug, e.slug);
+    if (e.id !== undefined) queued.set(e.id, e.slug);
+  }
+  const out: BlockedEntry[] = [];
+  for (const e of entries) {
+    const unmet = (e.deps ?? []).filter((ref) => {
+      const target = queued.get(ref);
+      return target !== undefined && target !== e.slug;
+    });
+    if (unmet.length > 0) out.push({ slug: e.slug, blockedBy: unmet });
+  }
+  return out;
+}
+
+/**
+ * Drop blocked entries, so the gate never hands out an entry whose first act is
+ * impossible (file order is priority, but a blocker ordered below its dependent
+ * must still ship first). When EVERY entry is blocked the queue holds a cycle —
+ * a finite acyclic set always has an unblocked member — and dropping them all
+ * would read as "queue empty, ship-ready". The list is returned unfiltered then;
+ * garden's `circular-blocked-by` reports the cycle.
+ *
+ * @param sorted - The candidates, in priority order.
+ * @param queue - Every queued entry. Defaults to `sorted`; the drain passes the
+ *   pre-`--skip` roadmap, because a skipped blocker is still unshipped.
+ */
+function holdBack(
+  sorted: ReadonlyArray<BacklogEntry>,
+  queue: ReadonlyArray<BacklogEntry> = sorted,
+): { open: ReadonlyArray<BacklogEntry>; held: BlockedEntry[] } {
+  const candidates = new Set(sorted.map((e) => e.slug));
+  const blocked = findBlocked(queue).filter((b) => candidates.has(b.slug));
+  const heldSlugs = new Set(blocked.map((b) => b.slug));
+  const open = sorted.filter((e) => !heldSlugs.has(e.slug));
+  return open.length === 0 ? { open: sorted, held: [] } : { open, held: blocked };
+}
+
+function warnBlocked(blocked: ReadonlyArray<BlockedEntry>): void {
+  for (const b of blocked) {
+    process.stderr.write(
+      `next-priority: skipping '${b.slug}' — blocked-by ${b.blockedBy.join(', ')} still queued\n`,
+    );
+  }
 }
 
 interface FormatOpts {
@@ -122,10 +187,19 @@ export interface Suggestions {
   topPriority: ReadonlyArray<SuggestedEntry>;
   smallHighImpact: ReadonlyArray<SuggestedEntry>;
   milestoneAligned: SuggestedEntry | null;
+  /**
+   * Entries left out of every bucket because a `blocked-by` ref still names a
+   * queued entry (see {@link findBlocked}). Empty when nothing is blocked, and
+   * when everything is (a cycle — see {@link holdBack}).
+   */
+  blocked: ReadonlyArray<BlockedEntry>;
 }
 
 /**
  * Compute the structured suggestion set surfaced by `/noldor-gate` Step 0.
+ *
+ * Blocked entries (a `blocked-by` ref still queued — {@link findBlocked}) are
+ * held out of every bucket and listed under `blocked` instead.
  *
  * Bucketing rules:
  * - `topPriority` — first 3 entries in file order (file order = priority).
@@ -149,8 +223,13 @@ export function getSuggestions(
   input: SuggestionsInput,
   skip: ReadonlySet<string> = new Set(),
 ): Suggestions {
-  const all = parseRoadmap(roadmapRaw).filter((e) => !skip.has(e.slug));
-  const sorted = all.toSorted((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+  const queue = parseRoadmap(roadmapRaw);
+  const { open: sorted, held } = holdBack(
+    queue
+      .filter((e) => !skip.has(e.slug))
+      .toSorted((a, b) => (a.priority ?? 0) - (b.priority ?? 0)),
+    queue,
+  );
   const topPriority = sorted.slice(0, 3);
   const topSlugs = new Set(topPriority.map((e) => e.slug));
 
@@ -184,6 +263,7 @@ export function getSuggestions(
     topPriority: topPriority.map(withRouting),
     smallHighImpact: smallHighImpact.map(withRouting),
     milestoneAligned: milestoneAligned === null ? null : withRouting(milestoneAligned),
+    blocked: held,
   };
 }
 
@@ -382,6 +462,7 @@ async function main(): Promise<void> {
       { inProgressFds, milestoneGate: active.gate, activeMilestone: active.slug },
       skip,
     );
+    warnBlocked(suggestions.blocked);
     process.stdout.write(`${JSON.stringify(suggestions, null, 2)}\n`);
     // Exit 2 = nothing actionable (no in-progress AND no roadmap entries).
     process.exit(
@@ -389,6 +470,7 @@ async function main(): Promise<void> {
     );
   }
 
+  warnBlocked(holdBack(parseRoadmap(roadmapRaw)).held);
   const top = getTopPriorityNext(roadmapRaw);
   const opts: FormatOpts = { json: argv.has('--json') };
   process.stdout.write(`${formatEntry(top, opts)}\n`);
