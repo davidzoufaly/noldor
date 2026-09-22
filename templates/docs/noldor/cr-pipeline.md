@@ -303,20 +303,20 @@ never blocks. Spawn failure, timeout, or malformed verifier output is one
 "no trustworthy verdict" class: fail-closed blocker in blocking mode,
 `cannot-verify` note in advisory.
 
-Malformed output gets two chances before it is read as that class. A child that
-answered but emitted no parseable verdict has already run the verification —
-only the serialization broke — so the lane makes ONE repair re-request that hands
-the prose back and asks for the schema. That round is a transcription, never a
-second verification: it boots nothing and may not upgrade a hedged report into
-`pass`. A verdict it recovers is stamped with a `repair round` note. When the
-repair fails too, prose that plainly reports success and says nothing
-failure-shaped degrades to `cannot-verify` — which never blocks — instead of a
-fail-closed blocker, because a green verification must not be blocked by a
-formatting failure. It is still not a `pass`: nothing parsed. Every unrecovered
-round stamps `reason` (`malformed-output`, or `dispatch-failed` when the spawn
-itself failed) and keeps the child's raw payload verbatim in `notes` (bounded at
-20k chars) — that payload is the only evidence that separates a real failure
-from a serialization one.
+The verdict travels in an answer file, never in the child's printed output (Q-0250). Each
+dispatch gets its own path, `.noldor/cr/answers/<slug>-<kind>-<lane>-<dispatchId>.json`, and the
+child writes one JSON object there. For a codex-mapped role the codex CLI writes the child's
+final message there instead (`--output-last-message`), so its read-only sandbox never needs write
+access. Fences, quoted code and prose around the answer therefore cannot break it. A missing file,
+invalid JSON or a schema mismatch gets ONE repair round: the seam re-dispatches with the rejected
+answer, the reason and the child's output, and asks only for a valid answer. A child that produced
+nothing at all gets no repair round, because there is nothing to transcribe. That round is a
+transcription, never a second verification: it boots nothing and may not upgrade a hedged report
+into `pass`. A verdict it recovers is stamped with a `repair round` note. When the repair fails
+too, the round is the "no trustworthy verdict" class above. There is no prose fallback. It stamps
+`reason` (`malformed-output`, or `dispatch-failed` when the spawn itself failed) and keeps the
+rejected answer and the child's output verbatim in `notes` (bounded at 20k chars). Each lane's
+latest raw answer stays at `.noldor/cr/answers/<slug>-<kind>-<lane>.json` for debugging.
 
 Opt in via `crLanes.code: ["reviewer", "verifier"]`; drain and watch inherit it
 from config. The noldor repo itself runs `verifyMode: "blocking"` (flipped
@@ -519,21 +519,13 @@ persisted diff image before arguing with the ratio.
   aggregate still reports `ok=true` — fast-track carries no FD, so the lane
   degrades silently and the reviewer lane is the whole review. (2026-08-20
   XS drain)
-- **The verify lane cannot report on a change whose evidence contains fenced
-  code, because its own payload is a fence.** Shipping Q-0239 the verifier ran
-  the full acceptance set twice and emitted `{"verdict":"pass"}` both times;
-  `parseVerifyPayload` recovered neither, because the evidence strings quote the
-  ` ```bash ` blocks the change is *about* and the inner backticks close the outer
-  fence early. The repair round failed identically, and the `proseReportsSuccess`
-  valve (`src/cr/lanes/verify.ts`) missed too — the prose opened "Done. Everything
-  the change promised works when I actually ran it", no `verifi*` stem, so
-  `PROSE_SUCCESS_RE` never matched and the round fell to the fail-closed `high`
-  blocker. This is **systematic, not flaky**: any change touching fence handling,
-  markdown parsing, or skill bodies reproduces it, and re-rounding cannot fix it.
-  Read the raw child payload the lane keeps verbatim in `notes` — if it carries
-  `"verdict":"pass"`, the verification is green and the only exit is
-  `Noldor-Path-Override`. Pairs with Q-0137, which built the repair round for this
-  class and is now shown to under-reach.
+- **Resolved (Q-0250): the verify lane could not report on a change whose evidence contained
+  fenced code.** Its verdict used to travel as a fenced JSON block, and evidence that quoted a
+  ` ```bash ` block closed that fence early. Shipping Q-0239 lost two `pass` verdicts that way
+  and ended on `Noldor-Path-Override`. The verdict now travels in an answer file, where a quoted
+  fence is just characters inside a JSON string. If a verify round still reds with
+  `reason: malformed-output`, read the rejected answer the sink keeps verbatim in `notes` before
+  blaming the transport.
 - **A reviewer lane that writes `- (none)` under an empty severity bucket reds
   the round with phantom blockers.** Shipping Q-0246 the code-stage reviewer
   returned `summary: "approve"` with a single Strengths note, yet its sink carried

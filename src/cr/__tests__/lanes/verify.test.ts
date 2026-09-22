@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setVerifyDispatcher } from '../../lanes/verify-dispatch.js';
-import { proseReportsSuccess, reapPort, runVerify, setSmokeRunner } from '../../lanes/verify.js';
+import { reapPort, runVerify, setSmokeRunner } from '../../lanes/verify.js';
 import type { LaneInput } from '../../lane-types.js';
 
 const GREEN_SMOKE = {
@@ -69,6 +69,37 @@ describe('runVerify', () => {
     const sink = readSink(cwd);
     expect(sink.verdict).toBe('pass');
     expect((sink.evidence as unknown[]).length).toBe(1);
+  });
+
+  it('reads a pass whose evidence quotes fenced code (Q-0239 replay)', async () => {
+    setVerifyDispatcher(
+      async () =>
+        '```json\n{"verdict":"pass","evidence":[{"command":"pnpm noldor validate","observed":"docs:\\n```bash\\npnpm release\\n```\\nOK"}],"mismatches":[]}\n```',
+    );
+    const { cwd, input } = repo('blocking');
+    expect((await runVerify(input)).ok).toBe(true);
+    const sink = readSink(cwd);
+    expect(sink.verdict).toBe('pass');
+    expect(JSON.stringify(sink.evidence)).toContain('```bash');
+  });
+
+  it('an empty child fails closed in blocking mode, with no repair round', async () => {
+    let calls = 0;
+    setVerifyDispatcher(async () => {
+      calls++;
+      return null;
+    });
+    const { cwd, input } = repo('blocking');
+    expect((await runVerify(input)).ok).toBe(false);
+    expect(calls).toBe(1);
+    expect(readSink(cwd)).toMatchObject({ verdict: 'fail', reason: 'malformed-output' });
+  });
+
+  it('drops placeholder mismatches before judging the verdict', async () => {
+    setVerifyDispatcher(async () => '{"verdict":"pass","evidence":[],"mismatches":["(none)"]}');
+    const { cwd, input } = repo('blocking');
+    expect((await runVerify(input)).ok).toBe(true);
+    expect(readSink(cwd).verdict).toBe('pass');
   });
 
   it('forwards LaneInput.dispatchTimeoutMs to the verify dispatcher as timeoutMs', async () => {
@@ -168,13 +199,13 @@ describe('runVerify', () => {
     );
   });
 
-  it('repair round recovers a verdict when only the JSON fence was missing', async () => {
-    const seen: Array<string | undefined> = [];
-    setVerifyDispatcher(async (i) => {
-      seen.push(i.repairOf);
-      return i.repairOf === undefined
-        ? 'Verified end-to-end. I forgot the fence.'
-        : '```json\n{"verdict":"pass","evidence":[{"command":"curl /x","observed":"{}"}],"mismatches":[]}\n```';
+  it('repair round recovers a verdict when the first answer was not JSON', async () => {
+    const seen: Array<string | null | undefined> = [];
+    setVerifyDispatcher(async (_i, repair) => {
+      seen.push(repair?.rejected);
+      return repair === undefined
+        ? 'Verified end-to-end. I forgot the JSON.'
+        : '{"verdict":"pass","evidence":[{"command":"curl /x","observed":"{}"}],"mismatches":[]}';
     });
     const { cwd, input } = repo('blocking');
     const r = await runVerify(input);
@@ -183,8 +214,8 @@ describe('runVerify', () => {
     expect(sink.verdict).toBe('pass');
     expect((sink.evidence as unknown[]).length).toBe(1);
     expect(JSON.stringify(sink.notes)).toContain('repair round');
-    // Exactly one repair, and it carried the first answer's prose to transcribe.
-    expect(seen).toEqual([undefined, 'Verified end-to-end. I forgot the fence.']);
+    // Exactly one repair, and it carried the first answer to transcribe.
+    expect(seen).toEqual([undefined, 'Verified end-to-end. I forgot the JSON.']);
   });
 
   it('repair round is not attempted when the dispatch itself failed', async () => {
@@ -199,20 +230,15 @@ describe('runVerify', () => {
     expect(readSink(cwd).reason).toBe('dispatch-failed');
   });
 
-  it('unparseable prose that plainly reports success degrades to cannot-verify, even in blocking mode', async () => {
-    const prose =
-      'Verified all clauses through real CLI/HTTP/API. Booted the dashboard on the assigned port and observed HTTP 200 for /x with an object body.';
-    setVerifyDispatcher(async () => prose);
-    for (const mode of ['blocking', 'advisory']) {
-      const { cwd, input } = repo(mode);
-      const r = await runVerify(input);
-      expect(r.ok).toBe(true);
-      const sink = readSink(cwd);
-      expect(sink.verdict).toBe('cannot-verify');
-      expect(sink.reason).toBe('malformed-output');
-      expect(sink.blockers).toEqual([]);
-      expect(String(sink.summary)).toContain('prose reports success');
-    }
+  it('prose with no valid answer fails closed in blocking mode, however green it sounds', async () => {
+    setVerifyDispatcher(
+      async () => 'Verified all clauses through real CLI/HTTP/API. Everything works.',
+    );
+    const { cwd, input } = repo('blocking');
+    expect((await runVerify(input)).ok).toBe(false);
+    const sink = readSink(cwd);
+    expect(sink.verdict).toBe('fail');
+    expect(sink.reason).toBe('malformed-output');
   });
 
   it('keeps the unparseable payload verbatim in the sink, not truncated to 200 chars', async () => {
@@ -226,34 +252,6 @@ describe('runVerify', () => {
     expect(JSON.stringify(sink.notes)).toContain('THE-TAIL-THAT-MATTERS');
     expect(JSON.stringify(sink.notes)).toContain('repair round');
     expect(sink.reason).toBe('malformed-output');
-  });
-});
-
-describe('proseReportsSuccess', () => {
-  it('matches the phrasings a verifier actually opens a successful report with', () => {
-    expect(proseReportsSuccess('Verified all clauses through real CLI/HTTP/API.')).toBe(true);
-    expect(proseReportsSuccess('Verified end-to-end.')).toBe(true);
-    expect(proseReportsSuccess('All acceptance criteria pass.')).toBe(true);
-  });
-
-  it('lets any failure-shaped word veto, and needs a success claim to match at all', () => {
-    expect(proseReportsSuccess('Verified end-to-end, but /y is missing.')).toBe(false);
-    expect(proseReportsSuccess('Verified the CLI; the HTTP surface failed.')).toBe(false);
-    expect(proseReportsSuccess('Verified /x. I cannot reach /y.')).toBe(false);
-    expect(proseReportsSuccess('I am confused and emit no JSON')).toBe(false);
-    expect(proseReportsSuccess('')).toBe(false);
-  });
-
-  it('vetoes on INFLECTED failure words, not just the exact forms', () => {
-    // A list of exact inflections let `errored`/`failing`/`broke` through the
-    // veto, degrading a real mismatch to a non-blocking `cannot-verify`.
-    expect(proseReportsSuccess('Verified the CLI; the dashboard errored on boot.')).toBe(false);
-    expect(proseReportsSuccess('Verified /x. /y is failing.')).toBe(false);
-    expect(proseReportsSuccess('Verified /x, but /y broke.')).toBe(false);
-    expect(proseReportsSuccess('Verified /x; /y regressed.')).toBe(false);
-    expect(proseReportsSuccess('Verified /x. The route returns a 500.')).toBe(false);
-    expect(proseReportsSuccess('Verified /x. The boot timed out.')).toBe(false);
-    expect(proseReportsSuccess('Verified /x. The server crashed.')).toBe(false);
   });
 });
 

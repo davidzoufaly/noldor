@@ -1160,7 +1160,7 @@ git commit -F "$(git rev-parse --git-dir)/PLAN_MSG"
 - Modify: `docs/noldor/cr-pipeline.md`, `templates/docs/noldor/cr-pipeline.md`
 - Test: `src/cr/__tests__/lanes/verify-dispatch.test.ts`, `src/cr/__tests__/lanes/verify.test.ts`
 
-- [ ] **Step 1: Update the dispatch tests.** In `src/cr/__tests__/lanes/verify-dispatch.test.ts`:
+- [x] **Step 1: Update the dispatch tests.** In `src/cr/__tests__/lanes/verify-dispatch.test.ts`:
 
 (a) Replace everything above `describe('buildVerifyPrompt', …)` — the `@tests` line, the `vi.mock(…)` block and both import blocks — with:
 
@@ -1259,7 +1259,7 @@ describe('default dispatcher', () => {
 });
 ```
 
-- [ ] **Step 2: Update the lane tests.** In `src/cr/__tests__/lanes/verify.test.ts`:
+- [x] **Step 2: Update the lane tests.** In `src/cr/__tests__/lanes/verify.test.ts`:
 
 (a) Change the verify import to:
 
@@ -1340,7 +1340,7 @@ import { reapPort, runVerify, setSmokeRunner } from '../../lanes/verify.js';
 
 (e) Delete the whole `describe('proseReportsSuccess', …)` block.
 
-- [ ] **Step 3: Run the tests to verify they fail.**
+- [x] **Step 3: Run the tests to verify they fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/verify-dispatch.test.ts src/cr/__tests__/lanes/verify.test.ts
@@ -1348,7 +1348,7 @@ pnpm vitest run src/cr/__tests__/lanes/verify-dispatch.test.ts src/cr/__tests__/
 
 Expected: FAIL. `verifyVerdictSchema` accepts a `pass` with mismatches, `dispatchVerify` still calls the old seam (`calls` stays empty), and the Q-0239 replay reds with `verify lane errored`.
 
-- [ ] **Step 4: Move the dispatch module onto the answer seam.** In `src/cr/lanes/verify-dispatch.ts`:
+- [x] **Step 4: Move the dispatch module onto the answer seam.** In `src/cr/lanes/verify-dispatch.ts`:
 
 (a) Replace the six import lines at the top with:
 
@@ -1444,7 +1444,7 @@ export const setVerifyDispatcher = seam.setDispatcher;
 export const dispatchVerify = seam.dispatch;
 ```
 
-- [ ] **Step 5: Move the lane onto the answer.** In `src/cr/lanes/verify.ts`:
+- [x] **Step 5: Move the lane onto the answer.** In `src/cr/lanes/verify.ts`:
 
 (a) Replace the import line `import { dispatchVerify, parseVerifyVerdict } from './verify-dispatch.js';` with:
 
@@ -1533,7 +1533,7 @@ import { dispatchVerify, type VerifyVerdict } from './verify-dispatch.js';
 
 (d) In the remaining verdict branches below that block, change the comment `// 6. Honest agent verdicts × mode.` to `// 5. Honest agent verdicts × mode.` and replace every `withRepair(` call with `withNotes(`.
 
-- [ ] **Step 6: Run the tests to verify they pass.**
+- [x] **Step 6: Run the tests to verify they pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/verify-dispatch.test.ts src/cr/__tests__/lanes/verify.test.ts src/cr/__tests__/orchestrate.test.ts && pnpm typecheck
@@ -1541,7 +1541,7 @@ pnpm vitest run src/cr/__tests__/lanes/verify-dispatch.test.ts src/cr/__tests__/
 
 Expected: PASS. The Q-0239 replay is green, and `orchestrate.test.ts` still passes: its injected verifier returns a whole-file fenced answer, which the reader unwraps. `tsc` prints nothing.
 
-- [ ] **Step 7: Update the pipeline doc.** In `docs/noldor/cr-pipeline.md`, replace the paragraph that begins `Malformed output gets two chances before it is read as that class.` and ends `from a serialization one.` with:
+- [x] **Step 7: Update the pipeline doc.** In `docs/noldor/cr-pipeline.md`, replace the paragraph that begins `Malformed output gets two chances before it is read as that class.` and ends `from a serialization one.` with:
 
 ```markdown
 The verdict travels in an answer file, never in the child's printed output (Q-0250). Each
@@ -1550,7 +1550,8 @@ child writes one JSON object there. For a codex-mapped role the codex CLI writes
 final message there instead (`--output-last-message`), so its read-only sandbox never needs write
 access. Fences, quoted code and prose around the answer therefore cannot break it. A missing file,
 invalid JSON or a schema mismatch gets ONE repair round: the seam re-dispatches with the rejected
-answer, the reason and the child's output, and asks only for a valid answer. That round is a
+answer, the reason and the child's output, and asks only for a valid answer. A child that produced
+nothing at all gets no repair round, because there is nothing to transcribe. That round is a
 transcription, never a second verification: it boots nothing and may not upgrade a hedged report
 into `pass`. A verdict it recovers is stamped with a `repair round` note. When the repair fails
 too, the round is the "no trustworthy verdict" class above. There is no prose fallback. It stamps
@@ -1577,7 +1578,7 @@ Then mirror the twin:
 cp docs/noldor/cr-pipeline.md templates/docs/noldor/cr-pipeline.md
 ```
 
-- [ ] **Step 8: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
+- [x] **Step 8: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 fix(cr): read the verifier's verdict from its answer file
