@@ -10,11 +10,12 @@ import type { Finding, LaneReasonCode } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { cleanupPenScratch, openDesignReviewRound } from './pen-scratch.js';
 import { writeFailByMode, writePenModified } from './ui-design-resolve.js';
+import type { LaneAnswer } from '../lane-answer.js';
 import {
   UiDispatchError,
   dispatchUiReview,
-  parseUiReviewReport,
   type UiFinding,
+  type UiReviewReport,
 } from './ui-review-dispatch.js';
 
 const LANE = 'ui-reviewer' as const;
@@ -36,18 +37,21 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
 
   try {
     const cap = input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {};
-    let raw: string | null = null;
+    let answer: LaneAnswer<UiReviewReport> | null = null;
     let dispatchFailure: { reason: LaneReasonCode; message: string } | null = null;
     try {
-      raw = await dispatchUiReview({
-        penPath: scratchPen,
-        surfaces: design.surfaces,
-        baseSha: design.base,
-        headSha: input.artifactSha,
-        repoRoot: input.repoRoot,
-        fdSummary: design.fdSummary,
-        ...cap,
-      });
+      answer = await dispatchUiReview(
+        {
+          penPath: scratchPen,
+          surfaces: design.surfaces,
+          baseSha: design.base,
+          headSha: input.artifactSha,
+          repoRoot: input.repoRoot,
+          fdSummary: design.fdSummary,
+          ...cap,
+        },
+        { repoRoot: input.repoRoot, slug: input.slug, kind: input.kind },
+      );
     } catch (err) {
       dispatchFailure = {
         reason: err instanceof UiDispatchError ? err.reason : 'dispatch-failed',
@@ -75,17 +79,18 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
       );
     }
 
-    const report = parseUiReviewReport(raw ?? '');
-    if (report === null) {
+    const roundNotes = [...notes, ...(answer?.notes ?? [])];
+    if (answer === null || !answer.ok) {
       return writeTerminal(
         {
           verdict: 'cannot-review',
           reason: 'malformed-output',
-          detail: `unparseable child report: ${(raw ?? '').slice(0, 200)}`,
+          detail: `no trustworthy child report: ${answer !== null && !answer.ok ? answer.detail : 'no answer'}`,
         },
-        notes,
+        roundNotes,
       );
     }
+    const report = answer.answer;
     if (report.verdict === 'cannot-review') {
       // The child's two reasons stay distinct: `no-final-pages` means the design
       // exists but pins nothing for the scope, `pen-unreadable` that it could not
@@ -96,7 +101,7 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
           reason: report.reason,
           detail: `child reported ${report.reason}`,
         },
-        notes,
+        roundNotes,
         design.repoRelPath,
       );
     }
@@ -107,7 +112,7 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
           blockers: [],
           suggestions: [],
           summary: 'implementation matches the approved design',
-          ...(notes.length > 0 ? { notes } : {}),
+          ...(roundNotes.length > 0 ? { notes: roundNotes } : {}),
         },
         true,
       );
@@ -117,7 +122,7 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
       mode,
       report.findings.map(toFinding),
       'implementation contradicts the approved design',
-      notes,
+      roundNotes,
     );
   } finally {
     await cleanupPenScratch(scratchDir, 'ui-review');

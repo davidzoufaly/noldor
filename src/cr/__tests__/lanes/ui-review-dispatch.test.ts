@@ -1,10 +1,16 @@
-// @tests: ui-design-review-lane
+// @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance
 import { describe, expect, it } from 'vitest';
+import { readLaneAnswer } from '../../lane-answer.js';
+import {
+  UI_REVIEW_ANSWER,
+  UI_REVIEW_SHAPE,
+  buildUiReviewPrompt,
+} from '../../lanes/ui-review-dispatch.js';
 
-import { buildUiReviewPrompt, parseUiReviewReport } from '../../lanes/ui-review-dispatch.js';
+const answer = (payload: unknown): string => JSON.stringify(payload);
+const read = (text: string): ReturnType<typeof readLaneAnswer> =>
+  readLaneAnswer(text, UI_REVIEW_ANSWER);
 
-const fence = (payload: unknown): string =>
-  `words\n\`\`\`json\n${JSON.stringify(payload)}\n\`\`\`\n`;
 const EVIDENCE = {
   file: 'src/ui/Panel.tsx',
   severity: 'high' as const,
@@ -22,56 +28,58 @@ const INPUT = {
   fdSummary: 'A settings panel.',
 };
 
-describe('parseUiReviewReport', () => {
-  it('reads the last fenced block', () => {
-    const md = `${fence({ verdict: 'fail', findings: [EVIDENCE] })}${fence({ verdict: 'pass', findings: [] })}`;
-    expect(parseUiReviewReport(md)?.verdict).toBe('pass');
+describe('UI_REVIEW_ANSWER', () => {
+  it('reads a whole-file fenced answer whose message quotes a fence', () => {
+    const text = `\`\`\`json\n${answer({ verdict: 'fail', findings: [{ ...EVIDENCE, message: 'label reads ```Save``` in code' }] })}\n\`\`\``;
+    expect(read(text)).toMatchObject({ ok: true, answer: { verdict: 'fail' } });
   });
 
   it('accepts each well-formed verdict', () => {
-    expect(parseUiReviewReport(fence({ verdict: 'pass', findings: [] }))?.verdict).toBe('pass');
+    expect(read(answer({ verdict: 'pass', findings: [] }))).toMatchObject({ ok: true });
+    expect(read(answer({ verdict: 'fail', findings: [EVIDENCE] }))).toMatchObject({ ok: true });
     expect(
-      parseUiReviewReport(fence({ verdict: 'fail', findings: [EVIDENCE] }))?.findings,
-    ).toHaveLength(1);
+      read(answer({ verdict: 'cannot-review', findings: [], reason: 'no-final-pages' })),
+    ).toMatchObject({ ok: true, answer: { reason: 'no-final-pages' } });
+  });
+
+  it('drops a placeholder finding so a padded pass validates', () => {
     expect(
-      parseUiReviewReport(
-        fence({ verdict: 'cannot-review', findings: [], reason: 'no-final-pages' }),
-      ),
-    ).toMatchObject({ reason: 'no-final-pages' });
+      read(answer({ verdict: 'pass', findings: [{ ...EVIDENCE, message: '(none)' }] })),
+    ).toMatchObject({ ok: true, answer: { verdict: 'pass' } });
   });
 
   it.each([
-    ['no fence at all', 'I reviewed it and it looks fine'],
-    ['unparseable json', '```json\n{not json\n```'],
-    ['pass carrying findings', fence({ verdict: 'pass', findings: [EVIDENCE] })],
-    ['fail carrying none', fence({ verdict: 'fail', findings: [] })],
-    ['cannot-review without a reason', fence({ verdict: 'cannot-review', findings: [] })],
+    ['plain prose', 'I reviewed it and it looks fine'],
+    ['unparseable json', '{not json'],
+    ['pass carrying findings', answer({ verdict: 'pass', findings: [EVIDENCE] })],
+    ['fail carrying none', answer({ verdict: 'fail', findings: [] })],
+    ['cannot-review without a reason', answer({ verdict: 'cannot-review', findings: [] })],
     [
       'cannot-review with an unknown reason',
-      fence({ verdict: 'cannot-review', findings: [], reason: 'vibes' }),
+      answer({ verdict: 'cannot-review', findings: [], reason: 'vibes' }),
     ],
-    ['unknown verdict', fence({ verdict: 'maybe', findings: [] })],
+    ['unknown verdict', answer({ verdict: 'maybe', findings: [] })],
     [
       'a finding missing its design-side evidence',
-      fence({ verdict: 'fail', findings: [{ file: 'a.tsx', severity: 'high', message: 'm' }] }),
+      answer({ verdict: 'fail', findings: [{ file: 'a.tsx', severity: 'high', message: 'm' }] }),
     ],
     [
       'a pass that also carries a reason (contradictory, unknown key)',
-      fence({ verdict: 'pass', findings: [], reason: 'pen-unreadable' }),
+      answer({ verdict: 'pass', findings: [], reason: 'pen-unreadable' }),
     ],
     [
       'a fail that also carries a reason',
-      fence({ verdict: 'fail', findings: [EVIDENCE], reason: 'pen-unreadable' }),
+      answer({ verdict: 'fail', findings: [EVIDENCE], reason: 'pen-unreadable' }),
     ],
     [
       'a finding missing its code-side file',
-      fence({
+      answer({
         verdict: 'fail',
         findings: [{ severity: 'high', message: 'm', designPage: 'p', designElement: 'e' }],
       }),
     ],
-  ])('rejects %s', (_label, md) => {
-    expect(parseUiReviewReport(md)).toBeNull();
+  ])('rejects %s', (_label, text) => {
+    expect(read(text).ok).toBe(false);
   });
 });
 
@@ -96,15 +104,11 @@ describe('buildUiReviewPrompt', () => {
     expect(p).toMatch(/Do not edit it/);
   });
 
-  it('describes the three shapes as prose and keeps the fence itself valid JSON', () => {
-    const p = buildUiReviewPrompt(INPUT);
-    expect(p).toContain('Emit no key beyond the ones your shape lists');
-    // The fenced block is fed straight to JSON.parse by parseLastJsonFence, so a
-    // child that echoes the example verbatim must still parse. A commented or
-    // multi-object example would make the round malformed-output.
-    const example = /```json\s*\n([\s\S]*?)```/.exec(p)?.[1] ?? '';
-    expect(example.trim().length).toBeGreaterThan(0);
-    expect(() => JSON.parse(example) as unknown).not.toThrow();
+  it('describes the three shapes as prose and keeps the example shape valid JSON', () => {
+    expect(buildUiReviewPrompt(INPUT)).toContain('Emit no key beyond the ones your shape lists');
+    // The seam renders this example into the answer instruction; a child that echoes it
+    // verbatim must still write parseable JSON.
+    expect(() => JSON.parse(UI_REVIEW_SHAPE) as unknown).not.toThrow();
   });
 
   it('states the non-normative properties so unpinned details are not flagged', () => {

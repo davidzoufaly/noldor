@@ -30,7 +30,7 @@
 - Modify: `src/cr/lanes/ui-review.ts`
 - Test: `src/cr/__tests__/lanes/ui-review-dispatch.test.ts`, `src/cr/__tests__/lanes/ui-review.test.ts`
 
-- [ ] **Step 1: Rewrite the dispatch tests.** Replace the whole of `src/cr/__tests__/lanes/ui-review-dispatch.test.ts` with:
+- [x] **Step 1: Rewrite the dispatch tests.** Replace the whole of `src/cr/__tests__/lanes/ui-review-dispatch.test.ts` with:
 
 ```ts
 // @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance
@@ -156,7 +156,7 @@ describe('buildUiReviewPrompt', () => {
 });
 ```
 
-- [ ] **Step 2: Make the lane test's child write a bare answer.** In `src/cr/__tests__/lanes/ui-review.test.ts`, replace
+- [x] **Step 2: Make the lane test's child write a bare answer.** In `src/cr/__tests__/lanes/ui-review.test.ts`, replace
 
 ```ts
 const report = (payload: unknown): string =>
@@ -170,7 +170,7 @@ with
 const report = (payload: unknown): string => JSON.stringify(payload);
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail.**
+- [x] **Step 3: Run the tests to verify they fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/ui-review-dispatch.test.ts src/cr/__tests__/lanes/ui-review.test.ts
@@ -178,7 +178,7 @@ pnpm vitest run src/cr/__tests__/lanes/ui-review-dispatch.test.ts src/cr/__tests
 
 Expected: FAIL. `UI_REVIEW_ANSWER` and `UI_REVIEW_SHAPE` are not exported yet, and every performed-review test in `ui-review.test.ts` lands on `malformed-output`, because the old reader wants a fenced block.
 
-- [ ] **Step 4: Move the dispatch module onto the answer seam.** In `src/cr/lanes/ui-review-dispatch.ts`:
+- [x] **Step 4: Move the dispatch module onto the answer seam.** In `src/cr/lanes/ui-review-dispatch.ts`:
 
 (a) Replace the three imports `parseFencedJson`, `createDispatcherSeam` and `fencedJsonInstruction` with:
 
@@ -243,7 +243,7 @@ const seam = createAnswerSeam<UiDispatchInput, UiReviewReport>(buildUiReviewProm
 });
 ```
 
-- [ ] **Step 5: Move the lane onto the answer.** In `src/cr/lanes/ui-review.ts`:
+- [x] **Step 5: Move the lane onto the answer.** In `src/cr/lanes/ui-review.ts`:
 
 (a) Replace the `import { UiDispatchError, dispatchUiReview, parseUiReviewReport, type UiFinding } from './ui-review-dispatch.js';` statement with:
 
@@ -342,7 +342,7 @@ import {
     );
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass.**
+- [x] **Step 6: Run the tests to verify they pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/ui-review-dispatch.test.ts src/cr/__tests__/lanes/ui-review.test.ts && pnpm typecheck
@@ -350,7 +350,7 @@ pnpm vitest run src/cr/__tests__/lanes/ui-review-dispatch.test.ts src/cr/__tests
 
 Expected: PASS. Every ui-review test is green, including `'reports malformed-output when the child emits no parseable report'`, which now fails validation once, repairs once and still lands on `malformed-output`. `tsc` prints nothing.
 
-- [ ] **Step 7: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
+- [x] **Step 7: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 fix(cr): read the ui-reviewer's report from its answer file
