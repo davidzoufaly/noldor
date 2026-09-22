@@ -4,6 +4,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { readdirSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
+import { defaultRunGit } from './branch-added.js';
 import { loadConsumerConfig } from './consumer-config.js';
 
 /**
@@ -114,7 +115,10 @@ export function walkCodeFiles(root: string, opts: { includeTests: boolean }): st
 
 /**
  * Depth-first descent over `root`, handing every file to `onFile` and asking
- * `skipDir` whether to enter each directory.
+ * `skipDir` whether to enter each directory. `skipDir` also gets the
+ * directory's walked path, so a caller can prune by location and not only by
+ * name; the path is absent when the question is a segment of a resolved link
+ * target, which has no walked path of its own.
  *
  * Extracted when the mtime walker below duplicated {@link walkCodeFiles}'s
  * descent verbatim — same `readdirSync(withFileTypes)`, same ENOENT-swallow,
@@ -173,7 +177,7 @@ export function walkCodeFiles(root: string, opts: { includeTests: boolean }): st
 export function walkDir(
   root: string,
   onFile: (path: string, name: string) => void,
-  skipDir: (name: string) => boolean,
+  skipDir: (name: string, path?: string) => boolean,
   followLinks: boolean,
   containWithin?: string,
   visited: Set<string> = new Set(),
@@ -220,7 +224,7 @@ export function walkDir(
       }
     }
     if (isDir) {
-      if (skipDir(entry.name)) continue;
+      if (skipDir(entry.name, full)) continue;
       walkDir(full, onFile, skipDir, followLinks, containWithin, visited, false);
     } else if (isFile) {
       onFile(full, entry.name);
@@ -273,6 +277,15 @@ function resolvedPathAllowed(
  * argument, so it always walked `process.cwd()` — which silently reported on the
  * wrong repository for any caller that injected a different root.
  *
+ * Files git ignores do not count. A scan root is also where build and test
+ * tools write — Playwright's `test-results/` under `apps/web` is the observed
+ * case — and one e2e run left ~112 files newer than the graph, so the graph read
+ * stale with no source change and, the directory being gitignored, no
+ * `git status` diff to explain it. What git ignores is by the repo's own
+ * declaration not a source, and the committed freshness leg
+ * (`evaluateGraphFreshness`) never saw those files either. See
+ * {@link gitIgnoredPaths} for why the pruning cannot hide a real source file.
+ *
  * @param cwd - Consumer root the roots are resolved against
  * @param roots - Directory names resolved against `cwd`, typically
  *   {@link scanRoots} output; an absolute root is used verbatim
@@ -280,9 +293,16 @@ function resolvedPathAllowed(
  */
 export function newestMtimeInRoots(cwd: string, roots: readonly string[]): number | null {
   const { samplesPath } = loadConsumerConfig(cwd);
+  // An absolute root is used as-is: `join(cwd, '/tmp/x')` yields `<cwd>/tmp/x`,
+  // which silently walks nothing. Callers pass both shapes — `scanRoots()` gives
+  // relative names, tests and any absolute-path caller give resolved ones.
+  const walked = roots
+    .map((root) => (isAbsolute(root) ? root : join(cwd, root)))
+    .filter((abs) => !isSamplesPath(abs, samplesPath));
+  const ignored = new Set(walked.flatMap((abs) => gitIgnoredPaths(abs)));
   let newest: number | null = null;
   const onFile = (full: string, name: string): void => {
-    if (name.startsWith('.') || isSamplesPath(full, samplesPath)) return;
+    if (name.startsWith('.') || ignored.has(full) || isSamplesPath(full, samplesPath)) return;
     let st;
     try {
       st = statSync(full);
@@ -291,7 +311,8 @@ export function newestMtimeInRoots(cwd: string, roots: readonly string[]): numbe
     }
     if (newest === null || st.mtimeMs > newest) newest = st.mtimeMs;
   };
-  const skipDir = (name: string): boolean => name.startsWith('.') || MTIME_SKIP_DIRS.has(name);
+  const skipDir = (name: string, path?: string): boolean =>
+    name.startsWith('.') || MTIME_SKIP_DIRS.has(name) || (path !== undefined && ignored.has(path));
   // Bound link-following, whatever a link points at. The bound is the repo when
   // the root lives inside it — so a legitimate `src/generated -> ../generated`
   // stays visible — and the root itself otherwise: callers (and this module's
@@ -315,17 +336,42 @@ export function newestMtimeInRoots(cwd: string, roots: readonly string[]): numbe
     }
     return rootReal;
   };
-  // An absolute root is used as-is: `join(cwd, '/tmp/x')` yields `<cwd>/tmp/x`,
-  // which silently walks nothing. Callers pass both shapes — `scanRoots()` gives
-  // relative names, tests and any absolute-path caller give resolved ones.
-  for (const root of roots) {
-    const abs = isAbsolute(root) ? root : join(cwd, root);
-    if (isSamplesPath(abs, samplesPath)) continue;
+  for (const abs of walked) {
     // Follow links: a symlinked source file or directory is exactly what went
     // invisible — bounded per root by `boundFor`.
     walkDir(abs, onFile, skipDir, true, boundFor(abs));
   }
   return newest;
+}
+
+/**
+ * Absolute paths under `root` that git reports as ignored, for
+ * {@link newestMtimeInRoots} to skip.
+ *
+ * `--directory` lists a directory whole only when nothing inside it is tracked
+ * or un-ignored; any other directory git descends into and lists its ignored
+ * entries one by one. So pruning at a listed path cannot hide a source file — a
+ * tracked file under an ignore pattern and a new file not yet added both still
+ * count. `-z` keeps unusual names verbatim; git would otherwise C-quote them and
+ * the quoted form never matches a walked path.
+ *
+ * Empty when git cannot answer — not a repository, git absent, the root
+ * missing. That filters nothing, so the walk errs toward false-stale, the
+ * direction the freshness gate already treats as harmless, rather than calling a
+ * graph fresh on evidence it could not collect. The same direction covers a
+ * followed link: git does not descend into symlinks, so an ignored file reached
+ * through `src/generated -> ../generated` still counts.
+ */
+function gitIgnoredPaths(root: string): string[] {
+  const r = defaultRunGit(root)(
+    ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z', '--', '.'],
+    { maxBuffer: 64 * 1024 * 1024 },
+  );
+  if (r.status !== 0) return [];
+  return r.stdout
+    .split('\0')
+    .filter((rel) => rel.length > 0)
+    .map((rel) => join(root, rel.endsWith('/') ? rel.slice(0, -1) : rel));
 }
 
 /**

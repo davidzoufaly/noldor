@@ -437,5 +437,9 @@
   "Q-0249": {
     "slug": "next-priority-ignores-blocked-by",
     "retiredAt": "2026-09-22"
+  },
+  "Q-0240": {
+    "slug": "mtime-graph-freshness-is-poisoned-by-test-artifacts",
+    "retiredAt": "2026-09-22"
   }
 }

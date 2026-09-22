@@ -50,7 +50,7 @@ const STALE_GAP_MESSAGE_PREFIX = 'Co-tag detector ran in degraded mode:';
 
 /**
  * Load the graphify graph at `graphPath` and verify it's fresher than
- * every file under `srcRoots`.
+ * every file git does not ignore under `srcRoots`.
  *
  * @param graphPath - Path to `graphify-out/graph.json`
  * @param srcRoots - Source directories whose mtimes gate freshness
@@ -62,7 +62,10 @@ const STALE_GAP_MESSAGE_PREFIX = 'Co-tag detector ran in degraded mode:';
  * Mtime-based staleness is intentionally cheap; CLAUDE.md's pre-release
  * sweep already forces a fresh `/graphify` regen, so any false-stale
  * (e.g. after `git checkout`) is harmless — it forces a regen, which is
- * the right outcome anyway.
+ * the right outcome anyway. A false-stale that every test run re-creates is
+ * not: build and test output written under a scan root (Playwright's
+ * `test-results/`) undid each regen, so gitignored files are left out — see
+ * `newestMtimeInRoots`.
  */
 export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): LoadGraphResult {
   if (!existsSync(graphPath)) {

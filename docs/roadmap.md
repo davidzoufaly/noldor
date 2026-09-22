@@ -79,18 +79,6 @@ A commit touching `src/**` and `docs/noldor/**` needs a `Noldor-Sibling-Scope: n
 
 The heading slugifier DELETES non-ASCII letters rather than transliterating them, and `remove-block --split-into` cannot detect the resulting mismatch. Splitting Q-0193 (PR #448) a sibling heading containing `Façades` derived the slug `...-faades-...`, not `...-facades-...`. The cost was not the ugly slug — the *guessed* slug had already been passed to `roadmap remove-block --split-into`, which accepts any string and records it verbatim in `.noldor/retired-entry-ids.json`, so the retired-ID map pointed at a slug no entry had. `split-check --entry <guess>` caught it (`no roadmap/backlog entry with slug`) by accident. Two fixes, both cheap: transliterate in the slugifier (`ç → c`, `é → e`) so a heading a human would write round-trips, and have `--split-into` verify each named slug resolves to a block that now exists — it is called immediately after the siblings are written, so the check is free and a typo'd slug is otherwise invisible until a `blocked-by:` ref dangles. Deletion test: a heading with a non-ASCII letter yields a slug containing its ASCII fold, and `--split-into` with an unresolvable slug exits non-zero. (surfaced 2026-09-07 splitting Q-0193)
 
-### mtime Graph-Freshness Is Poisoned by Test Artifacts
-
-- id: Q-0240
-- area: tooling
-- type: fix
-- since: 2026-09-16
-- size: S
-- impact: high
-- confidence: high
-
-Running the test suite silently changes `docs/sdd-report.md`, so a release that runs e2e poisons its own next attempt. The report's `probable owner:` hints come from `requireFreshGraph` → `loadFreshGraphOrWarn`, which judges freshness by **mtime**: `newestMtimeInRoots(cwd, srcRoots) > statSync(graphPath).mtimeMs`, over `consumer.scanPaths` (`apps`, `packages`, `scripts`). Playwright writes its artifacts to `apps/web/test-results/` — inside a scanned root — so one `pnpm test:e2e` leaves ~112 files newer than `graphify-out/graph.json`, the detector drops into degraded mode, every hint vanishes, and the regenerated report no longer matches the committed copy. Charuy hit the full loop: release attempt 2 aborted on e2e, and attempt 3 then aborted on `sdd-report` with nobody having touched a file — attempt 2's own e2e run had staled the graph. `git status` is clean throughout, because the directory is gitignored, so the operator is told a committed doc is wrong with no diff to explain it. The workaround was `touch graphify-out/graph.json`. Wanted: judge freshness by the same git-commit comparison `evaluateGraphFreshness` already uses, or at minimum exclude gitignored paths from `newestMtimeInRoots` — a freshness check that a test run can invalidate is measuring the wrong thing. Deletion test: running the full suite twice in a row leaves `docs/sdd-report.md` byte-identical. (found 2026-09-15 releasing charuy v0.7.0)
-
 ### fill-links-code-gaps Emits Zero Candidates
 
 - id: Q-0173
