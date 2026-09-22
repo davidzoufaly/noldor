@@ -374,7 +374,7 @@ git commit -F "$(git rev-parse --git-dir)/PLAN_MSG"
 - Modify: `src/cr/lanes/render-compare.ts`
 - Test: `src/cr/__tests__/lanes/render-compare.test.ts`
 
-- [ ] **Step 1: Make the lane test's exporter write a bare report.** In `src/cr/__tests__/lanes/render-compare.test.ts`, replace
+- [x] **Step 1: Make the lane test's exporter write a bare report.** In `src/cr/__tests__/lanes/render-compare.test.ts`, replace
 
 ```ts
 const report = (payload: unknown): string =>
@@ -403,7 +403,7 @@ and add this test directly after `'an unparseable exporter report is export-fail
   });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail.**
+- [x] **Step 2: Run the tests to verify they fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/render-compare.test.ts
@@ -411,7 +411,7 @@ pnpm vitest run src/cr/__tests__/lanes/render-compare.test.ts
 
 Expected: FAIL. The old reader wants prose followed by a fenced block, so every report now comes back unparseable and lands on `export-failed`.
 
-- [ ] **Step 3: Move the dispatch module onto the answer seam.** In `src/cr/lanes/render-export-dispatch.ts`:
+- [x] **Step 3: Move the dispatch module onto the answer seam.** In `src/cr/lanes/render-export-dispatch.ts`:
 
 (a) Replace the three imports `parseFencedJson`, `createDispatcherSeam` and `fencedJsonInstruction` with:
 
@@ -489,7 +489,7 @@ const seam = createAnswerSeam<RenderExportInput, RenderExportReport>(buildRender
 });
 ```
 
-- [ ] **Step 4: Move the lane onto the answer.** In `src/cr/lanes/render-compare.ts`:
+- [x] **Step 4: Move the lane onto the answer.** In `src/cr/lanes/render-compare.ts`:
 
 (a) In the import from `./render-export-dispatch.js`, replace `parseRenderExportReport,` with `type RenderExportReport,`, and add below that import:
 
@@ -540,7 +540,7 @@ with
       const report = exportFailure === null && answer?.ok === true ? answer.answer : null;
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass.**
+- [x] **Step 5: Run the tests to verify they pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/render-compare.test.ts && pnpm typecheck
@@ -548,7 +548,7 @@ pnpm vitest run src/cr/__tests__/lanes/render-compare.test.ts && pnpm typecheck
 
 Expected: PASS. Every render-compare test is green, and the unparseable-report test still lands on `export-failed` with `no trustworthy FINAL: page enumeration`. `tsc` prints nothing.
 
-- [ ] **Step 6: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
+- [x] **Step 6: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 fix(cr): read the render-compare exporter's report from its answer file
