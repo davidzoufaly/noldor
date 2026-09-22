@@ -625,3 +625,45 @@ Body.
     expect(milestoneErrors(run(raw, []))).toEqual([]);
   });
 });
+
+describe('blocker-ordered-after-dependent', () => {
+  const entry = (name: string, extra = ''): string => `### ${name}
+
+- area: tooling
+- type: fix
+- since: 2026-09-22
+- size: S
+- impact: high
+${extra}
+Body.
+`;
+  const run = (roadmapRaw: string, strict = false): TriageValidationResult =>
+    validateTriageInputs({ roadmapRaw, backlogRaw: '# Backlog\n', strict, counterExists: false });
+  const orderIssues = (issues: TriageIssue[]): TriageIssue[] =>
+    issues.filter((i) => i.rule === 'blocker-ordered-after-dependent');
+
+  it('advises when a blocker sits below the entry it blocks', () => {
+    const r = run([entry('Entry A', '- blocked-by: entry-b\n'), entry('Entry B')].join('\n'));
+    expect(orderIssues(r.errors)).toEqual([]);
+    expect(orderIssues(r.advisories)).toEqual([
+      expect.objectContaining({ entryName: 'Entry A', file: 'docs/roadmap.md' }),
+    ]);
+  });
+
+  it('resolves the blocker by entry ID', () => {
+    const r = run(
+      [entry('Entry A', '- blocked-by: Q-0002\n'), entry('Entry B', '- id: Q-0002\n')].join('\n'),
+    );
+    expect(orderIssues(r.advisories)).toHaveLength(1);
+  });
+
+  it('is silent when the blocker sits above its dependent', () => {
+    const r = run([entry('Entry B'), entry('Entry A', '- blocked-by: entry-b\n')].join('\n'));
+    expect(orderIssues([...r.errors, ...r.advisories])).toEqual([]);
+  });
+
+  it('promotes to an error under strict', () => {
+    const r = run([entry('Entry A', '- blocked-by: entry-b\n'), entry('Entry B')].join('\n'), true);
+    expect(orderIssues(r.errors)).toHaveLength(1);
+  });
+});

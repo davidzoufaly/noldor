@@ -21,6 +21,7 @@ export interface TriageIssue {
     | 'malformed-entry-id'
     | 'duplicate-entry-id'
     | 'unknown-blocked-by-ref'
+    | 'blocker-ordered-after-dependent'
     | 'malformed-milestone-ref'
     | 'unknown-milestone-ref'
     | 'empty-group-heading';
@@ -149,6 +150,8 @@ export function validateTriageInputs(input: ValidateTriageInputs): TriageValidat
     errors,
     advisories,
   );
+
+  pushBlockerOrderIssues(roadmap, input.strict, errors, advisories);
 
   pushMilestoneIssues(roadmap, backlog, input.milestoneSlugs ?? [], errors);
 
@@ -310,6 +313,45 @@ function pushBlockedByIssues(
   };
   scan(roadmap, 'docs/roadmap.md');
   scan(backlog, 'docs/backlog.md');
+}
+
+/**
+ * Flag a roadmap entry whose `blocked-by` names an entry sitting BELOW it.
+ *
+ * File order is priority, so that ordering asks for the dependent first and its
+ * blocker later — an impossible schedule. `next-priority` already holds the
+ * dependent back (`findBlocked`), but the order itself is still wrong and only
+ * a human can say which of the two should move. Roadmap only: the backlog is an
+ * unordered parking lot. Refs resolve by entry ID or slug; an unresolved ref is
+ * `unknown-blocked-by-ref`'s job. Advisory, promoted to an error under
+ * `--strict`.
+ */
+function pushBlockerOrderIssues(
+  roadmap: BacklogEntry[],
+  strict: boolean,
+  errors: TriageIssue[],
+  advisories: TriageIssue[],
+): void {
+  const position = new Map<string, { index: number; name: string }>();
+  roadmap.forEach((e, index) => {
+    const at = { index, name: e.name };
+    if (e.slug.length > 0) position.set(e.slug, at);
+    if (e.id !== undefined) position.set(e.id, at);
+  });
+  roadmap.forEach((entry, index) => {
+    for (const ref of entry.deps ?? []) {
+      const blocker = position.get(ref);
+      if (blocker === undefined || blocker.index <= index) continue;
+      const issue: TriageIssue = {
+        entryName: entry.name,
+        file: 'docs/roadmap.md',
+        message: `Entry '${entry.name}' is \`blocked-by\` '${ref}' ('${blocker.name}'), which sits below it. File order is priority — move '${blocker.name}' above '${entry.name}', or drop the ref.`,
+        rule: 'blocker-ordered-after-dependent',
+      };
+      if (strict) errors.push(issue);
+      else advisories.push(issue);
+    }
+  });
 }
 
 /**

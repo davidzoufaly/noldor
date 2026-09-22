@@ -85,9 +85,24 @@ describe('roadmapSource', () => {
     }
   });
 
-  it('marks a fast-track entry ineligible when a deps: slug is still in the queue', () => {
+  it('hands out the queued blocker rather than the entry it blocks', () => {
     const dir = tmpRepo(
       blockWithDeps('beta', 'XS', 'alpha', 'depends on alpha') + block('alpha', 'XS', 'base'),
+    );
+    try {
+      const c = roadmapSource(dir).nextItem(new Set());
+      expect(c!.slug).toBe('alpha');
+      expect(c!.eligible).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('marks a fast-track entry ineligible when a deps: slug is still in the queue (cycle)', () => {
+    // Every entry blocked → getSuggestions stops holding back, so the guard here is what fires.
+    const dir = tmpRepo(
+      blockWithDeps('beta', 'XS', 'alpha', 'depends on alpha') +
+        blockWithDeps('alpha', 'XS', 'beta', 'depends on beta'),
     );
     try {
       const c = roadmapSource(dir).nextItem(new Set());

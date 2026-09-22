@@ -543,3 +543,67 @@ describe('getSuggestions milestone declaration', () => {
     expect(withoutField.milestoneAligned?.slug).toBe('elsewhere');
   });
 });
+
+describe('blocked-by hold-back', () => {
+  const entry = (name: string, extra = ''): string => `### ${name}
+
+- area: tooling
+- type: fix
+- since: 2026-09-22
+- size: S
+- impact: high
+${extra}
+Body.
+`;
+  const input = { inProgressFds: [], milestoneGate: '' };
+  // A is blocked-by B, and B sits BELOW A — the reproduced consumer ordering.
+  const blockerBelow = [
+    entry('Entry A', '- id: Q-0001\n- blocked-by: entry-b\n'),
+    entry('Entry C', '- id: Q-0003\n'),
+    entry('Entry B', '- id: Q-0002\n'),
+  ].join('\n');
+
+  it('skips an entry whose blocker is still queued, even when the blocker sits below it', () => {
+    expect(getTopPriorityNext(blockerBelow)?.slug).toBe('entry-c');
+    const s = getSuggestions(blockerBelow, input);
+    expect(s.topPriority.map((e) => e.slug)).toEqual(['entry-c', 'entry-b']);
+    expect(s.blocked).toEqual([{ slug: 'entry-a', blockedBy: ['entry-b'] }]);
+  });
+
+  it('resolves a blocked-by ref written as an entry ID', () => {
+    const raw = [
+      entry('Entry A', '- blocked-by: Q-0002\n'),
+      entry('Entry B', '- id: Q-0002\n'),
+    ].join('\n');
+    expect(getTopPriorityNext(raw)?.slug).toBe('entry-b');
+  });
+
+  it('does not hold back on a ref to something no longer queued (shipped)', () => {
+    const raw = entry('Entry A', '- blocked-by: already-shipped\n');
+    expect(getTopPriorityNext(raw)?.slug).toBe('entry-a');
+    expect(getSuggestions(raw, input).blocked).toEqual([]);
+  });
+
+  it('keeps holding back when the blocker is only skipped, not shipped', () => {
+    const s = getSuggestions(blockerBelow, input, new Set(['entry-b']));
+    expect(s.topPriority.map((e) => e.slug)).toEqual(['entry-c']);
+  });
+
+  it('holds back, and names, an entry whose only blocker is skipped', () => {
+    const raw = [entry('Entry A', '- blocked-by: entry-b\n'), entry('Entry B')].join('\n');
+    const s = getSuggestions(raw, input, new Set(['entry-b']));
+    expect(s.topPriority).toEqual([]);
+    expect(s.blocked).toEqual([{ slug: 'entry-a', blockedBy: ['entry-b'] }]);
+  });
+
+  it('never reports an empty queue when every entry is blocked (a cycle)', () => {
+    const raw = [
+      entry('Entry A', '- blocked-by: entry-b\n'),
+      entry('Entry B', '- blocked-by: entry-a\n'),
+    ].join('\n');
+    expect(getTopPriorityNext(raw)?.slug).toBe('entry-a');
+    const s = getSuggestions(raw, input);
+    expect(s.topPriority.map((e) => e.slug)).toEqual(['entry-a', 'entry-b']);
+    expect(s.blocked).toEqual([]);
+  });
+});
