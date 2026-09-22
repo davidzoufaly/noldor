@@ -1,5 +1,15 @@
 # Release Notes
 
+## v1.11.0 — 2026-09-22
+
+### Tooling
+
+#### Project Tracking Dashboard *(updated)*
+
+The dashboard server now exits when its own install is deleted (#476).
+
+[Feature page](/features/project-tracking-dashboard)
+
 ## v1.10.0 — 2026-09-16
 
 ### Tooling

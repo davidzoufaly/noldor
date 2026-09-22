@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.11.0 — 2026-09-22
+
+### Features
+
+- feat(checks): block a shipped-skill command a consumer cannot run ([7576ab1](https://github.com/davidzoufaly/noldor/commit/7576ab181dda76f67f1a96e87a938a2355022f1d)) ([#478](https://github.com/davidzoufaly/noldor/pull/478))
+
+### Fixes
+
+- fix(release): render a changelog entry's PR reference exactly once ([a4f282f](https://github.com/davidzoufaly/noldor/commit/a4f282f31830353589859103debc6f0677ffe1a0)) ([#483](https://github.com/davidzoufaly/noldor/pull/483))
+- fix(dashboard): make the description clamp opt-in to drag.js ([1bfd883](https://github.com/davidzoufaly/noldor/commit/1bfd88396db43ad640871f853a62cc58349f15b7)) ([#482](https://github.com/davidzoufaly/noldor/pull/482))
+- fix(core): name every PR pr-flow mentions by its URL, not a bare number ([c4be2d7](https://github.com/davidzoufaly/noldor/commit/c4be2d7b84b4ba41359df8e3d447057cd95f04be)) ([#481](https://github.com/davidzoufaly/noldor/pull/481))
+- fix(core): delete a merged PR's remote branch that gh or GitHub left behind ([0792818](https://github.com/davidzoufaly/noldor/commit/079281882259f54d6d62f917fedaf7871674ddd9)) ([#480](https://github.com/davidzoufaly/noldor/pull/480))
+- fix(core): put the consumer config on a lane an operator can land ([00aabcd](https://github.com/davidzoufaly/noldor/commit/00aabcd3d23cd65453dbd62888b4a42d18b1a94e)) ([#477](https://github.com/davidzoufaly/noldor/pull/477))
+- fix(dashboard): exit when the server's own install is deleted ([233c06d](https://github.com/davidzoufaly/noldor/commit/233c06d2b89901fa037e72ba5e30c9e3a3849ac4)) ([#476](https://github.com/davidzoufaly/noldor/pull/476))
+- fix(cr): give an integrity-only capped round a legal exit ([127e02d](https://github.com/davidzoufaly/noldor/commit/127e02d0fd057de4fab23c01799ece0b12d2316b)) ([#475](https://github.com/davidzoufaly/noldor/pull/475))
+- fix(release): give gate-compliance an exempt list and a since floor ([e259e97](https://github.com/davidzoufaly/noldor/commit/e259e97485877ac1929240b3fb39beb24eb2f2d7)) ([#472](https://github.com/davidzoufaly/noldor/pull/472))
+- fix(release): read graph tracked-ness from HEAD + flag missing oxfmt exemption ([8966f05](https://github.com/davidzoufaly/noldor/commit/8966f05f758890bc1aa4a93861d1d2c646c50105)) ([#471](https://github.com/davidzoufaly/noldor/pull/471))
+
+### Other changes
+
+- chore(triage): capture .pen design-lane lessons from the Q-0275 session ([e99b5ea](https://github.com/davidzoufaly/noldor/commit/e99b5eaa29f2e1064caa750856d2c0f2bec03f13)) ([#487](https://github.com/davidzoufaly/noldor/pull/487))
+- chore(release-sweep): pre-empt sdd:report drift ([5a827ac](https://github.com/davidzoufaly/noldor/commit/5a827acfc5fbd626999c0823ec9476584264a475)) ([#486](https://github.com/davidzoufaly/noldor/pull/486))
+- refactor(dashboard): share one queue-view helper between roadmap and backlog ([140ff63](https://github.com/davidzoufaly/noldor/commit/140ff631d5d2af7a67633efd359bb7c45c6d77ef)) ([#485](https://github.com/davidzoufaly/noldor/pull/485))
+- chore(triage): capture new ideas and lessons from the Q-0231/Q-0246 ships ([1e20a5f](https://github.com/davidzoufaly/noldor/commit/1e20a5fdd88559e20cc065824a5ee5cbdb21533a)) ([#484](https://github.com/davidzoufaly/noldor/pull/484))
+- chore(triage): reorder roadmap top entries and capture new ideas and lessons ([b6fcd55](https://github.com/davidzoufaly/noldor/commit/b6fcd55dd63abc34e2941d8a364acc94d9548aa1)) ([#479](https://github.com/davidzoufaly/noldor/pull/479))
+- docs(release-sweep): write every command block against the consumer CLI ([9d96627](https://github.com/davidzoufaly/noldor/commit/9d9662767ed7ffbbf8e78b551ab7c0e65c0c8f1c)) ([#474](https://github.com/davidzoufaly/noldor/pull/474))
+- docs(release-sweep): name the gate-compliance config escapes ([8912e4f](https://github.com/davidzoufaly/noldor/commit/8912e4f99fdfc93983d09b4f2de43624084fbdb2)) ([#473](https://github.com/davidzoufaly/noldor/pull/473))
+- chore(ideas): capture two v1.10.0 release-gate lessons ([a01178a](https://github.com/davidzoufaly/noldor/commit/a01178acb2b31e395832d807af6e75ced2357376)) ([#470](https://github.com/davidzoufaly/noldor/pull/470))
+
 ## v1.10.0 — 2026-09-16
 
 ### Features
