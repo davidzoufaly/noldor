@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-09-16 by `pnpm sdd:report`.
+Generated: 2026-09-22 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
@@ -11,17 +11,17 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 ## Summary
 
 - Total features: 88
-- Untriaged ideas: 0
+- Untriaged ideas: 8
 - Backlog entries: 28
 - Gap categories with issues: 4 / 15
 
 ## Code clones
 
-- 232 clone group(s), 7.89% duplicated tokens across 421 file(s)
-- src/dashboard/views.ts:831-886 and src/dashboard/views.ts:909-1013 (323 tokens)
-- src/dashboard/views.ts:750-759 and src/dashboard/views.ts:1018-1027 (252 tokens)
+- 227 clone group(s), 7.65% duplicated tokens across 425 file(s)
+- src/dashboard/views.ts:750-759 and src/dashboard/views.ts:1015-1024 (252 tokens)
 - src/features/phase-flip-done-cli.ts:12-45 and src/features/phase-revert-cli.ts:12-45 (233 tokens)
-- src/dashboard/views.ts:836-859 and src/dashboard/views.ts:962-985 and src/dashboard/views.ts:1056-1131 (176 tokens)
+- src/cli/manifest.ts:210-265 and src/cli/manifest.ts:342-394 (185 tokens)
+- src/dashboard/views.ts:879-902 and src/dashboard/views.ts:1053-1128 (176 tokens)
 - src/features/validate-features.ts:187-223 and src/features/validate-features.ts:344-380 (171 tokens)
 
 ## Gate compliance
@@ -33,6 +33,8 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Override usage (last 30 days)
 
+- `7576ab1` — verify lane malformed-output (Q-0137 class), not a code defect — reviewer lane approved; the verifier ran the acceptance set against a fake consumer and against real charuy (exit 0, zero non-portable rows) and emitted a pass verdict, but its evidence strings embed fenced code blocks (this change is about fenced blocks), which broke the fence parser in both rounds. Receipt withheld only because orchestrate exits non-zero on any red lane.
+- `00aabcd` — cr-arbitration c3e915b25538 — round cap spent after 4 red rounds; the one standing blocker was correct and is fixed in this commit, arbitrated as accepted with the fix unreviewed
 - `683b356` — cr-arbitration f523dc86756e — reviewer approved and verifier verified; both remaining codex blockers were fixed in this commit, not carried, and the round cap is spent
 - `5377b5d` — cr-arbitration 2613fe542270 — all 5 blockers accepted and fixed in this tree; the sinks predate it and every flagged sentence is grep-absent
 - `4b85199` — cr-arbitration cbda7d58035b — reviewer lane approved and verifier was green every round; both remaining blockers are accepted and already fixed in this tree (win32 test literals skipIf-guarded, second-spelling decision recorded in the FD and Q-0221 as the reviewer proposed); the round cap refuses a further dispatch to confirm it
@@ -48,22 +50,10 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 - `5a1b323` — review-loop-converged-on-prose
 - `58e9539` — micro-chore lane omits `.noldor/config.json`, and the CR-gate exemption this release needs can only live there. Diff is README + ideas + one config entry; zero source files.
 - `57134eb` — micro-chore lane rejects `.noldor/id-counter.json` — `MICRO_CHORE_GLOBS` omits the counter that `triage mint-id` bumps, so the framework bookkeeping this commit carries cannot land through its own lane (precedent: #346, #335). Diff is docs + queue bookkeeping only, zero source files.
-- `c488b25` — code CR arbitrated after 12 rounds — verifier green, all 12 reviewer findings fixed (final one in this commit), codex mandate ran 12x with ~17 findings fixed and its last 3 blockers oscillating against its own round-4 demands; full sink record in .noldor/cr and rationale at each noldor:cut site
-- `51ac63d` — codex-tail-at-cap — reviewer and verifier lanes green on rounds 1+2; codex regenerated finer-grain findings each round (legit subset applied, remainder declined with rationale in session); operator-approved override
-- `fd05534` — eight CR rounds, never green; rounds 5-8 only found defects in prior rounds fixes, past the documented 2-re-round cap. Operator accepted at the cap.
-- `6549d4e` — five code-stage CR rounds; the residual build-lock window is irreducible on POSIX (no conditional unlink) and is declared in code with a noldor:cut plus its upgrade path. The concurrency path is evidenced by a four-builder stress run (one build, three refusals) rather than by reviewer assent. Every other gate is green: 4157 tests under NOLDOR\_RUNTIME unset/dist/source, contract fixture, template-sync, clones, summary-body.
-- `9461457` — CR round ran reviewer + verifier; verifier verdict pass (it stripped and re-added the entry to prove the offender count moves 2 -> 1), reviewer verdict approve with one med design blocker arguing the waiver treats the symptom rather than the allowlist gap. Operator accepted the blocker and filed it to ideas.md rather than widening this release into a gate refactor. No unaddressed correctness finding stands.
-- `46994e9` — roadmap triage on main, no gate session — the entries
-- `985dcb8` — queue-document triage with no gate session — parking two backlog entries touches only docs/backlog.md and the ID counter, the same shape as the preceding triage commit
-- `fd2ce3b` — verify lane hit Q-0137 — reviewer approved, codex found no blocking issue, and the verifier's own payload reports "Verified feature at tip 421f7a6 ... exercised whole promised surface through real CLI", so the red is that lane's known serialization failure rather than a finding. Q-0137 documents this exact case: a green verification must never block a ship on a formatting failure.
-- `5dba1c7` — code CR ran four rounds; every finding was applied. Rounds 1-2 caught real defects (no-sink error paths, a contradictory child payload parsing as a pass, mutate-then-timeout escaping the integrity check). Rounds 3-4 found only defects in the previous round's fixes, each smaller than the last, which is the self-feeding tail the round cap exists to stop. Round 4's remaining blockers are applied in this commit, so the tree carries no known unaddressed finding; the verifier lane returned pass. Operator accepted the red rather than dispatching a fifth round.
-- `2221d4c` — codex code-lane red after 7 non-converging rounds; reviewer+verifier green on full range; operator escalate decision 2026-08-20
-- `0be9ffe` — bookkeeping-only diff — framework runbooks, their templates twins and ideas.md, zero code. Same posture as the preceding triage commit: the verify lane fail-closes on a change with no behaviour to verify (Q-0137), so a code-stage round cannot go green on it.
-- `04c9799` — bookkeeping-only diff — four queue documents and the ID counter, zero code. The verify lane fail-closes on a change with no behaviour to verify (Q-0137, filed in this very commit), so a review round could not go green on it.
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 100
+Gated commits missing `Noldor-Reviewed` trailer: 84
 
 ## Metrics
 
@@ -72,9 +62,9 @@ Gated commits missing `Noldor-Reviewed` trailer: 100
 ```json
 {
   "medianDays": 20.6,
-  "p90Days": 56.5,
+  "p90Days": 52.6,
   "medianByPath": {
-    "unknown": 14.9,
+    "unknown": 18.8,
     "full-new": 20.6,
     "specs-only-new": 25.8
   },
@@ -150,7 +140,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "mandatory-codex-review-round": 1,
       "clones-ratchet-and-clone-group-check-disagree-on-attribution": 2
     },
-    "meanDurationMs": 813426
+    "meanDurationMs": 806504
   }
 }
 ```
@@ -210,7 +200,9 @@ blind spots: Only trailer-carrying overrides count; env-var bypasses (the releas
   "garden-skill-checklist-enumerates-a-fixed-section-list": 38724,
   "clones-ratchet-and-clone-group-check-disagree-on-attribution": 24183,
   "oscillation-detector-r3-fires-on-every-greenfield-finding": 35367,
-  "clones-check-wont-name-the-files-that-moved-the-token-total": 60566
+  "clones-check-wont-name-the-files-that-moved-the-token-total": 60566,
+  "roadmap-entry-show-more-not-rendered": 193163,
+  "duplicate-pr-id-in-the-changelog": null
 }
 ```
 
@@ -219,28 +211,36 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ## Gap details
 
-### Done features missing introduced
+### Untriaged ideas in ideas.md
 
-- `main-module-guard-fails-on-percent-encoded-paths` — Main-Module Guard Fails on Percent-Encoded Paths is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `test-suites-read-live-repo-state-shifting-full-suite-failures` — Test Suites Read Live Repo State — Shifting Full-Suite Failures is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `ideas.md:51` — claude ran 4 rounds of review when there is limit for 2
+- `ideas.md:52` — update cr by CR tool to make it more reliable -> hard to get green check
+- `ideas.md:53` — claude supports agents.md -> bake it into noldor so no claude.md is created when initating the noldor in project + propagate it to Charuy
+- `ideas.md:54` — screen id's to framework -> UI naming in .pen + elements ID -> hiearchy naming -> each button, label, input has ID
+- `ideas.md:55` — agent didn't know capabilities of the milestones features, there might be more blind sposts -> shouldn't we have some short md file -> read always rule so agent has list of noldor features always in context window?
+- `ideas.md:56` — Sort milestones by chronological order instead of by name (`milestones show`, the `/milestones` dashboard page, `buildMilestoneGroupBases`). Needs a date to sort on: milestone frontmatter has none, and git birth date is not enough — in charuy `public-release` was born 2026-05-13 and the other four all on 2026-07-11, so git order puts milestone 2 first and leaves a four-way tie. Cheapest shape: `/noldor-milestone draft` stamps `since: <YYYY-MM-DD>` (the roadmap block field), `show` sorts by it within each status, and a missing `since` falls back to name. See the `after:` bullet in the lessons section above for the explicit-order alternative; `since` is the zero-thought default, `after` is for when the ladder disagrees with the calendar.
+- `ideas.md:57` — zbavit se claude.md anthropic podporuje agents.md
+- `ideas.md:58` — `sortEntries` in `src/dashboard/views.ts` has two red tests on `main` (`dashboard-views.test.ts` > sortEntries > "defaults to name-asc when sort mode is empty" and "falls back to name-asc for unknown sort key"): the expected 4-element order differs from the actual. Pre-existing since at least PR #480; every dashboard-touching branch inherits the red and has to prove it is not theirs. Either the fallback or the fixture is wrong — decide which and fix. (found 2026-09-19 shipping Q-0231)
 
 ### Stale backlog entries (>90 days)
 
-- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 96 days since 2026-06-12
+- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 102 days since 2026-06-12
 
 ### Code files not referenced by any feature
 
-- `src/checks/check-install-freshness.ts` — src/checks/check-install-freshness.ts is not referenced by any feature MD links.code — probable owner: version-aware-upgrade-and-migration-chain, make-noldor-agent-agnostic, noldor
+- `src/checks/check-install-freshness.ts` — src/checks/check-install-freshness.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, noldor
+- `src/checks/check-oxfmt-ignores.ts` — src/checks/check-oxfmt-ignores.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, noldor
 - `src/checks/check-push-gates.ts` — src/checks/check-push-gates.ts is not referenced by any feature MD links.code
-- `src/core/blob-id.ts` — src/core/blob-id.ts is not referenced by any feature MD links.code — probable owner: pendev-ui-design-phase, de-superpowers-vendor-spec-plan-and-worktree-flows
-- `src/core/init-vscode-settings.ts` — src/core/init-vscode-settings.ts is not referenced by any feature MD links.code
-- `src/core/receipt-store.ts` — src/core/receipt-store.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, ui-design-review-lane, acceptance-verify-lane
-- `src/features/attach-milestone-cli.ts` — src/features/attach-milestone-cli.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, unvalidated-slug-path-traversal-across-cli-entry-points
-- `src/features/attach-milestone.ts` — src/features/attach-milestone.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, unvalidated-slug-path-traversal-across-cli-entry-points
-- `src/graphify/enrich-doc-nodes.ts` — src/graphify/enrich-doc-nodes.ts is not referenced by any feature MD links.code — probable owner: pendev-ui-design-phase
-- `src/hooks/noldor-enforce-arbitration.ts` — src/hooks/noldor-enforce-arbitration.ts is not referenced by any feature MD links.code — probable owner: architecture-decision-record-surface, framework-pr-flow-agent-auto-merge, noldor
-- `src/milestones/show-cli.ts` — src/milestones/show-cli.ts is not referenced by any feature MD links.code — probable owner: decouple-milestones-from-semver, outcome-telemetry-and-effectiveness-metrics, framework-milestones-support-poc-mvp-100
-- `src/utils/word-count.ts` — src/utils/word-count.ts is not referenced by any feature MD links.code — probable owner: framework-auto-split-suggestion-for-big-features-and-plans
+- `src/core/blob-id.ts` — src/core/blob-id.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, pendev-ui-design-phase
+- `src/core/config-waiver-guard.ts` — src/core/config-waiver-guard.ts is not referenced by any feature MD links.code
+- `src/core/init-vscode-settings.ts` — src/core/init-vscode-settings.ts is not referenced by any feature MD links.code — probable owner: abstraction-cost-ratchet, state-file-fail-open-hardening
+- `src/core/receipt-store.ts` — src/core/receipt-store.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, pendev-ui-design-phase
+- `src/features/attach-milestone-cli.ts` — src/features/attach-milestone-cli.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, dashboard-roadmap-drag-drop, sdd-detector-5-idea-merge-semantic-similarity
+- `src/features/attach-milestone.ts` — src/features/attach-milestone.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, dashboard-roadmap-drag-drop, sdd-detector-5-idea-merge-semantic-similarity
+- `src/graphify/enrich-doc-nodes.ts` — src/graphify/enrich-doc-nodes.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, ui-design-review-lane
+- `src/hooks/noldor-enforce-arbitration.ts` — src/hooks/noldor-enforce-arbitration.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane
+- `src/milestones/show-cli.ts` — src/milestones/show-cli.ts is not referenced by any feature MD links.code — probable owner: decouple-milestones-from-semver, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/utils/word-count.ts` — src/utils/word-count.ts is not referenced by any feature MD links.code — probable owner: framework-auto-split-suggestion-for-big-features-and-plans, noldor
 
 ### Tests with incomplete co-tag
 
@@ -372,6 +372,7 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/dashboard/__tests__/route-sweep.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, consumer-architecture-doc-surface, dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard
 - `src/dashboard/__tests__/dashboard-status.test.ts` — imports files owned by FDs missing from @tests: tag — add: outcome-telemetry-and-effectiveness-metrics
 - `src/dashboard/__tests__/dashboard-layout-style-polish.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
+- `src/dashboard/__tests__/dashboard-stale-install.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, dashboard-broken-pages-audit, dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics
 - `src/dashboard/__tests__/dashboard-views.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, dashboard-blocked-by-graph-view
 - `src/dashboard/__tests__/dashboard-worktrees.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, dashboard-blocked-by-graph-view, dashboard-broken-pages-audit
 - `src/dashboard/__tests__/host.test.ts` — imports files owned by FDs missing from @tests: tag — add: outcome-telemetry-and-effectiveness-metrics
