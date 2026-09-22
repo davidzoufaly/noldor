@@ -1,15 +1,15 @@
-// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, rules-cascade-v1
-import { readFileSync } from 'node:fs';
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, rules-cascade-v1, cr-lane-verdicts-blocked-by-serialization-not-substance
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
-
-vi.mock('../../../core/agent-runner/registry.js', () => ({
-  spawnAgent: vi.fn(async () => ({ stdout: 'reviewed', exitCode: 0, timedOut: false })),
-}));
-
-import { buildPrompt, CUT_MARKER_TOKEN, dispatchSubagent } from '../../lanes/subagent-dispatch.js';
+import { afterEach, describe, expect, it } from 'vitest';
+import type { AgentResult, SpawnAgentOpts } from '../../../core/agent-runner/types.js';
 import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../../core/config.js';
 import { ALL_DIMENSIONS, DEFAULT_REVIEW_PROFILES } from '../../../core/review-profile.js';
+import type { Slug } from '../../../core/slug.js';
+import { BLOCKING_DEFINITION } from '../../blocking-definition.js';
+import { setLaneSpawn } from '../../lane-spawn.js';
+import { buildPrompt, CUT_MARKER_TOKEN, dispatchSubagent } from '../../lanes/subagent-dispatch.js';
 
 const base = {
   artifact: 'x.ts',
@@ -125,32 +125,37 @@ describe('buildPrompt review profile', () => {
     }
   });
 
-  it('keeps the unchanged output contract and defaults to the default profile', () => {
+  it('asks for the JSON answer with a blocking flag, under the shared definition', () => {
     const p = buildPrompt(base);
-    expect(p).toContain('Strengths: <one-line summary');
-    expect(p).toContain('Issues:');
-    expect(p).toContain('Assessment: <one-line verdict');
+    expect(p).toContain(BLOCKING_DEFINITION);
+    expect(p).toContain('"blocking" (true | false');
+    expect(p).toContain('a "minor" finding never blocks');
+    expect(p).toContain('never write a placeholder finding such as "(none)"');
+    expect(p).toContain('Approve only when no finding blocks.');
   });
 
-  it('instructs the reviewer to classify blockers [mechanical] / [design]', () => {
+  it('files a claim it could not verify as unverified, never as a blocker', () => {
+    expect(buildPrompt(base)).toContain('an unverified finding never blocks');
+  });
+
+  it('instructs the reviewer to classify blocking findings mechanical / design', () => {
     const p = buildPrompt(base);
-    expect(p).toContain('[mechanical]');
-    expect(p).toContain('[design]');
+    expect(p).toContain('"mechanical"');
+    expect(p).toContain('"design"');
     // Both definitions must be present, or the reviewer is guessing at the axis.
     expect(p).toContain('the fix is determined by the finding itself');
     expect(p).toContain('requires a judgment call you are NOT making for them');
-    // The tie-break must point at the safe side: an untagged/design blocker goes
-    // to a human, which is what `cr autofix`'s fail-safe read relies on.
-    expect(p).toContain('When in doubt, tag `[design]`');
-    // Tag by what the fix needs, not by severity — the two axes are orthogonal.
-    expect(p).toContain('Tag by what the FIX needs, not by how severe');
-    expect(p).toContain('- [mechanical|design] <bullet>');
+    // The tie-break points at the safe side: a design-classed blocker goes to a human,
+    // which is what `cr autofix`'s fail-safe read relies on.
+    expect(p).toContain('When in doubt, use "design"');
+    // Classify by what the fix needs, not by severity — the two axes are orthogonal.
+    expect(p).toContain('Classify by what the FIX needs, not by how severe');
   });
 
   it('carries the classification instruction under every profile', () => {
     for (const name of Object.keys(DEFAULT_REVIEW_PROFILES)) {
       const p = buildPrompt({ ...base, reviewProfile: DEFAULT_REVIEW_PROFILES[name]! });
-      expect(p, `profile ${name}`).toContain('[mechanical]');
+      expect(p, `profile ${name}`).toContain('"mechanical"');
     }
   });
 });
@@ -240,28 +245,40 @@ describe('buildPrompt prior review section', () => {
   });
 });
 
-describe('default dispatcher timeout', () => {
-  const spawnCalls = async (): Promise<ReturnType<typeof vi.fn>> => {
-    const { spawnAgent } = await import('../../../core/agent-runner/registry.js');
-    return spawnAgent as unknown as ReturnType<typeof vi.fn>;
+describe('default dispatcher', () => {
+  const at = (): { repoRoot: string; slug: Slug; kind: 'code' } => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'noldor-subagent-dispatch-'));
+    mkdirSync(join(repoRoot, '.noldor'), { recursive: true });
+    writeFileSync(join(repoRoot, '.noldor', 'config.json'), '{}');
+    return { repoRoot, slug: 'feat-x' as Slug, kind: 'code' };
   };
+  const calls: SpawnAgentOpts[] = [];
+  const clean = (): void =>
+    setLaneSpawn(async (prompt, opts): Promise<AgentResult> => {
+      calls.push(opts);
+      const path = /write your answer to the file `([^`]+)`/.exec(prompt)?.[1];
+      if (path) writeFileSync(path, '{"assessment":"approve","strengths":"s","findings":[]}');
+      return { exitCode: 0, stdout: '', stderr: '', stderrBytes: 0, timedOut: false };
+    });
+  afterEach(() => {
+    calls.length = 0;
+    setLaneSpawn(undefined);
+  });
 
   it('applies DEFAULT_DISPATCH_TIMEOUT_MS when the caller omits timeoutMs', async () => {
-    const spawnAgent = await spawnCalls();
-    spawnAgent.mockClear();
-    await dispatchSubagent(base);
-    expect(spawnAgent.mock.calls[0][1].timeoutMs).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
+    clean();
+    await dispatchSubagent(base, at());
+    expect(calls[0]!.timeoutMs).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
   });
 
   it('honors an explicit timeoutMs from the lane', async () => {
-    const spawnAgent = await spawnCalls();
-    spawnAgent.mockClear();
-    await dispatchSubagent({ ...base, timeoutMs: 42_000 });
-    expect(spawnAgent.mock.calls[0][1].timeoutMs).toBe(42_000);
+    clean();
+    await dispatchSubagent({ ...base, timeoutMs: 42_000 }, at());
+    expect(calls[0]!.timeoutMs).toBe(42_000);
   });
 });
 
-it('asks every Critical and Important bullet to name a file and line', () => {
+it('asks every critical and important finding to name a file and line', () => {
   const prompt = buildPrompt({
     artifact: 'a.md',
     fdSummary: 'summary',

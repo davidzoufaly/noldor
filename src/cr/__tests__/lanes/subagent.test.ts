@@ -1,7 +1,7 @@
-// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, cr-lane-verdicts-blocked-by-serialization-not-substance
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../read-fd-summary.js', () => ({
@@ -13,7 +13,12 @@ vi.mock('../../../core/branch-added.js', () => ({
 import { discoverChangedFiles } from '../../../core/branch-added.js';
 
 import { setDispatcher } from '../../lanes/subagent-dispatch.js';
-import { mkFindingFor, resolveChangedFiles, runSubagent } from '../../lanes/subagent.js';
+import {
+  normalizeFinding,
+  resolveChangedFiles,
+  runSubagent,
+  toSinkFinding,
+} from '../../lanes/subagent.js';
 import { readFdSummary } from '../../read-fd-summary.js';
 import type { LaneInput } from '../../lane-types.js';
 
@@ -22,7 +27,13 @@ beforeEach(() => {
   setDispatcher(dispatchSubagent);
 });
 
-const FIX = resolve(__dirname, '..', 'fixtures');
+/** What the reviewer child writes to its answer file. */
+const answer = (findings: unknown[] = [], assessment = 'approve — clear summary'): string =>
+  JSON.stringify({ assessment, strengths: 'clear summary', findings });
+const CLEAN = answer();
+
+const sinkOf = async (r: { sinkPath: string }): Promise<Record<string, any>> =>
+  JSON.parse(await readFile(r.sinkPath, 'utf8')) as Record<string, any>;
 
 let root: string;
 beforeEach(async () => {
@@ -45,36 +56,34 @@ const input = (): LaneInput => ({
 });
 
 describe('runSubagent', () => {
-  it('clean markdown → approve summary, empty blockers', async () => {
-    dispatchSubagent.mockResolvedValueOnce(
-      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
-    );
+  it('clean answer → approve summary, empty blockers, the assessment kept in notes', async () => {
+    dispatchSubagent.mockResolvedValueOnce(CLEAN);
     const r = await runSubagent(input());
     expect(r.ok).toBe(true);
-    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
+    const j = await sinkOf(r);
     expect(j.summary).toBe('approve');
-    expect(j.notes?.[0]).toMatch(/clear summary/);
+    expect(j.blockers).toEqual([]);
+    expect(j.notes).toEqual(
+      expect.arrayContaining(['Assessment: approve — clear summary', 'Strengths: clear summary']),
+    );
   });
-  it('issues markdown → maps Critical→blocker.high, Important→blocker.med, Minor→suggestion.low', async () => {
+
+  it('maps severity × blocking into blockers and suggestions', async () => {
     dispatchSubagent.mockResolvedValueOnce(
-      await readFile(join(FIX, 'subagent-markdown-issues.md'), 'utf8'),
+      answer(
+        [
+          { severity: 'critical', blocking: true, class: 'mechanical', message: 'missing section' },
+          { severity: 'important', blocking: true, class: 'design', message: 'wrong default' },
+          { severity: 'important', blocking: false, message: 'cleanup worth doing' },
+          { severity: 'minor', blocking: false, message: 'typo' },
+        ],
+        'blockers found',
+      ),
     );
     const r = await runSubagent(input());
     expect(r.ok).toBe(false);
-    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
-    expect(j.blockers.map((b: { severity: string }) => b.severity).toSorted()).toEqual([
-      'high',
-      'med',
-    ]);
-    expect(j.suggestions).toHaveLength(1);
-    expect(j.suggestions[0].severity).toBe('low');
-  });
-  it('lifts [mechanical] / [design] bullet tags into Finding.class and strips them', async () => {
-    dispatchSubagent.mockResolvedValueOnce(
-      `Strengths: fine\n\nIssues:\n  Critical:\n    - [mechanical] missing section\n  Important:\n    - [design] wrong default\n  Minor:\n\nAssessment: needs changes\n`,
-    );
-    const r = await runSubagent(input());
-    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
+    const j = await sinkOf(r);
+    expect(j.summary).toBe('blockers found (2)');
     expect(j.blockers).toEqual([
       expect.objectContaining({
         severity: 'high',
@@ -83,43 +92,72 @@ describe('runSubagent', () => {
       }),
       expect.objectContaining({ severity: 'med', class: 'design', message: 'wrong default' }),
     ]);
+    expect(j.suggestions.map((s: { severity: string }) => s.severity)).toEqual(['med', 'low']);
   });
-  it('leaves an untagged bullet with NO class key, so autofix reads it as design', async () => {
+
+  it('approves over non-blocking Important findings, keeping them as suggestions', async () => {
     dispatchSubagent.mockResolvedValueOnce(
-      `Strengths: fine\n\nIssues:\n  Critical:\n    - unclassified finding\n  Important:\n  Minor:\n\nAssessment: needs changes\n`,
+      answer([
+        { severity: 'important', blocking: false, message: 'the two Important items are cleanup' },
+      ]),
     );
     const r = await runSubagent(input());
-    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
+    expect(r.ok).toBe(true);
+    const j = await sinkOf(r);
+    expect(j.summary).toBe('approve');
+    expect(j.suggestions).toHaveLength(1);
+  });
+
+  it('never lets a minor, maybe: or unverified: finding block, whatever its flag says', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      answer([
+        { severity: 'minor', blocking: true, message: 'nit' },
+        { severity: 'critical', blocking: true, message: 'maybe: a race in the retry loop' },
+        { severity: 'important', blocking: true, message: 'Unverified: pnpm typecheck may fail' },
+      ]),
+    );
+    const r = await runSubagent(input());
+    expect(r.ok).toBe(true);
+    expect((await sinkOf(r)).suggestions).toHaveLength(3);
+  });
+
+  it('drops placeholder findings, so (none) can never block (Q-0246 replay)', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      answer([
+        { severity: 'critical', blocking: true, message: '(none)' },
+        { severity: 'important', blocking: true, message: '- None.' },
+      ]),
+    );
+    const r = await runSubagent(input());
+    expect(r.ok).toBe(true);
+    const j = await sinkOf(r);
+    expect(j.blockers).toEqual([]);
+    expect(j.summary).toBe('approve');
+  });
+
+  it('a blocking finding without a class carries no class key, so autofix reads it as design', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      answer([{ severity: 'critical', blocking: true, message: 'unclassified finding' }]),
+    );
+    const j = await sinkOf(await runSubagent(input()));
     expect(j.blockers).toHaveLength(1);
-    expect(j.blockers[0].message).toBe('unclassified finding');
     expect('class' in j.blockers[0]).toBe(false);
   });
-  it('malformed markdown → synthetic blocker', async () => {
-    dispatchSubagent.mockResolvedValueOnce(
-      await readFile(join(FIX, 'subagent-markdown-malformed.md'), 'utf8'),
+
+  it('an unreadable answer, even after the repair round, → synthetic blocker', async () => {
+    dispatchSubagent.mockResolvedValue(
+      'Strengths: fine\n\nIssues:\n  Critical:\n    - (none)\n\nAssessment: approve',
     );
     const r = await runSubagent(input());
     expect(r.ok).toBe(false);
-    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
-    expect(j.blockers[0].message).toMatch(/malformed/i);
+    expect(dispatchSubagent).toHaveBeenCalledTimes(2);
+    expect((await sinkOf(r)).blockers[0].message).toMatch(/no trustworthy answer/);
   });
-  it('tolerates bolded + h3-decorated headings (real subagent output)', async () => {
-    dispatchSubagent.mockResolvedValueOnce(
-      await readFile(join(FIX, 'subagent-markdown-bolded.md'), 'utf8'),
-    );
-    const r = await runSubagent(input());
-    expect(r.ok).toBe(false);
-    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
-    expect(j.blockers).toHaveLength(1);
-    expect(j.blockers[0].severity).toBe('high');
-    expect(j.summary).toBe('blockers found');
-  });
+
   it('missing FD (ENOENT) → reviews with fallback summary instead of erroring', async () => {
     const enoent = Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' });
     vi.mocked(readFdSummary).mockRejectedValueOnce(enoent);
-    dispatchSubagent.mockResolvedValueOnce(
-      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
-    );
+    dispatchSubagent.mockResolvedValueOnce(CLEAN);
     const r = await runSubagent(input());
     expect(r.ok).toBe(true);
     expect(dispatchSubagent).toHaveBeenCalledWith(
@@ -137,21 +175,17 @@ describe('runSubagent', () => {
     expect(j.summary).toBe('subagent error');
   });
   it('forwards LaneInput.dispatchTimeoutMs to the dispatcher as timeoutMs', async () => {
-    dispatchSubagent.mockResolvedValueOnce(
-      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
-    );
+    dispatchSubagent.mockResolvedValueOnce(CLEAN);
     await runSubagent({ ...input(), dispatchTimeoutMs: 777_000 });
     expect(dispatchSubagent).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 777_000 }));
   });
   it('omits timeoutMs when the lane input carries none, leaving the dispatch default', async () => {
-    dispatchSubagent.mockResolvedValueOnce(
-      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
-    );
+    dispatchSubagent.mockResolvedValueOnce(CLEAN);
     await runSubagent(input());
     expect(Object.keys(dispatchSubagent.mock.calls[0][0])).not.toContain('timeoutMs');
   });
   it('forwards priorReview to the dispatcher and omits the key when absent', async () => {
-    const clean = await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8');
+    const clean = CLEAN;
     dispatchSubagent.mockResolvedValueOnce(clean);
     const prior = {
       mode: 'fixes-in-diff' as const,
@@ -165,18 +199,14 @@ describe('runSubagent', () => {
     expect(Object.keys(dispatchSubagent.mock.calls[1][0])).not.toContain('priorReview');
   });
   it('fullReview → prompt range collapses to equal shas (whole-artifact branch)', async () => {
-    dispatchSubagent.mockResolvedValueOnce(
-      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
-    );
+    dispatchSubagent.mockResolvedValueOnce(CLEAN);
     await runSubagent({ ...input(), fullReview: true });
     expect(dispatchSubagent).toHaveBeenCalledWith(
       expect.objectContaining({ baseSha: 'aaa', headSha: 'aaa' }),
     );
   });
   it('fullReview keeps the rules-resolution base at the real change set', async () => {
-    dispatchSubagent.mockResolvedValueOnce(
-      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
-    );
+    dispatchSubagent.mockResolvedValueOnce(CLEAN);
     // kind 'code' is what routes through resolveBindingRules.
     await runSubagent({ ...input(), kind: 'code', fullReview: true });
     expect(vi.mocked(discoverChangedFiles)).toHaveBeenCalledWith(
@@ -184,9 +214,7 @@ describe('runSubagent', () => {
     );
   });
   it("neither baseSha nor fullReview → today's HEAD~1 fallback range, unchanged", async () => {
-    dispatchSubagent.mockResolvedValueOnce(
-      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
-    );
+    dispatchSubagent.mockResolvedValueOnce(CLEAN);
     const { baseSha: _drop, ...noBase } = input();
     await runSubagent(noBase as LaneInput);
     expect(dispatchSubagent).toHaveBeenCalledWith(
@@ -214,23 +242,41 @@ describe('resolveChangedFiles', () => {
   });
 });
 
-describe('mkFinding locations', () => {
+describe('toSinkFinding / normalizeFinding', () => {
   const changed = ['src/cr/orchestrate.ts'];
+  const toSink = toSinkFinding('a.md', changed);
 
   it('attaches a resolved location and leaves the message intact', () => {
-    const f = mkFindingFor('high', 'a.md', changed)('[design] `orchestrate.ts:475` returns early');
-    expect(f.locations).toEqual([{ file: 'src/cr/orchestrate.ts', line: 475 }]);
-    expect(f.message).toBe('`orchestrate.ts:475` returns early');
-    expect(f.class).toBe('design');
+    const f = toSink({
+      severity: 'critical',
+      blocking: true,
+      class: 'design',
+      message: '`orchestrate.ts:475` returns early',
+    });
+    expect(f).toMatchObject({
+      severity: 'high',
+      class: 'design',
+      message: '`orchestrate.ts:475` returns early',
+      locations: [{ file: 'src/cr/orchestrate.ts', line: 475 }],
+    });
   });
 
-  it('omits the key when the bullet names no location', () => {
-    const f = mkFindingFor('med', 'a.md', changed)('this is simply wrong');
-    expect(f).not.toHaveProperty('locations');
+  it('lifts a leftover [mechanical] message prefix into class when the field is absent', () => {
+    expect(
+      normalizeFinding({
+        severity: 'important',
+        blocking: true,
+        message: '[mechanical] missing section',
+      }),
+    ).toMatchObject({ class: 'mechanical', message: 'missing section' });
   });
 
-  it('omits the key when nothing resolves', () => {
-    const f = mkFindingFor('med', 'a.md', changed)('`src/core/session.ts:10` is wrong');
-    expect(f).not.toHaveProperty('locations');
+  it('omits locations when the message names none, or none resolves', () => {
+    expect(
+      toSink({ severity: 'minor', blocking: false, message: 'this is simply wrong' }),
+    ).not.toHaveProperty('locations');
+    expect(
+      toSink({ severity: 'minor', blocking: false, message: '`src/core/session.ts:10` is wrong' }),
+    ).not.toHaveProperty('locations');
   });
 });

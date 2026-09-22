@@ -198,7 +198,7 @@ git commit -F "$(git rev-parse --git-dir)/PLAN_MSG"
 - Delete: `src/cr/__tests__/fixtures/subagent-markdown-clean.md`, `src/cr/__tests__/fixtures/subagent-markdown-issues.md`, `src/cr/__tests__/fixtures/subagent-markdown-bolded.md`, `src/cr/__tests__/fixtures/subagent-markdown-malformed.md`
 - Test: `src/cr/__tests__/lanes/subagent-dispatch.test.ts`, `src/cr/__tests__/lanes/subagent.test.ts`
 
-- [ ] **Step 1: Update the prompt tests.** In `src/cr/__tests__/lanes/subagent-dispatch.test.ts`:
+- [x] **Step 1: Update the prompt tests.** In `src/cr/__tests__/lanes/subagent-dispatch.test.ts`:
 
 (a) Replace everything above `const base = {` with:
 
@@ -293,7 +293,7 @@ describe('default dispatcher', () => {
 
 (f) Rename the last test `'asks every Critical and Important bullet to name a file and line'` to `'asks every critical and important finding to name a file and line'`. Its two assertions stay as they are.
 
-- [ ] **Step 2: Rewrite the lane tests.** Delete the four markdown fixtures:
+- [x] **Step 2: Rewrite the lane tests.** Delete the four markdown fixtures:
 
 ```bash
 git rm src/cr/__tests__/fixtures/subagent-markdown-clean.md src/cr/__tests__/fixtures/subagent-markdown-issues.md src/cr/__tests__/fixtures/subagent-markdown-bolded.md src/cr/__tests__/fixtures/subagent-markdown-malformed.md
@@ -461,7 +461,7 @@ describe('toSinkFinding / normalizeFinding', () => {
 });
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail.**
+- [x] **Step 3: Run the tests to verify they fail.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/subagent-dispatch.test.ts src/cr/__tests__/lanes/subagent.test.ts
@@ -469,7 +469,7 @@ pnpm vitest run src/cr/__tests__/lanes/subagent-dispatch.test.ts src/cr/__tests_
 
 Expected: FAIL. The prompt still asks for markdown buckets, `normalizeFinding` and `toSinkFinding` are not exported, and every JSON answer lands on `subagent returned malformed markdown`.
 
-- [ ] **Step 4: Move the reviewer prompt onto the answer seam.** In `src/cr/lanes/subagent-dispatch.ts`:
+- [x] **Step 4: Move the reviewer prompt onto the answer seam.** In `src/cr/lanes/subagent-dispatch.ts`:
 
 (a) Replace the two imports `spawnAgent` (from `../../core/agent-runner/registry.js`) and `DEFAULT_DISPATCH_TIMEOUT_MS` (from `../../core/config.js`) with:
 
@@ -577,7 +577,7 @@ export const setDispatcher = seam.setDispatcher;
 export const dispatchSubagent = seam.dispatch;
 ```
 
-- [ ] **Step 5: Read the answer in the lane.** In `src/cr/lanes/subagent.ts`:
+- [x] **Step 5: Read the answer in the lane.** In `src/cr/lanes/subagent.ts`:
 
 (a) Replace `import { dispatchSubagent } from './subagent-dispatch.js';` with:
 
@@ -745,7 +745,7 @@ export const toSinkFinding =
 }
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass.**
+- [x] **Step 6: Run the tests to verify they pass.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/lanes/subagent-dispatch.test.ts src/cr/__tests__/lanes/subagent.test.ts src/cr/__tests__/orchestrate.test.ts src/cr/__tests__/autofix.test.ts && pnpm typecheck
@@ -753,7 +753,7 @@ pnpm vitest run src/cr/__tests__/lanes/subagent-dispatch.test.ts src/cr/__tests_
 
 Expected: PASS (every reviewer, orchestrate and autofix test green), and `tsc` prints nothing.
 
-- [ ] **Step 7: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
+- [x] **Step 7: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 fix(cr): let a reviewer finding block only when the reviewer says it does
