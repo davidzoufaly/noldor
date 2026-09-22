@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### next-priority Ignores blocked-by
-
-- id: Q-0249
-- area: tooling
-- type: fix
-- since: 2026-09-22
-- size: S
-- impact: high
-- confidence: high
-
-`pnpm noldor next-priority` never reads `blocked-by`, and nothing detects a blocker ordered *below* the entry it blocks. Reproduced in a consumer: an entry carried `- blocked-by: <other>`, that blocker sat one position lower in `docs/roadmap.md`, `next-priority` answered a third entry entirely, and `pnpm noldor validate triage` reported `0 advisories`. Since file order is priority and `next-priority` is what `/noldor-gate` Step 0 picks up, the gate hands an agent an entry whose first act is impossible — in the observed case, deleting the product's only API-key entry point before its replacement existed. The dependency was expressed correctly; only the *order* was wrong, and nothing in the framework can see that. Two candidate fixes, not mutually exclusive: (a) `next-priority` skips, or at minimum warns on, an entry whose `blocked-by` resolves to an unshipped entry; (b) a `validate:triage` detector for "blocker appears later in file order than its dependent" — cheap, because `parseRoadmap` already holds both the order and the refs, and `/noldor-garden`'s `circular-blocked-by` already walks that graph. Deletion test: a roadmap where A is `blocked-by` B and B sits below A produces either a `next-priority` skip/warning or a `validate:triage` advisory. (found 2026-09-22)
-
 ### CR Lane Verdicts Blocked by Serialization, Not Substance
 
 - id: Q-0250

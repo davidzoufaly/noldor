@@ -433,5 +433,9 @@
   "Q-0248": {
     "slug": "sortentries-fallback-tests-red-on-main",
     "retiredAt": "2026-09-22"
+  },
+  "Q-0249": {
+    "slug": "next-priority-ignores-blocked-by",
+    "retiredAt": "2026-09-22"
   }
 }
