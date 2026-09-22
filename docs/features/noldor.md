@@ -132,6 +132,7 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
+
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
@@ -299,9 +300,11 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/triage/has-block-cli.ts`](../../src/triage/has-block-cli.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-install-freshness.test.ts`](../../src/checks/__tests__/check-install-freshness.test.ts)
+  - [`src/checks/__tests__/check-oxfmt-ignores.test.ts`](../../src/checks/__tests__/check-oxfmt-ignores.test.ts)
   - [`src/cli/__tests__/command-registry.test.ts`](../../src/cli/__tests__/command-registry.test.ts)
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)
   - [`src/core/__tests__/commit-wrapper.test.ts`](../../src/core/__tests__/commit-wrapper.test.ts)
+  - [`src/core/__tests__/config-waiver-guard.test.ts`](../../src/core/__tests__/config-waiver-guard.test.ts)
   - [`src/core/__tests__/fmt-guard.test.ts`](../../src/core/__tests__/fmt-guard.test.ts)
   - [`src/core/__tests__/init-gitignore.test.ts`](../../src/core/__tests__/init-gitignore.test.ts)
   - [`src/core/__tests__/lint-plan-snippets.test.ts`](../../src/core/__tests__/lint-plan-snippets.test.ts)
