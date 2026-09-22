@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### sortEntries Fallback Tests Red on main
-
-- id: Q-0248
-- area: testing
-- type: fix
-- since: 2026-09-22
-- size: XS
-- impact: high
-- confidence: high
-
-`sortEntries` in `src/dashboard/views.ts` has two deterministically red tests on `main` — `dashboard-views.test.ts` > sortEntries > "defaults to name-asc when sort mode is empty" and "falls back to name-asc for unknown sort key" — where the expected 4-element order differs from the actual. Pre-existing since at least PR #480, so every dashboard-touching branch inherits the red and has to prove it is not theirs, which is a tax on unrelated work and a standing invitation to wave a real regression through. Distinct from Q-0238, which is about *unreproducible* full-suite flake; this one reproduces every run and has a known location. Either the fallback or the fixture is wrong — decide which, fix it, and leave the other as the documented contract. Deletion test: `pnpm test src/dashboard/__tests__/dashboard-views.test.ts` is green on a clean `main` checkout. (found 2026-09-19 shipping Q-0231)
-
 ### next-priority Ignores blocked-by
 
 - id: Q-0249
