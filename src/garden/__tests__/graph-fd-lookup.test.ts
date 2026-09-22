@@ -1,8 +1,9 @@
 // @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100, noldor, outcome-telemetry-and-effectiveness-metrics, release-script-sddreport-skip-if-only-count-line-changed, sdd-co-tag-detector
 
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -234,6 +235,52 @@ describe(loadFreshGraphOrWarn, () => {
         expect(result.ok).toBe(true);
       } finally {
         process.chdir(previousCwd);
+      }
+    });
+  });
+
+  // Q-0240: an e2e run writes its artifacts under a scan root. The gitignored
+  // output alone demoted the graph, every probable-owner hint in the SDD report
+  // vanished, and the regenerated report stopped matching its committed copy
+  // with no diff anywhere to explain why.
+  function e2eRepo(dir: string): { appsRoot: string; graphPath: string; source: string } {
+    const appsRoot = join(dir, 'apps');
+    const source = join(appsRoot, 'web', 'src', 'app.ts');
+    mkdirSync(dirname(source), { recursive: true });
+    writeFileSync(source, 'x');
+    writeFileSync(join(dir, '.gitignore'), 'test-results/\n');
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    git('init', '-q');
+    git('add', '-A');
+    git('-c', 'user.email=t@example.com', '-c', 'user.name=T', 'commit', '-qm', 'base');
+    const past = new Date(Date.now() - 60_000);
+    utimesSync(source, past, past);
+    const graphPath = join(dir, 'graph.json');
+    writeFileSync(graphPath, JSON.stringify({ nodes: [], links: [] }));
+    return { appsRoot, graphPath, source };
+  }
+
+  it('stays fresh when only a gitignored test artifact is newer than the graph', () => {
+    withTmp((dir) => {
+      const { appsRoot, graphPath } = e2eRepo(dir);
+      const artifact = join(appsRoot, 'web', 'test-results', 'a11y-bar-retry1', 'trace.zip');
+      mkdirSync(dirname(artifact), { recursive: true });
+      writeFileSync(artifact, 'x');
+      const future = new Date(Date.now() + 60_000);
+      utimesSync(artifact, future, future);
+      expect(loadFreshGraphOrWarn(graphPath, [appsRoot]).ok).toBe(true);
+    });
+  });
+
+  it('still goes stale when a tracked source is newer than the graph', () => {
+    withTmp((dir) => {
+      const { appsRoot, graphPath, source } = e2eRepo(dir);
+      const future = new Date(Date.now() + 60_000);
+      utimesSync(source, future, future);
+      const result = loadFreshGraphOrWarn(graphPath, [appsRoot]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(isStaleGraphGap(result.gap)).toBe(true);
       }
     });
   });

@@ -2,9 +2,10 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import {
   DEFAULT_SCAN_ROOTS,
@@ -344,5 +345,126 @@ describe('walkDir symlink policy', () => {
       rmSync(dir, { recursive: true, force: true });
       rmSync(outside, { recursive: true, force: true });
     }
+  });
+});
+
+// Q-0240: build and test tools write under scan roots too, and a Playwright run
+// staled the graph with nothing but gitignored output. Dropping ignored files is
+// the data-losing direction — over-dropping lets a stale graph read fresh — so
+// the cases that must still count sit in their own table.
+describe('newestMtimeInRoots over gitignored files', () => {
+  /** Ten minutes ahead, so a file carrying it is unmistakably the newest. */
+  const FUTURE = Date.now() + 600_000;
+
+  function git(cwd: string, ...args: string[]): void {
+    execFileSync('git', args, { cwd, encoding: 'utf8' });
+  }
+
+  /** A real git repo scanning `src`, `src/a.ts` committed under `gitignore`. */
+  function gitRepo(gitignore: string): { dir: string; [Symbol.dispose](): void } {
+    const dir = makeTmpRepo(['src']);
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n');
+    writeFileSync(join(dir, '.gitignore'), gitignore);
+    git(dir, 'init', '-q');
+    git(dir, 'config', 'user.email', 't@example.com');
+    git(dir, 'config', 'user.name', 'T');
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-qm', 'base');
+    return { dir, [Symbol.dispose]: () => rmSync(dir, { recursive: true, force: true }) };
+  }
+
+  function writeFuture(dir: string, rel: string): void {
+    const full = join(dir, rel);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, 'x');
+    utimesSync(full, new Date(FUTURE), new Date(FUTURE));
+  }
+
+  /** Tracked whatever the ignore rules say — `-f` is how a repo commits past a pattern. */
+  function commit(dir: string, rel: string): void {
+    git(dir, 'add', '-f', '--', rel);
+    git(dir, 'commit', '-qm', `add ${rel}`);
+  }
+
+  it.each([
+    {
+      shape: 'a committed source file',
+      gitignore: 'test-results/\n',
+      setup: (dir: string) => {
+        writeFuture(dir, 'src/b.ts');
+        commit(dir, 'src/b.ts');
+      },
+    },
+    {
+      shape: 'a tracked file an ignore pattern matches',
+      gitignore: '*.log\n',
+      setup: (dir: string) => {
+        writeFuture(dir, 'src/keep.log');
+        commit(dir, 'src/keep.log');
+      },
+    },
+    {
+      // An ignored sibling makes git list `out/`'s entries one by one; listing
+      // `out/` whole would prune the tracked file with it.
+      shape: 'a tracked file inside a directory an ignore pattern matches',
+      gitignore: 'out/\n',
+      setup: (dir: string) => {
+        writeFuture(dir, 'src/out/kept.ts');
+        commit(dir, 'src/out/kept.ts');
+        writeFileSync(join(dir, 'src', 'out', 'junk.bin'), 'x');
+      },
+    },
+    {
+      shape: 'a new file not yet added',
+      gitignore: 'test-results/\n',
+      setup: (dir: string) => writeFuture(dir, 'src/new.ts'),
+    },
+    {
+      // `feature/` is untracked and holds an ignored `out/`, but it is not
+      // ignored itself: git lists `feature/out/`, never `feature/`.
+      shape: 'a new file beside an ignored directory',
+      gitignore: 'out/\n',
+      setup: (dir: string) => {
+        writeFuture(dir, 'src/feature/new.ts');
+        mkdirSync(join(dir, 'src', 'feature', 'out'));
+        writeFileSync(join(dir, 'src', 'feature', 'out', 'junk.bin'), 'x');
+      },
+    },
+  ])('still reports $shape', ({ gitignore, setup }) => {
+    using repo = gitRepo(gitignore);
+    setup(repo.dir);
+    expect(newestMtimeInRoots(repo.dir, ['src'])).toBe(FUTURE);
+  });
+
+  it('still reports an ignored-looking file outside any git repository', () => {
+    const dir = makeTmpRepo(['src']);
+    try {
+      // Only meaningful where git cannot answer: nothing may be filtered then.
+      expect(spawnSync('git', ['rev-parse'], { cwd: dir }).status).not.toBe(0);
+      writeFileSync(join(dir, '.gitignore'), 'test-results/\n');
+      writeFuture(dir, 'src/test-results/trace.zip');
+      expect(newestMtimeInRoots(dir, ['src'])).toBe(FUTURE);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    {
+      // The Playwright layout the regression came from: pruned at the directory.
+      shape: 'a test artifact nested under an ignored directory',
+      gitignore: 'test-results/\n',
+      rel: 'src/web/test-results/a11y-bar-retry1/trace.zip',
+    },
+    {
+      shape: 'a file an ignore pattern matches beside the sources',
+      gitignore: '*.log\n',
+      rel: 'src/debug.log',
+    },
+  ])('drops $shape', ({ gitignore, rel }) => {
+    using repo = gitRepo(gitignore);
+    writeFuture(repo.dir, rel);
+    expect(newestMtimeInRoots(repo.dir, ['src'])).toBeLessThan(FUTURE);
   });
 });
