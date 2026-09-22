@@ -764,57 +764,100 @@ async function renderRoadmapRows(entries: RoadmapEntry[], dragEnabled: boolean):
 }
 
 /**
- * Render the roadmap as a single flat priority-ordered table, filterable
- * by area / type / category / size / impact, with a sort dropdown and
- * toggle chips for the multi-select params.
- *
- * One table replaces the old Now / Next / Later section split — file order
- * in `docs/roadmap.md` is the priority. The row count badge shows
- * `(filtered of total)` so filter state is visible at a glance.
- *
- * The rendered `<table>` carries `data-section="roadmap"`, `data-etag` (the
- * file's content hash for optimistic-concurrency checks against the move
- * API), and `data-drag-enabled` (the spec §1 activation predicate, computed
- * in the caller). Each row carries `data-slug`, a conditional `draggable`
- * attribute, a leading drag-handle cell, and trailing Top / Bottom / Demote
- * buttons that the client-side script (Task 7) wires up. Top / Bottom resolve
- * against the full file order server-side, so they work from filtered and
- * sorted views where drag is disabled. When `dragEnabled` is false the
- * drag handle is dimmed via the `drag-handle--disabled` CSS class.
- *
- * @param roadmap - Parsed roadmap (flat array in priority order)
- * @param filters - Active filter state from the URL querystring
- * @param meta - File hash + drag-activation flag (see spec §1)
- * @returns HTML body string
+ * Filter state the roadmap and backlog queue views both read from the
+ * querystring. Identical on both pages because they filter the same entry
+ * facets — see {@link prepareQueueView}.
  */
-export async function renderRoadmap(
-  roadmap: Roadmap,
-  filters: {
-    area: string;
-    type: string;
-    category: string;
-    size: string[];
-    impact: string[];
-    sort: string;
-  },
-  meta: { rawHash: string; dragEnabled: boolean } = { rawHash: '', dragEnabled: false },
-): Promise<string> {
-  const areas = Array.from(new Set(roadmap.map((e) => e.area))).toSorted();
-  const types = Array.from(
-    new Set(roadmap.map((e) => e.type).filter((t): t is string => Boolean(t))),
-  ).toSorted();
-  const categories = Array.from(
-    new Set(roadmap.map((e) => e.category).filter((c): c is string => Boolean(c))),
-  ).toSorted();
+interface QueueFilters {
+  area: string;
+  type: string;
+  category: string;
+  size: string[];
+  impact: string[];
+  sort: string;
+}
 
-  const matches = (e: RoadmapEntry): boolean =>
+/**
+ * The facet fields {@link queueEntryMatches} and {@link prepareQueueView} read.
+ * Structural rather than a union of `RoadmapEntry | BacklogEntry` so the
+ * helpers stay decoupled from either page's full row shape — a new queue view
+ * carries these five fields plus {@link SortableEntry}'s `name`, which
+ * {@link prepareQueueView} also requires so it can sort.
+ */
+interface FacetedEntry {
+  area: string;
+  type?: string | undefined;
+  category?: string | undefined;
+  size?: string | undefined;
+  impact?: string | undefined;
+}
+
+/**
+ * Whether an entry survives the active filters. An empty single-select
+ * (`area` / `type` / `category`) matches everything; an empty multi-select
+ * (`size` / `impact`) does too, so "no chips lit" means "no size filter"
+ * rather than "no sizes allowed".
+ *
+ * @param e - Entry to test
+ * @param filters - Active filter state
+ * @returns True when the entry passes every active filter
+ */
+function queueEntryMatches(e: FacetedEntry, filters: QueueFilters): boolean {
+  return (
     (!filters.area || e.area === filters.area) &&
     (!filters.type || e.type === filters.type) &&
     (!filters.category || e.category === filters.category) &&
     (filters.size.length === 0 || (e.size !== undefined && filters.size.includes(e.size))) &&
-    (filters.impact.length === 0 || (e.impact !== undefined && filters.impact.includes(e.impact)));
+    (filters.impact.length === 0 || (e.impact !== undefined && filters.impact.includes(e.impact)))
+  );
+}
 
-  const filtered = sortEntries(roadmap.filter(matches), filters.sort, 'priority');
+/**
+ * Filter and sort a queue's entries, and render the chrome the roadmap and
+ * backlog views wrap around their tables: the area / type / category / sort
+ * `<select>` form, the size and impact chip rows, and the reset link.
+ *
+ * Filtering and rendering live in one call rather than two because the two
+ * views would otherwise repeat the identical pair of calls — which is the
+ * duplication this helper exists to remove.
+ *
+ * Dropdown options are derived from the **unfiltered** entry list, so picking
+ * an area never empties the other dropdowns and strands the user with no way
+ * back. The multi-select params ride along as hidden inputs because the form
+ * submits via GET and would otherwise drop them on every dropdown change.
+ *
+ * The fragments come back pre-assembled as one `chrome` string, and the
+ * zero-match page as a ready `emptyBody`, so neither caller has to repeat the
+ * concatenation order — two views spelling out the same five-part template
+ * would be the duplication again in a thinner disguise.
+ *
+ * @param entries - Full entry list, unfiltered and in file order
+ * @param filters - Active filter state
+ * @param title - Page heading, rendered into `chrome` as the `<h1>`
+ * @returns The surviving entries in sort order, the page chrome, and the
+ *   complete body to return when nothing matched
+ */
+function prepareQueueView<T extends FacetedEntry & SortableEntry>(
+  entries: readonly T[],
+  filters: QueueFilters,
+  title: string,
+): {
+  filtered: T[];
+  chrome: string;
+  emptyBody: string;
+} {
+  const filtered = sortEntries(
+    entries.filter((e) => queueEntryMatches(e, filters)),
+    filters.sort,
+    'priority',
+  );
+  const areas = Array.from(new Set(entries.map((e) => e.area))).toSorted();
+  const types = Array.from(
+    new Set(entries.map((e) => e.type).filter((t): t is string => Boolean(t))),
+  ).toSorted();
+  const categories = Array.from(
+    new Set(entries.map((e) => e.category).filter((c): c is string => Boolean(c))),
+  ).toSorted();
 
   const buildOther = (excluded: 'size' | 'impact'): URLSearchParams => {
     const p = new URLSearchParams();
@@ -878,12 +921,48 @@ export async function renderRoadmap(
   });
   const resetLink = `<a class="reset" href="?">Reset</a>`;
 
-  if (filtered.length === 0) {
-    return `<h1>Roadmap</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p><p class="empty">No matching entries (0 of ${roadmap.length}).</p>`;
-  }
+  const chrome = `<h1>${escapeHtml(title)}</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p>`;
+  const emptyBody = `${chrome}<p class="empty">No matching entries (0 of ${entries.length}).</p>`;
+
+  return { filtered, chrome, emptyBody };
+}
+
+/**
+ * Render the roadmap as a single flat priority-ordered table, filterable
+ * by area / type / category / size / impact, with a sort dropdown and
+ * toggle chips for the multi-select params.
+ *
+ * One table replaces the old Now / Next / Later section split — file order
+ * in `docs/roadmap.md` is the priority. The row count badge shows
+ * `(filtered of total)` so filter state is visible at a glance.
+ *
+ * The rendered `<table>` carries `data-section="roadmap"`, `data-etag` (the
+ * file's content hash for optimistic-concurrency checks against the move
+ * API), and `data-drag-enabled` (the spec §1 activation predicate, computed
+ * in the caller). Each row carries `data-slug`, a conditional `draggable`
+ * attribute, a leading drag-handle cell, and trailing Top / Bottom / Demote
+ * buttons that the client-side script (Task 7) wires up. Top / Bottom resolve
+ * against the full file order server-side, so they work from filtered and
+ * sorted views where drag is disabled. When `dragEnabled` is false the
+ * drag handle is dimmed via the `drag-handle--disabled` CSS class.
+ *
+ * @param roadmap - Parsed roadmap (flat array in priority order)
+ * @param filters - Active filter state from the URL querystring
+ * @param meta - File hash + drag-activation flag (see spec §1)
+ * @returns HTML body string
+ */
+export async function renderRoadmap(
+  roadmap: Roadmap,
+  filters: QueueFilters,
+  meta: { rawHash: string; dragEnabled: boolean } = { rawHash: '', dragEnabled: false },
+): Promise<string> {
+  const view = prepareQueueView(roadmap, filters, 'Roadmap');
+  if (view.filtered.length === 0) return view.emptyBody;
+
+  const filtered = view.filtered;
   const dragEnabledAttr = meta.dragEnabled ? 'true' : 'false';
   const tbody = await renderRoadmapRows(filtered, meta.dragEnabled);
-  return `<h1>Roadmap</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p><p class="count">(${filtered.length} of ${roadmap.length})</p><table data-section="roadmap" data-etag="${escapeHtml(meta.rawHash)}" data-drag-enabled="${dragEnabledAttr}">
+  return `${view.chrome}<p class="count">(${filtered.length} of ${roadmap.length})</p><table data-section="roadmap" data-etag="${escapeHtml(meta.rawHash)}" data-drag-enabled="${dragEnabledAttr}">
     <thead><tr><th class="drag-col" aria-hidden="true"></th><th>Name</th><th>Category</th><th>Area</th><th>Type</th><th>Size</th><th>Impact</th><th>Since</th><th>Description</th><th class="action-col">Actions</th></tr></thead>
     <tbody>${tbody}</tbody>
   </table>`;
@@ -918,95 +997,13 @@ export async function renderRoadmap(
  */
 export async function renderBacklog(
   entries: BacklogEntry[],
-  filters: {
-    area: string;
-    type: string;
-    category: string;
-    size: string[];
-    impact: string[];
-    sort: string;
-  },
+  filters: QueueFilters,
   meta: { rawHash: string; now?: Date } = { rawHash: '' },
 ): Promise<string> {
-  const matches = (e: BacklogEntry): boolean =>
-    (!filters.area || e.area === filters.area) &&
-    (!filters.type || e.type === filters.type) &&
-    (!filters.category || e.category === filters.category) &&
-    (filters.size.length === 0 || (e.size !== undefined && filters.size.includes(e.size))) &&
-    (filters.impact.length === 0 || (e.impact !== undefined && filters.impact.includes(e.impact)));
+  const view = prepareQueueView(entries, filters, 'Backlog');
+  if (view.filtered.length === 0) return view.emptyBody;
 
-  const filtered = sortEntries(entries.filter(matches), filters.sort, 'priority');
-  const areas = Array.from(new Set(entries.map((e) => e.area))).toSorted();
-  const types = Array.from(
-    new Set(entries.map((e) => e.type).filter((t): t is string => Boolean(t))),
-  ).toSorted();
-  const categories = Array.from(
-    new Set(entries.map((e) => e.category).filter((c): c is string => Boolean(c))),
-  ).toSorted();
-
-  const buildOther = (excluded: 'size' | 'impact'): URLSearchParams => {
-    const p = new URLSearchParams();
-    if (filters.area) p.set('area', filters.area);
-    if (filters.type) p.set('type', filters.type);
-    if (filters.category) p.set('category', filters.category);
-    if (filters.sort) p.set('sort', filters.sort);
-    if (excluded !== 'size' && filters.size.length > 0) p.set('size', filters.size.join(','));
-    if (excluded !== 'impact' && filters.impact.length > 0)
-      p.set('impact', filters.impact.join(','));
-    return p;
-  };
-
-  const priorityIsSelected = filters.sort === '' || filters.sort === 'priority';
-  const sortOptions = PRIORITY_SORT_MODES.map(([v, l]) => {
-    const isSelected = v === 'priority' ? priorityIsSelected : v === filters.sort;
-    return `<option value="${escapeHtml(v)}"${isSelected ? ' selected' : ''}>${escapeHtml(l)}</option>`;
-  }).join('');
-
-  const selectForm = `<form class="filters" method="get">
-    <label>Area
-      <select name="area" onchange="this.form.submit()">
-        <option value="">All</option>
-        ${areas.map((a) => `<option value="${escapeHtml(a)}"${a === filters.area ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('')}
-      </select>
-    </label>
-    <label>Type
-      <select name="type" onchange="this.form.submit()">
-        <option value="">All</option>
-        ${types.map((t) => `<option value="${escapeHtml(t)}"${t === filters.type ? ' selected' : ''}>${escapeHtml(t)}</option>`).join('')}
-      </select>
-    </label>
-    <label>Category
-      <select name="category" onchange="this.form.submit()">
-        <option value="">All</option>
-        ${categories.map((c) => `<option value="${escapeHtml(c)}"${c === filters.category ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('')}
-      </select>
-    </label>
-    <label>Sort
-      <select name="sort" onchange="this.form.submit()">${sortOptions}</select>
-    </label>
-    ${filters.size.length > 0 ? `<input type="hidden" name="size" value="${escapeHtml(filters.size.join(','))}" />` : ''}
-    ${filters.impact.length > 0 ? `<input type="hidden" name="impact" value="${escapeHtml(filters.impact.join(','))}" />` : ''}
-  </form>`;
-
-  const sizeChips = renderChipRow({
-    label: 'Size',
-    param: 'size',
-    values: [...SIZE_ORDER],
-    selected: filters.size,
-    otherParams: buildOther('size'),
-  });
-  const impactChips = renderChipRow({
-    label: 'Impact',
-    param: 'impact',
-    values: [...IMPACT_ORDER],
-    selected: filters.impact,
-    otherParams: buildOther('impact'),
-  });
-  const resetLink = `<a class="reset" href="?">Reset</a>`;
-
-  if (filtered.length === 0) {
-    return `<h1>Backlog</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p><p class="empty">No matching entries (0 of ${entries.length}).</p>`;
-  }
+  const filtered = view.filtered;
 
   const renderRow = async (e: BacklogEntry): Promise<string> => {
     const typeBadge = e.type
@@ -1053,7 +1050,7 @@ export async function renderBacklog(
     )
   ).join('');
 
-  return `<h1>Backlog</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p><p class="count">(${filtered.length} of ${entries.length})</p>${sections}`;
+  return `${view.chrome}<p class="count">(${filtered.length} of ${entries.length})</p>${sections}`;
 }
 
 /**
