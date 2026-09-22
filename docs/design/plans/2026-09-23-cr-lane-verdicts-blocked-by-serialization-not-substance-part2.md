@@ -572,7 +572,7 @@ git commit -F "$(git rev-parse --git-dir)/PLAN_MSG"
 - Modify: `src/cr/lanes/prompt-parts.ts`
 - Modify: `src/cr/lane-spawn.ts`
 
-- [ ] **Step 1: Confirm nothing still calls them.**
+- [x] **Step 1: Confirm nothing still calls them.**
 
 ```bash
 rg -n "parseLastJsonFence|parseFencedJson|fencedJsonInstruction|createDispatcherSeam|spawnLanePrompt|LaneSpawnResult" src
@@ -580,7 +580,7 @@ rg -n "parseLastJsonFence|parseFencedJson|fencedJsonInstruction|createDispatcher
 
 Expected: only the definitions themselves, in `src/cr/extract-json.ts`, `src/cr/lanes/prompt-parts.ts` and `src/cr/lane-spawn.ts`. No `src/cr/lanes/*-dispatch.ts` file and no test file appears. If one does, move it onto `createAnswerSeam` first, following Part 2 Task 1.
 
-- [ ] **Step 2: Trim `src/cr/extract-json.ts`.** Delete `parseLastJsonFence`, `parseFencedJson` and their doc comments. Then replace the last paragraph of `extractJsonObject`'s doc comment (the one beginning `Shared by the orchestrate codex lane`) with:
+- [x] **Step 2: Trim `src/cr/extract-json.ts`.** Delete `parseLastJsonFence`, `parseFencedJson` and their doc comments. Then replace the last paragraph of `extractJsonObject`'s doc comment (the one beginning `Shared by the orchestrate codex lane`) with:
 
 ```ts
  * Used by `run-codex.ts`, which reads codex's own `CrRecord` from stdout. CR lanes that
@@ -588,7 +588,7 @@ Expected: only the definitions themselves, in `src/cr/extract-json.ts`, `src/cr/
  * nothing here is shared with them any more.
 ```
 
-- [ ] **Step 3: Trim `src/cr/lanes/prompt-parts.ts`.** Delete `fencedJsonInstruction` and its doc comment. Replace the header comment block (the lines before the import) with:
+- [x] **Step 3: Trim `src/cr/lanes/prompt-parts.ts`.** Delete `fencedJsonInstruction` and its doc comment. Replace the header comment block (the lines before the import) with:
 
 ```ts
 // @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance
@@ -598,7 +598,7 @@ Expected: only the definitions themselves, in `src/cr/extract-json.ts`, `src/cr/
 // agree, so they are worth keeping within one edit of each other.
 ```
 
-- [ ] **Step 4: Trim `src/cr/lane-spawn.ts`.** Delete the `LaneSpawnResult` type, the `LaneSpawnOpts` interface, `spawnLanePrompt`, and `createDispatcherSeam`, each with its doc comment. Keep `LaneSpawnFailure`, which `LaneDispatchFailure` uses. Replace the header comment block with:
+- [x] **Step 4: Trim `src/cr/lane-spawn.ts`.** Delete the `LaneSpawnResult` type, the `LaneSpawnOpts` interface, `spawnLanePrompt`, and `createDispatcherSeam`, each with its doc comment. Keep `LaneSpawnFailure`, which `LaneDispatchFailure` uses. Replace the header comment block with:
 
 ```ts
 // @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance
@@ -608,7 +608,7 @@ Expected: only the definitions themselves, in `src/cr/extract-json.ts`, `src/cr/
 // printed output (Q-0250).
 ```
 
-- [ ] **Step 5: Run the whole CR suite and the type check.**
+- [x] **Step 5: Run the whole CR suite and the type check.**
 
 ```bash
 pnpm typecheck && pnpm vitest run src/cr src/core/agent-runner
@@ -616,7 +616,7 @@ pnpm typecheck && pnpm vitest run src/cr src/core/agent-runner
 
 Expected: PASS. `tsc` prints nothing, and every test under `src/cr` and `src/core/agent-runner` is green.
 
-- [ ] **Step 6: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
+- [x] **Step 6: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with:
 
 ```text
 refactor(cr): delete the fenced-JSON lane reader and the old dispatcher seam
