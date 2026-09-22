@@ -75,6 +75,7 @@ function planSpawn(resolved: ResolvedRunner, prompt: string, opts: SpawnAgentOpt
         argv: buildCodexArgv({
           needsWrite: opts.needsWrite,
           schemaPath: opts.schemaPath,
+          lastMessagePath: opts.lastMessagePath,
           model: resolved.model,
         }),
         promptVia: 'stdin',
@@ -115,7 +116,7 @@ export function spawnAgent(
   const cwd = opts.cwd ?? process.cwd();
   const cfg = loadAgentsConfig(cwd);
   const resolved: ResolvedRunner = opts.runner
-    ? { runner: opts.runner }
+    ? { runner: opts.runner, ...(opts.model !== undefined ? { model: opts.model } : {}) }
     : resolveRunner(opts.role, cfg);
   const caps = CAPABILITIES[resolved.runner];
   if (opts.schemaPath && caps.structuredOutput !== 'schema') {
@@ -124,6 +125,15 @@ export function spawnAgent(
         `capability-mismatch: role '${opts.role}' resolved to runner '${resolved.runner}' ` +
           `(structuredOutput: ${caps.structuredOutput}) but schemaPath requires 'schema'. ` +
           `Fix agents.roles['${opts.role}'].runner in .noldor/config.json or pin a schema-grade runner.`,
+      ),
+    );
+  }
+  if (opts.lastMessagePath && caps.answerFile !== 'cli-writes') {
+    return Promise.reject(
+      new Error(
+        `capability-mismatch: role '${opts.role}' resolved to runner '${resolved.runner}' ` +
+          `(answerFile: ${caps.answerFile}) but lastMessagePath requires 'cli-writes'. ` +
+          `Its child writes the answer file itself — drop lastMessagePath for this runner.`,
       ),
     );
   }

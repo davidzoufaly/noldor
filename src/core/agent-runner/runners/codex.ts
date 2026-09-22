@@ -7,6 +7,7 @@ export const CODEX_PROMPT_VIA = 'stdin' as const;
 export function buildCodexArgv(opts: {
   needsWrite?: boolean;
   schemaPath?: string;
+  lastMessagePath?: string;
   model?: string;
 }): string[] {
   const argv = [
@@ -16,6 +17,7 @@ export function buildCodexArgv(opts: {
     '--skip-git-repo-check',
   ];
   if (opts.schemaPath) argv.push('--output-schema', opts.schemaPath);
+  if (opts.lastMessagePath) argv.push('--output-last-message', opts.lastMessagePath);
   if (opts.model) argv.push('--model', opts.model);
   // Trailing `-` is the documented explicit spelling of "read the prompt from stdin"
   // (`codex exec [OPTIONS] [PROMPT]`: absent PROMPT *or* `-` both mean stdin). Behaviour

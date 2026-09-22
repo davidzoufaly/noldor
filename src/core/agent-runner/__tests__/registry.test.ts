@@ -209,6 +209,47 @@ describe('spawnAgent', () => {
     await expect(p).rejects.toThrow(/spawn-failed: ENOENT/);
   });
 
+  it('a pinned model rides the pin instead of being dropped (Q-0250)', async () => {
+    const dir = tmpConfig();
+    const f = fakeSpawn();
+    const p = spawnAgent(
+      'p',
+      { role: 'reviewer', runner: 'claude', model: 'opus', cwd: dir },
+      { spawnImpl: f.impl as never },
+    );
+    f.child().emit('close', 0);
+    await p;
+    expect(f.calls[0]!.argv.slice(-2)).toEqual(['--model', 'opus']);
+  });
+
+  it('lastMessagePath reaches a pinned codex as --output-last-message, read-only', async () => {
+    const dir = tmpConfig();
+    const f = fakeSpawn();
+    const p = spawnAgent(
+      'p',
+      { role: 'reviewer', runner: 'codex', lastMessagePath: '/tmp/a.json', cwd: dir },
+      { spawnImpl: f.impl as never },
+    );
+    f.child().emit('close', 0);
+    await p;
+    expect(f.calls[0]!.argv).toEqual(
+      expect.arrayContaining(['read-only', '--output-last-message', '/tmp/a.json']),
+    );
+  });
+
+  it('capability mismatch: lastMessagePath on an agent-writes runner rejects before spawning', async () => {
+    const dir = tmpConfig();
+    const f = fakeSpawn();
+    await expect(
+      spawnAgent(
+        'x',
+        { role: 'reviewer', lastMessagePath: '/tmp/a.json', cwd: dir },
+        { spawnImpl: f.impl as never },
+      ),
+    ).rejects.toThrow(/capability-mismatch.*claude/);
+    expect(f.impl).not.toHaveBeenCalled();
+  });
+
   it('opencode role with model builds --model argv', async () => {
     const dir = tmpConfig({ roles: { polish: { runner: 'opencode', model: 'ollama/x' } } });
     const f = fakeSpawn();

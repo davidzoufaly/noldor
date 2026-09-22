@@ -9,6 +9,7 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
     questionSuppression: 'flag',
     rulesFile: 'CLAUDE.md',
     promptDispatch: 'slash-command',
+    answerFile: 'agent-writes',
   },
   codex: {
     structuredOutput: 'schema',
@@ -17,6 +18,7 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
     questionSuppression: 'non-interactive',
     rulesFile: 'AGENTS.md',
     promptDispatch: 'prose',
+    answerFile: 'cli-writes',
   },
   opencode: {
     structuredOutput: 'events',
@@ -25,6 +27,7 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
     questionSuppression: 'permission-config',
     rulesFile: 'AGENTS.md',
     promptDispatch: 'prose',
+    answerFile: 'agent-writes',
   },
   // Hermetic in-repo test double: no LLM, no network, scripted canned work.
   stub: {
@@ -35,5 +38,6 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
     rulesFile: 'CLAUDE.md',
     // Mirrors claude so contract-CI drain fixtures stay byte-identical (spec D5).
     promptDispatch: 'slash-command',
+    answerFile: 'agent-writes',
   },
 };

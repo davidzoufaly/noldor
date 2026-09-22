@@ -38,7 +38,7 @@
 - Modify: `docs/noldor/agent-runtimes.md`, `templates/docs/noldor/agent-runtimes.md`
 - Test: `src/core/agent-runner/__tests__/runners.test.ts`, `src/core/agent-runner/__tests__/registry.test.ts`
 
-- [ ] **Step 1: Write the failing capability and argv tests.** In `src/core/agent-runner/__tests__/runners.test.ts`, add inside `describe('capability matrix', …)`:
+- [x] **Step 1: Write the failing capability and argv tests.** In `src/core/agent-runner/__tests__/runners.test.ts`, add inside `describe('capability matrix', …)`:
 
 ```ts
   it('declares which side writes a CR lane answer file (Q-0250)', () => {
@@ -65,7 +65,7 @@ and inside `describe('codex argv (extracted from run-codex.ts)', …)`:
   });
 ```
 
-- [ ] **Step 2: Write the failing spawnAgent tests.** In `src/core/agent-runner/__tests__/registry.test.ts`, add inside `describe('spawnAgent', …)`:
+- [x] **Step 2: Write the failing spawnAgent tests.** In `src/core/agent-runner/__tests__/registry.test.ts`, add inside `describe('spawnAgent', …)`:
 
 ```ts
   it('a pinned model rides the pin instead of being dropped (Q-0250)', async () => {
@@ -110,7 +110,7 @@ and inside `describe('codex argv (extracted from run-codex.ts)', …)`:
   });
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail.**
+- [x] **Step 3: Run the tests to verify they fail.**
 
 ```bash
 pnpm vitest run src/core/agent-runner/__tests__/runners.test.ts src/core/agent-runner/__tests__/registry.test.ts
@@ -118,7 +118,7 @@ pnpm vitest run src/core/agent-runner/__tests__/runners.test.ts src/core/agent-r
 
 Expected: FAIL. `answerFile` reads `undefined`, the codex argv lacks `--output-last-message`, the pinned-model argv lacks `--model opus`, and the mismatch test times out (`Test timed out in 5000ms`) because nothing rejects.
 
-- [ ] **Step 4: Add the capability field and the spawn options.** In `src/core/agent-runner/types.ts`, add this member at the end of `interface RunnerCapabilities`, after `promptDispatch`:
+- [x] **Step 4: Add the capability field and the spawn options.** In `src/core/agent-runner/types.ts`, add this member at the end of `interface RunnerCapabilities`, after `promptDispatch`:
 
 ```ts
   /**
@@ -143,7 +143,7 @@ and directly after `schemaPath?: string;`:
   lastMessagePath?: string;
 ```
 
-- [ ] **Step 5: Declare the channel per runner.** Replace the whole body of `src/core/agent-runner/capabilities.ts` with:
+- [x] **Step 5: Declare the channel per runner.** Replace the whole body of `src/core/agent-runner/capabilities.ts` with:
 
 ```ts
 import type { RunnerCapabilities, RunnerName } from './types.js';
@@ -191,7 +191,7 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
 };
 ```
 
-- [ ] **Step 6: Render the codex flag.** In `src/core/agent-runner/runners/codex.ts`, replace the `buildCodexArgv` function (its doc comment above it stays) with:
+- [x] **Step 6: Render the codex flag.** In `src/core/agent-runner/runners/codex.ts`, replace the `buildCodexArgv` function (its doc comment above it stays) with:
 
 ```ts
 export function buildCodexArgv(opts: {
@@ -219,7 +219,7 @@ export function buildCodexArgv(opts: {
 }
 ```
 
-- [ ] **Step 7: Honour the pinned model and gate the new option.** In `src/core/agent-runner/registry.ts`, replace
+- [x] **Step 7: Honour the pinned model and gate the new option.** In `src/core/agent-runner/registry.ts`, replace
 
 ```ts
   const resolved: ResolvedRunner = opts.runner
@@ -260,7 +260,7 @@ In `planSpawn`, in the `case 'codex':` branch, change the `buildCodexArgv({ … 
         }),
 ```
 
-- [ ] **Step 8: Run the tests to verify they pass.**
+- [x] **Step 8: Run the tests to verify they pass.**
 
 ```bash
 pnpm vitest run src/core/agent-runner/__tests__/runners.test.ts src/core/agent-runner/__tests__/registry.test.ts && pnpm typecheck
@@ -268,7 +268,7 @@ pnpm vitest run src/core/agent-runner/__tests__/runners.test.ts src/core/agent-r
 
 Expected: PASS. Every test is green and `tsc` prints nothing.
 
-- [ ] **Step 9: Document the channel.** In `docs/noldor/agent-runtimes.md`, add this row to the `## Flag mapping` table directly after the `| structured output | … |` row:
+- [x] **Step 9: Document the channel.** In `docs/noldor/agent-runtimes.md`, add this row to the `## Flag mapping` table directly after the `| structured output | … |` row:
 
 ```markdown
 | CR lane answer file | the child writes it (`answerFile: agent-writes`) | the CLI writes the final message: `--output-last-message <path>` (`answerFile: cli-writes`) | the child writes it (`answerFile: agent-writes`) |
@@ -280,7 +280,7 @@ Then mirror the twin:
 cp docs/noldor/agent-runtimes.md templates/docs/noldor/agent-runtimes.md
 ```
 
-- [ ] **Step 10: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with exactly:
+- [x] **Step 10: Commit.** Write `$(git rev-parse --git-dir)/PLAN_MSG` with exactly:
 
 ```text
 feat(core): declare which side writes a CR lane answer file

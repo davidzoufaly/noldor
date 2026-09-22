@@ -24,6 +24,13 @@ describe('capability matrix', () => {
     // leaves those fixtures byte-identical (spec D5).
     expect(CAPABILITIES.stub.promptDispatch).toBe('slash-command');
   });
+
+  it('declares which side writes a CR lane answer file (Q-0250)', () => {
+    expect(CAPABILITIES.claude.answerFile).toBe('agent-writes');
+    expect(CAPABILITIES.opencode.answerFile).toBe('agent-writes');
+    expect(CAPABILITIES.stub.answerFile).toBe('agent-writes');
+    expect(CAPABILITIES.codex.answerFile).toBe('cli-writes');
+  });
 });
 
 describe('claude argv (canonical shape — byte-identical to drain/prep pre-refit)', () => {
@@ -62,6 +69,17 @@ describe('codex argv (extracted from run-codex.ts)', () => {
       '--sandbox',
       'workspace-write',
       '--skip-git-repo-check',
+      '-',
+    ]);
+  });
+  it('writes its final message to lastMessagePath and stays read-only', () => {
+    expect(buildCodexArgv({ lastMessagePath: '/a.json' })).toEqual([
+      'exec',
+      '--sandbox',
+      'read-only',
+      '--skip-git-repo-check',
+      '--output-last-message',
+      '/a.json',
       '-',
     ]);
   });
