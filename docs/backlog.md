@@ -358,6 +358,8 @@ Fold the `archify` skill — architecture, workflow, sequence, data-flow and lif
 
 Let more roadmap entries — ideally any of them — carry a UI-design pass, rather than only the ones an operator remembers to route there. Two parts sketched: a new schema-C frontmatter boolean (`ui:`) on roadmap/backlog entries that declares an entry wants the UI-design stage, and a bottom-of-canvas annotation notation for marking UI elements against the entry that owns them, shaped `{{ task-id }}: {{ task-title }}`. The UI-design stage and its baseline/waiver machinery already exist (Q-0144, Q-0145), so this is about opting entries in declaratively and tying rendered elements back to entry IDs. Parked rather than roadmapped because neither half is designed: what the boolean does at gate time (force the stage? suggest it?), where the annotation lives, and whether it round-trips through `.pen` are all open. Deletion test: an entry marked `ui: true` reaches the UI-design stage without an operator naming it, and each annotated element resolves to the entry ID that owns it. (raised 2026-09-07 from an untriaged ideas bullet)
 
+- Extend the annotation half from entries down to **elements**: a screen-ID scheme in the framework, so `.pen` naming is a hierarchy rather than free text and every button, label and input carries an ID. The `{{ task-id }}: {{ task-title }}` notation above ties a *canvas* to the entry that owns it; this ties each *element* to a stable name that code, specs and review lanes can all refer to. Open the same way the rest of this entry is open: what the hierarchy looks like, whether the IDs are authored in `.pen` or derived from it, and how they survive a redesign. (raised 2026-09-22)
+
 ### noUncheckedIndexedAccess in the Toolchain Floor
 
 - id: Q-0235
@@ -381,3 +383,15 @@ Should `noUncheckedIndexedAccess: true` join the graded compiler settings in the
 - confidence: low
 
 A third clone-ratchet noise class past the two Q-0214 dropped. A comments-and-one-field change to three sibling object literals moved the ratchet by -126: Q-0213 touched only `detect.ts` / `baseline.ts` / `clones-cli.ts` and added no copied logic, yet whole-corpus `duplicatedTokens` fell 28967 → 28841 and the group count 290 → 289 — because adding `compared: false` to three neighbouring `return {...}` literals in `ratchetOutcome` changed how they structurally match. Q-0214 dropped import headers and pure delegations; structural matching of sibling literals is untouched, and it is the same sensitivity that forced two hand re-records. Parked rather than roadmapped because it went unnoticed only by moving in the *helpful* direction, and no policy is obvious — suppressing sibling-literal matches would also hide genuinely copied literal blocks. Deletion test: adding a field to neighbouring return literals with no copied logic leaves the ratchet unmoved. (raised 2026-09-08 from an untriaged ideas bullet)
+
+### Swallowed-Error Spawns Over Config-Supplied Args
+
+- id: Q-0259
+- area: tooling
+- type: chore
+- since: 2026-09-22
+- size: M
+- impact: med
+- confidence: low
+
+A config-supplied value that is only **shape**-validated, feeding a spawn whose caller wraps it in `catch { return []; }`, silently disables the check it scopes. The concrete instance already shipped its fix: Q-0242's `release.gateComplianceSince` went out with a `/^[0-9a-f]{7,40}$/` schema regex, so a one-character typo yielded a rev git rejects, both gate-compliance detectors swallowed the failure, and the release row went permanently green — quieter than `RELEASE_SKIP_GATE_COMPLIANCE`, which at least logs to `.noldor/overrides.log`. The code-stage reviewer caught it and the floor now resolves through `git rev-parse --verify <sha>^{commit}`, discarding an unresolvable one with a warning. What is parked here is the **general** shape: every `catch { return []; }` around a spawn whose arguments come from consumer config is a place where a typo buys silence instead of an error. Candidate: a lint or invariant over `src/**` that flags it. Parked rather than roadmapped because the detector's precision is unproven — a swallowed spawn is sometimes exactly right (an optional probe), so the rule needs a way to tell "absent is fine" from "misconfigured is fine", and nobody has counted how many sites exist. Spike the census before committing to the rule. Deletion test: a config-sourced rev that git rejects fails a check loudly rather than passing it. (raised 2026-09-22 from a lesson absorbed the same day)

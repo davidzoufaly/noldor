@@ -105,6 +105,38 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 - **Add-form field values land verbatim in a schema-C block body.** Reject
   leading-`#` / `### ` headings and unbalanced code fences (400) or they corrupt
   `scanBlocks`/`parseRoadmap` (guarded in `handleAdd`).
+- **`src/dashboard/static/dist/*.js` are tracked build artifacts that nothing in
+  `bin/build.mjs` regenerates and no test diffs against their `.ts` source.** The
+  recipe that reproduces the tracked bytes exactly is
+  `node_modules/.bin/tsc -p src/dashboard/static/tsconfig.json` followed by
+  `node_modules/.bin/oxfmt src/dashboard/static/dist/drag.js src/dashboard/static/dist/agents.js`
+  — tsc alone emits 4-space output and diffs everywhere. A browser-side change
+  that skips the fmt step lands a 400-line whitespace diff; one that skips both
+  ships stale JS while the `.ts` reads fixed, with nothing red. (See the
+  `drag.ts` recompile bullet above for why the pre-commit fmt step then rewrites
+  what tsc emitted.)
+- **`src/dashboard/layout.ts` `STYLE` is a JS template literal, so a backtick
+  anywhere in a CSS comment ends the string.** oxlint reports
+  `Expected a semicolon or an implicit semicolon` at the backtick's column and
+  every dashboard test file fails to import — neither message says "template
+  literal". Write class names in CSS comments bare. (Q-0231)
+- **A JS-revealed control "missing" on a consumer is usually a stale-install
+  zombie, not CSS.** Q-0231 reported the description Show-more control absent;
+  the consumer's dashboard process predated its noldor install, so pages rendered
+  from memory while `/static/drag.js` 500'd — the inline CSS clamped every
+  description and the JS that reveals the control never ran. Restarting the
+  process showed 45/45 controls. Before debugging CSS, compare the server's start
+  time to the install date:
+  `ps -o lstart= -p $(lsof -ti tcp:<port> -sTCP:LISTEN)`. (Q-0231; PR #482 then
+  made the clamp opt-in so a missing script can no longer trap content.)
+- **Browser-level verification of a dashboard change is doable headless from a
+  drain child.** noldor ships no playwright, but a consumer's `node_modules` has
+  one; the probe script must sit under a `node_modules/.cache/` dir (or import by
+  absolute path) for resolution to work. `PORT=<n> pnpm noldor dashboard server`
+  run from a worktree serves *that worktree's* `src/`,
+  `page.route('**/static/drag.js', r => r.abort())` reproduces the zombie above in
+  one line, and `chromium.launch({ channel: 'chrome' })` drives the operator's
+  real installed Chrome. (Q-0231)
 
 ## Drain / headless sessions
 
@@ -117,6 +149,12 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 - **Manual `pnpm noldor sync fd-resources` rewrites ~26+ drifted FDs on main.**
   Only staged FDs ride commits (via `stage_fixed`); discard the non-staged drift
   with `git checkout -- docs/features/`.
+- **A background `git commit -F <file>` can exit 1 with zero output, and the
+  identical retry passes.** Seen once (2026-09-19): the files stayed staged,
+  nothing was lost, and a hand-run `pnpm exec lefthook run pre-commit` was green
+  in between. Cause unknown. Check `git log` and `git status` *before* debugging
+  a silent commit failure — the cheap retry is right more often than the
+  investigation.
 
 ## Shell & tooling traps
 
@@ -194,6 +232,15 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   and spec H3 headings are full of inline code, so `design context --section`
   and `--confirm-section` are the routine casualties. Call
   `node bin/noldor.mjs …` directly when a backtick is unavoidable.
+- **Piping ANY exit-code-bearing noldor command to `tail` reports `tail`'s
+  status.** `cr aggregate … | tail -20` then `echo $?` prints `0` over text that
+  says `ok=false` — during Q-0246 that turned a genuine red round into an
+  apparent green one. `PIPESTATUS` is empty in this shell, so it cannot rescue
+  the pipe either. The only reliable shape is redirect-then-cat:
+  `cmd > /tmp/out 2>&1; echo "EXIT:$?"; cat /tmp/out`. Same class as the
+  `git commit | tail` trap in
+  [`git-and-commits.md`](git-and-commits.md) — that one has a purpose-built
+  escape (`pnpm noldor commit`); every other command does not. (Q-0246)
 
 ## Pencil / UI design
 
@@ -296,6 +343,36 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   documented above as "do not follow it"; and the extension rewrites the MCP
   server binary on self-update, killing an already-connected stdio server so the
   tools vanish mid-session with no diagnostic.
+- **The pen.dev desktop app does not persist `.pen` edits and discards them
+  silently on close.** With the VS Code socket unreachable, driving
+  `--app desktop` succeeds for every read and write — 8 states drawn,
+  `get_app_state` and `Get` confirming all of them — and the file on disk never
+  changes. Closing the window drops the lot: same mtime, same
+  `git hash-object`, no warning anywhere. The VS Code bridge, by contrast, wrote
+  the equivalent edits to disk twice unprompted within ~2 minutes. Treat the
+  desktop app as read-only in practice and route every `.pen` write through the
+  VS Code bridge — "the MCP call succeeded" is not evidence the work exists.
+  (Q-0275)
+- **The `.pen` seed names the baseline unconditionally, and a stale baseline
+  designs onto a surface that no longer exists.** `noldor-spec` step 1.5 says
+  `cp docs/design/ui/baseline/<surface>.pen docs/design/ui/<date>-<key>.pen`; the
+  skill branches on "empty/missing baseline" and has no branch for "stale".
+  Shipping Q-0275 that baseline was six days old and still held the horizontal
+  bar a dep had replaced with a vertical rail the day before, so the seeded
+  file's `BASE:` pages showed a surface the feature attaches to and that does not
+  exist. The right source was the dep's own `FINAL:` `.pen`. The framework
+  already knows — `pnpm noldor checks ui-design-freshness` reports the surface
+  stale — so run it before seeding, and when it is stale seed from the newest
+  `FINAL:` `.pen` of an FD named in `deps:` instead. (Q-0275)
+- **Reseeding a `.pen` path the editor already has open is invisible to the
+  editor and one save from destroying the new file.** The seed is a filesystem
+  `cp`, but the canvas is a buffer: after `cp`-ing a corrected source over a
+  seeded path, `get_app_state` still reported the *old* document's pages, and any
+  save from that window would have written 1.9 MB of the wrong content back over
+  the 608 KB that was right. Recovery needs a human
+  `Developer: Reload Window`, which then kills Claude Code's pencil MCP link and
+  costs a `/mcp` reconnect. Seed to a path the editor has never buffered, or
+  close the file first — a fresh path loads from disk correctly. (Q-0275)
 
 ## Release & publish
 
@@ -319,3 +396,22 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   with the fix — no second `pnpm release`, no re-hitting the graph/garden/sdd
   gates. Then `rm .noldor/release-state.json` (resume can't finalize once
   HEAD moved past the bump commit).
+- **A green `--preflight` does not survive the clock: the `sdd-report` gate can
+  red minutes later on a line nothing touched.** The report's override-record
+  list is filtered by a **30-day rolling window**, so a commit can age out of it
+  mid-sweep and re-drift the file. v1.10.0 aborted exactly this way. The
+  release-sweep's step 5.5 / 6.5 pre-empts cannot help — they re-run the regen at
+  a point in time, and any later clock-derived line drifts again before
+  `pnpm release` reaches its own gate. The adjacent `Review-skip count` line *is*
+  masked (`VOLATILE_METRIC_IDS`, `src/garden/sdd-report-format.ts`), but the
+  override-record bullets it sits under are not, so only the bullets block. Cost
+  when it fires: one micro-chore PR to commit the aged regen, then a second
+  `pnpm release` run. (#469; the masking gap is still open.)
+- **A registry-visibility timeout is not a failed publish — `--resume`, don't
+  re-release.** `pnpm release`'s npm-publish wait (290s) starts when the tag is
+  pushed, but the publish workflow still has to queue and run, and npm then warns
+  the package "may take a few minutes to become available". v1.10.0 published
+  cleanly (`+ @david.zoufaly/noldor@1.10.0`, signed provenance, workflow green in
+  40s) and the release still aborted on the wait. `pnpm release --resume`
+  finished it. Check the workflow and the registry before treating the abort as a
+  publish failure.
