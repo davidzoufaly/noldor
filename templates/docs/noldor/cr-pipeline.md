@@ -519,6 +519,35 @@ persisted diff image before arguing with the ratio.
   aggregate still reports `ok=true` — fast-track carries no FD, so the lane
   degrades silently and the reviewer lane is the whole review. (2026-08-20
   XS drain)
+- **The verify lane cannot report on a change whose evidence contains fenced
+  code, because its own payload is a fence.** Shipping Q-0239 the verifier ran
+  the full acceptance set twice and emitted `{"verdict":"pass"}` both times;
+  `parseVerifyPayload` recovered neither, because the evidence strings quote the
+  ` ```bash ` blocks the change is *about* and the inner backticks close the outer
+  fence early. The repair round failed identically, and the `proseReportsSuccess`
+  valve (`src/cr/lanes/verify.ts`) missed too — the prose opened "Done. Everything
+  the change promised works when I actually ran it", no `verifi*` stem, so
+  `PROSE_SUCCESS_RE` never matched and the round fell to the fail-closed `high`
+  blocker. This is **systematic, not flaky**: any change touching fence handling,
+  markdown parsing, or skill bodies reproduces it, and re-rounding cannot fix it.
+  Read the raw child payload the lane keeps verbatim in `notes` — if it carries
+  `"verdict":"pass"`, the verification is green and the only exit is
+  `Noldor-Path-Override`. Pairs with Q-0137, which built the repair round for this
+  class and is now shown to under-reach.
+- **A reviewer lane that writes `- (none)` under an empty severity bucket reds
+  the round with phantom blockers.** Shipping Q-0246 the code-stage reviewer
+  returned `summary: "approve"` with a single Strengths note, yet its sink carried
+  `[high]` and `[med]` blockers plus a `[low]` suggestion whose `message` was the
+  literal string `(none)`. `cr aggregate` read `ok=false` and exited 1, no
+  `Noldor-Reviewed-Subagent` receipt was minted, and `cr autofix plan` declined
+  `no-mechanical` and routed both to the operator as `D1`/`D2` — there is nothing
+  to apply, the messages are empty. The lane prompt
+  (`src/cr/lanes/subagent-dispatch.ts`) does say to leave a bucket's bullet list
+  empty, so this is a model formatting slip the parser has no guard against. It is
+  **non-deterministic**: an identical re-dispatch over the same tree came back
+  with `blockers: []` and went green. Re-dispatch before you override. Same class
+  as the verify-lane fence bullet above — a lane's serialization defect blocking a
+  ship its own content approved.
 
 More sink/receipt traps:
 
