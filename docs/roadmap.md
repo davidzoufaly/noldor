@@ -16,20 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### CR Re-Rounds Review the Fix's Regressions, Not the Fix as Fresh Surface
-
-- id: Q-0260
-- area: tooling
-- type: fix
-- since: 2026-09-23
-- size: M
-- impact: critical
-- confidence: med
-- split-from: Q-0250
-- recovered: 2026-09-23
-
-Round 1 of a CR series finds real defects, and the rounds after it mostly review the previous round's own fix. Forensics over 46 Noldor and 129 Charuy PRs (Q-0250 spec, 2026-09-22) put round-1 blockers at 73–78% real original defects. Re-round blockers were 46–65% about content the previous fix had introduced, and only 3% were original defects. Delta-scoped re-rounds make it worse: in Noldor 89% of their blockers were fix-seeded, because the delta *is* the fix and the lane reviews it at full strength as new surface. Authors say so in the commit trail: "Most were faults the round-1 fix introduced" (#464), and "every fix that ADDED a distinction was falsified next round; the three that held each deleted one" (#453). Change the re-round contract. The lane gets the prior blockers and answers each one resolved or not resolved. It then reports only regressions the fix caused (behaviour that worked before and no longer does) plus anything that meets the blocking definition Q-0250 introduces. Everything else about the fix's own text is a suggestion. Pair this with guidance for whoever writes the fix (operator, autofix, drain child): make the smallest change that resolves the blocker, and prefer deleting a claim to adding one. Deletion test: a re-round over a fix that resolves its blocker and adds a sentence is green, unless the sentence regresses something or meets the blocking definition.
-
 ### Spec-Stage CR Stopping Rule
 
 - id: Q-0263

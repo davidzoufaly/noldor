@@ -445,5 +445,10 @@
   "Q-0250": {
     "slug": "cr-lane-verdicts-blocked-by-serialization-not-substance",
     "retiredAt": "2026-09-22"
+  },
+  "Q-0260": {
+    "slug": "cr-re-rounds-review-the-fixs-regressions-not-the-fix-as-fresh-surface",
+    "retiredInto": "cr-re-round-cap-enforcement-and-oscillation-detector",
+    "retiredAt": "2026-09-23"
   }
 }
