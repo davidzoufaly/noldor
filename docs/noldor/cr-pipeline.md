@@ -779,6 +779,13 @@ Only **red** rounds count, against `AUTOFIX_ROUND_CAP + 1` (three: the initial
 pass plus two re-rounds). A green dispatch arbitrates nothing and is free,
 however many run, which is what keeps receipt re-earns from spending budget.
 
+So the dispatch count and the red count are different numbers, and a series can
+legally run more rounds than "a cap of two" suggests: two greens between reds,
+or the closing round below, which is a fourth red against a budget of three.
+Every recorded round prints both — `round 4 recorded red — red rounds 4/3 (+1
+closing) against the cap` — and the counter is never clamped, so a count above
+three names the closing round rather than hiding it (Q-0251).
+
 A dispatched round always counts; what varies is its verdict, and that comes
 from the findings **filed**, not from the aggregate's `ok` — which is also false
 when an expected lane merely failed to resolve. Three rules follow, each closing

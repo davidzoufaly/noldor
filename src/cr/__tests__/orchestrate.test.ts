@@ -1,6 +1,7 @@
 // @tests: acceptance-verify-lane, autonomous-plan-to-pr-merge, specs-cr-gate-multi-reviewer, cr-re-round-cap-enforcement-and-oscillation-detector
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -27,6 +28,7 @@ import {
   runReflagRules,
 } from '../orchestrate.js';
 import { priorRecordStands } from '../arbitration.js';
+import { ruleR3 } from '../reflag.js';
 import { buildSkeleton, renderSkeletonExit } from '../orchestrate.js';
 import type { ArbitrationRecord } from '../arbitration.js';
 import { fingerprintBlockers, ledgerDir, ledgerPath } from '../autofix-ledger.js';
@@ -952,9 +954,11 @@ describe('round budget (Q-0170)', () => {
     spy.mockRestore();
   });
 
-  it('never prints a red-round count above its own budget', async () => {
+  // Q-0251. A spent closing round is a FOURTH red entry against a budget of
+  // three, and clamping it to `3/3` made a legal fourth round read as a bypassed
+  // cap. The count is the real one; the overrun is named as the closing round.
+  it('counts the closing round instead of clamping it into the budget', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    // A spent closing round is a FOURTH red entry against a budget of three.
     await seedRounds(
       [
         { headSha: 'aaaaaaa' },
@@ -970,8 +974,29 @@ describe('round budget (Q-0170)', () => {
       'utf8',
     );
     await run({ args: { ...ARGS, headSha: 'eeeeeee' }, cwd: root });
-    expect(spy.mock.calls.flat().join('\n')).toContain('red rounds 3/3');
+    expect(spy.mock.calls.flat().join('\n')).toContain('red rounds 4/3 (+1 closing)');
     spy.mockRestore();
+  });
+
+  // Q-0251's deletion test: N dispatches report N, beside the red count the cap
+  // enforces. Two reds and two greens are four rounds and 2/3 — printing only
+  // the red count is what let four rounds read as a cap bypass.
+  it('reports every dispatch beside the red count the cap enforces', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await seedRounds([
+        { headSha: 'aaaaaaa', verdict: 'red' },
+        { headSha: 'bbbbbbb', verdict: 'green' },
+        { headSha: 'ccccccc', verdict: 'red' },
+      ]);
+      await writeReviewerSink([]);
+      await run({ args: { ...ARGS, headSha: 'ddddddd', autonomous: true }, cwd: root });
+      expect(spy.mock.calls.flat().join('\n')).toContain(
+        'round 4 recorded green — red rounds 2/3 against the cap',
+      );
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('green rounds never advance the budget, however many run', async () => {
@@ -1462,6 +1487,39 @@ describe('resolveIntroducedLines', () => {
     };
     const map = await resolveIntroducedLines('C1', git);
     expect(map?.size).toBe(0);
+  });
+
+  // Q-0251's other half, against real git: the chain the detector exists for —
+  // round 1 reviews a file the feature added, a fix edits it, round 2 files a
+  // defect on the fix's own line — must trip R3. The file was born on the
+  // branch, but it existed at the series' first reviewed head, so Q-0212's
+  // greenfield filter must not swallow it.
+  it('trips R3 on a fix-defect-fix chain in a file the feature created', async () => {
+    const repo = await mkdtemp(join(tmpdir(), 'orc-chain-'));
+    try {
+      const git = (...args: string[]) =>
+        execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' });
+      git('init', '-q');
+      git('config', 'user.email', 't@t');
+      git('config', 'user.name', 't');
+      git('config', 'commit.gpgsign', 'false');
+      await writeFile(join(repo, 'base.txt'), 'base\n', 'utf8');
+      git('add', '.');
+      git('commit', '-qm', 'base', '--no-verify');
+      await writeFile(join(repo, 'feat.ts'), 'a\nb\nc\n', 'utf8');
+      git('add', '.');
+      git('commit', '-qm', 'feature', '--no-verify');
+      const firstHead = git('rev-parse', 'HEAD').trim();
+      await writeFile(join(repo, 'feat.ts'), 'a\nb\nfix\nc\n', 'utf8');
+      git('commit', '-qam', 'fix round 1', '--no-verify');
+
+      const introduced = await resolveIntroducedLines(firstHead, async (args) => git(...args));
+      const onFix = { id: 'd', severity: 'med' as const, message: 'fix broke it' };
+      const r = ruleR3([{ ...onFix, locations: [{ file: 'feat.ts', line: 3 }] }], introduced);
+      expect(r.outcome).toBe('fired');
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
   });
 });
 
