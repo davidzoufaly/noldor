@@ -175,18 +175,6 @@ Milestone membership rots by omission at both ends of the chain, so an active mi
 
 `blocked-by` is all-or-nothing, so a partial dependency degrades into prose the scorer cannot see. Several entries in a real consumer can start, and two-thirds ship, while one part waits — a bar whose five sections are independently blocked; a panel where one row needs a concept that does not exist yet. Marking the whole entry `blocked-by` divides its score by `1 + unshipped_dep_count` for work that is mostly doable today; leaving it off loses the dependency from the graph entirely, so `/noldor-garden` cannot see it and a reader has to find it in a paragraph. Wanted: a `partially-blocked-by:` that joins the blocked-by graph for cycle detection and `show` output but is **excluded from the dependency factor** in `scoreEntry()` — the semantics being "cannot finish" rather than "cannot start". Open question for the spec: whether `/noldor-gate` should surface the partial blocker at pickup so the agent knows which slice to leave alone, or whether that belongs in the entry body. Deletion test: an entry with only `partially-blocked-by` refs scores as unblocked while still appearing in the dependency graph. (found 2026-09-22)
 
-### Always-Read Capability Index for Agents
-
-- id: Q-0257
-- area: docs
-- type: feat
-- since: 2026-09-22
-- size: S
-- impact: med
-- confidence: low
-
-An agent working in a Noldor consumer did not know the milestone commands existed, and proposed building by hand what the framework already ships. That is a blind spot with no floor under it: nothing guarantees an agent's context window holds a list of what Noldor can do, and `docs/noldor/script-catalog.md` is a doc an agent must think to open rather than one it always has. Wanted: a short, always-read capability index — one line per verb group with its entry doc — small enough to sit in every agent's context alongside the hard rules, and generated rather than hand-maintained so it cannot drift from the CLI the way a hand-written list would. Two things to settle in the spec: what makes it always-read for each runtime (`AGENTS.md` prose, a `.claude/` rule, or both — see Q-0252, which may collapse that question), and how it stays under a size that is actually cheap to carry. Parked at low confidence because the failure is one observation and the remedy is a guess at the mechanism; a second blind-spot sighting would raise it. Deletion test: an agent that has read only the always-read set can name the milestone commands without opening another doc. (found 2026-09-22)
-
 ### Design Approval Certifies Provenance, Not Content
 
 - id: Q-0258
