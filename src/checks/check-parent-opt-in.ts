@@ -118,12 +118,11 @@ function optInKeys(root: string, parent: string): string[] {
  * @param root - Repository root holding the queue and the FDs.
  */
 export async function checkParentOptIn(root: string): Promise<ParentOptInRow[]> {
-  const [roadmap, backlog] = await Promise.all([
-    readQueueFile(join(root, 'docs/roadmap.md')),
-    readQueueFile(join(root, 'docs/backlog.md')),
-  ]);
   const byParent = new Map<string, string[]>();
-  for (const entry of [...parseRoadmap(roadmap), ...parseBacklog(backlog)]) {
+  for (const entry of [
+    ...parseRoadmap(await readQueueFile(join(root, 'docs/roadmap.md'))),
+    ...parseBacklog(await readQueueFile(join(root, 'docs/backlog.md'))),
+  ]) {
     if (entry.parent === undefined || entry.parent === '') continue;
     byParent.set(entry.parent, [...(byParent.get(entry.parent) ?? []), entry.slug]);
   }
