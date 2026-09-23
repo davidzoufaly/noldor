@@ -51,6 +51,7 @@ import type { CutScope } from './cut-scan.js';
 import { laneFindingsSchema } from './findings-schema.js';
 import type { ArtifactKind, Finding, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult, PriorReview } from './lane-types.js';
+import { isLaneFailureBlocker, PRIOR_AWARE_LANES } from './re-round.js';
 import { laneSinkPath } from './filename.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
 import { runManual } from './lanes/manual.js';
@@ -223,33 +224,56 @@ async function findExistingSink(
  * a sink zod rejects reads as "not green", so the short-circuit re-reviews
  * instead of minting a synthetic OK from a file it could not validate.
  */
+/**
+ * What a prior-sink read found. `unusable` is its own case (Q-0260): a sink that exists but
+ * cannot be read, does not parse, or fails `laneFindingsSchema` is not a first round, and a
+ * prior-aware lane must not run as though it were one.
+ */
+export type PriorSinkRead =
+  | { kind: 'absent' }
+  | { kind: 'unusable'; path: string; detail: string }
+  | { kind: 'found'; sink: LaneFindings };
+
 async function readPriorSinkDefault(
   cwd: string,
   slug: Slug,
   kind: ArtifactKind,
   lane: Lane,
-): Promise<LaneFindings | null> {
+): Promise<PriorSinkRead> {
   const path = await findExistingSink(cwd, slug, kind, lane);
-  if (path === null) return null;
+  if (path === null) return { kind: 'absent' };
+  let raw: unknown;
   try {
-    const parsed = laneFindingsSchema.safeParse(JSON.parse(await readFileNoFollowAsync(path)));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
+    raw = JSON.parse(await readFileNoFollowAsync(path));
+  } catch (err) {
+    return { kind: 'unusable', path, detail: (err as Error).message };
   }
+  const parsed = laneFindingsSchema.safeParse(raw);
+  return parsed.success
+    ? { kind: 'found', sink: parsed.data }
+    : { kind: 'unusable', path, detail: `schema mismatch: ${parsed.error.message}` };
 }
 
 export type ReadPriorSink = typeof readPriorSinkDefault;
 
 /**
- * True when the prior round actually went green. No sink, an invalid sink, or
+ * True when the prior round actually went green. No sink, an unusable sink, or
  * a sink carrying blockers is false, so callers gate the delta short-circuit
  * on a review that went green instead of on the mere presence of a file.
  * Applies to every lane and every artifact kind: a lane-specific exemption
  * would let a red round be cleared by a no-op re-run.
  */
-function priorSinkIsGreen(sink: LaneFindings | null): boolean {
-  return sink !== null && sink.blockers.length === 0;
+function priorSinkIsGreen(read: PriorSinkRead): boolean {
+  return read.kind === 'found' && read.sink.blockers.length === 0;
+}
+
+/** Why a round with an unusable prior-aware sink was refused, and the two ways out. */
+function renderPriorRefusal(unusable: readonly Extract<PriorSinkRead, { kind: 'unusable' }>[]) {
+  return [
+    'prior sink unusable — refusing the round, so no re-round runs without the blockers it held:',
+    ...unusable.map((u) => `  ${u.path}: ${u.detail}`),
+    "Repair the file, or remove it to start that lane's series over (it then runs as a first round).",
+  ].join('\n');
 }
 
 export async function guardLaneOverwrite(
@@ -326,6 +350,9 @@ export interface RunResult {
 
 /** Orchestrate refused to dispatch because the round budget is spent. */
 export const EXIT_ROUND_CAP = 3;
+
+/** Orchestrate refused to dispatch because a prior-aware lane's prior sink is unusable. */
+export const EXIT_PRIOR_UNUSABLE = 4;
 
 /**
  * Why a past-the-cap dispatch was refused — the two refusals differ in what
@@ -901,6 +928,25 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // per DISPATCH, precisely because the cap refusal above returns before this
   // line: a refused run leaves the previous round's stamp in place, which is
   // what makes its sinks read as stale instead of as current.
+  // Prior-aware lanes read their prior sink here, once — before the round is recorded, so a
+  // refusal leaves the previous round's record intact exactly as the cap refusal does. The
+  // overwrite guard below only copies a sink it archives, so this read sees what the lane will
+  // inherit. An unusable sink refuses the round: running that lane as a first round would let
+  // a delta re-round pass without ever seeing the blockers the file held (Q-0260).
+  const readPrior = opts.readPriorSink ?? readPriorSinkDefault;
+  const priors = new Map<Lane, PriorSinkRead>();
+  for (const l of PRIOR_AWARE_LANES) {
+    if (requested.includes(l))
+      priors.set(l, await readPrior(cwd, opts.args.slug, opts.args.kind, l));
+  }
+  const unusable = [...priors.values()].filter(
+    (r): r is Extract<PriorSinkRead, { kind: 'unusable' }> => r.kind === 'unusable',
+  );
+  if (unusable.length > 0) {
+    console.error(renderPriorRefusal(unusable));
+    return { lanesRun: [], syntheticOks: [], exitCode: EXIT_PRIOR_UNUSABLE };
+  }
+
   if (requested.length > 0) {
     await writeExpectedLanes(cwd, opts.args.slug, opts.args.kind, requested, headSha);
   }
@@ -929,14 +975,8 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     },
     { autonomous: opts.args.autonomous },
   );
-  // Prior-round reads happen here — after the guard (its archive action is a
-  // copyFile, so the sink is still on disk) and before any lane can overwrite
-  // its own sink. Read-once: the reviewer's single result feeds both the green
-  // check below and the prior-round context attached at dispatch.
-  const readPrior = opts.readPriorSink ?? readPriorSinkDefault;
-  const reviewerPrior = effective.includes('reviewer')
-    ? await readPrior(cwd, opts.args.slug, opts.args.kind, 'reviewer')
-    : null;
+  // Read-once: a prior-aware lane's single read above feeds both the green check
+  // below and the prior-round context attached at dispatch.
 
   // Delta short-circuit: empty diff + baseSha + !fullReview => synthetic OK for
   // every lane whose prior run went green. Re-reviewing an unchanged artifact is
@@ -948,7 +988,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // other shape — fullReviewOverride, explicit --full-review, no baseSha —
   // keeps `reexamine`, which asserts nothing about whether the artifact changed
   // (the safe direction is re-confirmation, never suppression).
-  let reviewerMode: PriorReview['mode'] = 'reexamine';
+  let priorMode: PriorReview['mode'] = 'reexamine';
   if (input.baseSha && !input.fullReview) {
     const empty = await isEmptyDiff(cwd, input.baseSha, input.artifactSha, input.artifact);
     if (empty) {
@@ -966,10 +1006,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         // unaddressed red on `manual` / `codex` / `verifier` — or on any
         // `code`-kind lane, which is the one that amends the push receipt — was
         // overwritten by `blockers: []` on the next no-op re-run.
-        const prior =
-          l === 'reviewer'
-            ? reviewerPrior
-            : await readPrior(cwd, opts.args.slug, opts.args.kind, l);
+        const prior = priors.get(l) ?? (await readPrior(cwd, opts.args.slug, opts.args.kind, l));
         if (!priorSinkIsGreen(prior)) {
           stillToRun.push(l);
           continue;
@@ -984,7 +1021,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       // since it writes a green sink.
       if (stillToRun.length > 0) fullReviewOverride = true;
     } else {
-      reviewerMode = 'fixes-in-diff';
+      priorMode = 'fixes-in-diff';
     }
   }
 
@@ -999,13 +1036,16 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     delete dispatchInput.baseSha;
   }
 
-  // Prior-round context rides ONLY the reviewer's input — attached per-lane at
-  // the dispatch call, so `manual`/`codex`/`verifier` stay unchanged by
-  // construction rather than by their ignoring an unknown field.
-  const reviewerContext: PriorReview | undefined =
-    reviewerPrior !== null && reviewerPrior.blockers.length > 0
-      ? { blockers: reviewerPrior.blockers, mode: reviewerMode }
-      : undefined;
+  // Prior-round context rides ONLY the prior-aware lanes' input — attached per-lane
+  // at the dispatch call, so `manual`/`verifier` and the rest stay unchanged by
+  // construction rather than by their ignoring an unknown field. A lane's own
+  // failure blocker is never carried: no fix can resolve it (Q-0260).
+  const contexts = new Map<Lane, PriorReview>();
+  for (const [l, read] of priors) {
+    if (read.kind !== 'found') continue;
+    const blockers = read.sink.blockers.filter((b) => !isLaneFailureBlocker(b));
+    if (blockers.length > 0) contexts.set(l, { blockers, mode: priorMode });
+  }
 
   // Port contention is real: `verifier` boots the same `verifyCommands` servers
   // this lane boots, and the batch below is concurrent. When both share the
@@ -1013,10 +1053,9 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // success or failure — with its own pre-boot occupancy check still guarding
   // contention from outside the round (spec R4).
   const launch = (l: Lane): Promise<LaneResult> => {
+    const context = contexts.get(l);
     const laneInput =
-      l === 'reviewer' && reviewerContext !== undefined
-        ? { ...dispatchInput, priorReview: reviewerContext }
-        : dispatchInput;
+      context !== undefined ? { ...dispatchInput, priorReview: context } : dispatchInput;
     if (l === 'codex') return runCodex(laneInput);
     // standalone can't reach here — run() rejects it at entry.
     return LANES[l as Exclude<Lane, 'standalone'>](laneInput);
@@ -1200,9 +1239,9 @@ if (isEntrypoint(import.meta.url)) {
   const { parseArgs } = await import('./orchestrate-args.js');
   const args = parseArgs(process.argv);
   const r = await run({ args });
-  // A cap refusal dispatched nothing and has already printed the round history,
-  // so an empty `lanes run:` line under it is noise.
-  if (r.exitCode !== EXIT_ROUND_CAP) {
+  // A refusal dispatched nothing and has already printed why, so an empty
+  // `lanes run:` line under it is noise.
+  if (r.exitCode !== EXIT_ROUND_CAP && r.exitCode !== EXIT_PRIOR_UNUSABLE) {
     console.log(`lanes run: ${r.lanesRun.join(', ')}`);
     if (r.syntheticOks.length)
       console.log(`synthetic OK (empty delta): ${r.syntheticOks.join(', ')}`);

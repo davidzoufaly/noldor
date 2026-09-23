@@ -1,4 +1,4 @@
-// @tests: specs-cr-gate-multi-reviewer
+// @tests: specs-cr-gate-multi-reviewer, cr-re-round-cap-enforcement-and-oscillation-detector
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

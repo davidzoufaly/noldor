@@ -3,6 +3,8 @@ import { CUT_MARKER_GUIDE } from '../core/structural-context-contract.js';
 import { describeCodexFailure, probeCodexVersion } from './codex-failure.js';
 import { BLOCKING_DEFINITION } from './blocking-definition.js';
 import { extractJsonObject } from './extract-json.js';
+import type { PriorReview } from './lane-types.js';
+import { laneFailureFile, renderPriorSection } from './re-round.js';
 import { CrRecordSchema, type CrRecord } from './sidecar.js';
 
 // Homed in codex-adapter.ts beside the registry-backed implementation; re-exported here so
@@ -15,6 +17,8 @@ export interface CodeReviewCtx {
   diff: string;
   featureMd: string;
   rules: string;
+  /** The prior round's blockers on a re-round (Q-0260); absent on a first round. */
+  prior?: PriorReview;
 }
 
 export interface ArtifactReviewCtx {
@@ -22,6 +26,8 @@ export interface ArtifactReviewCtx {
   artifact: string;
   featureMd: string;
   rules: string;
+  /** The prior round's blockers on a re-round (Q-0260); absent on a first round. */
+  prior?: PriorReview;
 }
 
 export type ReviewCtx = CodeReviewCtx | ArtifactReviewCtx;
@@ -117,6 +123,7 @@ function formatCodePrompt(ctx: CodeReviewCtx): string {
     JSON_ONLY_DIRECTIVE,
     '',
     CODEX_BLOCKING,
+    ...priorLines(ctx.prior),
     '',
     '## Engineering rules',
     ctx.rules,
@@ -144,6 +151,7 @@ function formatArtifactPrompt(ctx: ArtifactReviewCtx): string {
     `A finding about the ${noun} blocks only when implementing it as written would ship one of the defects below. For document-level findings with no specific line, set "line": null.`,
     '',
     CODEX_BLOCKING,
+    ...priorLines(ctx.prior),
     '',
     '## Engineering rules',
     ctx.rules,
@@ -156,10 +164,18 @@ function formatArtifactPrompt(ctx: ArtifactReviewCtx): string {
   ].join('\n');
 }
 
+/** Right after the blocking definition, so the prior section's reference to it reads in order. */
+function priorLines(prior: PriorReview | undefined): string[] {
+  return prior === undefined ? [] : [renderPriorSection(prior)];
+}
+
 function synthBlocker(message: string): CrRecord {
   return {
-    blockers: [{ file: '<codex>', message, severity: 'high', line: null, suggestion: null }],
+    blockers: [
+      { file: laneFailureFile('codex'), message, severity: 'high', line: null, suggestion: null },
+    ],
     suggestions: [],
     summary: message,
+    prior: [],
   };
 }

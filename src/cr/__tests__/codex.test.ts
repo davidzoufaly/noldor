@@ -20,11 +20,12 @@ function makeRepo(): string {
   return cwd;
 }
 
-const passing = JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' });
+const passing = JSON.stringify({ blockers: [], suggestions: [], summary: 'ok', prior: [] });
 const blocker = JSON.stringify({
   blockers: [{ file: 'a.ts', message: 'bug', line: null, severity: null, suggestion: null }],
   suggestions: [],
   summary: 'no',
+  prior: [],
 });
 
 describe('runCli', () => {
@@ -212,6 +213,7 @@ describe('runCli — plan/spec review mode', () => {
       },
     ],
     summary: 'plan needs work',
+    prior: [],
   });
 
   it('--plan prints {summary, findings} to stdout and exits 0 even with blockers', async () => {
@@ -359,6 +361,7 @@ describe('runCli — plan/spec review mode', () => {
       ],
       suggestions: [],
       summary: 's',
+      prior: [],
     });
     const cap = captureStdout();
     try {
@@ -383,6 +386,7 @@ describe('runCli — plan/spec review mode', () => {
       blockers: [{ file: 'plan.md', message: '', line: null, severity: null, suggestion: null }],
       suggestions: [],
       summary: '',
+      prior: [],
     });
     const cap = captureStdout();
     try {

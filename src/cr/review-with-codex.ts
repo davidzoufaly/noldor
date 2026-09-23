@@ -7,6 +7,8 @@ import { buildContext } from './context.js';
 import { runCodex, type ReviewCtx } from './run-codex.js';
 import type { CrRecord } from './sidecar.js';
 import { isNeverBlockingMessage } from './blocking-definition.js';
+import type { PriorReview } from './lane-types.js';
+import { laneFailureFile } from './re-round.js';
 
 export interface OutFinding {
   file: string;
@@ -19,6 +21,8 @@ export interface OutFinding {
 export interface ReviewOutput {
   summary: string;
   findings: OutFinding[];
+  /** Codex's answers about the prior blockers it was shown (Q-0260); [] on a first round. */
+  prior: CrRecord['prior'];
 }
 
 /**
@@ -43,7 +47,7 @@ export async function reviewWithCodex(
   review: ArtifactReview,
   cwd: string,
   spawn: Spawn,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; prior?: PriorReview } = {},
 ): Promise<ReviewOutput> {
   try {
     // Validate BEFORE any value reaches a git argv. This is the shared chokepoint: the CLI
@@ -69,12 +73,19 @@ export async function reviewWithCodex(
         featureMd,
         rules,
       });
+      if (opts.prior !== undefined) ctx = { ...ctx, prior: opts.prior };
     } else {
       const artifact =
         review.baseSha && !review.fullReview
           ? sh(cwd, ['diff', `${review.baseSha}..HEAD`, '--', review.artifact])
           : readIfExists(cwd, review.artifact);
-      ctx = { kind: review.kind, artifact, featureMd, rules };
+      ctx = {
+        kind: review.kind,
+        artifact,
+        featureMd,
+        rules,
+        ...(opts.prior !== undefined ? { prior: opts.prior } : {}),
+      };
     }
 
     const record = await runCodex({
@@ -85,10 +96,15 @@ export async function reviewWithCodex(
     return {
       summary: record.summary || '(no summary provided)',
       findings: toFindings(record, review.artifact),
+      prior: record.prior,
     };
   } catch (e) {
     const message = `${review.kind} review failed: ${(e as Error).message}`;
-    return { summary: message, findings: [{ file: review.artifact, message, severity: 'high' }] };
+    return {
+      summary: message,
+      findings: [{ file: laneFailureFile('codex'), message, severity: 'high' }],
+      prior: [],
+    };
   }
 }
 
