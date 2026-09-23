@@ -178,6 +178,29 @@ covered every lane, a red round cleared itself on the next no-op re-run
 (`blockers: []`, exit 0), which is the one failure mode a review gate must
 not have.
 
+### Re-round contract
+
+A re-round is a dispatch whose lane inherits blockers from its own prior sink. Two lanes
+inherit them, `reviewer` and `codex`, and both render one contract from `src/cr/re-round.ts`
+(Q-0260):
+
+- The prompt lists every prior blocker as `P1…Pn` and asks the lane to answer each one in a
+  `prior` list of `{"n", "resolved", "why"}`. The lane never re-types a prior. Code re-files
+  every prior not answered `resolved: true` as the prior finding, unchanged, so its fingerprint
+  survives the round — and with it R1, the no-progress stop and any arbitration disposition
+  (`docs/adr/0002-code-refiles-standing-cr-blockers.md`). An unanswered, malformed or
+  contradictory answer carries the prior. The sink's `notes` record every answer.
+- A new finding blocks only as a regression the fix caused, or under the blocking definition.
+  Everything else about the fix's own content is a suggestion.
+- A lane that fails keeps the priors it was handed, behind its own failure blocker filed against
+  `<reviewer>` or `<codex>`. No round ever carries a `<lane>` blocker forward.
+- A prior sink that exists but cannot be read, does not parse, or fails `laneFindingsSchema`
+  refuses the round with exit 4, before anything is dispatched or recorded. Repair the file, or
+  remove it to start that lane's series over.
+
+Whoever writes the fix works to the rule `cr autofix plan` prints as its `fix-rule:` line: make
+the smallest change that resolves the blocker, and prefer deleting a claim to adding one.
+
 ## Escalation
 
 When aggregate surfaces a blocker, control passes to
@@ -206,12 +229,14 @@ Codex must return:
     { "file": "src/x.ts", "line": 42, "severity": "high", "message": "...", "suggestion": "..." }
   ],
   "suggestions": [{ "file": "src/x.ts", "line": 42, "message": "...", "suggestion": "..." }],
-  "summary": "one-line verdict"
+  "summary": "one-line verdict",
+  "prior": [{ "n": 1, "resolved": true, "why": "..." }]
 }
 ```
 
-Anything else (non-JSON, schema mismatch, non-zero exit) becomes a
-synthetic blocker and the script exits 1.
+`prior` answers the prior blockers a re-round lists (see "Re-round contract"); a first round
+returns `[]`. Anything else (non-JSON, schema mismatch, non-zero exit) becomes a synthetic
+blocker filed against `<codex>` and the script exits 1.
 
 ## Override
 
