@@ -94,16 +94,28 @@ export function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** Single-letter relation codes. `p`/`s` cover `graphify enrich-docs` output. */
-const REL_CODE: Record<string, string> = {
-  calls: 'f',
-  imports: 'i',
-  method: 'm',
-  'plan-of': 'p',
-  re_exports: 'e',
-  references: 'r',
-  'spec-of': 's',
-};
+/**
+ * Single-letter relation codes. `p`/`s` cover `graphify enrich-docs` output.
+ *
+ * A Map, not an object literal: relations come from `graph.json` and a semantic
+ * run writes them free-form, so a relation named `constructor` or `toString`
+ * would resolve through `Object.prototype` and splice that member's source into
+ * the edge row. A Map has no prototype chain to fall through to.
+ */
+const REL_CODE: ReadonlyMap<string, string> = new Map([
+  ['calls', 'f'],
+  ['imports', 'i'],
+  ['method', 'm'],
+  ['plan-of', 'p'],
+  ['re_exports', 'e'],
+  ['references', 'r'],
+  ['spec-of', 's'],
+]);
+
+/** The code a relation renders as; `?` for anything the map does not carry. */
+function relCode(relation: string | undefined): string {
+  return REL_CODE.get(relation ?? '') ?? '?';
+}
 
 /** Edges recoverable from node placement or from other edges — dropped to save tokens. */
 const REL_OMIT: ReadonlySet<string> = new Set(['contains', 'imports_from']);
@@ -165,20 +177,29 @@ interface HubStats {
 }
 
 /**
- * Top hubs by total degree, ties broken by local index. Index rather than label:
- * two nodes can share a label AND a total degree, and the leftover order then
- * came from a Set built in graphify's edge order — reversing the input flipped
- * `dup(1/1) dup(0/2)` to `dup(0/2) dup(1/1)`. `sortedNodes` is already ordered by
- * label then id, so the index is a total order.
+ * Top hubs by total degree, ties broken by local index.
+ *
+ * Degrees are read from the emitted adjacency, not from the input links:
+ * parallel links between the same pair under one relation collapse into a single
+ * entry, so counting the links makes `sig` describe edges the block does not
+ * contain — the same "count the file does not encode" problem the header count
+ * already avoids.
+ *
+ * Index rather than label for the tie: two nodes can share a label AND a total
+ * degree, and the leftover order then came from a Set built in graphify's edge
+ * order — reversing the input flipped `dup(1/1) dup(0/2)` to `dup(0/2) dup(1/1)`.
+ * The node list is already ordered by label then id, so the index is total.
  */
-function computeHubs(commEdges: readonly GraphLink[], localIdx: Map<string, number>): HubStats[] {
+function computeHubs(byRel: ReadonlyMap<string, Map<number, Set<number>>>): HubStats[] {
   const fanOut = new Map<number, number>();
   const fanIn = new Map<number, number>();
-  for (const l of commEdges) {
-    const s = localIdx.get(l.source);
-    const t = localIdx.get(l.target);
-    if (s !== undefined) fanOut.set(s, (fanOut.get(s) ?? 0) + 1);
-    if (t !== undefined) fanIn.set(t, (fanIn.get(t) ?? 0) + 1);
+  for (const bySrc of byRel.values()) {
+    for (const [s, targets] of bySrc) {
+      fanOut.set(s, (fanOut.get(s) ?? 0) + targets.size);
+      for (const t of targets) {
+        fanIn.set(t, (fanIn.get(t) ?? 0) + 1);
+      }
+    }
   }
   const stats: HubStats[] = [];
   for (const idx of new Set<number>([...fanOut.keys(), ...fanIn.keys()])) {
@@ -219,10 +240,24 @@ function emitCommunity(
   const { prefix, stripped } = factorCommonPrefix(uniquePaths);
   const pathLocal = new Map<string, number>(uniquePaths.map((p, i) => [p, i]));
 
+  // Built before anything is pushed: the sig line's degrees are read from this,
+  // not from `commEdges`, so they describe the rows the block actually carries.
+  const byRel = new Map<string, Map<number, Set<number>>>();
+  for (const l of commEdges) {
+    const raw = l.relation ?? '';
+    const src = localIdx.get(l.source);
+    const tgt = localIdx.get(l.target);
+    if (src === undefined || tgt === undefined) continue;
+    if (!byRel.has(raw)) byRel.set(raw, new Map());
+    const bySrc = byRel.get(raw)!;
+    if (!bySrc.has(src)) bySrc.set(src, new Set());
+    bySrc.get(src)!.add(tgt);
+  }
+
   lines.push(`## c${commId} (${commNodes.length}) ${sanitizeLine(label)}`);
 
-  if (commNodes.length >= SIG_MIN_NODES && commEdges.length > 0) {
-    const hubs = computeHubs(commEdges, localIdx);
+  if (commNodes.length >= SIG_MIN_NODES && byRel.size > 0) {
+    const hubs = computeHubs(byRel);
     if (hubs.length > 0) {
       const parts = hubs.map(
         (h) => `${formatNodeLabel(sortedNodes[h.idx].label)}(${h.fanIn}/${h.fanOut})`,
@@ -243,37 +278,21 @@ function emitCommunity(
     lines.push(`  ${i} ${formatNodeLabel(n.label)} @${pi}`);
   }
 
-  if (commEdges.length === 0) {
+  if (byRel.size === 0) {
     return 0;
-  }
-
-  // Keyed by the RAW relation, not by its rendered code. Every unmapped relation
-  // renders `?`, so keying by the code would merge `inherits` and `implements`
-  // between the same pair into one adjacency set — an edge lost and the header's
-  // count short by one.
-  const byRel = new Map<string, Map<number, Set<number>>>();
-  for (const l of commEdges) {
-    const raw = l.relation ?? '';
-    const s = localIdx.get(l.source);
-    const t = localIdx.get(l.target);
-    if (s === undefined || t === undefined) continue;
-    if (!byRel.has(raw)) byRel.set(raw, new Map());
-    const bySrc = byRel.get(raw)!;
-    if (!bySrc.has(s)) bySrc.set(s, new Set());
-    bySrc.get(s)!.add(t);
   }
 
   lines.push('e');
   let emitted = 0;
   const rels = [...byRel.keys()].toSorted(
-    (a, b) => byCodeUnit(REL_CODE[a] ?? '?', REL_CODE[b] ?? '?') || byCodeUnit(a, b),
+    (a, b) => byCodeUnit(relCode(a), relCode(b)) || byCodeUnit(a, b),
   );
   for (const raw of rels) {
-    const r = REL_CODE[raw] ?? '?';
+    const r = relCode(raw);
     const bySrc = byRel.get(raw)!;
-    for (const s of [...bySrc.keys()].toSorted((a, b) => a - b)) {
-      const targets = [...bySrc.get(s)!].toSorted((a, b) => a - b);
-      lines.push(`  ${r} ${s}>${targets.join(',')}`);
+    for (const src of [...bySrc.keys()].toSorted((a, b) => a - b)) {
+      const targets = [...bySrc.get(src)!].toSorted((a, b) => a - b);
+      lines.push(`  ${r} ${src}>${targets.join(',')}`);
       emitted += targets.length;
     }
   }
@@ -380,10 +399,18 @@ function classifyEdges(links: GraphLink[], nodeCommunityMap: Map<string, number>
   const cross: GraphLink[] = [];
 
   for (const link of links) {
+    // A link to a node the graph does not carry is not an edge. Left in, it
+    // rendered as `@c-1` and read as membership of the community-less block.
+    if (!nodeCommunityMap.has(link.source) || !nodeCommunityMap.has(link.target)) {
+      continue;
+    }
     const srcComm = nodeCommunityMap.get(link.source) ?? -1;
     const tgtComm = nodeCommunityMap.get(link.target) ?? -1;
 
-    if (srcComm === tgtComm && srcComm !== -1) {
+    // `-1` counts as a community like any other: it gets a `## c-1` block, and
+    // `## cross` promises two DIFFERENT communities, so its internal edges
+    // belong inside it.
+    if (srcComm === tgtComm) {
       if (!intra.has(srcComm)) {
         intra.set(srcComm, []);
       }
@@ -410,7 +437,7 @@ function crossRows(
   return cross
     .filter((l) => !REL_OMIT.has(l.relation ?? ''))
     .map((l) => ({
-      rel: REL_CODE[l.relation ?? ''] ?? '?',
+      rel: relCode(l.relation),
       src: formatNodeLabel(idToLabel.get(l.source) ?? l.source),
       srcComm: nodeCommunityMap.get(l.source) ?? -1,
       tgt: formatNodeLabel(idToLabel.get(l.target) ?? l.target),

@@ -341,4 +341,77 @@ describe('graph-to-toon', () => {
     ).toBe(2);
     expect(text).toContain('# 2 nodes, 2 edges');
   });
+
+  it('reports hub degrees the block actually contains', () => {
+    // Parallel links under one relation collapse into a single adjacency entry,
+    // so counting the input links makes `sig` describe edges the block omits.
+    const text = renderBrainstormToon(
+      buildContext({
+        links: [
+          { relation: 'calls', source: 'A', target: 'B' },
+          { relation: 'calls', source: 'A', target: 'B' },
+          { relation: 'calls', source: 'C', target: 'B' },
+        ],
+        nodes: [
+          { community: 1, id: 'A', label: 'A', source_file: 'src/a.ts' },
+          { community: 1, id: 'B', label: 'B', source_file: 'src/b.ts' },
+          { community: 1, id: 'C', label: 'C', source_file: 'src/c.ts' },
+        ],
+      }),
+    );
+    expect(text).toContain('sig hubs=B(2/0)');
+    expect(text).toContain('# 3 nodes, 2 edges');
+  });
+
+  it('does not let a relation name reach Object.prototype', () => {
+    // REL_CODE is keyed lookup over attacker-adjacent data: graph.json relations
+    // are free-form on a semantic run, and `constructor` on an object literal
+    // returns the Object constructor's source.
+    for (const relation of ['constructor', 'toString', 'hasOwnProperty']) {
+      const text = renderBrainstormToon(
+        buildContext({
+          links: [{ relation, source: 'A', target: 'B' }],
+          nodes: [
+            { community: 1, id: 'A', label: 'A', source_file: 'src/a.ts' },
+            { community: 1, id: 'B', label: 'B', source_file: 'src/b.ts' },
+          ],
+        }),
+      );
+      expect(text).toContain('  ? 0>1');
+      expect(text).not.toContain('native code');
+    }
+  });
+
+  it('keeps edges among community-less nodes inside their own block', () => {
+    // `## cross` promises two DIFFERENT communities. The -1 bucket is a real
+    // block now, so its internal edges belong in it, not in cross.
+    const text = renderBrainstormToon(
+      buildContext({
+        links: [{ relation: 'calls', source: 'A', target: 'B' }],
+        nodes: [
+          { id: 'A', label: 'A', source_file: 'src/a.ts' },
+          { id: 'B', label: 'B', source_file: 'src/b.ts' },
+        ],
+      }),
+    );
+    expect(blockOf(text, 'c-1')).toContain('  f 0>1');
+    expect(text).not.toContain('## cross');
+  });
+
+  it('drops a link whose endpoint is not a node in the graph', () => {
+    // A dangling target rendered as `@c-1`, which reads as membership of the
+    // community-less block rather than as the missing node it is.
+    const text = renderBrainstormToon(
+      buildContext({
+        links: [{ relation: 'calls', source: 'A', target: 'ghost' }],
+        nodes: [
+          { community: 0, id: 'A', label: 'A', source_file: 'src/a.ts' },
+          { community: 1, id: 'B', label: 'B', source_file: 'src/b.ts' },
+        ],
+      }),
+    );
+    expect(text).not.toContain('ghost');
+    expect(text).not.toContain('## cross');
+    expect(text).toContain('# 2 nodes, 0 edges');
+  });
 });
