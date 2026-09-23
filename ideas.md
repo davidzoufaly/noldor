@@ -11,6 +11,9 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 ## Not groomed
 
+- The release sweep and the `update-knowledge-graph` workflow build the committed graph two different ways, so they fight over community ids. Both extract the same nodes and edges (0 diffs, rebuilt from 140ff63), but the sweep's `/graphify --ast-only` clusters with no fixed hash seed and names communities with an LLM, while the workflow pins `PYTHONHASHSEED=0`, sorts its input and writes `Community N`. Two unseeded runs on one tree gave 205 and then 204 communities. So the first graph PR after every release reshuffles every community id and relabels the report. Wanted: one builder both call — a `pnpm noldor graphify build` running the workflow's heredoc (clean AST pass over code files, seeded, sorted, `parallel=False`) — with release-sweep steps 1 and 5 switched to it. Deletion test: the sweep's graph step, run right after a graph PR merges, leaves `graphify-out/` byte-identical. (found 2026-09-23 shipping Q-0260 part 3, PR #501)
+- Two small hardening items the Q-0260 part 3 reviewer left as optional, both in the workflow's publish step. The newer-graph check treats every `git fetch` failure as "no graph on that ref" and publishes anyway; only a missing ref should read that way, and an auth or network failure deserves a `::warning::`. And a re-run of a merge whose graph PR already landed opens a graph PR with an empty diff; the check could also stop when the default branch holds a graph built at exactly this merge. (found 2026-09-23, PR #501 round 3)
+
 ## Lessons
 
 Raw capture point for operator/agent lessons + gotchas. `/noldor-absorb` classifies each unfiled bullet (`drop | gotcha | actionable | feedback`), files it into framework docs, and stamps `[absorbed YYYY-MM-DD → <dest>]`. Stamped bullets may be pruned — git history is the audit trail.
