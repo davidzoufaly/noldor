@@ -628,6 +628,14 @@ The ledger lives at `.noldor/design/<slug>.md` (untracked scratch, gitignored);
 - **When to use:** after editing the architecture pages, and whenever a module directory is added or renamed.
 - **Source:** [`src/docs/docs-architecture.ts`](../../src/docs/docs-architecture.ts)
 
+### `docs:capability-index`
+
+- **Trigger:** `pnpm noldor docs capability-index` (check, the default) or `pnpm noldor docs capability-index --write`. Runs in `pre-commit` (`capability-index` job).
+- **Inputs:** the CLI manifest (`src/cli/manifest.ts`); `AGENTS.md` and `templates/AGENTS.md`, each skipped when absent.
+- **Outputs:** renders one line per verb group — its description and subcommand names — between the `<!-- noldor:capabilities:start -->` / `<!-- noldor:capabilities:end -->` markers. Check mode exits 0 when every present file's block matches the manifest, 1 when a block is stale or the markers are missing. `--write` rewrites stale blocks and exits 0 (still 1 when markers are missing).
+- **When to use:** automatically on commits touching the manifest or `AGENTS.md`; by hand with `--write` after adding or renaming a command. The block is what makes the command set always-read: every runtime loads `AGENTS.md`, so an agent sees what Noldor ships without opening this page.
+- **Source:** [`src/docs/capability-index.ts`](../../src/docs/capability-index.ts)
+
 ### `docs:build`
 
 - **Trigger:** `pnpm docs:build`. Composite — runs `docs:api && docs:howto && docs:transclude && sync:doc-links && docs:check && fmt`.

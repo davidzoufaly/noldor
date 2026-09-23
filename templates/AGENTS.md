@@ -28,6 +28,54 @@ this file natively; Claude Code reads `.claude/` instead. Same rules, one gate.
 `init`, `doctor`. Full catalog: `docs/noldor/script-catalog.md`. Agent-runtime
 matrix: `docs/noldor/agent-runtimes.md`.
 
+<!-- noldor:capabilities:start -->
+
+## Capability index
+
+Every `pnpm noldor` verb group and its subcommands, generated from the CLI manifest
+(`pnpm noldor docs capability-index --write`; do not edit by hand). Check here before
+building something by hand — the framework may already ship it. Per-command inputs,
+outputs and exit codes: `docs/noldor/script-catalog.md`.
+
+- `autonomous` — Autonomous runners (queue-drain / plan-runner): run, queue-drain, watch, inbox, unpark, branch-state, status
+- `prep` — Parallel prep: fan out spec/plan drafts, then promote approved ones to FDs: fanout, promote, format
+- `design` — Running design context for a spec/plan dialogue (ledger + inline block): archive, ui-sync, capture, pen-bridge, open, verdict, context, graph-context, log, support-check, geometry-diff, geometry-validate
+- `research` — Parallel read-only research agents (fanout + opt-in synthesis): fanout
+- `garden` — Garden drift detection + SDD report + receipts: detect, receipt, sdd-report, demote-stale
+- `metrics` — Effectiveness metrics derived from repo history: compute
+- `cr` — Code-review orchestration (subagent / codex / standalone lanes): orchestrate, aggregate, codex, escalate, autofix, bootstrap, arbitration
+- `triage` — Triage + score backlog entries: score, list-untriaged, validate, mint-id, backfill-ids, merge-candidates
+- `rules` — Engineering rule store: resolve / list / validate: resolve, brief, list, validate
+- `features` — Feature MD validators + migrations: validate, attach-milestone, fill-links-code-gaps, migrate-features, migrate-code-tags, propose-pointers, migrate-fd-commits-to-prs, migrate-link-rot, phase-flip-done, phase-revert
+- `roadmap` — Roadmap/backlog block operations: remove-block, has-block
+- `milestones` — Milestone validators: validate, show
+- `sync` — Sync links across docs/tests/FDs: test-links, doc-links, code-links, spec-links, fd-resources
+- `validate` — Validators (noldor config + skill catalog + scope): noldor, noldor-config, noldor-scope, skill-catalog, script-catalog, features, milestones, triage, feature-slug-scope
+- `release` — Release pipeline: run, publish
+- `hooks` — Lefthook entrypoints (pre-commit / commit-msg / pre-push): pre-commit, inject-trailers, validate-trailer, enforce-review-receipt, enforce-arbitration, pre-push, pre-edit-guard, open-artifact
+- `checks` — Invariant + shared-file checks: invariants, shared-files, feature-slug-scope, template-sync, ui-design-freshness, push-gates, readme, skill-portability, pen-bridge
+- `graphify` — Graphify runner + helpers: graph-to-toon, enrich-docs, refactor-precondition
+- `dashboard` — Dev dashboard: server, ensure, status
+- `docs` — Docs builders + checks: api, howto, check, transclude, adr, architecture, capability-index
+- `worktrees` — Worktree create + status + launch: create, status, conflicts, launch, up, down
+- `verify` — Acceptance verification (smoke floor): smoke
+- `invariants` — Same as `checks invariants`; alias kept for the spec cheatsheet: run
+- `noldor` — Noldor utilities (changelog, session marker, etc.): changelog, bump-session-marker, set-autonomous, lint-plan-snippets, split-check, rename-plan-only-tier
+- `next-priority` — Next-priority pickup
+- `pr-flow` — PR flow (push + create + auto-merge + poll)
+- `clones` — Token-based code-clone detection (Type-1/2/3)
+- `indirection` — Transitive-import-closure indirection ratchet
+- `wait` — Poll a state file until a predicate matches
+- `changelog` — Generate changelog (hoisted)
+- `fmt` — Run oxfmt with the all-ignored no-op guard
+- `adr` — Decision records (docs/adr/): new
+- `commit` — Run git commit and print a pipe-proof verdict (real exit code + post-commit status)
+- `init` — Scaffold framework files into the consumer repo
+- `doctor` — Diff consumer files against pkg templates (non-zero exit on drift)
+- `upgrade` — Run version-aware migration chain (anchored → installed framework version)
+
+<!-- noldor:capabilities:end -->
+
 ## Skills (codex/opencode)
 
 The framework's interactive flows are CLI-backed. Invoke via the matching

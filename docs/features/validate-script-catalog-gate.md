@@ -8,6 +8,7 @@ links:
     - src/cli/validate-script-catalog.ts
   tests:
     - src/cli/__tests__/validate-script-catalog.test.ts
+    - src/docs/__tests__/capability-index.test.ts
   spec: docs/design/specs/archive/2026-07-14-validate-script-catalog-gate-design.md
 name: Validate Script-Catalog Gate
 packages:
