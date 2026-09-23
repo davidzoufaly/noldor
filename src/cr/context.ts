@@ -64,6 +64,9 @@ function diffArgs(lane: Lane): string[] {
     case 'sha':
       return ['diff', `main...${lane.sha}`];
     case 'range':
-      return ['diff', `${lane.from}..${lane.to}`];
+      // Three dots: diff from the merge-base, so a `from` that has moved past the fork
+      // point (a stale branch against `origin/main`) does not hand the reviewer main's
+      // newer commits, reversed, as if the branch had made them (Q-0265).
+      return ['diff', `${lane.from}...${lane.to}`];
   }
 }

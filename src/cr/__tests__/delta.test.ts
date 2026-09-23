@@ -1,6 +1,7 @@
 // @tests: acceptance-verify-lane, autonomous-plan-to-pr-merge, specs-cr-gate-multi-reviewer
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,6 +14,7 @@ vi.mock('../lanes/codex.js', () => ({
 vi.mock('../lanes/subagent.js', () => ({
   runSubagent: vi.fn(async () => ({ lane: 'reviewer', sinkPath: 's', ok: true })),
 }));
+import { runManual } from '../lanes/manual.js';
 import { run } from '../orchestrate.js';
 
 let root: string;
@@ -81,5 +83,55 @@ describe('delta short-circuit', () => {
       isEmptyDiff: async () => true,
     });
     expect(r.syntheticOks).toEqual([]);
+  });
+});
+
+describe('stale base (Q-0265)', () => {
+  // A branch forked from main, then main moved on. `--base-sha main` must review only the
+  // branch's own change, so every lane gets the fork point — not main's tip, whose two-dot
+  // diff against the branch would carry main's newer commits reversed.
+  it('hands every lane the merge-base when --base-sha has moved past the fork point', async () => {
+    const git = (...a: string[]) => execFileSync('git', a, { cwd: root, encoding: 'utf8' }).trim();
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 't@t');
+    git('config', 'user.name', 't');
+    git('config', 'commit.gpgsign', 'false');
+    await writeFile(join(root, 'a.txt'), 'a\n');
+    git('add', 'a.txt');
+    git('commit', '-q', '--no-verify', '-m', 'fork point');
+    const forkPoint = git('rev-parse', 'HEAD');
+    git('checkout', '-q', '-b', 'feat');
+    await writeFile(join(root, 'b.txt'), 'b\n');
+    git('add', 'b.txt');
+    git('commit', '-q', '--no-verify', '-m', 'branch change');
+    const head = git('rev-parse', 'HEAD');
+    git('checkout', '-q', 'main');
+    await writeFile(join(root, 'c.txt'), 'c\n');
+    git('add', 'c.txt');
+    git('commit', '-q', '--no-verify', '-m', 'main moved on');
+    const mainTip = git('rev-parse', 'HEAD');
+    git('checkout', '-q', 'feat');
+
+    const emptyDiffBases: string[] = [];
+    vi.mocked(runManual).mockClear();
+    await run({
+      args: {
+        slug: 'x',
+        artifact: 'b.txt',
+        kind: 'code',
+        lanes: ['manual'],
+        baseSha: mainTip,
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd: root,
+      isEmptyDiff: async (_r, base) => {
+        emptyDiffBases.push(base);
+        return false;
+      },
+    });
+    expect(head).not.toBe(forkPoint);
+    expect(emptyDiffBases).toEqual([forkPoint]);
+    expect(vi.mocked(runManual).mock.calls[0]?.[0].baseSha).toBe(forkPoint);
   });
 });

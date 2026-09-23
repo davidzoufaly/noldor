@@ -88,7 +88,7 @@ export async function reviewWithCodex(
     } else {
       const artifact =
         review.baseSha && !review.fullReview
-          ? sh(cwd, ['diff', `${review.baseSha}..HEAD`, '--', review.artifact])
+          ? sh(cwd, ['diff', `${review.baseSha}...HEAD`, '--', review.artifact])
           : readIfExists(cwd, review.artifact);
       ctx = {
         kind: review.kind,
