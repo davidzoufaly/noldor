@@ -36,9 +36,20 @@
           },
           "suggestion": {
             "type": ["string", "null"]
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["requirement", "feasibility", "risk"]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": ["file", "line", "severity", "message", "suggestion"],
+        "required": ["file", "line", "severity", "message", "suggestion", "basis"],
         "additionalProperties": false
       }
     },
@@ -77,9 +88,20 @@
           },
           "suggestion": {
             "type": ["string", "null"]
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["requirement", "feasibility", "risk"]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": ["file", "line", "severity", "message", "suggestion"],
+        "required": ["file", "line", "severity", "message", "suggestion", "basis"],
         "additionalProperties": false
       }
     },

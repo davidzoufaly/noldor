@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { BLOCKING_DEFINITION } from '../blocking-definition.js';
-import { FINDING_CLASSES } from '../finding-class.js';
+import { BLOCKING_DEFINITION, SPEC_BLOCKING_DEFINITION } from '../blocking-definition.js';
+import { FINDING_CLASSES, SPEC_BLOCKING_BASES } from '../finding-class.js';
+import type { ArtifactKind } from '../findings-schema.js';
 import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
 import { createAnswerSeam } from '../lane-spawn.js';
 import { renderPriorSection } from '../re-round.js';
@@ -11,6 +12,12 @@ import type { PriorReview } from '../lane-types.js';
 
 export interface DispatchInput {
   artifact: string;
+  /**
+   * The artifact kind under review. `spec` selects the spec-stage blocking definition and the
+   * answer contract that carries a basis (Q-0263); every other kind, and an absent one, renders
+   * the plan/code prompt byte-for-byte.
+   */
+  kind?: ArtifactKind;
   fdSummary: string;
   baseSha: string;
   headSha: string;
@@ -116,6 +123,10 @@ export function buildPrompt(input: DispatchInput): string {
       : `\nBinding rules for the files under review — a violation of any of these is a finding, ` +
         `reported under the dimension it belongs to (they are repo policy, not preference):\n\n${input.rulesBrief}\n`;
   const priorSection = input.priorReview === undefined ? '' : renderPriorSection(input.priorReview);
+  const spec = input.kind === 'spec';
+  const basisGuide = spec
+    ? `\n\nName the basis of every blocking finding in "basis": ${SPEC_BLOCKING_BASES.map((b) => `"${b}"`).join(', ')}, as the definition above describes. A blocking finding without one is filed as a suggestion.`
+    : '';
   return `You are a Senior Code Reviewer. Review the markdown artifact at \`${input.artifact}\` (description: ${input.description}).
 
 FD summary context:
@@ -130,13 +141,13 @@ Effort: ${profile.effort}. ${EFFORT_GUIDE[profile.effort]}
 
 Verify-before-flag protocol: before flagging a critical finding that claims a command, validator, or test will fail (e.g. \`pnpm validate:features\`, \`pnpm typecheck\`, \`pnpm test\`), run that exact command first and quote its actual error output in the message. If the command passes, or you cannot run it, prefix the message \`unverified:\` — an unverified finding never blocks.
 
-${BLOCKING_DEFINITION}
+${spec ? SPEC_BLOCKING_DEFINITION : BLOCKING_DEFINITION}
 
 Classify every blocking finding with "class":
 - "mechanical" — the fix is determined by the finding itself: a missing required section, an unanswered open question, a lint-class defect, a stated contract not met. Someone applying your finding needs no judgment call beyond what you wrote.
 - "design" — the fix requires a judgment call you are NOT making for them: disagreement about an approach, a default, a trade-off, or anything where two reasonable fixes exist and picking between them is the author's call.
 
-Classify by what the FIX needs, not by how severe the finding is. When in doubt, use "design" — a design-classed blocker is routed to a human, which is always safe.
+Classify by what the FIX needs, not by how severe the finding is. When in doubt, use "design" — a design-classed blocker is routed to a human, which is always safe.${basisGuide}
 
 In every critical and important finding, name the file and line the finding is about, as \`path/to/file.ts:123\` (or \`path/to/file.ts:123-130\` for a range), inline in the message. Repo-relative paths are preferred; a bare filename is accepted when it is unambiguous. Omit it only when the finding genuinely has no single location.
 
@@ -151,6 +162,9 @@ export const reviewerFindingSchema = z.object({
   severity: z.enum(['critical', 'important', 'minor']),
   blocking: z.boolean(),
   class: z.enum(FINDING_CLASSES).nullish(),
+  // Any string, not the enum (Q-0263): one unknown value must demote its own finding at kind
+  // spec (`isEffectivelyBlocking`) rather than fail the whole answer into a repair round.
+  basis: z.string().nullish(),
   message: z.string().min(1),
 });
 export type ReviewerFinding = z.infer<typeof reviewerFindingSchema>;
@@ -168,21 +182,23 @@ export type ReviewerAnswer = z.infer<typeof reviewerAnswerSchema>;
 
 // `prior` sits in the closing shape, not only in the re-round section: the child is held to
 // "exactly ONE JSON object with this shape", so a key the shape omits is a key it drops. A first
-// round's `prior` entries are ignored — only a re-round's answers are applied.
-const REVIEWER_SHAPE =
-  '{"assessment": "...", "strengths": "...", "findings": [{"severity": "critical" | "important" | "minor", "blocking": true | false, "class": "mechanical" | "design", "message": "... path/to/file.ts:123 ..."}], "prior": [{"n": 1, "resolved": true | false, "why": "..."}]}';
+// round's `prior` entries are ignored — only a re-round's answers are applied. One builder for
+// both kinds, so the spec shape can differ from the plan/code one by its basis field alone.
+const reviewerShape = (basisField: string): string =>
+  `{"assessment": "...", "strengths": "...", "findings": [{"severity": "critical" | "important" | "minor", "blocking": true | false, "class": "mechanical" | "design", ${basisField}"message": "... path/to/file.ts:123 ..."}], "prior": [{"n": 1, "resolved": true | false, "why": "..."}]}`;
 
 /**
  * The repair round's prompt: restate the review as a valid answer. It reviews nothing,
- * reads no file, drops no finding, and never softens a blocking one.
+ * reads no file, drops no finding, and never softens a blocking one — which at kind spec
+ * means carrying each finding's basis, since a blocker that loses it is filed as a suggestion.
  */
-export function buildReviewerRepairPrompt(ctx: RepairContext): string {
+export function buildReviewerRepairPrompt(ctx: RepairContext, withBasis = false): string {
   return `A previous Senior Code Reviewer finished its review, but its answer was rejected: ${ctx.error}. Your ONLY job is to restate that review as a valid answer — do not review anything yourself, do not read any file.
 
 ${repairEvidence(ctx)}
 
 Transcription rules:
-1. Carry over every finding the review states, with its severity, whether it blocks, its class and its message. Invent no finding and drop none.
+1. Carry over every finding the review states, with its severity, whether it blocks, its class${withBasis ? ', its basis' : ''} and its message. Invent no finding and drop none.
 2. Never turn a finding the review marked blocking into a non-blocking one, and never write an approving assessment the review did not give.
 3. Carry over any answers the review gave about prior blockers, as a "prior" list of {"n", "resolved", "why"}. Never mark a prior blocker resolved that the review did not.
 4. If nothing above states a review at all, write no answer.`;
@@ -191,17 +207,34 @@ Transcription rules:
 /** What the reviewer child hands back, and how the seam reads it. */
 export const REVIEWER_ANSWER: LaneAnswerContract<ReviewerAnswer> = {
   lane: 'reviewer',
-  shape: REVIEWER_SHAPE,
+  shape: reviewerShape(''),
   schema: reviewerAnswerSchema,
   placeholderFields: [{ list: 'findings', text: 'message' }],
   repairPrompt: buildReviewerRepairPrompt,
 };
 
+/** The spec-kind contract (Q-0263): the same answer, with a basis on each finding. */
+const REVIEWER_SPEC_ANSWER: LaneAnswerContract<ReviewerAnswer> = {
+  ...REVIEWER_ANSWER,
+  shape: reviewerShape(`"basis": ${SPEC_BLOCKING_BASES.map((b) => `"${b}"`).join(' | ')}, `),
+  repairPrompt: (ctx) => buildReviewerRepairPrompt(ctx, true),
+};
+
+// A seam fixes its contract when it is created, so the spec kind gets a seam of its own.
 const seam = createAnswerSeam<DispatchInput, ReviewerAnswer>(buildPrompt, {
   site: 'cr.subagent-dispatch',
   contract: REVIEWER_ANSWER,
 });
+const specSeam = createAnswerSeam<DispatchInput, ReviewerAnswer>(buildPrompt, {
+  site: 'cr.subagent-dispatch',
+  contract: REVIEWER_SPEC_ANSWER,
+});
 
-/** Test injection point: swaps the reviewer child (see `createAnswerSeam`). */
-export const setDispatcher = seam.setDispatcher;
-export const dispatchSubagent = seam.dispatch;
+/** Test injection point: swaps the reviewer child of both seams (see `createAnswerSeam`). */
+export const setDispatcher: typeof seam.setDispatcher = (impl) => {
+  seam.setDispatcher(impl);
+  specSeam.setDispatcher(impl);
+};
+/** Dispatches the reviewer child under the answer contract its kind needs. */
+export const dispatchSubagent: typeof seam.dispatch = (input, at) =>
+  (input.kind === 'spec' ? specSeam : seam).dispatch(input, at);

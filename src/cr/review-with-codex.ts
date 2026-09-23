@@ -6,9 +6,12 @@ import type { Spawn } from './codex-adapter.js';
 import { buildContext } from './context.js';
 import { runCodex, type ReviewCtx } from './run-codex.js';
 import type { CrRecord } from './sidecar.js';
-import { isNeverBlockingMessage } from './blocking-definition.js';
+import { isNeverBlockingMessage, isSpecBlockingBasis } from './blocking-definition.js';
+import type { SpecBlockingBasis } from './finding-class.js';
+import type { ArtifactKind } from './findings-schema.js';
 import type { PriorReview } from './lane-types.js';
-import { laneFailureFile } from './re-round.js';
+import { readFdSummary } from './read-fd-summary.js';
+import { isLaneFailureBlocker, laneFailureFile } from './re-round.js';
 
 export interface OutFinding {
   file: string;
@@ -16,6 +19,8 @@ export interface OutFinding {
   severity: 'high' | 'med' | 'low';
   line?: number;
   suggestion?: string;
+  /** A spec finding's basis (Q-0263), carried into the lane's sink at kind `spec` only. */
+  basis?: SpecBlockingBasis;
 }
 
 export interface ReviewOutput {
@@ -58,9 +63,15 @@ export async function reviewWithCodex(
       throw new Error(`invalid baseSha: ${review.baseSha}`);
     }
     const rules = readRules(cwd);
-    const featureMd = review.slug
-      ? readIfExists(cwd, `docs/features/${review.slug}.md`)
-      : readFeatureMd(cwd);
+    const fdRel = review.slug ? `docs/features/${review.slug}.md` : featureMdPath(cwd);
+    // At kind spec the FD past its Summary is scaffold stubs written after the spec on purpose,
+    // so codex gets the Summary alone — the FD context the reviewer lane already gets (Q-0263).
+    const featureMd =
+      fdRel === undefined
+        ? ''
+        : review.kind === 'spec'
+          ? await readSpecFdSummary(cwd, fdRel)
+          : readIfExists(cwd, fdRel);
 
     let ctx: ReviewCtx;
     if (review.kind === 'code') {
@@ -95,7 +106,7 @@ export async function reviewWithCodex(
     });
     return {
       summary: record.summary || '(no summary provided)',
-      findings: toFindings(record, review.artifact),
+      findings: toFindings(record, review.artifact, review.kind),
       prior: record.prior,
     };
   } catch (e) {
@@ -114,7 +125,12 @@ export async function reviewWithCodex(
  * findings as blockers); suggestions are pinned non-high so they stay
  * suggestions. The codex schema uses `medium`; the lane schema uses `med`.
  */
-export function toFindings(record: CrRecord, fallbackFile: string): OutFinding[] {
+export function toFindings(
+  record: CrRecord,
+  fallbackFile: string,
+  kind: ArtifactKind,
+): OutFinding[] {
+  const spec = kind === 'spec';
   const map = (f: CrRecord['blockers'][number], severity: OutFinding['severity']): OutFinding => {
     // Document-level findings may carry an empty `file`; the consumer's
     // findings-schema requires a non-empty string, so fall back to the artifact.
@@ -125,21 +141,40 @@ export function toFindings(record: CrRecord, fallbackFile: string): OutFinding[]
     };
     if (f.line != null) o.line = f.line;
     if (f.suggestion != null) o.suggestion = f.suggestion;
+    if (spec && isSpecBlockingBasis(f.basis)) o.basis = f.basis;
     return o;
   };
+  // A codex blocker marked `maybe:` or `unverified:` never blocks (Q-0250), and at kind spec
+  // one with no basis never blocks either (Q-0263): demote both rather than trusting the prompt
+  // alone. A blocker about codex's own failure is not a finding about the spec, so no missing
+  // basis demotes it — a review that failed must still red its round.
+  const blocks = (b: CrRecord['blockers'][number]): boolean =>
+    !isNeverBlockingMessage(b.message) &&
+    (!spec ||
+      isSpecBlockingBasis(b.basis) ||
+      isLaneFailureBlocker({ file: b.file || fallbackFile }));
   return [
-    // A codex blocker marked `maybe:` or `unverified:` never blocks (Q-0250): demote it to a
-    // suggestion rather than trusting the prompt alone to keep it out of `blockers`.
-    ...record.blockers.map((b) => map(b, isNeverBlockingMessage(b.message) ? 'med' : 'high')),
+    ...record.blockers.map((b) => map(b, blocks(b) ? 'high' : 'med')),
     ...record.suggestions.map((s) => map(s, s.severity == null ? 'low' : 'med')),
   ];
 }
 
-export function readFeatureMd(cwd: string): string {
+/** The session FD's repo-relative path (the parent's on an attach session), if any. */
+function featureMdPath(cwd: string): string | undefined {
   const session = readSession(cwd);
   const slug = session?.parent ?? session?.slug;
-  if (!slug) return '';
-  return readIfExists(cwd, `docs/features/${slug}.md`);
+  return slug ? `docs/features/${slug}.md` : undefined;
+}
+
+export function readFeatureMd(cwd: string): string {
+  const rel = featureMdPath(cwd);
+  return rel === undefined ? '' : readIfExists(cwd, rel);
+}
+
+/** A spec review's FD context: the Summary. A missing FD is empty; one with no Summary throws. */
+async function readSpecFdSummary(cwd: string, rel: string): Promise<string> {
+  const p = join(cwd, rel);
+  return existsSync(p) ? readFdSummary(p) : '';
 }
 
 function readSession(cwd: string): { parent?: string; slug?: string } | null {

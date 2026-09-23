@@ -36,7 +36,7 @@ const MODE_LINE: Record<PriorReview['mode'], string> = {
 export function renderPriorSection(prior: PriorReview): string {
   const lines = prior.blockers.map((b, i) => {
     const msg = b.message.replace(/\s*\n\s*/g, ' ').slice(0, PRIOR_MESSAGE_MAX_CHARS);
-    return `P${i + 1} [${b.severity}]${b.class ? `[${b.class}]` : ''} ${msg}`;
+    return `P${i + 1} [${b.severity}]${b.class ? `[${b.class}]` : ''}${b.basis ? `[${b.basis}]` : ''} ${msg}`;
   });
   return `
 Prior review round — the previous pass over this artifact raised the blockers below.

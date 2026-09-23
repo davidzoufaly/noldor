@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer, review-run-lifecycle-module, cr-re-round-cap-enforcement-and-oscillation-detector
+// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer, review-run-lifecycle-module, cr-re-round-cap-enforcement-and-oscillation-detector, spec-stage-cr-stopping-rule
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -86,6 +86,19 @@ describe('runCodex lane — findings mapping', () => {
     expect(s.blockers).toHaveLength(1);
     expect(s.suggestions).toHaveLength(1);
     expect(r.ok).toBe(false);
+  });
+
+  it("writes a spec blocker's basis into the sink unchanged (Q-0263)", async () => {
+    reviewFn.mockResolvedValue({
+      summary: 'one',
+      findings: [
+        { file: 'x.md', message: 'no retry owner', severity: 'high', basis: 'requirement' },
+      ],
+    });
+    await runCodex(input());
+    expect((await sink()).blockers).toEqual([
+      { file: 'x.md', message: 'no retry owner', severity: 'high', basis: 'requirement' },
+    ]);
   });
 
   it('is ok when there are no blockers', async () => {

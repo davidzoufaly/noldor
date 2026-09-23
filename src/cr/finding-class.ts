@@ -16,6 +16,14 @@
 export const FINDING_CLASSES = ['mechanical', 'design'] as const;
 export type FindingClass = (typeof FINDING_CLASSES)[number];
 
+/**
+ * The three reasons a finding about a spec may block (Q-0263), carried on a spec blocker as
+ * `basis` beside its `class`. Here rather than in `blocking-definition.ts`, which renders them
+ * to a reviewer, so the finding schema can name them without importing prompt text.
+ */
+export const SPEC_BLOCKING_BASES = ['requirement', 'feasibility', 'risk'] as const;
+export type SpecBlockingBasis = (typeof SPEC_BLOCKING_BASES)[number];
+
 /** A bullet split into its optional leading class tag and the remaining message. */
 export interface ClassTagSplit {
   readonly class?: FindingClass;

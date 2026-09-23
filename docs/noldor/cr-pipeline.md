@@ -56,7 +56,19 @@ The orchestrator's `--kind` flag accepts `spec`, `plan`, or `code` (see `src/cr/
 | `full-new`          | 1× `--kind spec`, then 1× `--kind plan` |
 | `full-attach`       | 1× `--kind spec`, then 1× `--kind plan` |
 
-`kind=spec` and `kind=plan` route to the same lane implementations today; the kind value lands in the `LaneFindings.kind` field for audit trail only. Lane prompts may diverge in the future (e.g. `--kind spec` could pull in different review heuristics).
+`kind=spec` and `kind=plan` route to the same lane implementations, and the kind value lands in the `LaneFindings.kind` field. The prompts differ at `kind=spec`: the reviewer and codex both render the spec-stage blocking definition there (next section), and codex reads the FD's Summary instead of the whole FD.
+
+### Spec-stage blocking
+
+A spec is a document an implementer acts on, so the code-stage definition (`BLOCKING_DEFINITION`) and its "false statement into docs" clause would let almost any inaccuracy in a spec block. At `--kind spec` the `reviewer` and `codex` lanes render `SPEC_BLOCKING_DEFINITION` instead (`src/cr/blocking-definition.ts`, Q-0263). A spec finding blocks only when it names one of three bases, and each basis has a way to settle it that does not require agreeing with the lane:
+
+- `requirement`: something the feature has to do is missing, or two parts of the spec (or the spec and the FD Summary) contradict each other. Add the requirement, move it to Non-goals, or fix one side of the contradiction.
+- `feasibility`: the design cannot be built as written against the real code. Change the design, or answer the claim under Open questions (resolved) with the reason it can be built. A claim the lane still upholds is carried to the round cap's arbitration.
+- `risk`: building the spec as written would ship a defect, and the spec neither prevents it nor accepts it. Prevent it, or accept it under Risks / trade-offs.
+
+Wording, formatting, cross-references, section structure, detail an implementer can decide, a preference between workable designs, a choice the spec already records, and the FD's scaffold stubs never block a spec. Code enforces the structural half: a spec-kind finding marked blocking with no valid `basis` is filed as a suggestion (`isEffectivelyBlocking` in `src/cr/lanes/subagent.ts`, `toFindings` in `src/cr/review-with-codex.ts`). A blocker a lane files about its own failure, against `<reviewer>` or `<codex>`, is never demoted, so a failed review still reds its round. The basis rides the sink finding and shows in the re-round prior list and the `cr aggregate` blocker line (`[high][risk] …`).
+
+Settle a spec blocker you reject by recording the ruling in the spec itself, not in chat: the next round's lanes read the spec (`docs/adr/0003-spec-stage-decisions-live-in-the-spec.md`). Codex reads only the FD's Summary at this kind because the FD's Diagram, User Story and Usage sections are stubs filled after the spec.
 
 ## Step 4 collapse
 
@@ -226,15 +238,26 @@ Codex must return:
 ```json
 {
   "blockers": [
-    { "file": "src/x.ts", "line": 42, "severity": "high", "message": "...", "suggestion": "..." }
+    {
+      "file": "src/x.ts",
+      "line": 42,
+      "severity": "high",
+      "message": "...",
+      "suggestion": "...",
+      "basis": null
+    }
   ],
-  "suggestions": [{ "file": "src/x.ts", "line": 42, "message": "...", "suggestion": "..." }],
+  "suggestions": [
+    { "file": "src/x.ts", "line": 42, "message": "...", "suggestion": "...", "basis": null }
+  ],
   "summary": "one-line verdict",
   "prior": [{ "n": 1, "resolved": true, "why": "..." }]
 }
 ```
 
-`prior` answers the prior blockers a re-round lists (see "Re-round contract"); a first round
+`basis` is a spec blocker's basis (`requirement`, `feasibility` or `risk`, see "Spec-stage
+blocking") and `null` everywhere else; a spec-kind blocker whose basis is `null` is filed as a
+suggestion. `prior` answers the prior blockers a re-round lists (see "Re-round contract"); a first round
 returns `[]`. Anything else (non-JSON, schema mismatch, non-zero exit) becomes a synthetic
 blocker filed against `<codex>` and the script exits 1.
 
