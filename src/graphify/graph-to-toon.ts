@@ -400,6 +400,47 @@ function formatCrossEdgeLine(
 // Brainstorm TOON (full)
 // ---------------------------------------------------------------------------
 
+/** `<relCode> <srcLabel>@c<id>><tgtLabel>@c<id>`, shared by the brainstorm block
+ *  and the summary's top-25 list so the two never drift apart. */
+function crossRows(
+  cross: readonly GraphLink[],
+  idToLabel: Map<string, string>,
+  nodeCommunityMap: Map<string, number>,
+): string[] {
+  return cross
+    .filter((l) => !REL_OMIT.has(l.relation ?? ''))
+    .map((l) => ({
+      rel: REL_CODE[l.relation ?? ''] ?? '?',
+      src: formatNodeLabel(idToLabel.get(l.source) ?? l.source),
+      srcComm: nodeCommunityMap.get(l.source) ?? -1,
+      tgt: formatNodeLabel(idToLabel.get(l.target) ?? l.target),
+      tgtComm: nodeCommunityMap.get(l.target) ?? -1,
+    }))
+    .toSorted(
+      (a, b) =>
+        byCodeUnit(a.rel, b.rel) ||
+        byCodeUnit(a.src, b.src) ||
+        byCodeUnit(a.tgt, b.tgt) ||
+        // Labels are not unique across communities either — `main!` in c3 and
+        // `main!` in c9 tie on all three keys above, and the leftover order is
+        // graphify's.
+        a.srcComm - b.srcComm ||
+        a.tgtComm - b.tgtComm,
+    )
+    .map((r) => `  ${r.rel} ${r.src}@c${r.srcComm}>${r.tgt}@c${r.tgtComm}`);
+}
+
+/** Members are named rather than indexed: a hyperedge spans communities, so the
+ *  local indices do not apply. Graph order is kept — it is already deterministic. */
+function hyperedgeRows(hyperedges: readonly Hyperedge[], idToLabel: Map<string, string>): string[] {
+  return hyperedges.map((he) => {
+    const members = hyperedgeMembers(he)
+      .map((nid) => sanitizeLine(idToLabel.get(nid) ?? nid))
+      .join(', ');
+    return `  ${sanitizeLine(he.label)} [${he.relation ?? 'related'}]: ${members}`;
+  });
+}
+
 interface TocEntry {
   readonly key: string;
   readonly startLine: number;
@@ -429,7 +470,7 @@ export function renderBrainstormToon(ctx: GraphContext): string {
   const { nodes, links, communityLabels, directed } = ctx;
   const communityGroups = groupByCommunity(nodes);
   const nodeCommunityMap = buildNodeCommunityMap(nodes);
-  const { intra } = classifyEdges(links, nodeCommunityMap);
+  const { intra, cross } = classifyEdges(links, nodeCommunityMap);
 
   // Pass 1 — body, with line ranges relative to the body's own first line.
   const body: string[] = [];
@@ -443,6 +484,24 @@ export function renderBrainstormToon(ctx: GraphContext): string {
     totalEdges += emitCommunity(body, commId, commNodes, commEdges, communityLabels);
     entries.push({ endLine: body.length, key: `c${commId}`, startLine });
     body.push('');
+  }
+
+  const crossLines = crossRows(cross, ctx.idToLabel, nodeCommunityMap);
+  if (crossLines.length > 0) {
+    const startLine = body.length + 1;
+    body.push('## cross', ...crossLines);
+    entries.push({ endLine: body.length, key: 'cross', startLine });
+    totalEdges += crossLines.length;
+  }
+
+  const hyperLines = hyperedgeRows(ctx.hyperedges, ctx.idToLabel);
+  if (hyperLines.length > 0) {
+    if (crossLines.length > 0) {
+      body.push('');
+    }
+    const startLine = body.length + 1;
+    body.push('## hyperedges', ...hyperLines);
+    entries.push({ endLine: body.length, key: 'hyperedges', startLine });
   }
 
   // Pass 2 — a header whose length is known, then shift every range by it.

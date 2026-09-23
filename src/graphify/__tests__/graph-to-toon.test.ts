@@ -157,4 +157,38 @@ describe('graph-to-toon', () => {
     const text = renderBrainstormToon(buildContext(fixture()));
     expect(text.startsWith('# Domain Knowledge Graph (v3 — compact)\n# version: 3\n')).toBe(true);
   });
+
+  it('emits cross edges with labels and community tags, ordered reproducibly', () => {
+    const lines = renderBrainstormToon(buildContext(fixture())).split('\n');
+    const start = lines.indexOf('## cross');
+    expect(start).toBeGreaterThan(0);
+    expect(lines[start + 1]).toBe('  i alpha!@c1>delta@c2');
+  });
+
+  it('emits hyperedges as a named block', () => {
+    const lines = renderBrainstormToon(buildContext(fixture())).split('\n');
+    const start = lines.indexOf('## hyperedges');
+    expect(start).toBeGreaterThan(0);
+    expect(lines[start + 1]).toBe('  boot path [flow]: alpha(), delta');
+  });
+
+  it('lists cross and hyperedges in the TOC only when they exist', () => {
+    const withBoth = renderBrainstormToon(buildContext(fixture()));
+    expect(withBoth).toMatch(/\n {2}cross: \d+-\d+\n/);
+    expect(withBoth).toMatch(/\n {2}hyperedges: \d+-\d+\n/);
+
+    const onlyOne: GraphData = {
+      directed: true,
+      links: [{ relation: 'imports', source: 'a', target: 'b' }],
+      nodes: [
+        { community: 1, id: 'a', label: 'alpha', source_file: 'src/a.ts' },
+        { community: 1, id: 'b', label: 'beta', source_file: 'src/b.ts' },
+      ],
+    };
+    const text = renderBrainstormToon(buildContext(onlyOne));
+    expect(text).not.toContain('## cross');
+    expect(text).not.toContain('## hyperedges');
+    expect(text).not.toMatch(/\n {2}cross: /);
+    expect(text).not.toMatch(/\n {2}hyperedges: /);
+  });
 });

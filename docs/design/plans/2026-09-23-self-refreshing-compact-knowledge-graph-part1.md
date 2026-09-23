@@ -746,7 +746,7 @@ The TOC is the feature: without it a reader has no way to fetch less than the wh
 
 Both blocks span communities, so local indices do not apply and both carry full labels. Both are addressable, so both get a TOC entry — and neither is emitted, nor listed, when empty.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   Append inside the existing `describe`:
 
@@ -786,7 +786,7 @@ Both blocks span communities, so local indices do not apply and both carry full 
   });
   ```
 
-- [ ] **Step 2: Run the tests and verify they FAIL.**
+- [x] **Step 2: Run the tests and verify they FAIL.**
 
   ```bash
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
@@ -794,7 +794,7 @@ Both blocks span communities, so local indices do not apply and both carry full 
 
   Expected output: `Tests  3 failed | 10 passed (13)` — `lines.indexOf('## cross')` returns `-1` because Task 3's renderer drops the block entirely.
 
-- [ ] **Step 3: Add the two row builders.**
+- [x] **Step 3: Add the two row builders.**
 
   Insert above `renderBrainstormToon`:
 
@@ -844,7 +844,7 @@ Both blocks span communities, so local indices do not apply and both carry full 
   }
   ```
 
-- [ ] **Step 4: Emit both blocks in pass 1.**
+- [x] **Step 4: Emit both blocks in pass 1.**
 
   In `renderBrainstormToon`, after the community loop and before the `// Pass 2` comment, insert:
 
@@ -870,7 +870,7 @@ Both blocks span communities, so local indices do not apply and both carry full 
 
   The community loop already leaves a blank line after the last community, so `## cross` is separated; the explicit blank is only needed between `## cross` and `## hyperedges`.
 
-- [ ] **Step 5: Run the tests and verify they PASS.**
+- [x] **Step 5: Run the tests and verify they PASS.**
 
   ```bash
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
@@ -878,7 +878,7 @@ Both blocks span communities, so local indices do not apply and both carry full 
 
   Expected output: `Tests  13 passed (13)`.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
   ```bash
   cat > /tmp/msg-task4.txt <<'EOF'
