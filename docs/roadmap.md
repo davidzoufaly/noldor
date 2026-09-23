@@ -40,18 +40,6 @@ An XS entry whose whole diff is `.claude/skills/**` routes to `fast-track`, and 
 
 Claude now reads `AGENTS.md`, which is the same file codex and opencode already read, so the framework no longer needs to scaffold a Claude-specific `CLAUDE.md` alongside it. Collapse the two onto one file: `noldor init` should write `AGENTS.md` and not create `CLAUDE.md` in a fresh consumer, and an existing consumer should get a migration path rather than a silently duplicated rule set — this repo itself runs the split today (`AGENTS.md` for codex/opencode, `.claude/` for Claude Code), and charuy carries the same duplication, so both need propagating. Adoption-weighted per the vision's standing tie-breaker: one agent-rules file is one less thing a new consumer has to understand, and a duplicated one is a drift source the moment the two copies disagree. Open questions for the spec: what happens to `.claude/skills/**`, which has no AGENTS.md equivalent and stays Claude-primary; and whether the migration rewrites an existing `CLAUDE.md` or leaves it and stops regenerating it. Deletion test: `noldor init` in a clean repo produces `AGENTS.md` and no `CLAUDE.md`, and a consumer that had both ends with one. (found 2026-09-22)
 
-### pen-bridge Check Does Not Count Editor Windows
-
-- id: Q-0253
-- area: tooling
-- type: fix
-- since: 2026-09-22
-- size: XS
-- impact: med
-- confidence: high
-
-`pnpm noldor checks pen-bridge` reports the entrypoint, the app pin and the extension, but never the one thing that explains its most confusing failure: how many VS Code windows are running. The pencil socket is global and owned by whichever window activated the extension first, so every `.pen` opened in any other window is invisible to the bridge and the error is `A file needs to be open in the editor` — which reads as "nothing is open" while the operator is looking straight at a rendered canvas. Shipping Q-0275 this cost two dead ends with six windows up and three pids on `pencil-visual_studio_code.sock`, while `checks pen-bridge` exited 0 reporting everything healthy. The whole diagnosis is two commands the check does not run: `pgrep -f vscode-window-config | wc -l` and `lsof -U | grep pencil-visual`. Add both as rows and, when the window count is greater than one, say plainly that the bridge has a single owner and name the remedy (quit all but one window). The trap itself is already written up in [gotchas.md → Pencil / UI design](noldor/gotchas.md); this entry is about the check knowing it. Deletion test: with two VS Code windows open, `checks pen-bridge` names the window count and the remedy. (found 2026-09-22 shipping Q-0275)
-
 ### Hand-Edited Code Links Drift Against FD Tags
 
 - id: Q-0174

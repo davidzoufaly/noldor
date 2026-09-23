@@ -16,6 +16,12 @@
 // simply absent, so there is no error message to match on and no config edit that
 // helps. Config alone cannot answer it, so the harness gets its own row.
 //
+// The fourth is how many VS Code windows are open. The socket is one global file
+// with one owner — whichever window activated the extension first — so a `.pen`
+// open in any other window is invisible to the bridge, and the error it earns is
+// the same "A file needs to be open in the editor" while the operator looks at a
+// rendered canvas. Config says nothing about this either; the process table does.
+//
 // Reporting only: nothing here writes configuration, and no commit or push gate
 // consumes it.
 
@@ -25,7 +31,11 @@ import { join } from 'node:path';
 
 import { runIfDirect } from '../core/cli-entry.js';
 import { PENCIL_EXTENSION_ID } from '../core/design-artifact-names.js';
-import { listVsCodeExtensions } from '../design/editor-launch.js';
+import {
+  listVsCodeExtensions,
+  probeVsCodeWindows,
+  type VsCodeWindows,
+} from '../design/editor-launch.js';
 
 /**
  * The `--app` value the launcher needs, because it opens that editor and no
@@ -72,10 +82,16 @@ export type PenBridgeRow =
   | { kind: 'ext-ok' }
   | { kind: 'ext-missing' }
   | { kind: 'ext-indeterminate'; reason: string }
+  | { kind: 'windows-ok'; windows: number; socketPids: readonly number[] }
+  | { kind: 'windows-many'; windows: number; socketPids: readonly number[] }
+  | { kind: 'windows-indeterminate'; reason: string }
   | { kind: 'not-applicable'; platform: string };
 
 /** Installed VS Code extension ids, or `undefined` when the list is unreadable. */
 export type ExtensionProbe = (cwd: string) => readonly string[] | undefined;
+
+/** Window count + socket holders for a socket path, or `undefined` when unanswered. */
+export type WindowProbe = (socketPath: string) => VsCodeWindows | undefined;
 
 /**
  * Injectable seams. The filesystem is deliberately absent: config files are read
@@ -94,6 +110,7 @@ export interface PenBridgeCheckDeps {
   readonly platform: string;
   readonly home: string;
   readonly probeExtensions: ExtensionProbe;
+  readonly probeWindows: WindowProbe;
   readonly readEnv: (name: string) => string | undefined;
 }
 
@@ -270,6 +287,22 @@ function harnessRow(readEnv: (name: string) => string | undefined): PenBridgeRow
 }
 
 /**
+ * The window row. More than one window is a finding even when the `.pen`
+ * happens to sit in the owner: the operator cannot see which window that is, and
+ * the check is run precisely when a call has already failed.
+ */
+function windowsRow(home: string, probe: WindowProbe): PenBridgeRow {
+  const found = probe(join(home, '.pencil', 'socket', `pencil-${EXPECTED_MCP_APP}.sock`));
+  if (found === undefined) {
+    return {
+      kind: 'windows-indeterminate',
+      reason: 'could not read the process table (`pgrep` / `lsof` failed)',
+    };
+  }
+  return { kind: found.windows > 1 ? 'windows-many' : 'windows-ok', ...found };
+}
+
+/**
  * Everything the pen bridge needs from the machine, as rows a caller prints.
  *
  * Off darwin nothing is probed. `.pen` editing itself is not macOS-bound any
@@ -286,6 +319,7 @@ export function checkPenBridge(
 
   const home = deps.home ?? homedir();
   const probe = deps.probeExtensions ?? listVsCodeExtensions;
+  const probeWindows = deps.probeWindows ?? probeVsCodeWindows;
   const readEnv = deps.readEnv ?? ((name: string): string | undefined => process.env[name]);
   const installed = probe(cwd);
   const extRow: PenBridgeRow =
@@ -300,7 +334,7 @@ export function checkPenBridge(
   // Harness first: it decides whether the other two rows can matter at all. A
   // correct pin and an installed extension describe a bridge that still will not
   // carry a call from a harness the server never reaches.
-  return [harnessRow(readEnv), mcpRow(cwd, home), extRow];
+  return [harnessRow(readEnv), mcpRow(cwd, home), extRow, windowsRow(home, probeWindows)];
 }
 
 /**
@@ -315,14 +349,17 @@ export function penBridgeRowLevel(row: PenBridgeRow): 'finding' | 'healthy' | 'u
     case 'harness-unsupported':
     case 'mcp-app-mismatch':
     case 'ext-missing':
+    case 'windows-many':
       return 'finding';
     case 'harness-ok':
     case 'mcp-app-ok':
     case 'ext-ok':
+    case 'windows-ok':
       return 'healthy';
     case 'harness-indeterminate':
     case 'mcp-indeterminate':
     case 'ext-indeterminate':
+    case 'windows-indeterminate':
     case 'not-applicable':
       return 'undetermined';
   }
@@ -368,9 +405,25 @@ export function renderPenBridgeRow(row: PenBridgeRow): string {
       );
     case 'ext-indeterminate':
       return `pen-bridge: could not determine whether the pen.dev VS Code extension is installed — ${row.reason}`;
+    case 'windows-ok':
+      return `pen-bridge: ${row.windows} VS Code window(s) open — ${holders(row.socketPids)}`;
+    case 'windows-many':
+      return (
+        `pen-bridge: ${row.windows} VS Code windows are open — ${holders(row.socketPids)}\n` +
+        `  → the pencil socket has a single owner, the window that activated the extension first, and a \`.pen\` open in any other window is invisible to the bridge ("A file needs to be open in the editor"). Quit all but one VS Code window, then reopen the \`.pen\` there`
+      );
+    case 'windows-indeterminate':
+      return `pen-bridge: could not count the open VS Code windows — ${row.reason}`;
     case 'not-applicable':
       return `pen-bridge: not applicable on ${row.platform} — the pencil MCP server has only been exercised on macOS`;
   }
+}
+
+/** Who holds the pencil socket, as the tail of a window row. */
+function holders(pids: readonly number[]): string {
+  return pids.length === 0
+    ? `no process holds pencil-${EXPECTED_MCP_APP}.sock`
+    : `pencil-${EXPECTED_MCP_APP}.sock held by pid ${pids.join(', ')}`;
 }
 
 export async function main(cwd: string = process.cwd()): Promise<number> {

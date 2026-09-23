@@ -12,10 +12,11 @@
 //
 // `listVsCodeExtensions` lives here for the same reason: the `code` CLI is one
 // boundary, and a second module shelling out to it would make the claim below
-// about subprocesses false.
+// about subprocesses false. `probeVsCodeWindows` too: it asks the process table
+// about the same editor.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 export interface OpenResult {
@@ -140,6 +141,63 @@ export function listVsCodeExtensions(cwd: string): readonly string[] | undefined
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
+}
+
+/** What the process table says about running VS Code windows and a pencil socket. */
+export interface VsCodeWindows {
+  /** Distinct `--vscode-window-config` ids across renderer processes — one per open window. */
+  readonly windows: number;
+  /** Distinct pids with `socketPath` open, ascending. */
+  readonly socketPids: readonly number[];
+}
+
+/**
+ * Open windows in `pgrep -lf vscode-window-config` output: the distinct
+ * `--vscode-window-config` ids, not the matching lines.
+ *
+ * Ids, not processes: one window owns several renderers (webviews and
+ * out-of-process iframes inherit its id), and the pen.dev canvas is itself a
+ * webview — so a process count reds a one-window machine with a `.pen` open.
+ */
+export function countVsCodeWindows(pgrepOutput: string): number {
+  const ids = pgrepOutput.matchAll(/--vscode-window-config=(vscode:[\w-]+)/g);
+  return new Set([...ids].map((m) => m[1])).size;
+}
+
+/**
+ * How many VS Code windows are open, and which processes hold `socketPath`, or
+ * `undefined` when either question went unanswered.
+ *
+ * `pgrep` exits 1 for "no match", which is an answer (zero windows) rather than
+ * a failure, so {@link ranCleanly} — which folds every non-zero exit into
+ * `undefined` — is the wrong reader for it. Only status 0 and 1 count; anything
+ * else, or a spawn error, is unanswered.
+ */
+export function probeVsCodeWindows(socketPath: string): VsCodeWindows | undefined {
+  // `-l -f` prints each match's full argv, which the id is read from.
+  const pgrep = spawnSync('pgrep', ['-lf', 'vscode-window-config'], {
+    encoding: 'utf8',
+    timeout: EDITOR_TIMEOUT_MS,
+  });
+  if (pgrep.error !== undefined || (pgrep.status !== 0 && pgrep.status !== 1)) return undefined;
+  const windows = countVsCodeWindows(pgrep.stdout ?? '');
+  // No socket file means no window has activated the extension: nobody owns it.
+  // lsof would report that as a stat error, indistinguishable from a real one.
+  if (!existsSync(socketPath)) return { windows, socketPids: [] };
+  // `-F p`: one `p<pid>` line per process that has the socket open, instead of
+  // the column layout, whose COMMAND field can itself contain spaces.
+  const lsof = spawnSync('lsof', ['-U', '-a', '-F', 'p', '--', socketPath], {
+    encoding: 'utf8',
+    timeout: EDITOR_TIMEOUT_MS,
+  });
+  // lsof exits 1 both when nothing has the file open and on a partial failure,
+  // so status alone cannot tell them apart; stderr can.
+  if (lsof.error !== undefined || (lsof.stderr ?? '').trim().length > 0) return undefined;
+  const pids = (lsof.stdout ?? '')
+    .split('\n')
+    .filter((l) => /^p\d+$/.test(l))
+    .map((l) => Number(l.slice(1)));
+  return { windows, socketPids: [...new Set(pids)].sort((a, b) => a - b) };
 }
 
 /**
