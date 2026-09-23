@@ -62,6 +62,8 @@ import type { CutScope } from './cut-scan.js';
 import { artifactKindSchema, laneFindingsSchema } from './findings-schema.js';
 import type { ArtifactKind, Finding, Lane, LaneFindings } from './findings-schema.js';
 import type { DecidedFinding, LaneInput, LaneResult, PriorReview } from './lane-types.js';
+import { REFUTED_TRAILER, judgeRound, refutedTrailerValue } from './judge.js';
+import type { Demotion, JudgeRoundResult, JudgedLane } from './judge.js';
 import { isLaneFailureBlocker, PRIOR_AWARE_LANES } from './re-round.js';
 import { laneSinkPath } from './filename.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
@@ -1088,11 +1090,31 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     if (settled[i].status === 'fulfilled') lanesRun.push(effective[i]);
   }
 
+  // The refutation judge (Q-0262) runs here, before anything reads the round's verdict: the
+  // exit code below, the receipt amend and the ledger all see the sinks as it leaves them.
+  const judge = await judgeThisRound({
+    cwd,
+    cfg,
+    args: opts.args,
+    headSha,
+    sinks: effective.flatMap((l, i) => {
+      const r = settled[i];
+      return (l === 'reviewer' || l === 'codex') && r.status === 'fulfilled'
+        ? [{ lane: l, sinkPath: (r.value as LaneResult).sinkPath }]
+        : [];
+    }),
+  });
+
   // Exit code: 0 only if all sync lanes ok.
   let exitCode = 0;
   for (let i = 0; i < effective.length; i++) {
     const r = settled[i];
-    if (r.status === 'rejected' || (r.status === 'fulfilled' && !(r.value as LaneResult).ok)) {
+    const lane = effective[i];
+    const judged = lane === 'reviewer' || lane === 'codex' ? judge?.ok[lane] : undefined;
+    if (
+      r.status === 'rejected' ||
+      (r.status === 'fulfilled' && !(judged ?? (r.value as LaneResult).ok))
+    ) {
       exitCode = 1;
     }
   }
@@ -1108,14 +1130,22 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       // already on the tip are merged in, so a receipt re-minted after the gate's
       // clean-exit cleanup removed the stores, or in a later session, keeps the rulings
       // an earlier round named; a ruling that changed replaces its own line.
-      const values = mergeSettled(
-        await tipSettled(cwd),
+      const settledValues = mergeTrailers(
+        await tipTrailers(cwd, SETTLED_TRAILER),
         await settledTrailers(cwd, opts.args.slug, roundKey),
+        rulingOf,
       );
-      amendSubagentReceipt({
-        cwd,
-        ...(values.length > 0 ? { also: { key: SETTLED_TRAILER, values } } : {}),
-      });
+      // A round the judge turned green must not read in git as a clean review either (Q-0262).
+      const refutedValues = mergeTrailers(
+        await tipTrailers(cwd, REFUTED_TRAILER),
+        await refutedTrailers(cwd, opts.args.slug, opts.args.kind, roundKey, judge?.refuted ?? []),
+        refutationOf,
+      );
+      const also = [
+        ...(settledValues.length > 0 ? [{ key: SETTLED_TRAILER, values: settledValues }] : []),
+        ...(refutedValues.length > 0 ? [{ key: REFUTED_TRAILER, values: refutedValues }] : []),
+      ];
+      amendSubagentReceipt({ cwd, ...(also.length > 0 ? { also } : {}) });
     } catch (err) {
       console.error(`receipt amend failed: ${(err as Error).message}`);
       exitCode = 1;
@@ -1227,6 +1257,15 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         blockerIds: ruleBlockers.map((b) => b.id).sort(),
         signals: reflag.signals,
         verdict: red ? 'red' : 'green',
+        ...(judge !== null && judge.refuted.length > 0
+          ? {
+              refuted: judge.refuted.map((d) => ({
+                id: fingerprintBlocker(d.finding),
+                lane: d.lane,
+                why: d.why,
+              })),
+            }
+          : {}),
         applied: 0,
         deferred: 0,
         diffStat: '',
@@ -1334,11 +1373,60 @@ async function recordFixed(
   if (!w.ok) console.error(`fixed findings not recorded: ${w.reason}`);
 }
 
-/** The `Noldor-CR-Settled:` values already on the tip commit. */
-async function tipSettled(cwd: string): Promise<string[]> {
+/**
+ * Run the refutation judge over this round's reviewer and codex sinks (Q-0262), or say why it did
+ * not run, and print its `judge:` line. Null when neither lane ran this round. The judge never
+ * throws, and every way it can fail leaves the sinks' blockers as the lanes wrote them.
+ */
+async function judgeThisRound(o: {
+  cwd: string;
+  cfg: NoldorConfig | null;
+  args: OrchestrateArgs;
+  headSha: string;
+  sinks: readonly { lane: JudgedLane; sinkPath: string }[];
+}): Promise<JudgeRoundResult | null> {
+  if (o.sinks.length === 0) return null;
+  const skip = (why: string): JudgeRoundResult => ({
+    line: `skipped — ${why}`,
+    refuted: [],
+    ok: {},
+  });
+  let r: JudgeRoundResult;
+  if (o.cfg?.crReview?.judge === false) r = skip('crReview.judge is false');
+  // An empty head would make `git show :<file>` read the index instead of a commit.
+  else if (o.headSha === '') r = skip('HEAD could not be resolved, so no quote can be checked');
+  else {
+    try {
+      r = await judgeRound({
+        repoRoot: o.cwd,
+        slug: o.args.slug,
+        kind: o.args.kind,
+        artifact: o.args.artifact,
+        headSha: o.headSha,
+        ...(o.args.baseSha ? { baseSha: o.args.baseSha } : {}),
+        sinks: o.sinks,
+        // A timeout costs only the judge's own verdict, so it gets a tighter cap than a lane.
+        timeoutMs: Math.min(300_000, resolveDispatchTimeoutMs(o.cfg)),
+      });
+    } catch (err) {
+      // judgeRound reports its own failures; this catches a defect in it, and the lanes'
+      // verdict stands exactly as they wrote it.
+      r = {
+        line: `failed — every blocker stands (${(err as Error).message})`,
+        refuted: [],
+        ok: {},
+      };
+    }
+  }
+  console.error(`judge: ${r.line}`);
+  return r;
+}
+
+/** The values of one trailer family already on the tip commit. */
+async function tipTrailers(cwd: string, key: string): Promise<string[]> {
   const { stdout } = await execAsync(
     'git',
-    ['log', '-1', `--format=%(trailers:key=${SETTLED_TRAILER},valueonly,unfold)`],
+    ['log', '-1', `--format=%(trailers:key=${key},valueonly,unfold)`],
     { cwd },
   );
   return stdout
@@ -1347,17 +1435,60 @@ async function tipSettled(cwd: string): Promise<string[]> {
     .filter((l) => l !== '');
 }
 
+/** A ruling line `<kind> <disposition> <id> — <note>` is identified by its kind and id. */
+const rulingOf = (value: string): string => {
+  const [kind, , id] = value.split(' ');
+  return `${kind} ${id}`;
+};
+/** A refutation line `<kind> <lane> <id> — <why>` is identified by its kind, lane and id. */
+const refutationOf = (value: string): string => value.split(' ').slice(0, 3).join(' ');
+
 /**
- * The tip's ruling lines plus the session's, one per ruling: a value names `<kind> <disposition>
- * <id> — <note>`, and a current ruling replaces the tip's line for the same kind and id.
+ * The tip's lines of one trailer family plus the session's, one per identity: a current line
+ * replaces the tip's line with the same identity.
  */
-function mergeSettled(onTip: readonly string[], current: readonly string[]): string[] {
-  const rulingOf = (value: string): string => {
-    const [kind, , id] = value.split(' ');
-    return `${kind} ${id}`;
+function mergeTrailers(
+  onTip: readonly string[],
+  current: readonly string[],
+  identityOf: (value: string) => string,
+): string[] {
+  const now = new Set(current.map(identityOf));
+  return [...onTip.filter((v) => !now.has(identityOf(v))), ...current];
+}
+
+/**
+ * One `Noldor-CR-Refuted:` value per refutation of the session (Q-0262), across every artifact
+ * kind. The earlier rounds' come from the ledgers and this round's from its judge, because this
+ * round reaches the ledger only after the receipt amend. A blocker refuted in several rounds
+ * names one line, the latest. An unreadable ledger is reported and names nothing.
+ */
+async function refutedTrailers(
+  cwd: string,
+  slug: Slug,
+  kind: ArtifactKind,
+  roundKey: string,
+  current: readonly Demotion[],
+): Promise<string[]> {
+  const byIdentity = new Map<string, string>();
+  const add = (k: ArtifactKind, lane: JudgedLane, id: string, why: string): void => {
+    const value = refutedTrailerValue(k, lane, id, why);
+    byIdentity.set(refutationOf(value), value);
   };
-  const now = new Set(current.map(rulingOf));
-  return [...onTip.filter((v) => !now.has(rulingOf(v))), ...current];
+  for (const k of artifactKindSchema.options) {
+    let ledger: AutofixLedger | null;
+    try {
+      ledger = await readLedger(cwd, slug, k, roundKey);
+    } catch (err) {
+      console.error(
+        `the ${k} round ledger could not be read, so its refutations are not named on the receipt: ${(err as Error).message}`,
+      );
+      continue;
+    }
+    for (const round of ledger?.rounds ?? [])
+      for (const r of round.refuted ?? []) add(k, r.lane, r.id, r.why);
+  }
+  for (const d of current) add(kind, d.lane, fingerprintBlocker(d.finding), d.why);
+  return [...byIdentity.values()];
 }
 
 /** One `Noldor-CR-Settled:` value per operator ruling of the session, across every artifact kind. */

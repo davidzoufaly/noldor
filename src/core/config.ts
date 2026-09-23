@@ -124,6 +124,8 @@ export const crReviewConfigSchema = z.object({
   // gets instant synthetic reds and will notice at once; add a floor here if a
   // too-low value ever ships unnoticed.
   dispatchTimeoutMs: z.number().int().positive().optional(),
+  // The refutation judge (Q-0262) runs unless this is `false`.
+  judge: z.boolean().optional(),
 });
 
 /**

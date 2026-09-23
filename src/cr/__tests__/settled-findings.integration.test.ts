@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Slug } from '../../core/slug.js';
 import { fingerprintBlocker } from '../fingerprint.js';
 import type { Finding, LaneFindings } from '../findings-schema.js';
+import { setJudgeDispatcher } from '../judge.js';
 import { buildPrompt, setDispatcher } from '../lanes/subagent-dispatch.js';
 import type { DispatchInput } from '../lanes/subagent-dispatch.js';
 import { run } from '../orchestrate.js';
@@ -66,8 +67,13 @@ beforeEach(() => {
     prompts.push(buildPrompt(input));
     return answers.shift() ?? '';
   });
+  // The refutation judge (Q-0262) upholds every blocker, so each round keeps the lane's verdict.
+  setJudgeDispatcher(async (input) =>
+    JSON.stringify({ verdicts: input.blockers.map((_, i) => ({ n: i + 1, verdict: 'stands' })) }),
+  );
 });
 afterEach(() => {
+  setJudgeDispatcher(undefined);
   rmSync(root, { recursive: true, force: true });
 });
 

@@ -124,10 +124,12 @@ describe('amendSubagentReceipt — settled rulings ride the same amend (Q-0261)'
     const cwd = makeRepo();
     const r = amendSubagentReceipt({
       cwd,
-      also: {
-        key: KEY,
-        values: ['code rejected aaaaaaaaaaaa — intentional', 'spec deferred bbbbbbbbbbbb'],
-      },
+      also: [
+        {
+          key: KEY,
+          values: ['code rejected aaaaaaaaaaaa — intentional', 'spec deferred bbbbbbbbbbbb'],
+        },
+      ],
     });
     expect(r.amended).toBe(true);
     expect(settled(cwd)).toEqual([
@@ -140,10 +142,10 @@ describe('amendSubagentReceipt — settled rulings ride the same amend (Q-0261)'
 
   it('replaces the ruling lines when they change, even though the receipt did not', () => {
     const cwd = makeRepo();
-    amendSubagentReceipt({ cwd, also: { key: KEY, values: ['code rejected aaaaaaaaaaaa'] } });
+    amendSubagentReceipt({ cwd, also: [{ key: KEY, values: ['code rejected aaaaaaaaaaaa'] }] });
     const r = amendSubagentReceipt({
       cwd,
-      also: { key: KEY, values: ['code accepted aaaaaaaaaaaa — the debt is taken'] },
+      also: [{ key: KEY, values: ['code accepted aaaaaaaaaaaa — the debt is taken'] }],
     });
     expect(r.amended).toBe(true);
     expect(settled(cwd)).toEqual([`${KEY}: code accepted aaaaaaaaaaaa — the debt is taken`]);
@@ -151,7 +153,7 @@ describe('amendSubagentReceipt — settled rulings ride the same amend (Q-0261)'
 
   it('is a no-op when the receipt and every ruling line already match', () => {
     const cwd = makeRepo();
-    const also = { key: KEY, values: ['code rejected aaaaaaaaaaaa'] };
+    const also = [{ key: KEY, values: ['code rejected aaaaaaaaaaaa'] }];
     amendSubagentReceipt({ cwd, also });
     const before = head(cwd);
     expect(amendSubagentReceipt({ cwd, also }).amended).toBe(false);
@@ -162,17 +164,53 @@ describe('amendSubagentReceipt — settled rulings ride the same amend (Q-0261)'
     const cwd = makeRepo();
     amendSubagentReceipt({
       cwd,
-      also: { key: KEY, values: ['code rejected aaaaaaaaaaaa', 'code rejected aaaaaaaaaaaa'] },
+      also: [{ key: KEY, values: ['code rejected aaaaaaaaaaaa', 'code rejected aaaaaaaaaaaa'] }],
     });
     expect(settled(cwd)).toHaveLength(2);
   });
 
   it('with no rulings, strips stale ruling lines; without `also`, leaves them alone', () => {
     const cwd = makeRepo();
-    amendSubagentReceipt({ cwd, also: { key: KEY, values: ['code rejected aaaaaaaaaaaa'] } });
+    amendSubagentReceipt({ cwd, also: [{ key: KEY, values: ['code rejected aaaaaaaaaaaa'] }] });
     amendSubagentReceipt({ cwd });
     expect(settled(cwd)).toHaveLength(1);
-    amendSubagentReceipt({ cwd, also: { key: KEY, values: [] } });
+    amendSubagentReceipt({ cwd, also: [{ key: KEY, values: [] }] });
     expect(settled(cwd)).toEqual([]);
+  });
+});
+
+describe('amendSubagentReceipt — two trailer families ride one amend (Q-0262)', () => {
+  const lines = (cwd: string, key: string): string[] =>
+    lastMsg(cwd)
+      .split('\n')
+      .filter((l) => l.startsWith(`${key}:`));
+
+  it('writes both families and replaces only the families it is given', () => {
+    const cwd = makeRepo();
+    amendSubagentReceipt({
+      cwd,
+      also: [
+        { key: 'Noldor-CR-Settled', values: ['code rejected aaaaaaaaaaaa'] },
+        { key: 'Noldor-CR-Refuted', values: ['code codex bbbbbbbbbbbb — load throws'] },
+      ],
+    });
+    expect(lines(cwd, 'Noldor-CR-Settled')).toEqual([
+      'Noldor-CR-Settled: code rejected aaaaaaaaaaaa',
+    ]);
+    expect(lines(cwd, 'Noldor-CR-Refuted')).toEqual([
+      'Noldor-CR-Refuted: code codex bbbbbbbbbbbb — load throws',
+    ]);
+    // A later amend that names only the refutations leaves the ruling line alone.
+    amendSubagentReceipt({
+      cwd,
+      also: [{ key: 'Noldor-CR-Refuted', values: ['spec reviewer cccccccccccc — present'] }],
+    });
+    expect(lines(cwd, 'Noldor-CR-Settled')).toEqual([
+      'Noldor-CR-Settled: code rejected aaaaaaaaaaaa',
+    ]);
+    expect(lines(cwd, 'Noldor-CR-Refuted')).toEqual([
+      'Noldor-CR-Refuted: spec reviewer cccccccccccc — present',
+    ]);
+    expect(receipts(cwd)).toHaveLength(1);
   });
 });

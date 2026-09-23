@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import type { Slug } from '../core/slug.js';
 import { join } from 'node:path';
 import { treeOf } from './git-tree.js';
-import type { ArtifactKind, Finding, Lane } from './findings-schema.js';
+import type { ArtifactKind, Finding, Lane, RefutedFinding } from './findings-schema.js';
 import { laneFindingsSchema } from './findings-schema.js';
 import { inferLaneFromFilename } from './filename.js';
 import { readExpectedLanes, type DispatchedHead } from './expected-lanes.js';
@@ -62,6 +62,11 @@ export interface AggregateResult {
    * existing round hashes to.
    */
   stale: StaleRound[];
+  /**
+   * The blockers the refutation judge demoted (Q-0262), each with the lane whose sink held it.
+   * Its own channel for the same reason as {@link AggregateResult.stale}, and it never gates.
+   */
+  refuted: (RefutedFinding & { lane: Lane })[];
   summaries: Partial<Record<Lane, string>>;
   notes: Partial<Record<Lane, string[]>>;
 }
@@ -85,6 +90,7 @@ export async function aggregate(
     .map((e) => join(dir, e.name));
 
   const blockers: LaneBlocker[] = [];
+  const refuted: AggregateResult['refuted'] = [];
   const unresolved: Lane[] = [];
   const summaries: Partial<Record<Lane, string>> = {};
   const notes: Partial<Record<Lane, string[]>> = {};
@@ -158,6 +164,7 @@ export async function aggregate(
     if (parsed.data.notes) notes[filenameLane] = [...parsed.data.notes];
     if (!parsed.data.finishedAt) unresolved.push(filenameLane);
     blockers.push(...parsed.data.blockers.map((b) => ({ ...b, lane: filenameLane })));
+    refuted.push(...(parsed.data.refuted ?? []).map((x) => ({ ...x, lane: filenameLane })));
 
     // templateSha drift detection. Standalone lane only.
     if (filenameLane === 'standalone' && parsed.data.templateSha) {
@@ -199,6 +206,7 @@ export async function aggregate(
     blockers,
     unresolved,
     stale,
+    refuted,
     summaries,
     notes,
   };
