@@ -112,18 +112,6 @@ Deletion test: a file added under `src/` that derives direct invocation from `im
 
 (descoped from Q-0126 on 2026-09-08 after three red code-stage rounds; the 14 findings above are the input)
 
-### Self-Explanatory Code Over Comments Rule
-
-- id: Q-0232
-- area: docs
-- type: docs
-- since: 2026-09-08
-- size: S
-- impact: med
-- confidence: med
-
-Agents write far more in-code comments than the repo wants, and nothing states the preference, so every review re-litigates it. The house position is that code should be self-explanatory — naming and structure carry the intent, and a comment earns its place only when it records a why that the code cannot (a falsified alternative, an external constraint, a deliberate deviation). Wanted: an engineering rule stating it, so the expectation reaches the author rather than the reviewer. Pairs with the existing comment-density guidance in the harness prose, which is advisory and unenforced. (surfaced 2026-09-08)
-
 ### Fast-Track Changes Can Obsolete an Unattached FD
 
 - id: Q-0233
