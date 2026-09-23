@@ -5,7 +5,7 @@ import { runResolve } from '../../rules/cli-cores.js';
 import { writeJsonAtomic } from '../atomic-write.js';
 import type { ArtifactKind, Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
-import { applyPriorAnswers, laneFailureFile } from '../re-round.js';
+import { applyPriorAnswers, laneFailureFile, splitCarriedByBasis } from '../re-round.js';
 import { readFdSummary } from '../read-fd-summary.js';
 import { splitClassTag } from '../finding-class.js';
 import { extractLocations } from '../locations.js';
@@ -251,8 +251,9 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
     input.priorReview === undefined
       ? { carried: [], notes: [] }
       : applyPriorAnswers(input.priorReview.blockers, answer.answer.prior);
-  const blockers = [...prior.carried, ...findings.filter(blocks).map(toSink)];
-  const suggestions = findings.filter((f) => !blocks(f)).map(toSink);
+  const carried = splitCarriedByBasis(input.priorReview?.blockers ?? [], prior.carried, input.kind);
+  const blockers = [...carried.blocking, ...findings.filter(blocks).map(toSink)];
+  const suggestions = [...carried.demoted, ...findings.filter((f) => !blocks(f)).map(toSink)];
   const payload: LaneFindings = {
     lane: 'reviewer',
     artifact: input.artifact,
@@ -265,6 +266,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       `Assessment: ${answer.answer.assessment}`,
       `Strengths: ${answer.answer.strengths}`,
       ...prior.notes,
+      ...carried.notes,
       ...answer.notes,
     ],
     startedAt,

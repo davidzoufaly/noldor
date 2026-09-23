@@ -9,6 +9,7 @@ links:
     - src/cr/finding-class.ts
     - src/cr/lanes/subagent-dispatch.ts
     - src/cr/lanes/subagent.ts
+    - src/cr/lanes/codex.ts
     - src/cr/run-codex.ts
     - src/cr/review-with-codex.ts
     - src/cr/sidecar.ts

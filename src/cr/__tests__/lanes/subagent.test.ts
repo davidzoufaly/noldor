@@ -430,6 +430,61 @@ describe('runSubagent at kind spec — a blocker names its basis (Q-0263)', () =
     ]);
   });
 
+  describe('a prior carried from a sink written before the rule', () => {
+    const legacy = {
+      file: 'docs/design/specs/x.md',
+      severity: 'high' as const,
+      message: 'reword the Goals section',
+    };
+    const based = {
+      file: 'docs/design/specs/x.md',
+      severity: 'med' as const,
+      message: 'the retry owner is never named',
+      basis: 'requirement' as const,
+    };
+    const stillStanding = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ n: i + 1, resolved: false, why: 'still there' }));
+    const withPrior = (prior: unknown[]): string =>
+      JSON.stringify({ assessment: 'checked the fix', strengths: 's', findings: [], prior });
+
+    it('is carried as a suggestion when it names no basis, while a based prior still blocks', async () => {
+      dispatchSubagent.mockResolvedValueOnce(withPrior(stillStanding(2)));
+      const r = await runSubagent({
+        ...spec(),
+        priorReview: { mode: 'fixes-in-diff', blockers: [legacy, based] },
+      });
+      expect(r.ok).toBe(false);
+      const j = await sinkOf(r);
+      expect(j.blockers).toEqual([based]);
+      expect(j.suggestions).toEqual([legacy]);
+      expect(j.notes).toEqual(
+        expect.arrayContaining(['prior P1 carried as a suggestion: it names no basis']),
+      );
+    });
+
+    it('leaves the round green when it is the only prior still standing', async () => {
+      dispatchSubagent.mockResolvedValueOnce(withPrior(stillStanding(1)));
+      const r = await runSubagent({
+        ...spec(),
+        priorReview: { mode: 'fixes-in-diff', blockers: [legacy] },
+      });
+      expect(r.ok).toBe(true);
+      const j = await sinkOf(r);
+      expect(j.blockers).toEqual([]);
+      expect(j.summary).toBe('approve');
+    });
+
+    it('stays a blocker behind a failed dispatch, for the next round to judge', async () => {
+      dispatchSubagent.mockRejectedValueOnce(new Error('claude not on PATH'));
+      const r = await runSubagent({
+        ...spec(),
+        priorReview: { mode: 'fixes-in-diff', blockers: [legacy] },
+      });
+      const j = await sinkOf(r);
+      expect(j.blockers.slice(1)).toEqual([legacy]);
+    });
+  });
+
   it('dispatches with the kind, which selects the spec answer contract', async () => {
     dispatchSubagent.mockResolvedValueOnce(CLEAN);
     await runSubagent(spec());

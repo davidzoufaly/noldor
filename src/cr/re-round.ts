@@ -9,7 +9,7 @@
  * `BLOCKING_DEFINITION` (`blocking-definition.ts`), so the reviewer and codex prompts cannot drift apart.
  */
 import { z } from 'zod';
-import type { Finding, Lane } from './findings-schema.js';
+import type { ArtifactKind, Finding, Lane } from './findings-schema.js';
 import type { PriorReview } from './lane-types.js';
 
 /** Per-prior message bound. Code re-files the full finding, so the model never re-types it. */
@@ -95,6 +95,27 @@ export function applyPriorAnswers(
     }
   });
   return { carried, notes };
+}
+
+/**
+ * The spec-stage rule applied to the priors a round carries (Q-0263): at kind spec a prior blocks
+ * only when it names a basis. One filed before the rule has none, so it is carried as a suggestion
+ * — the same finding, never dropped — and noted. Every other kind carries every prior as a blocker.
+ * `priors` is the list the round was handed, which numbers them.
+ */
+export function splitCarriedByBasis(
+  priors: readonly Finding[],
+  carried: readonly Finding[],
+  kind: ArtifactKind,
+): { blocking: Finding[]; demoted: Finding[]; notes: string[] } {
+  if (kind !== 'spec') return { blocking: [...carried], demoted: [], notes: [] };
+  const { blocking = [], demoted = [] } = Object.groupBy(carried, (p) =>
+    p.basis === undefined ? 'demoted' : 'blocking',
+  );
+  const notes = demoted.map(
+    (p) => `prior P${priors.indexOf(p) + 1} carried as a suggestion: it names no basis`,
+  );
+  return { blocking, demoted, notes };
 }
 
 /** The lanes that inherit their own prior blockers on a re-round. */

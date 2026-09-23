@@ -140,8 +140,19 @@ describe('runCodex lane — base-sha', () => {
 });
 
 describe('runCodex lane — re-round (Q-0260)', () => {
-  const p1 = { file: 'docs/design/specs/x.md', severity: 'high' as const, message: 'first prior' };
-  const p2 = { file: 'docs/design/specs/x.md', severity: 'high' as const, message: 'second prior' };
+  // Spec-kind priors filed under the spec-stage rule, so each names its basis (Q-0263).
+  const p1 = {
+    file: 'docs/design/specs/x.md',
+    severity: 'high' as const,
+    message: 'first prior',
+    basis: 'requirement' as const,
+  };
+  const p2 = {
+    file: 'docs/design/specs/x.md',
+    severity: 'high' as const,
+    message: 'second prior',
+    basis: 'risk' as const,
+  };
   const reRound = (): LaneInput =>
     input({ priorReview: { mode: 'fixes-in-diff', blockers: [p1, p2] } });
 
@@ -187,6 +198,64 @@ describe('runCodex lane — re-round (Q-0260)', () => {
     const r = await runCodex(reRound());
     expect(r.ok).toBe(true);
     expect((await sink()).blockers).toEqual([]);
+  });
+
+  describe('a prior carried from a sink written before the spec-stage rule (Q-0263)', () => {
+    const legacy = {
+      file: 'docs/design/specs/x.md',
+      severity: 'high' as const,
+      message: 'reword the Goals section',
+    };
+
+    it('is carried as a suggestion at kind spec when it names no basis', async () => {
+      reviewFn.mockResolvedValue({
+        summary: 'checked',
+        findings: [],
+        prior: [
+          { n: 1, resolved: false, why: 'still worded that way' },
+          { n: 2, resolved: false, why: 'still missing' },
+        ],
+      });
+      const r = await runCodex(
+        input({ priorReview: { mode: 'fixes-in-diff', blockers: [legacy, p1] } }),
+      );
+      const s = await sink();
+      expect(s.blockers).toEqual([p1]);
+      expect(s.suggestions).toEqual([legacy]);
+      expect(s.notes).toEqual(
+        expect.arrayContaining(['prior P1 carried as a suggestion: it names no basis']),
+      );
+      expect(r.ok).toBe(false);
+    });
+
+    it('still blocks at kind plan, where the rule does not apply', async () => {
+      reviewFn.mockResolvedValue({
+        summary: 'checked',
+        findings: [],
+        prior: [{ n: 1, resolved: false, why: 'still there' }],
+      });
+      const r = await runCodex(
+        input({ kind: 'plan', priorReview: { mode: 'fixes-in-diff', blockers: [legacy] } }),
+      );
+      expect(r.ok).toBe(false);
+      const planSink = JSON.parse(
+        await readFile(join(root, '.noldor', 'cr', 's-plan-codex.json'), 'utf8'),
+      );
+      expect(planSink.blockers).toEqual([legacy]);
+    });
+
+    it('stays a blocker behind a failed review, for the next round to judge', async () => {
+      reviewFn.mockResolvedValue({
+        summary: 'codex exited 1',
+        findings: [{ file: '<codex>', message: 'codex exited 1', severity: 'high' }],
+        prior: [],
+      });
+      await runCodex(input({ priorReview: { mode: 'fixes-in-diff', blockers: [legacy] } }));
+      expect((await sink()).blockers).toEqual([
+        { file: '<codex>', message: 'codex exited 1', severity: 'high' },
+        legacy,
+      ]);
+    });
   });
 
   it('a failed review keeps the priors it was given behind its <codex> failure', async () => {

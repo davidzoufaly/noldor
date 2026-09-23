@@ -4,7 +4,7 @@ import { makeCodexSpawn } from '../codex-adapter.js';
 import { openLane } from '../filename.js';
 import type { LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
-import { applyPriorAnswers, isLaneFailureBlocker } from '../re-round.js';
+import { applyPriorAnswers, isLaneFailureBlocker, splitCarriedByBasis } from '../re-round.js';
 import { reviewWithCodex } from '../review-with-codex.js';
 
 /**
@@ -54,7 +54,13 @@ export async function runCodex(input: LaneInput): Promise<LaneResult> {
       : failed
         ? { carried: input.priorReview.blockers, notes: [] }
         : applyPriorAnswers(input.priorReview.blockers, out.prior);
-  const blockers = failed ? [...found, ...prior.carried] : [...prior.carried, ...found];
+  // A failed review keeps every prior a blocker, for the next round to judge; one that ran applies
+  // the spec-stage rule to the priors it carries (Q-0263).
+  const carried = failed
+    ? { blocking: prior.carried, demoted: [], notes: [] }
+    : splitCarriedByBasis(input.priorReview?.blockers ?? [], prior.carried, input.kind);
+  const blockers = failed ? [...found, ...carried.blocking] : [...carried.blocking, ...found];
+  const notes = [...prior.notes, ...carried.notes];
 
   const payload: LaneFindings = {
     lane: 'codex',
@@ -62,9 +68,9 @@ export async function runCodex(input: LaneInput): Promise<LaneResult> {
     kind: input.kind,
     slug: input.slug,
     blockers,
-    suggestions: out.findings.filter((f) => f.severity !== 'high'),
+    suggestions: [...carried.demoted, ...out.findings.filter((f) => f.severity !== 'high')],
     summary: out.summary,
-    ...(prior.notes.length > 0 ? { notes: prior.notes } : {}),
+    ...(notes.length > 0 ? { notes } : {}),
     startedAt,
     finishedAt: new Date().toISOString(),
     ...(scoped && input.baseSha !== undefined ? { baseSha: input.baseSha } : {}),
