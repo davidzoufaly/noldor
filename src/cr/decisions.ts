@@ -22,7 +22,12 @@ import type { Slug } from '../core/slug.js';
 import { DISPOSITIONS } from './arbitration.js';
 import { writeJsonAtomic } from './atomic-write.js';
 import { isSameSeries } from './autofix-ledger.js';
-import { artifactKindSchema, findingSchema, laneSchema } from './findings-schema.js';
+import {
+  artifactKindSchema,
+  findingLocationSchema,
+  findingSchema,
+  laneSchema,
+} from './findings-schema.js';
 import type { ArtifactKind, Finding } from './findings-schema.js';
 
 // Every schema here is strict: an unknown key is rejected rather than stripped, so a store a
@@ -39,11 +44,20 @@ export const citationSchema = z
   .strict();
 export type Citation = z.infer<typeof citationSchema>;
 
+/**
+ * The finding a decision stores, strict to its locations. `findingSchema` is the sinks' own and
+ * strips a key it does not know at the sink read; kept in the store, such a key must be refused
+ * instead, or the next rewrite would drop it.
+ */
+const storedFindingSchema = findingSchema
+  .extend({ locations: z.array(findingLocationSchema.strict()).optional() })
+  .strict();
+
 export const decisionSchema = z
   .object({
     /** The finding's `fingerprintBlocker` id. */
     id: z.string().min(1),
-    finding: findingSchema,
+    finding: storedFindingSchema,
     lanes: z.array(laneSchema).min(1),
     disposition: z.enum(['fixed', ...DISPOSITIONS]),
     /** The lane's `why` for `fixed`, the operator's note for a ruling. */

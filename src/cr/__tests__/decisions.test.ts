@@ -147,6 +147,24 @@ describe('readDecisions / updateDecisions — session scoping', () => {
     expect(readFileSync(decisionsPath(cwd, SLUG, 'code'), 'utf8')).toBe(newer);
   });
 
+  it.each([
+    ['in the stored finding', { finding: { ...finding(), addedLater: 'x' } }],
+    [
+      'in a stored finding location',
+      { finding: finding({ locations: [{ file: 'a.ts', line: 1, col: 3 } as never] }) },
+    ],
+    ['in a citation', { cites: [{ file: 'a.ts', line: 1, text: 't', hash: 'h' } as never] }],
+  ])('reads a store with an unknown key %s as unusable', async (_where, over) => {
+    writeStore({
+      version: 1,
+      slug: 'x',
+      kind: 'code',
+      sessionStartedAt: SESSION,
+      decisions: [{ ...decision(), ...over }],
+    });
+    expect((await readDecisions(cwd, SLUG, 'code', SESSION)).ok).toBe(false);
+  });
+
   it('re-reads before writing, so an earlier write in the session survives a later one', async () => {
     await updateDecisions(cwd, SLUG, 'code', SESSION, (cur) =>
       upsertDecision(cur, decision({ id: 'a' })),
