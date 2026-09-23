@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor, cr-lane-verdicts-blocked-by-serialization-not-substance
 import { describe, expect, it, vi } from 'vitest';
 import { runCodex, type Spawn } from '../run-codex.js';
 import { reviewWithCodex, toFindings } from '../review-with-codex.js';

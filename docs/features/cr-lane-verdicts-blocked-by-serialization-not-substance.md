@@ -26,19 +26,19 @@ links:
     - src/cr/lanes/subagent-dispatch.ts
     - src/cr/lanes/subagent.ts
   tests:
-    - src/core/agent-runner/__tests__/runners.test.ts
     - src/core/agent-runner/__tests__/registry.test.ts
+    - src/core/agent-runner/__tests__/runners.test.ts
     - src/cr/__tests__/filename.test.ts
     - src/cr/__tests__/lane-answer.test.ts
     - src/cr/__tests__/lane-spawn.test.ts
-    - src/cr/__tests__/run-codex.test.ts
-    - src/cr/__tests__/lanes/verify-dispatch.test.ts
-    - src/cr/__tests__/lanes/verify.test.ts
-    - src/cr/__tests__/lanes/ui-review-dispatch.test.ts
-    - src/cr/__tests__/lanes/ui-review.test.ts
     - src/cr/__tests__/lanes/render-compare.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
+    - src/cr/__tests__/lanes/ui-review-dispatch.test.ts
+    - src/cr/__tests__/lanes/ui-review.test.ts
+    - src/cr/__tests__/lanes/verify-dispatch.test.ts
+    - src/cr/__tests__/lanes/verify.test.ts
+    - src/cr/__tests__/run-codex.test.ts
   spec: >-
     docs/design/specs/archive/2026-09-22-cr-lane-verdicts-blocked-by-serialization-not-substance-design.md
   plan:

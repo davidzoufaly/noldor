@@ -1,4 +1,4 @@
-// @tests: make-noldor-agent-agnostic, portable-gate-entrypoint-for-non-claude-runners
+// @tests: make-noldor-agent-agnostic, portable-gate-entrypoint-for-non-claude-runners, cr-lane-verdicts-blocked-by-serialization-not-substance
 import { describe, expect, it } from 'vitest';
 import { CAPABILITIES } from '../capabilities.js';
 import { CLAUDE_BIN, buildClaudeArgv } from '../runners/claude.js';

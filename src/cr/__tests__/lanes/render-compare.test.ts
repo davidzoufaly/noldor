@@ -1,4 +1,4 @@
-// @tests: ui-design-review-lane
+// @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance
 // Lane tests for `render-compare`: real git fixture repos (the resolution half
 // is shared with ui-reviewer and tested through the same production loaders),
 // with the exporter dispatch, boot, capture, fetch, and port seams injected.
