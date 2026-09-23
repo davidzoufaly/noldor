@@ -214,17 +214,23 @@ export function sessionKey(cwd: string): string {
 }
 
 /**
- * The `<red rounds>/<budget>` label, clamped.
+ * The `<red rounds>/<budget>` label, with the rounds past the budget named.
  *
- * Shared by all three printers — `plan`, `record` and orchestrate's refusal
- * banner — because they had drifted: two clamped and one did not, so a spent
- * closing round printed `round 4/3` from `record` beside `red rounds 3/3` from
- * orchestrate for one series. The closing round is a fourth red entry against a
- * budget of three by design, and a numerator above its own denominator reads as
- * a bug rather than as the intended one-past-the-cap dispatch.
+ * Shared by every printer — `plan`, `record`, orchestrate's refusal banner and
+ * its per-round line — because they had drifted: two clamped and one did not, so
+ * a spent closing round printed `round 4/3` from `record` beside `red rounds
+ * 3/3` from orchestrate for one series.
+ *
+ * Never clamped. The closing round is a fourth red entry against a budget of
+ * three by design, and clamping it to `3/3` made a legal fourth round look like
+ * a bypassed cap: an operator who counted four rounds saw a counter that said
+ * three (Q-0251). The numerator is the real count; what a bare `4/3` lacked was
+ * the reason, so the overrun is labelled as the closing round it is.
  */
 export function roundLabel(redCount: number): string {
-  return `${Math.min(redCount, AUTOFIX_ROUND_CAP + 1)}/${AUTOFIX_ROUND_CAP + 1}`;
+  const budget = AUTOFIX_ROUND_CAP + 1;
+  const past = redCount - budget;
+  return past > 0 ? `${redCount}/${budget} (+${past} closing)` : `${redCount}/${budget}`;
 }
 
 /** Verdict of a recorded round; an entry written before the field existed reads `red`. */

@@ -28,19 +28,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 An XS entry whose whole diff is `.claude/skills/**` routes to `fast-track`, and the worktree then refuses the commit. `sizeToPath()` keys on size alone, so `/noldor-gate` Step 0 stamps `suggestedPath: fast-track` on a pure-prose skill edit; `checks shared-files` blocks `^\.claude/skills/[^/]+` from a feature worktree, so the whole fast-track scaffold is wasted — worktree created, roadmap block retired and committed on the branch, then the real commit is refused. Shipping Q-0222 that cost a full worktree teardown and redo on `main`. The evidence that micro-chore is the intended lane is already in `MICRO_CHORE_GLOBS`, which lists `.claude/**` *and* `templates/.claude/**` with the comment "template-sync forces editing both, so the twin must share the micro-chore lane". The gate's own Step 0 prose says "downgrade to `micro-chore` only when the diff is pure-doc", but nothing computes that: the operator is asked to predict the diff before writing it. Wanted: make the shared-files block list and the micro-chore allowlist reachable from the path pick — either `split-check --entry` warns when an entry's `Touches:` is entirely inside `MICRO_CHORE_GLOBS`, or `worktrees create` refuses up front for a slug whose expected paths are all shared-root. Deletion test: picking `fast-track` for an entry that only touches `.claude/skills/**` surfaces the conflict before the worktree is built. (found 2026-09-15 shipping Q-0222)
 
-### CR Re-Round Cap Overrun
-
-- id: Q-0251
-- area: tooling
-- type: fix
-- since: 2026-09-22
-- size: S
-- impact: high
-- confidence: low
-- parent: cr-re-round-cap-enforcement-and-oscillation-detector
-
-An observed session ran four CR review rounds against a cap of two. Reproduce before fixing, because the cap may be behaving as designed: Q-0170 (PR #431) counts **red rounds only** and exits 3 at the cap, so four *rounds* with two reds is legal — in which case the defect is that the surfaced round count and the enforced count are different numbers and nothing says so, and the remedy is reporting rather than enforcement. The adjacent observation that makes this worth an entry either way: the four rounds were non-convergent, each one finding defects in the fix the previous round demanded, which is precisely the oscillation the detector shipped to catch. Establish first which of the three it is — cap bypassed, cap counting a different thing than the operator sees, or the oscillation detector not firing on a chain it should have caught. Deletion test: a session that performs N rounds reports N against the same denominator the cap enforces, and a fix-defect-fix chain trips the oscillation record. (found 2026-09-22)
-
 ### Scaffold One Agent-Rules File, Not Two
 
 - id: Q-0252

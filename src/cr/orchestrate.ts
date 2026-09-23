@@ -1311,6 +1311,13 @@ export async function run(opts: RunOpts): Promise<RunResult> {
           ? { closingRound: true }
           : {}),
       });
+      // Both counts, side by side: the operator counts dispatches, the cap counts
+      // red ones, and printing only the second let "four rounds against a cap of
+      // two" read as a bypass when it was two greens and a closing round (Q-0251).
+      console.error(
+        `round ${recorded.rounds.length} recorded ${red ? 'red' : 'green'} — ` +
+          `red rounds ${roundLabel(redRounds(recorded.rounds))} against the cap; green rounds do not count`,
+      );
     }
   } catch (err) {
     console.error(`round not recorded — cap will under-count: ${(err as Error).message}`);
