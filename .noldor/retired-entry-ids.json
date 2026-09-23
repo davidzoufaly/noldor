@@ -511,5 +511,9 @@
   "Q-0206": {
     "slug": "autonomous-address-blockers-without-an-operator-confirm",
     "retiredAt": "2026-09-23"
+  },
+  "Q-0184": {
+    "slug": "parent-feature-opt-in-check-before-sizing",
+    "retiredAt": "2026-09-23"
   }
 }

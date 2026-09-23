@@ -47,6 +47,9 @@ packages:
 phase: done
 since: 2026-08-19T00:00:00.000Z
 noldor-tier: specs-only
+opt-in:
+  - crLanes.code=ui-reviewer
+  - crLanes.code=render-compare
 introduced: 1.4.0
 updated: 1.6.0
 ---
