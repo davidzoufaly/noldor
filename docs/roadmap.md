@@ -28,21 +28,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 An XS entry whose whole diff is `.claude/skills/**` routes to `fast-track`, and the worktree then refuses the commit. `sizeToPath()` keys on size alone, so `/noldor-gate` Step 0 stamps `suggestedPath: fast-track` on a pure-prose skill edit; `checks shared-files` blocks `^\.claude/skills/[^/]+` from a feature worktree, so the whole fast-track scaffold is wasted — worktree created, roadmap block retired and committed on the branch, then the real commit is refused. Shipping Q-0222 that cost a full worktree teardown and redo on `main`. The evidence that micro-chore is the intended lane is already in `MICRO_CHORE_GLOBS`, which lists `.claude/**` *and* `templates/.claude/**` with the comment "template-sync forces editing both, so the twin must share the micro-chore lane". The gate's own Step 0 prose says "downgrade to `micro-chore` only when the diff is pure-doc", but nothing computes that: the operator is asked to predict the diff before writing it. Wanted: make the shared-files block list and the micro-chore allowlist reachable from the path pick — either `split-check --entry` warns when an entry's `Touches:` is entirely inside `MICRO_CHORE_GLOBS`, or `worktrees create` refuses up front for a slug whose expected paths are all shared-root. Deletion test: picking `fast-track` for an entry that only touches `.claude/skills/**` surfaces the conflict before the worktree is built. (found 2026-09-15 shipping Q-0222)
 
-### Gate Prose Should Pre-Empt the Sibling-Scope Trailer
-
-- id: Q-0192
-- area: tooling
-- type: fix
-- since: 2026-08-25
-- size: S
-- impact: low
-- confidence: high
-- parent: scope-sibling-trailer-for-doc-sync-commits
-
-A commit touching `src/**` and `docs/noldor/**` needs a `Noldor-Sibling-Scope: noldor:<page>` trailer, and the `noldor-scope` hook only says so after the commit has already been rejected. The mechanism is fully documented in [git-and-commits.md](noldor/git-and-commits.md#sibling-doc-sync-commits-noldor-sibling-scope) — this is purely about when the operator meets it: every change whose fix spans code plus its runner-neutral doc twin hits the rejection first and reads the doc second. Pre-empt it in the gate prose for mixed-diff paths, or suggest the trailer at stage time from the staged file set rather than at reject time (the hook already computes the exact line it prints). Deletion test: an operator committing a code + `docs/noldor/` change is told about the trailer before the commit is attempted. (found 2026-08-24 shipping Q-0158)
-
-- Same class, different missing step: the micro-chore recipe never says to check out the temp branch, and `pr-flow` reads `HEAD`. Step 2's handoff ends at `git stash pop` on rewound `main`, then hands off to "Step 4 end-of-flow takes over: `pr-flow.ts openAndAutoMerge()` pushes the temp branch" — which reads as though pr-flow resolves the branch from the session marker. It does not: `pr-flow-cli.ts:411` derives the branch from `git rev-parse --abbrev-ref HEAD` and exits at line 437 with `no commits ahead of origin/main on current branch` when run from `main`. A controller following the prose literally gets that error with a committed, pushed-nowhere temp branch and no obvious next move. Add `git checkout <temp-branch>` as an explicit step 5.5 in the micro-chore recipe, noting that the popped dirty files travel along harmlessly. (surfaced 2026-09-07 splitting Q-0193)
-
 ### Heading Slugifier Drops Non-ASCII Letters
 
 - id: Q-0218
