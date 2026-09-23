@@ -447,20 +447,29 @@ describe('runSubagent at kind spec — a blocker names its basis (Q-0263)', () =
     const withPrior = (prior: unknown[]): string =>
       JSON.stringify({ assessment: 'checked the fix', strengths: 's', findings: [], prior });
 
-    it('is carried as a suggestion when it names no basis, while a based prior still blocks', async () => {
-      dispatchSubagent.mockResolvedValueOnce(withPrior(stillStanding(2)));
-      const r = await runSubagent({
-        ...spec(),
-        priorReview: { mode: 'fixes-in-diff', blockers: [legacy, based] },
-      });
-      expect(r.ok).toBe(false);
-      const j = await sinkOf(r);
-      expect(j.blockers).toEqual([based]);
-      expect(j.suggestions).toEqual([legacy]);
-      expect(j.notes).toEqual(
-        expect.arrayContaining(['prior P1 carried as a suggestion: it names no basis']),
-      );
-    });
+    // One row per shape a missing basis can take on a carried prior; the based prior beside it is
+    // the must-still-block direction.
+    it.each([
+      ['no basis key', legacy],
+      ['a null basis', { ...legacy, basis: null }],
+      ['an unknown basis', { ...legacy, basis: 'wording' }],
+    ])(
+      'is carried as a suggestion when it has %s, while a based prior still blocks',
+      async (_shape, unbased) => {
+        dispatchSubagent.mockResolvedValueOnce(withPrior(stillStanding(2)));
+        const r = await runSubagent({
+          ...spec(),
+          priorReview: { mode: 'fixes-in-diff', blockers: [unbased as never, based] },
+        });
+        expect(r.ok).toBe(false);
+        const j = await sinkOf(r);
+        expect(j.blockers).toEqual([based]);
+        expect(j.suggestions).toEqual([unbased]);
+        expect(j.notes).toEqual(
+          expect.arrayContaining(['prior P1 carried as a suggestion: it names no basis']),
+        );
+      },
+    );
 
     it('leaves the round green when it is the only prior still standing', async () => {
       dispatchSubagent.mockResolvedValueOnce(withPrior(stillStanding(1)));

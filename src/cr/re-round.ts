@@ -9,6 +9,7 @@
  * `BLOCKING_DEFINITION` (`blocking-definition.ts`), so the reviewer and codex prompts cannot drift apart.
  */
 import { z } from 'zod';
+import { isSpecBlockingBasis } from './blocking-definition.js';
 import type { ArtifactKind, Finding, Lane } from './findings-schema.js';
 import type { PriorReview } from './lane-types.js';
 
@@ -109,8 +110,9 @@ export function splitCarriedByBasis(
   kind: ArtifactKind,
 ): { blocking: Finding[]; demoted: Finding[]; notes: string[] } {
   if (kind !== 'spec') return { blocking: [...carried], demoted: [], notes: [] };
+  // The same test a new finding's basis faces, so no shape of a missing one keeps a prior blocking.
   const { blocking = [], demoted = [] } = Object.groupBy(carried, (p) =>
-    p.basis === undefined ? 'demoted' : 'blocking',
+    isSpecBlockingBasis(p.basis) ? 'blocking' : 'demoted',
   );
   const notes = demoted.map(
     (p) => `prior P${priors.indexOf(p) + 1} carried as a suggestion: it names no basis`,
