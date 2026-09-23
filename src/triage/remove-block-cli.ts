@@ -99,6 +99,12 @@ export function parseRemoveBlockArgs(argv: readonly string[]): ParseRemoveBlockR
   };
 }
 
+/** A queue file's text, or empty when the repo has none (a split may touch just one). */
+function readQueue(rel: string): string {
+  const path = join(process.cwd(), rel);
+  return existsSync(path) ? readFileSync(path, 'utf8') : '';
+}
+
 const USAGE =
   'usage: noldor roadmap remove-block <slug> [--backlog] [--retired-into <fd-slug> | --split-into <slug>,<slug>]\n';
 
@@ -126,6 +132,26 @@ function main(): void {
   if (!entry) {
     process.stdout.write(`remove-block: ${slug} not present in ${rel} — nothing to do\n`);
     return;
+  }
+  // Every sibling a split names must already exist: the caller writes them just
+  // before this call, so an unresolvable slug is a typo or a guessed slugify
+  // result, and recording it would point the retired-ID map at nothing — a
+  // `blocked-by:` ref to the old ID then dangles with no hint why. Checked
+  // across both queue files (a sibling may land in either) and before any
+  // write, so a bad list leaves the block in place.
+  if (splitInto !== undefined) {
+    const known = new Set(
+      [...parseRoadmap(readQueue('docs/roadmap.md')), ...parseBacklog(readQueue('docs/backlog.md'))]
+        .map((e) => e.slug)
+        .filter((s) => s !== slug),
+    );
+    const missing = splitInto.filter((s) => !known.has(s));
+    if (missing.length > 0) {
+      process.stderr.write(
+        `remove-block: --split-into names no roadmap/backlog entry: ${missing.join(', ')} — write the sibling blocks first, and confirm each slug with \`noldor noldor split-check --entry <slug>\` rather than deriving it from the heading by hand\n`,
+      );
+      process.exit(1);
+    }
   }
   // Forward the entry's stable ID so `blocked-by:` refs to it keep resolving.
   // Promotion lifts `- id:` into FD frontmatter; the no-FD retirement paths

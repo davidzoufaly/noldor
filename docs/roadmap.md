@@ -28,18 +28,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 An XS entry whose whole diff is `.claude/skills/**` routes to `fast-track`, and the worktree then refuses the commit. `sizeToPath()` keys on size alone, so `/noldor-gate` Step 0 stamps `suggestedPath: fast-track` on a pure-prose skill edit; `checks shared-files` blocks `^\.claude/skills/[^/]+` from a feature worktree, so the whole fast-track scaffold is wasted — worktree created, roadmap block retired and committed on the branch, then the real commit is refused. Shipping Q-0222 that cost a full worktree teardown and redo on `main`. The evidence that micro-chore is the intended lane is already in `MICRO_CHORE_GLOBS`, which lists `.claude/**` *and* `templates/.claude/**` with the comment "template-sync forces editing both, so the twin must share the micro-chore lane". The gate's own Step 0 prose says "downgrade to `micro-chore` only when the diff is pure-doc", but nothing computes that: the operator is asked to predict the diff before writing it. Wanted: make the shared-files block list and the micro-chore allowlist reachable from the path pick — either `split-check --entry` warns when an entry's `Touches:` is entirely inside `MICRO_CHORE_GLOBS`, or `worktrees create` refuses up front for a slug whose expected paths are all shared-root. Deletion test: picking `fast-track` for an entry that only touches `.claude/skills/**` surfaces the conflict before the worktree is built. (found 2026-09-15 shipping Q-0222)
 
-### Heading Slugifier Drops Non-ASCII Letters
-
-- id: Q-0218
-- area: tooling
-- type: fix
-- since: 2026-09-07
-- size: S
-- impact: med
-- confidence: high
-
-The heading slugifier DELETES non-ASCII letters rather than transliterating them, and `remove-block --split-into` cannot detect the resulting mismatch. Splitting Q-0193 (PR #448) a sibling heading containing `Façades` derived the slug `...-faades-...`, not `...-facades-...`. The cost was not the ugly slug — the *guessed* slug had already been passed to `roadmap remove-block --split-into`, which accepts any string and records it verbatim in `.noldor/retired-entry-ids.json`, so the retired-ID map pointed at a slug no entry had. `split-check --entry <guess>` caught it (`no roadmap/backlog entry with slug`) by accident. Two fixes, both cheap: transliterate in the slugifier (`ç → c`, `é → e`) so a heading a human would write round-trips, and have `--split-into` verify each named slug resolves to a block that now exists — it is called immediately after the siblings are written, so the check is free and a typo'd slug is otherwise invisible until a `blocked-by:` ref dangles. Deletion test: a heading with a non-ASCII letter yields a slug containing its ASCII fold, and `--split-into` with an unresolvable slug exits non-zero. (surfaced 2026-09-07 splitting Q-0193)
-
 ### fill-links-code-gaps Emits Zero Candidates
 
 - id: Q-0173
