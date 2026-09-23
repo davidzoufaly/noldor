@@ -482,9 +482,9 @@ export interface DoomedEntries {
 
 /**
  * Entries a hand edit added that the next write will drop: on an FD whose tags
- * matched at least one file, every owned entry the scan did not produce. Read
- * off {@link project} itself, so the answer can never disagree with what the
- * write does — a tagless FD is left alone there, and so is never named here.
+ * matched at least one file, every owned entry the scan did not produce. Built
+ * on {@link diffProjection}, so a tagless FD — which the write leaves alone — is
+ * never named, and preserved entries never are either.
  *
  * @param scanned - slug → scanned paths
  * @param cached - slug → cached arrays
@@ -496,16 +496,12 @@ export function doomedEntries(
   cached: Map<string, string[]>,
   adapter: LinkAdapter,
 ): DoomedEntries[] {
-  const out: DoomedEntries[] = [];
-  for (const slug of [...cached.keys()].toSorted()) {
-    const current = cached.get(slug) ?? [];
-    const projection = project(scanned.get(slug) ?? [], current, adapter);
-    if (projection.skipped) continue;
-    const kept = new Set(projection.next);
-    const paths = current.filter((p) => !kept.has(p)).toSorted();
-    if (paths.length > 0) out.push({ slug, paths });
-  }
-  return out;
+  return diffProjection(scanned, cached, adapter)
+    .map((d) => ({
+      slug: d.slug,
+      paths: d.cached.filter((p) => !adapter.preserve(p) && !d.scanned.includes(p)).toSorted(),
+    }))
+    .filter((d) => d.paths.length > 0);
 }
 
 /**
