@@ -1,9 +1,10 @@
 // @fd: validate-script-catalog-gate
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { MANIFEST, type Group } from '../cli/manifest.js';
 import { runIfDirect } from '../core/cli-entry.js';
+import { readFileIfExists } from '../core/fd-load.js';
 
 // Both copies: the repo's own agent-rules file and the template every consumer
 // scaffolds and `doctor` diffs against. A file that is absent is skipped — a
@@ -55,15 +56,6 @@ export function replaceCapabilityIndex(doc: string, index: string): string | nul
   return doc.slice(0, start) + index + doc.slice(end + END.length);
 }
 
-async function readIfPresent(path: string): Promise<string | null> {
-  try {
-    return await readFile(path, 'utf8');
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw e;
-  }
-}
-
 /**
  * Check (default) or `--write` the capability index in every present target.
  * Exit 0 = current (or rewritten); 1 = stale or missing block, with the remedy.
@@ -73,7 +65,7 @@ export async function main(argv: readonly string[], cwd = process.cwd()): Promis
   const index = renderCapabilityIndex();
   let failed = false;
   for (const rel of TARGETS) {
-    const doc = await readIfPresent(join(cwd, rel));
+    const doc = await readFileIfExists(join(cwd, rel));
     if (doc === null) continue;
     const next = replaceCapabilityIndex(doc, index);
     if (next === null) {
