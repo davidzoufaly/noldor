@@ -45,7 +45,7 @@ UI verdict: skip — `consumer.uiPaths` is not configured, and the session touch
 
 ### Unit 1 — The decision store
 
-A new `src/cr/decisions.ts` owns one file per series, `.noldor/cr/decisions/<slug>-<kind>.json`, built with `slugKindJsonPath` like the ledger and the arbitration record. It lives in a subdirectory of `.noldor/cr` for the reason `ledgerDir` documents: `aggregate` treats every `.noldor/cr/<slug>-<kind>-*.json` regular file as a lane sink. It is scoped to the gate session with the ledger's key and predicate (`sessionKey`, `isSameSeries`, `src/cr/autofix-ledger.ts:176-195`). A file from another session reads as empty, and the first write of a session replaces it.
+A new `src/cr/decisions.ts` owns one file per series, `.noldor/cr/decisions/<slug>-<kind>.json`, built with `slugKindJsonPath` like the ledger and the arbitration record. It lives in a subdirectory of `.noldor/cr` for the reason `ledgerDir` documents: `aggregate` treats every `.noldor/cr/<slug>-<kind>-*.json` regular file as a lane sink. It is scoped to the gate session with the ledger's key and predicate (`sessionKey`, `isSameSeries`, `src/cr/autofix-ledger.ts:176-195`). A file from another session reads as empty, and the first write of a session replaces it. With no session marker the key is empty, and then, as `hasClosingRound` does (`src/cr/autofix-ledger.ts:238`), the store reads as empty and nothing writes to it: orchestrate records no `fixed`, and `dispose` records no decision and says why.
 
 A decision records the finding's `fingerprintBlocker` id, the `Finding` as filed, the lanes that filed it, a disposition (`fixed`, `accepted`, `rejected` or `deferred`), a reason (the lane's `why` for `fixed`, the operator's note otherwise), the round, and, for an operator decision, what the finding cites (Unit 2). A write replaces any decision for the same id. The store is written only between rounds: orchestrate writes `fixed` after a round, and `cr arbitration dispose` writes the operator's dispositions. A file that cannot be read or parsed is reported and treated as empty, which fails toward carrying blockers, never toward suppressing one.
 
@@ -103,7 +103,7 @@ Unit tests from literals cover the store (session scoping, replace-per-id, an un
 8. When the content a disposed finding cites has changed, the prompt marks it, and a finding filed again with its fingerprint blocks.
 9. A prior a lane answers resolved is recorded as fixed and listed in later rounds, and the same finding filed again still blocks.
 10. A green code round in a session with operator decisions leaves one `Noldor-CR-Settled:` trailer per decision on the tip commit, and a session with none leaves no such trailer.
-11. Decisions are scoped to the gate session: a new session's first round sees none. An unreadable decision store does not stop a round and suppresses nothing.
+11. Decisions are scoped to the gate session: a new session's first round sees none, and a run with no session marker records and reads none. An unreadable decision store does not stop a round and suppresses nothing.
 12. `cr-pipeline.md` and the gate skill describe disposing before the cap, and each `templates/` twin matches.
 
 ## Risks / trade-offs
