@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: noldor, spec-stage-cr-stopping-rule
 import { execFile, execFileSync } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -41,6 +41,39 @@ describe('aggregate CLI', () => {
     await expect(
       exec(TSX, [CLI, '--slug', 'x', '--kind', 'spec'], { cwd: root }),
     ).rejects.toMatchObject({ code: 1 });
+  });
+  it("prints a spec blocker's basis beside its severity, and nothing for a blocker without one (Q-0263)", async () => {
+    const blocker = (message: string, basis?: string) => ({
+      file: 'docs/design/specs/x.md',
+      severity: 'high',
+      message,
+      ...(basis ? { basis } : {}),
+    });
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'docs/design/specs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [
+          blocker('the design needs a hook that does not exist', 'feasibility'),
+          blocker('old sink'),
+        ],
+        suggestions: [],
+        summary: 'blockers found (2)',
+        startedAt: '2026-09-23T00:00:00.000Z',
+        finishedAt: '2026-09-23T00:00:05.000Z',
+      }),
+    );
+    await expect(
+      exec(TSX, [CLI, '--slug', 'x', '--kind', 'spec'], { cwd: root }),
+    ).rejects.toMatchObject({
+      code: 1,
+      stdout: expect.stringMatching(
+        /\[high\]\[feasibility\] reviewer docs\/design\/specs\/x\.md: the design needs a hook[\s\S]*\[high\] reviewer docs\/design\/specs\/x\.md: old sink/,
+      ),
+    });
   });
 
   // The gate's kind-less "wait for in-flight lanes" step asks whether a lane is

@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, noldor, specs-cr-gate-multi-reviewer
+// @tests: acceptance-verify-lane, noldor, specs-cr-gate-multi-reviewer, spec-stage-cr-stopping-rule
 import { describe, expect, it } from 'vitest';
 import {
   artifactKindSchema,
@@ -61,6 +61,15 @@ describe('Finding', () => {
     expect(
       findingSchema.safeParse({ file: 'a', line: -1, severity: 'low', message: 'x' }).success,
     ).toBe(false);
+  });
+  it("keeps a spec blocker's basis, and rejects a basis outside the three (Q-0263)", () => {
+    const f = { file: 'a.md', severity: 'high' as const, message: 'x' };
+    for (const basis of ['requirement', 'feasibility', 'risk']) {
+      expect(findingSchema.parse({ ...f, basis }).basis).toBe(basis);
+    }
+    expect(findingSchema.safeParse({ ...f, basis: 'wording' }).success).toBe(false);
+    // A sink finding written before the field existed parses with no basis at all.
+    expect(findingSchema.parse(f)).toEqual(f);
   });
 });
 

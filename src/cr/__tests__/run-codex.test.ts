@@ -1,5 +1,5 @@
-// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor, cr-lane-verdicts-blocked-by-serialization-not-substance, cr-re-round-cap-enforcement-and-oscillation-detector
-import { mkdtempSync, writeFileSync } from 'node:fs';
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor, cr-lane-verdicts-blocked-by-serialization-not-substance, cr-re-round-cap-enforcement-and-oscillation-detector, spec-stage-cr-stopping-rule
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -7,7 +7,7 @@ import { runCodex, type Spawn } from '../run-codex.js';
 import { reviewWithCodex, toFindings } from '../review-with-codex.js';
 import { REV_RE } from '../cli-args.js';
 import { CUT_MARKER_TOKEN } from '../../core/structural-context-contract.js';
-import { BLOCKING_DEFINITION } from '../blocking-definition.js';
+import { BLOCKING_DEFINITION, SPEC_BLOCKING_DEFINITION } from '../blocking-definition.js';
 
 const ctx = { diff: 'D', featureMd: 'F', rules: 'R' };
 
@@ -211,16 +211,23 @@ describe('cut-marker contract in the codex prompt (Q-0170)', () => {
     expect(stdin()).toContain(CUT_MARKER_TOKEN);
   });
 
-  it('renders the shared blocking definition on code and spec reviews (Q-0250)', async () => {
+  it('renders the shared blocking definition on code and plan reviews, the spec one on spec reviews', async () => {
     const code = capturingSpawn();
     await runCodex({ ctx, spawn: code.spawn });
     expect(code.stdin()).toContain(BLOCKING_DEFINITION);
+    const plan = capturingSpawn();
+    await runCodex({
+      ctx: { artifact: 'A', kind: 'plan', featureMd: 'F', rules: 'R' },
+      spawn: plan.spawn,
+    });
+    expect(plan.stdin()).toContain(BLOCKING_DEFINITION);
     const spec = capturingSpawn();
     await runCodex({
       ctx: { artifact: 'A', kind: 'spec', featureMd: 'F', rules: 'R' },
       spawn: spec.spawn,
     });
-    expect(spec.stdin()).toContain(BLOCKING_DEFINITION);
+    expect(spec.stdin()).toContain(SPEC_BLOCKING_DEFINITION);
+    expect(spec.stdin()).not.toContain(BLOCKING_DEFINITION);
   });
 
   it('never lets a marker waive a defect, a race or an accessibility regression', async () => {
@@ -288,7 +295,7 @@ describe('toFindings never-blocks demotion (Q-0250)', () => {
       ],
       suggestions: [],
     };
-    expect(toFindings(record, 'x').map((f) => f.severity)).toEqual(['high', 'med', 'med']);
+    expect(toFindings(record, 'x', 'code').map((f) => f.severity)).toEqual(['high', 'med', 'med']);
   });
 });
 
@@ -323,7 +330,8 @@ describe('prior blockers in the codex prompt (Q-0260)', () => {
       spawn,
     });
     expect(stdin()).toContain('P1 [high] first prior');
-    expect(stdin().indexOf(BLOCKING_DEFINITION)).toBeLessThan(
+    expect(stdin().indexOf(SPEC_BLOCKING_DEFINITION)).toBeGreaterThan(-1);
+    expect(stdin().indexOf(SPEC_BLOCKING_DEFINITION)).toBeLessThan(
       stdin().indexOf('Prior review round'),
     );
   });
@@ -400,5 +408,198 @@ describe('reviewWithCodex prior threading (Q-0260)', () => {
     );
     expect(out.findings[0]!.file).toBe('<codex>');
     expect(out.prior).toEqual([]);
+  });
+});
+
+describe('spec-stage blocking in the codex prompt (Q-0263)', () => {
+  function capture(): { spawn: Spawn; stdin: () => string } {
+    let seen = '';
+    const spawn: Spawn = vi.fn(async (opts: { stdin: string }) => {
+      seen = opts.stdin;
+      return {
+        stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok', prior: [] }),
+        stderr: '',
+        exitCode: 0,
+        timedOut: false,
+      };
+    }) as unknown as Spawn;
+    return { spawn, stdin: () => seen };
+  }
+
+  it('asks for a basis and reads the FD as its summary, with no code-shaped blocking line', async () => {
+    const { spawn, stdin } = capture();
+    await runCodex({
+      ctx: { kind: 'spec', artifact: 'SPEC TEXT', featureMd: 'THE SUMMARY', rules: 'R' },
+      spawn,
+    });
+    expect(stdin()).toContain('"basis"');
+    expect(stdin()).toContain('## Feature summary\nTHE SUMMARY');
+    expect(stdin()).not.toContain('## Feature MD');
+    expect(stdin()).not.toContain('would ship one of the defects below');
+    expect(stdin()).not.toContain('must be resolved before implementation');
+    expect(stdin()).toContain('set "line": null');
+  });
+
+  it('keeps the plan prompt as it was: code definition, whole-FD heading, no basis', async () => {
+    const { spawn, stdin } = capture();
+    await runCodex({
+      ctx: { kind: 'plan', artifact: 'PLAN TEXT', featureMd: 'THE FD', rules: 'R' },
+      spawn,
+    });
+    expect(stdin()).toContain('## Feature MD\nTHE FD');
+    expect(stdin()).toContain('would ship one of the defects below');
+    expect(stdin()).toContain('must be resolved before implementation');
+    expect(stdin()).not.toContain(SPEC_BLOCKING_DEFINITION);
+    expect(stdin()).not.toContain('"basis"');
+  });
+});
+
+describe('the basis field of a codex record (Q-0263)', () => {
+  const recordWith = (finding: Record<string, unknown>): Spawn =>
+    vi.fn(async () => ({
+      stdout: JSON.stringify({ blockers: [finding], suggestions: [], summary: 's', prior: [] }),
+      stderr: '',
+      exitCode: 0,
+      timedOut: false,
+    })) as unknown as Spawn;
+  const finding = { file: 'spec.md', line: null, severity: 'high', message: 'm', suggestion: null };
+
+  it.each(['requirement', 'feasibility', 'risk', null])(
+    'accepts a finding whose basis is %s',
+    async (basis) => {
+      const out = await runCodex({ ctx, spawn: recordWith({ ...finding, basis }) });
+      expect(out.blockers).toEqual([{ ...finding, basis }]);
+    },
+  );
+
+  it.each([
+    ['an unknown basis', { ...finding, basis: 'wording' }],
+    ['no basis key', finding],
+  ])('treats a record whose finding has %s as malformed', async (_shape, f) => {
+    const out = await runCodex({ ctx, spawn: recordWith(f) });
+    expect(out.blockers).toEqual([
+      expect.objectContaining({
+        file: '<codex>',
+        message: expect.stringMatching(/malformed CR record/),
+      }),
+    ]);
+  });
+});
+
+describe('toFindings basis demotion (Q-0263)', () => {
+  const record = (blockers: Record<string, unknown>[]) =>
+    ({ summary: 's', blockers, suggestions: [], prior: [] }) as never;
+  const blocker = (over: Record<string, unknown> = {}) => ({
+    file: 'spec.md',
+    line: null,
+    severity: 'high',
+    message: 'the retry owner is never named',
+    suggestion: null,
+    basis: null,
+    ...over,
+  });
+
+  // Must still report: a spec blocker with a basis stays a blocker and keeps it.
+  it('keeps a spec-kind blocker with a basis as a blocker, basis recorded', () => {
+    expect(toFindings(record([blocker({ basis: 'feasibility' })]), 'spec.md', 'spec')).toEqual([
+      {
+        file: 'spec.md',
+        message: 'the retry owner is never named',
+        severity: 'high',
+        basis: 'feasibility',
+      },
+    ]);
+  });
+
+  // Must drop: a spec blocker whose basis is null becomes a suggestion.
+  it('demotes a spec-kind blocker whose basis is null to a suggestion', () => {
+    expect(toFindings(record([blocker()]), 'spec.md', 'spec')).toEqual([
+      { file: 'spec.md', message: 'the retry owner is never named', severity: 'med' },
+    ]);
+  });
+
+  it('never demotes a lane-failure blocker filed against <codex>', () => {
+    const failed = blocker({ file: '<codex>', message: 'codex exited with exit code 1' });
+    expect(toFindings(record([failed]), 'spec.md', 'spec')).toEqual([
+      { file: '<codex>', message: 'codex exited with exit code 1', severity: 'high' },
+    ]);
+  });
+
+  it.each(['plan', 'code'] as const)(
+    'ignores the basis at kind %s: a null basis still blocks and none is recorded',
+    (kind) => {
+      const out = toFindings(record([blocker(), blocker({ basis: 'risk' })]), 'x', kind);
+      expect(out.map((f) => f.severity)).toEqual(['high', 'high']);
+      expect(out.some((f) => 'basis' in f)).toBe(false);
+    },
+  );
+});
+
+describe('reviewWithCodex at kind spec (Q-0263)', () => {
+  const FD =
+    '---\nname: X\n---\n\n## Summary\n\nTHE INTENT.\n\n## Usage\n\n<!-- TODO: UI steps, keyboard shortcut, agent API call. -->\n';
+  function repo(fd?: string): string {
+    const dir = mkdtempSync(join(tmpdir(), 'rwc-spec-'));
+    writeFileSync(join(dir, 'spec.md'), '# Spec');
+    if (fd !== undefined) {
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(join(dir, 'docs', 'features', 's.md'), fd);
+    }
+    return dir;
+  }
+  function answering(stdout: string): { spawn: Spawn; stdin: () => string } {
+    let seen = '';
+    const spawn: Spawn = vi.fn(async (opts: { stdin: string }) => {
+      seen = opts.stdin;
+      return { stdout, stderr: '', exitCode: 0, timedOut: false };
+    }) as unknown as Spawn;
+    return { spawn, stdin: () => seen };
+  }
+  const CLEAN = JSON.stringify({ blockers: [], suggestions: [], summary: 'ok', prior: [] });
+
+  it("hands codex the FD's Summary and none of its scaffold stubs", async () => {
+    const { spawn, stdin } = answering(CLEAN);
+    await reviewWithCodex({ kind: 'spec', artifact: 'spec.md', slug: 's' }, repo(FD), spawn);
+    expect(stdin()).toContain('THE INTENT.');
+    expect(stdin()).not.toContain('## Usage');
+    expect(stdin()).not.toContain('<!-- TODO');
+  });
+
+  it('keeps handing codex the whole FD at kind plan', async () => {
+    const { spawn, stdin } = answering(CLEAN);
+    await reviewWithCodex({ kind: 'plan', artifact: 'spec.md', slug: 's' }, repo(FD), spawn);
+    expect(stdin()).toContain('THE INTENT.');
+    expect(stdin()).toContain('## Usage');
+  });
+
+  it('reviews with an empty FD section when the FD file is missing', async () => {
+    const { spawn, stdin } = answering(CLEAN);
+    const out = await reviewWithCodex(
+      { kind: 'spec', artifact: 'spec.md', slug: 's' },
+      repo(),
+      spawn,
+    );
+    expect(out.findings).toEqual([]);
+    expect(stdin()).toContain('## Feature summary\n\n');
+  });
+
+  it('fails into a blocking <codex> finding when the FD has no Summary', async () => {
+    const { spawn } = answering(CLEAN);
+    const out = await reviewWithCodex(
+      { kind: 'spec', artifact: 'spec.md', slug: 's' },
+      repo('---\nname: X\n---\n\n## Usage\n\nsteps\n'),
+      spawn,
+    );
+    expect(out.findings).toEqual([expect.objectContaining({ file: '<codex>', severity: 'high' })]);
+  });
+
+  it('keeps a malformed codex record blocking at kind spec', async () => {
+    const { spawn } = answering('!!! not json');
+    const out = await reviewWithCodex(
+      { kind: 'spec', artifact: 'spec.md', slug: 's' },
+      repo(FD),
+      spawn,
+    );
+    expect(out.findings).toEqual([expect.objectContaining({ file: '<codex>', severity: 'high' })]);
   });
 });

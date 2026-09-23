@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { SPEC_BLOCKING_BASES } from './finding-class.js';
 import { priorAnswerSchema } from './re-round.js';
 
 export const FindingSchema = z.object({
@@ -9,6 +10,9 @@ export const FindingSchema = z.object({
   severity: z.enum(['high', 'medium']).nullable(),
   message: z.string(),
   suggestion: z.string().nullable(),
+  // A spec blocker's basis (Q-0263); plan and code reviews answer null. Required-nullable like
+  // every key here, and an enum, so strict structured output hands codex the three values.
+  basis: z.enum(SPEC_BLOCKING_BASES).nullable(),
 });
 
 // src/cr/cr-record.schema.json is regenerated from this schema via zod-to-json-schema; src/cr/__tests__/schema-parity.test.ts asserts equality at CI time. OpenAI strict structured-output rejects root $ref + missing required keys, so we generate a flat schema with $refStrategy:'none' and use .nullable() (not .optional()) on every field so all keys land in `required`. Regen: pnpm exec tsx -e "import {CrRecordSchema} from './src/cr/sidecar.ts'; import {zodToJsonSchema} from 'zod-to-json-schema'; import {writeFileSync} from 'node:fs'; writeFileSync('src/cr/cr-record.schema.json', JSON.stringify(zodToJsonSchema(CrRecordSchema, {target:'jsonSchema7',\$refStrategy:'none'}), null, 2)+'\n')"

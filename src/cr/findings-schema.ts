@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { artifactKindSchema, laneSchema } from '../core/lanes.js';
-import { FINDING_CLASSES } from './finding-class.js';
+import { FINDING_CLASSES, SPEC_BLOCKING_BASES } from './finding-class.js';
 
 export { artifactKindSchema, laneSchema };
 export type { ArtifactKind, Lane } from '../core/lanes.js';
@@ -38,6 +38,9 @@ export const findingSchema = z.object({
   // do not classify (codex, manual, verifier) need no migration — an absent
   // `class` reads as `design` at the decision site, never as auto-fixable.
   class: findingClassSchema.optional(),
+  // Which of the three spec-stage bases a spec blocker named (Q-0263). Optional for the
+  // same reason as `class`: lanes write it at kind `spec` only, and only a valid one.
+  basis: z.enum(SPEC_BLOCKING_BASES).optional(),
   // Where the finding actually points, resolved from the bullet text against
   // the round's changed-file set. Optional so every sink written before it
   // existed still parses and no other lane needs migration — the same additive

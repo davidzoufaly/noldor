@@ -3,13 +3,13 @@ import { discoverChangedFiles } from '../../core/branch-added.js';
 import { renderBrief, unionResults } from '../../rules/brief.js';
 import { runResolve } from '../../rules/cli-cores.js';
 import { writeJsonAtomic } from '../atomic-write.js';
-import type { Finding, LaneFindings } from '../findings-schema.js';
+import type { ArtifactKind, Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
-import { applyPriorAnswers, laneFailureFile } from '../re-round.js';
+import { applyPriorAnswers, laneFailureFile, splitCarriedByBasis } from '../re-round.js';
 import { readFdSummary } from '../read-fd-summary.js';
 import { splitClassTag } from '../finding-class.js';
 import { extractLocations } from '../locations.js';
-import { isNeverBlockingMessage } from '../blocking-definition.js';
+import { isNeverBlockingMessage, isSpecBlockingBasis } from '../blocking-definition.js';
 import type { LaneAnswer } from '../lane-answer.js';
 import {
   dispatchSubagent,
@@ -97,22 +97,28 @@ export function normalizeFinding(f: ReviewerFinding): ReviewerFinding {
  * Whether a reviewer finding actually blocks: the reviewer said so, it is not `minor`, and it
  * is not marked `maybe:` or `unverified:`. The never-blocks classes are enforced here, not only
  * requested in the prompt, so a model that flags an unverified claim blocking cannot red the
- * round on it (Q-0250).
+ * round on it (Q-0250). At kind `spec` it must also name a basis (Q-0263).
  */
-export function isEffectivelyBlocking(f: ReviewerFinding): boolean {
-  return f.blocking && f.severity !== 'minor' && !isNeverBlockingMessage(f.message);
+export function isEffectivelyBlocking(f: ReviewerFinding, kind: ArtifactKind): boolean {
+  return (
+    f.blocking &&
+    f.severity !== 'minor' &&
+    !isNeverBlockingMessage(f.message) &&
+    (kind !== 'spec' || isSpecBlockingBasis(f.basis))
+  );
 }
 
 /**
- * Reviewer finding → sink {@link Finding}, curried on the artifact label and the round's
- * changed files. A blocker maps critical→high and important→med; a suggestion maps
- * critical or important→med and minor→low. `file` keeps its meaning — the artifact LABEL,
- * not a location — because `fingerprintBlockers` hashes it.
+ * Reviewer finding → sink {@link Finding}, curried on the artifact label, the round's
+ * changed files and the kind. A blocker maps critical→high and important→med; a suggestion
+ * maps critical or important→med and minor→low. `file` keeps its meaning — the artifact LABEL,
+ * not a location — because `fingerprintBlockers` hashes it. A basis is recorded at kind `spec`
+ * only, and only a valid one, so the sink never holds a value its schema rejects.
  */
 export const toSinkFinding =
-  (artifact: string, changedFiles: readonly string[]) =>
+  (artifact: string, changedFiles: readonly string[], kind: ArtifactKind) =>
   (f: ReviewerFinding): Finding => {
-    const severity: Finding['severity'] = isEffectivelyBlocking(f)
+    const severity: Finding['severity'] = isEffectivelyBlocking(f, kind)
       ? f.severity === 'critical'
         ? 'high'
         : 'med'
@@ -125,6 +131,7 @@ export const toSinkFinding =
       severity,
       message: f.message,
       ...(f.class ? { class: f.class } : {}),
+      ...(kind === 'spec' && isSpecBlockingBasis(f.basis) ? { basis: f.basis } : {}),
       ...(locations.length > 0 ? { locations } : {}),
     };
   };
@@ -172,6 +179,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
     answer = await dispatchSubagent(
       {
         artifact: input.artifact,
+        kind: input.kind,
         fdSummary,
         baseSha: promptBaseSha,
         headSha: input.artifactSha,
@@ -235,15 +243,17 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
   // `isEffectivelyBlocking`. The summary is derived from the same value `ok` reads, so the
   // sink can no longer say "approve" over a red round (Q-0250).
   const findings = answer.answer.findings.map(normalizeFinding);
-  const toSink = toSinkFinding(input.artifact, changedFiles);
+  const toSink = toSinkFinding(input.artifact, changedFiles, input.kind);
+  const blocks = (f: ReviewerFinding): boolean => isEffectivelyBlocking(f, input.kind);
   // On a re-round the priors the lane did not answer resolved come first, unchanged, so each
   // keeps its fingerprint across the round (docs/adr/0002).
   const prior =
     input.priorReview === undefined
       ? { carried: [], notes: [] }
       : applyPriorAnswers(input.priorReview.blockers, answer.answer.prior);
-  const blockers = [...prior.carried, ...findings.filter(isEffectivelyBlocking).map(toSink)];
-  const suggestions = findings.filter((f) => !isEffectivelyBlocking(f)).map(toSink);
+  const carried = splitCarriedByBasis(input.priorReview?.blockers ?? [], prior.carried, input.kind);
+  const blockers = [...carried.blocking, ...findings.filter(blocks).map(toSink)];
+  const suggestions = [...carried.demoted, ...findings.filter((f) => !blocks(f)).map(toSink)];
   const payload: LaneFindings = {
     lane: 'reviewer',
     artifact: input.artifact,
@@ -256,6 +266,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       `Assessment: ${answer.answer.assessment}`,
       `Strengths: ${answer.answer.strengths}`,
       ...prior.notes,
+      ...carried.notes,
       ...answer.notes,
     ],
     startedAt,

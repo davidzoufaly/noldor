@@ -1,4 +1,4 @@
-// @tests: cr-re-round-cap-enforcement-and-oscillation-detector
+// @tests: cr-re-round-cap-enforcement-and-oscillation-detector, spec-stage-cr-stopping-rule
 import { describe, expect, it } from 'vitest';
 import type { Finding } from '../findings-schema.js';
 import {
@@ -35,6 +35,20 @@ describe('renderPriorSection', () => {
     });
     expect(s).toContain('P1 [high][mechanical] with class');
     expect(s).toContain('P2 [med] no class');
+  });
+
+  it('renders the basis bracket after the class only when the prior carries a basis (Q-0263)', () => {
+    const s = renderPriorSection({
+      mode: 'reexamine',
+      blockers: [
+        prior('class and basis', { class: 'design', basis: 'risk' }),
+        prior('basis only', { basis: 'requirement' }),
+        prior('neither'),
+      ],
+    });
+    expect(s).toContain('P1 [high][design][risk] class and basis');
+    expect(s).toContain('P2 [high][requirement] basis only');
+    expect(s).toContain('P3 [high] neither');
   });
 
   it('truncates each message to 300 chars and collapses newlines, in both modes', () => {

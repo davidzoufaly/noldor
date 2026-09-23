@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, cr-lane-verdicts-blocked-by-serialization-not-substance, cr-re-round-cap-enforcement-and-oscillation-detector
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, cr-lane-verdicts-blocked-by-serialization-not-substance, cr-re-round-cap-enforcement-and-oscillation-detector, spec-stage-cr-stopping-rule
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -45,10 +45,12 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+// Kind `plan`: these cases pin behaviour every kind shares. At kind `spec` a blocking finding
+// also needs a basis (Q-0263), which has its own describe block below.
 const input = (): LaneInput => ({
   slug: 'x',
-  artifact: 'docs/design/specs/x.md',
-  kind: 'spec',
+  artifact: 'docs/design/plans/x.md',
+  kind: 'plan',
   fdPath: 'docs/features/x.md',
   artifactSha: 'aaa',
   baseSha: 'parent',
@@ -317,6 +319,213 @@ describe('runSubagent re-round (Q-0260)', () => {
   });
 });
 
+describe('runSubagent at kind spec — a blocker names its basis (Q-0263)', () => {
+  const spec = (): LaneInput => ({ ...input(), artifact: 'docs/design/specs/x.md', kind: 'spec' });
+
+  // The rule removes blockers, so it fails in two directions. This table is the one that must
+  // still report: a blocking finding with each basis stays a blocker and keeps its basis.
+  it.each(['requirement', 'feasibility', 'risk'])(
+    'keeps a blocking finding whose basis is %s as a blocker, basis recorded',
+    async (basis) => {
+      dispatchSubagent.mockResolvedValueOnce(
+        answer(
+          [
+            {
+              severity: 'important',
+              blocking: true,
+              class: 'design',
+              basis,
+              message: 'the spec never says who retries',
+            },
+          ],
+          'blockers found',
+        ),
+      );
+      const r = await runSubagent(spec());
+      expect(r.ok).toBe(false);
+      const j = await sinkOf(r);
+      expect(j.blockers).toEqual([
+        {
+          file: 'docs/design/specs/x.md',
+          severity: 'med',
+          class: 'design',
+          basis,
+          message: 'the spec never says who retries',
+        },
+      ]);
+      expect(j.summary).toBe('blockers found (1)');
+    },
+  );
+
+  // ...and the one that must drop: one row per shape a missing basis arrives in.
+  it.each([
+    ['no basis key', {}],
+    ['a null basis', { basis: null }],
+    ['an unknown basis', { basis: 'wording' }],
+  ])(
+    'files a blocking finding with %s as a suggestion, with no basis recorded',
+    async (_shape, extra) => {
+      dispatchSubagent.mockResolvedValueOnce(
+        answer(
+          [
+            {
+              severity: 'critical',
+              blocking: true,
+              class: 'mechanical',
+              message: 'reword the Goals section',
+              ...extra,
+            },
+          ],
+          'blockers found',
+        ),
+      );
+      const r = await runSubagent(spec());
+      expect(r.ok).toBe(true);
+      const j = await sinkOf(r);
+      expect(j.blockers).toEqual([]);
+      expect(j.suggestions).toEqual([
+        {
+          file: 'docs/design/specs/x.md',
+          severity: 'med',
+          class: 'mechanical',
+          message: 'reword the Goals section',
+        },
+      ]);
+      expect(j.summary).toBe('approve');
+    },
+  );
+
+  it('deletion test: a round of only wording, cross-reference and FD-stub findings is green', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      answer(
+        [
+          {
+            severity: 'important',
+            blocking: true,
+            message: "the FD's Usage section is still a TODO stub",
+          },
+          {
+            severity: 'important',
+            blocking: true,
+            message: 'the reference to run-codex.ts:126 points at the wrong line',
+          },
+          { severity: 'minor', blocking: false, message: 'inconsistent heading case' },
+        ],
+        'request changes',
+      ),
+    );
+    const r = await runSubagent(spec());
+    expect(r.ok).toBe(true);
+    const j = await sinkOf(r);
+    expect(j.blockers).toEqual([]);
+    expect(j.suggestions).toHaveLength(3);
+  });
+
+  it('still reds the round when the reviewer itself fails', async () => {
+    dispatchSubagent.mockRejectedValueOnce(new Error('claude not on PATH'));
+    const r = await runSubagent(spec());
+    expect(r.ok).toBe(false);
+    expect((await sinkOf(r)).blockers).toEqual([
+      expect.objectContaining({ file: '<reviewer>', severity: 'high' }),
+    ]);
+  });
+
+  describe('a prior carried from a sink written before the rule', () => {
+    const legacy = {
+      file: 'docs/design/specs/x.md',
+      severity: 'high' as const,
+      message: 'reword the Goals section',
+    };
+    const based = {
+      file: 'docs/design/specs/x.md',
+      severity: 'med' as const,
+      message: 'the retry owner is never named',
+      basis: 'requirement' as const,
+    };
+    const stillStanding = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ n: i + 1, resolved: false, why: 'still there' }));
+    const withPrior = (prior: unknown[]): string =>
+      JSON.stringify({ assessment: 'checked the fix', strengths: 's', findings: [], prior });
+
+    // One row per shape a missing basis can take on a carried prior; the based prior beside it is
+    // the must-still-block direction.
+    it.each([
+      ['no basis key', legacy],
+      ['a null basis', { ...legacy, basis: null }],
+      ['an unknown basis', { ...legacy, basis: 'wording' }],
+    ])(
+      'is carried as a suggestion when it has %s, while a based prior still blocks',
+      async (_shape, unbased) => {
+        dispatchSubagent.mockResolvedValueOnce(withPrior(stillStanding(2)));
+        const r = await runSubagent({
+          ...spec(),
+          priorReview: { mode: 'fixes-in-diff', blockers: [unbased as never, based] },
+        });
+        expect(r.ok).toBe(false);
+        const j = await sinkOf(r);
+        expect(j.blockers).toEqual([based]);
+        expect(j.suggestions).toEqual([unbased]);
+        expect(j.notes).toEqual(
+          expect.arrayContaining(['prior P1 carried as a suggestion: it names no basis']),
+        );
+      },
+    );
+
+    it('leaves the round green when it is the only prior still standing', async () => {
+      dispatchSubagent.mockResolvedValueOnce(withPrior(stillStanding(1)));
+      const r = await runSubagent({
+        ...spec(),
+        priorReview: { mode: 'fixes-in-diff', blockers: [legacy] },
+      });
+      expect(r.ok).toBe(true);
+      const j = await sinkOf(r);
+      expect(j.blockers).toEqual([]);
+      expect(j.summary).toBe('approve');
+    });
+
+    it('stays a blocker behind a failed dispatch, for the next round to judge', async () => {
+      dispatchSubagent.mockRejectedValueOnce(new Error('claude not on PATH'));
+      const r = await runSubagent({
+        ...spec(),
+        priorReview: { mode: 'fixes-in-diff', blockers: [legacy] },
+      });
+      const j = await sinkOf(r);
+      expect(j.blockers.slice(1)).toEqual([legacy]);
+    });
+  });
+
+  it('dispatches with the kind, which selects the spec answer contract', async () => {
+    dispatchSubagent.mockResolvedValueOnce(CLEAN);
+    await runSubagent(spec());
+    expect(dispatchSubagent).toHaveBeenCalledWith(expect.objectContaining({ kind: 'spec' }));
+  });
+});
+
+describe('runSubagent outside kind spec — basis has no effect (Q-0263)', () => {
+  it.each(['plan', 'code'] as const)(
+    'a blocking finding with no basis still blocks at kind %s',
+    async (kind) => {
+      dispatchSubagent.mockResolvedValueOnce(
+        answer([{ severity: 'critical', blocking: true, message: 'the step skips a test' }]),
+      );
+      const r = await runSubagent({ ...input(), kind });
+      expect(r.ok).toBe(false);
+      expect((await sinkOf(r)).blockers).toHaveLength(1);
+    },
+  );
+
+  it('records no basis in a plan-kind sink even when the answer carries one', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      answer([
+        { severity: 'critical', blocking: true, basis: 'risk', message: 'the step skips a test' },
+      ]),
+    );
+    const j = await sinkOf(await runSubagent(input()));
+    expect(j.blockers).toHaveLength(1);
+    expect('basis' in j.blockers[0]).toBe(false);
+  });
+});
+
 describe('resolveChangedFiles', () => {
   it('returns the changed set for a spec kind, not only code', () => {
     vi.mocked(discoverChangedFiles).mockReturnValueOnce(['docs/design/specs/a-design.md']);
@@ -338,7 +547,7 @@ describe('resolveChangedFiles', () => {
 
 describe('toSinkFinding / normalizeFinding', () => {
   const changed = ['src/cr/orchestrate.ts'];
-  const toSink = toSinkFinding('a.md', changed);
+  const toSink = toSinkFinding('a.md', changed, 'code');
 
   it('attaches a resolved location and leaves the message intact', () => {
     const f = toSink({
