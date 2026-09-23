@@ -1,0 +1,249 @@
+# Regenerates the committed knowledge graph after a code-change merge and lands
+# it through a pull request.
+#
+# It never pushes to the default branch. noldor's pre-push hook refuses a direct
+# push to the default ref and honours no CI escape hatch, so pushing straight
+# would mean shipping a hook-bypass flag to every consumer — teaching them to
+# skip the gate the framework exists to enforce. See
+# docs/adr/0005-shipped-ci-templates-route-through-pr.md.
+#
+# Two jobs, and the split is the point. `build` runs code from the merged tree
+# and holds no credentials. `publish` holds the write token and installs no
+# dependencies — so lefthook is never installed there, rather than installed and
+# then bypassed, and nothing the merged PR controls runs while the token is in
+# scope. Handing both halves to one job is what `persist-credentials: false`
+# alone does not fix: `git commit` and `git push` run hooks, and hooks are
+# merged-tree code.
+#
+# Yours to edit after `noldor init` writes it: runner labels, the Python and
+# Node versions, and the graphifyy pin. Three repository settings this file
+# cannot set for you. Allow GitHub Actions to create pull requests (Settings ->
+# Actions -> General -> Workflow permissions): it is off by default, and while
+# it is off `gh pr create` below fails after the branch is already pushed.
+# Enable auto-merge, or the graph PR waits for a human. And a PR opened with the
+# default GITHUB_TOKEN does not trigger other workflows, so required checks on
+# the graph PR need a PAT or an app token.
+name: update-knowledge-graph
+
+# No `branches:` filter — it takes no expression, so hardcoding a branch name
+# would silently never fire in a consumer whose default branch is named
+# something else. The base-ref check lives in the job's `if`, where an
+# expression is legal.
+on:
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+env:
+  GRAPH_BRANCH: noldor/graph-refresh
+
+jobs:
+  build:
+    # Runs the merged tree's own code. Read-only, and no token on disk.
+    permissions:
+      contents: read
+    # Concurrency is declared on the JOB, not the workflow. At workflow level
+    # every merged PR joins the group, so a docs merge — whose job the title
+    # filter skips — would cancel a qualifying run that is still working and
+    # then do nothing itself. A skipped job never enters the group.
+    concurrency:
+      group: knowledge-graph
+      cancel-in-progress: true
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch &&
+      (startsWith(github.event.pull_request.title, 'feat') ||
+      startsWith(github.event.pull_request.title, 'fix') ||
+      startsWith(github.event.pull_request.title, 'refactor'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the merged tree by explicit sha
+        uses: actions/checkout@v4
+        with:
+          # By sha, not by branch name: the run's output then always matches the
+          # tree the run read. The default branch may still move before the
+          # graph PR merges — the next qualifying merge corrects that, the same
+          # way the title filter is self-healing.
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install graphify
+        # Pinned: an unpinned install makes the extraction a function of the run
+        # date. The pin binds the top-level package only — tree-sitter grammars,
+        # networkx and the Python version above can still move.
+        run: pip install graphifyy==0.7.8 -q
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Regenerate the graph
+        env:
+          # Without a fixed hash seed the same tree clusters into different
+          # communities on every run, so every graph PR would reshuffle the file.
+          PYTHONHASHSEED: '0'
+        run: |
+          set -euo pipefail
+          # A clean pass over code files, the same scope as the release sweep's
+          # `/graphify --ast-only`, so both commit the same nodes and edges. Not
+          # `graphify update`: it keeps every node graph.json already holds, so
+          # deleted code never leaves, and it extracts markdown too.
+          python3 - <<'PY'
+          from pathlib import Path
+          from graphify.analyze import god_nodes, surprising_connections, suggest_questions
+          from graphify.build import build_from_json
+          from graphify.cluster import cluster, score_all
+          from graphify.detect import detect
+          from graphify.export import to_json
+          from graphify.extract import extract
+          from graphify.report import generate
+
+          detected = detect(Path('.'))
+          # Sorted, so the node order does not follow the filesystem's listing
+          # order. One process: graphify's workers crash on start when this
+          # script comes from stdin and Python spawns rather than forks them.
+          ast = extract(sorted(Path(f) for f in detected['files']['code']), parallel=False)
+          G = build_from_json({'nodes': ast['nodes'], 'edges': ast['edges'], 'hyperedges': []})
+          communities = cluster(G)
+          labels = {c: f'Community {c}' for c in communities}
+          out = Path('graphify-out')
+          out.mkdir(exist_ok=True)
+          report = generate(G, communities, score_all(G, communities), labels, god_nodes(G),
+                            surprising_connections(G, communities), detected,
+                            {'input': 0, 'output': 0}, '.',
+                            suggested_questions=suggest_questions(G, communities, labels))
+          (out / 'GRAPH_REPORT.md').write_text(report, encoding='utf-8')
+          # force: a merge that deletes code legitimately shrinks the graph.
+          to_json(G, communities, str(out / 'graph.json'), force=True)
+          PY
+          # `pnpm noldor` resolves the framework's own bin in a consumer and its
+          # package script in noldor itself. A repo-local alias would not: `toon`
+          # exists only in noldor's package.json.
+          pnpm noldor graphify graph-to-toon graphify-out/graph.json
+
+      - name: Verify the outputs
+        run: |
+          set -euo pipefail
+          for f in graph.json graph.brainstorm.toon graph.brainstorm-summary.toon; do
+            test -s "graphify-out/$f" || {
+              echo "::error::missing or empty graphify-out/$f"
+              exit 1
+            }
+          done
+          node -e "JSON.parse(require('node:fs').readFileSync('graphify-out/graph.json','utf8'))"
+          head -2 graphify-out/graph.brainstorm.toon
+          wc -c graphify-out/graph.brainstorm.toon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: graphify-out
+          path: |
+            graphify-out/
+            !graphify-out/cache/
+          retention-days: 1
+
+  publish:
+    needs: build
+    # The only job that holds the write token — and it installs nothing, so no
+    # code from the merged tree runs here and no git hook is ever installed.
+    permissions:
+      contents: write
+      pull-requests: write
+    # Its own group, with no cancelling: one publish runs at a time and none is
+    # cut off mid-push. The newer-graph check below is check-then-act and needs
+    # exactly that.
+    concurrency:
+      group: knowledge-graph-publish
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: graphify-out
+          path: graphify-out/
+
+      - name: Open or update the graph pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "noldor-graph-bot"
+          git config user.email "noldor-graph-bot@users.noreply.github.com"
+
+          # Runs can still publish out of order: the group admits one at a time
+          # but does not order them, and re-running an old run publishes it
+          # late. So never replace a graph built from a newer merge than this.
+          for ref in "$DEFAULT_BRANCH" "$GRAPH_BRANCH"; do
+            git fetch --quiet origin "$ref" 2>/dev/null || continue
+            built=$(git show FETCH_HEAD:graphify-out/graph.json 2>/dev/null |
+              jq -r '.built_at_commit // empty' || true)
+            if [ -n "$built" ] && [ "$built" != "$MERGE_SHA" ] &&
+              git merge-base --is-ancestor "$MERGE_SHA" "$built" 2>/dev/null; then
+              echo "$ref holds a graph built from a newer merge ($built) — nothing to publish"
+              exit 0
+            fi
+          done
+
+          # One fixed branch, force-updated in place, so an unmerged queue is
+          # bounded at one PR rather than growing per merge.
+          git checkout -B "$GRAPH_BRANCH"
+
+          # The directory, and no --force: each repo's own ignore rules then
+          # decide what is staged. Naming files instead would break any consumer
+          # that tracks a different subset — charuy ignores everything under
+          # graphify-out/ except graph.json and GRAPH_REPORT.md, so a named
+          # manifest.json would abort the step.
+          git add graphify-out/
+          # graph.json records the sha it was built at, so this stop is reached
+          # only where the ignore rules leave graph.json untracked.
+          if git diff --cached --quiet; then
+            echo "graph unchanged — nothing to open"
+            exit 0
+          fi
+
+          # The title prefix must be one the trigger filter SKIPS. Under a PAT or
+          # app token, merging this PR does trigger workflows — a feat-titled
+          # graph PR would re-trigger this one, which would open another, forever.
+          # The override trailer is the established escape for a machine-written
+          # commit that carries no FD and no review receipt; override-audit.ts
+          # counts it into the SDD report, so it stays visible rather than silent.
+          git commit \
+            -m "chore(graph): refresh the committed knowledge graph" \
+            -m "Regenerated by the update-knowledge-graph workflow after PR #${PR_NUMBER}." \
+            -m "Noldor-Path-Override: ci-graph-refresh machine-written graph regeneration"
+
+          git push --force origin "HEAD:$GRAPH_BRANCH"
+
+          # Create-or-reuse, not create: `gh pr create` fails outright when one is
+          # already open, and a previously auto-merged PR leaves none. Both happen.
+          OPEN=$(gh pr list --head "$GRAPH_BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$OPEN" ]; then
+            gh pr create \
+              --head "$GRAPH_BRANCH" \
+              --base "$DEFAULT_BRANCH" \
+              --title "chore(graph): refresh the committed knowledge graph" \
+              --body "Regenerated after #${PR_NUMBER}. Merges itself where auto-merge is enabled; where it is not, this PR is waiting for you — it is not review work."
+          fi
+
+          # Where auto-merge is off (charuy today) this is the documented stop:
+          # the PR stays open for a human. It must never fall back to a push.
+          if ! merge_out=$(gh pr merge --auto --squash "$GRAPH_BRANCH" 2>&1); then
+            echo "::warning::the graph PR is open and waiting for a human — gh pr merge --auto said: $merge_out"
+          fi

@@ -1,14 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { execFileSync, spawnSync } from 'node:child_process';
+import {
+  chmodSync,
+  mkdtempSync,
+  writeFileSync,
+  rmSync,
+  mkdirSync,
+  readFileSync,
+  existsSync,
+} from 'node:fs';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { computeDrift } from '../diff.js';
 import { copyTemplate, adoptTemplate } from '../copy.js';
 import { templateFiles, TEMPLATES_ROOT, SCAFFOLD_ONLY_TEMPLATES } from '../manifest.js';
 import { filterTemplatesByAgents } from '../agent-filter.js';
+import { parse as parseYaml } from 'yaml';
 
-// @tests: noldor-package-lift
+// @tests: noldor-package-lift, self-refreshing-compact-knowledge-graph
 
 describe('computeDrift', () => {
   let dir: string;
@@ -211,5 +221,361 @@ describe('.oxlintrc.json template (lint contract)', () => {
       'unicorn/consistent-function-scoping',
       'unicorn/no-array-sort',
     ]);
+  });
+});
+
+interface WfStep {
+  readonly uses?: string;
+  readonly run?: string;
+  readonly env?: Record<string, string>;
+  readonly with?: Record<string, unknown>;
+}
+interface WfJob {
+  readonly if: string;
+  readonly concurrency: unknown;
+  readonly permissions: Record<string, string>;
+  readonly steps: WfStep[];
+}
+
+/** A throwaway directory holding `files`, removed when the owning scope ends. */
+function tempTree(files: Record<string, string>): { dir: string; [Symbol.dispose](): void } {
+  const dir = mkdtempSync(join(tmpdir(), 'noldor-graph-build-'));
+  for (const [rel, body] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true });
+    writeFileSync(join(dir, rel), body);
+  }
+  return { dir, [Symbol.dispose]: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+// The build case below runs graphify for real, which this repo's CI does not install.
+const graphifyImportable =
+  spawnSync('python3', ['-c', 'import graphify'], { stdio: 'ignore' }).status === 0;
+// The publish cases run the step's own script, which reads graph.json with jq.
+const jqAvailable = spawnSync('jq', ['--version'], { stdio: 'ignore' }).status === 0;
+
+describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)', () => {
+  const rel = '.github/workflows/update-knowledge-graph.yml';
+  const raw = (): string => readFileSync(join(TEMPLATES_ROOT, rel), 'utf8');
+
+  /**
+   * The workflow with comment lines stripped. Every `not.toContain` below is an
+   * assertion about what the file *does*, and the file explains each of those
+   * absences in a comment — grepping the raw text makes the explanation fail the
+   * test it explains. Both YAML `#` comments and shell `#` comments inside `run:`
+   * blocks start their line, so one filter covers both.
+   */
+  const runnable = (): string =>
+    raw()
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+
+  const workflow = (): { permissions: unknown; jobs: Record<string, WfJob>; on?: unknown } =>
+    parseYaml(raw()) as { permissions: unknown; jobs: Record<string, WfJob>; on?: unknown };
+
+  /** The build job's step that feeds the graph builder to python from a heredoc. */
+  const buildStep = (): WfStep => {
+    const step = workflow().jobs.build.steps.find((s) => (s.run ?? '').includes("<<'PY'"));
+    if (step === undefined) throw new Error('no build step runs a python heredoc');
+    return step;
+  };
+
+  /** That step's Python, exactly as bash hands it to `python3 -`. */
+  const buildScript = (): string => {
+    const run = buildStep().run ?? '';
+    const start = run.indexOf("<<'PY'\n") + "<<'PY'\n".length;
+    return run.slice(start, run.indexOf('\nPY\n', start) + 1);
+  };
+
+  it('ships in the template manifest', () => {
+    expect(templateFiles()).toContain(rel);
+  });
+
+  it('is scaffold-only (runner labels and the pin are the consumer own)', () => {
+    expect(SCAFFOLD_ONLY_TEMPLATES.has(rel)).toBe(true);
+  });
+
+  it('is driver-neutral — every agent target gets it', () => {
+    expect(filterTemplatesByAgents([rel], ['claude'])).toEqual([rel]);
+    expect(filterTemplatesByAgents([rel], ['codex'])).toEqual([rel]);
+  });
+
+  it('parses, and triggers only on a merged PR with a code-change title', () => {
+    const wf = workflow() as Record<string, unknown>;
+    // `on` is the YAML 1.1 boolean `true`, which is why this reads both keys.
+    const on = (wf.on ?? wf[true as unknown as string]) as {
+      pull_request: { types: string[]; branches?: string[] };
+    };
+    expect(on.pull_request.types).toEqual(['closed']);
+    // No hardcoded branch name: `branches:` takes no expression, so the
+    // default-branch check lives in the job's `if` instead.
+    expect(on.pull_request.branches).toBeUndefined();
+
+    const build = (wf.jobs as Record<string, WfJob>).build;
+    expect(build.if).toContain('github.event.pull_request.merged == true');
+    expect(build.if).toContain('github.event.repository.default_branch');
+    for (const prefix of ['feat', 'fix', 'refactor']) {
+      expect(build.if).toContain(`'${prefix}'`);
+    }
+    // Job level, not workflow level — see the comment in the file.
+    expect(build.concurrency).toEqual({ group: 'knowledge-graph', 'cancel-in-progress': true });
+    expect(wf.concurrency).toBeUndefined();
+  });
+
+  it('grants each job only the permissions it needs', () => {
+    const wf = workflow();
+    expect(wf.permissions).toEqual({});
+    expect(wf.jobs.build.permissions).toEqual({ contents: 'read' });
+    expect(wf.jobs.publish.permissions).toEqual({
+      contents: 'write',
+      'pull-requests': 'write',
+    });
+  });
+
+  it('never reaches the default branch except through a PR', () => {
+    const text = runnable();
+    expect(text).not.toContain('--no-verify');
+    expect(text).not.toContain('LEFTHOOK=0');
+    expect(text).not.toContain('refs/heads/main');
+    expect(text).not.toMatch(/HEAD:main\b/);
+    expect(text).toContain('gh pr create');
+  });
+
+  it('calls the framework CLI, not noldor-only package scripts', () => {
+    // Those scripts exist only in noldor's own package.json — a consumer would
+    // fail on a missing script.
+    const text = runnable();
+    expect(text).not.toMatch(/pnpm\s+toon\b/);
+    expect(text).not.toMatch(/pnpm\s+graphify:/);
+    expect(text).toContain('pnpm noldor graphify graph-to-toon');
+  });
+
+  it('builds in one clean pass, not an incremental update', () => {
+    // `graphify update` keeps every node graph.json already holds, so deleted
+    // code never leaves, and it extracts markdown too. `enrich-docs` adds doc
+    // nodes the release sweep's own pass never has.
+    const text = runnable();
+    expect(text).not.toMatch(/graphify\s+update/);
+    expect(text).not.toContain('enrich-docs');
+  });
+
+  it('pins the hash seed, the file order and a single extraction process', () => {
+    // Unseeded, the same tree clusters into different communities on every run.
+    expect(buildStep().env?.PYTHONHASHSEED).toBe('0');
+    expect(buildScript()).toMatch(/sorted\(/);
+    // The worker pool dies on a stdin script under spawn. The case below builds
+    // too small a tree to start the pool, so only this line holds it.
+    expect(buildScript()).toContain('parallel=False');
+  });
+
+  it.skipIf(!graphifyImportable)(
+    'builds code alone, forgets a deleted file, and repeats byte for byte',
+    () => {
+      using tree = tempTree({
+        'a.ts':
+          "import { beta } from './b';\nexport function alpha(): number {\n  return beta();\n}\n",
+        'b.ts': 'export function beta(): number {\n  return 1;\n}\n',
+        'README.md': '# Notes\n\n## Usage\n\nProse a markdown extractor would turn into nodes.\n',
+      });
+      const build = (): string => {
+        const r = spawnSync('python3', ['-'], {
+          cwd: tree.dir,
+          input: buildScript(),
+          env: { ...process.env, ...buildStep().env },
+          encoding: 'utf8',
+        });
+        expect(r.status, r.stderr).toBe(0);
+        return readFileSync(join(tree.dir, 'graphify-out', 'graph.json'), 'utf8');
+      };
+      const sources = (graph: string): string[] => {
+        const { nodes } = JSON.parse(graph) as { nodes: { source_file: string }[] };
+        return [...new Set(nodes.map((n) => n.source_file))].toSorted();
+      };
+
+      expect(sources(build())).toEqual(['a.ts', 'b.ts']);
+
+      // The first graph.json is still on disk, so a pass that merged into it
+      // would carry b's nodes forward.
+      rmSync(join(tree.dir, 'b.ts'));
+      const second = build();
+      expect(sources(second)).toEqual(['a.ts']);
+      expect(build()).toBe(second);
+    },
+    60_000,
+  );
+
+  it('runs no repository code while the write token is in scope', () => {
+    const { jobs } = workflow();
+    const holdsToken = (j: WfJob): WfStep[] =>
+      j.steps.filter((s) => JSON.stringify(s.env ?? {}).includes('GITHUB_TOKEN'));
+
+    // The token exists in exactly one job.
+    expect(holdsToken(jobs.build)).toHaveLength(0);
+    expect(holdsToken(jobs.publish).length).toBeGreaterThan(0);
+
+    // That job installs nothing, so lefthook is never installed in it — the
+    // hooks are absent rather than bypassed, which is why no step needs
+    // --no-verify or LEFTHOOK=0.
+    for (const s of jobs.publish.steps) {
+      expect(s.run ?? '').not.toMatch(/pnpm install|npm ci|yarn install/);
+      expect(s.uses ?? '').not.toContain('pnpm/action-setup');
+    }
+
+    // The job that DOES run merged-tree code keeps no credentials on disk.
+    const checkout = jobs.build.steps.find((s) => (s.uses ?? '').startsWith('actions/checkout'));
+    expect(checkout?.with?.['persist-credentials']).toBe(false);
+  });
+
+  it('runs publishes one at a time, in a group of their own', () => {
+    // Not the build group: its cancel-in-progress would cut a publish off mid-push.
+    expect(workflow().jobs.publish.concurrency).toEqual({
+      group: 'knowledge-graph-publish',
+      'cancel-in-progress': false,
+    });
+  });
+
+  describe.skipIf(!jqAvailable)('publish, run against a local remote', () => {
+    // No signing and no global hooks, whatever this machine's git config says.
+    const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+    const git = (cwd: string, ...args: string[]): string =>
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], {
+        cwd,
+        env: gitEnv,
+        encoding: 'utf8',
+      }).trim();
+    const graph = (fields: Record<string, string>): string => `${JSON.stringify(fields)}\n`;
+
+    it.each([
+      {
+        name: 'the graph branch has a newer merge graph',
+        holder: 'the graph branch',
+        age: 'newer',
+        publishes: false,
+      },
+      {
+        name: 'the default branch has a newer merge graph',
+        holder: 'the default branch',
+        age: 'newer',
+        publishes: false,
+      },
+      {
+        name: 'the graph branch has an older merge graph',
+        holder: 'the graph branch',
+        age: 'older',
+        publishes: true,
+      },
+      {
+        name: 'the graph branch has this merge graph (a re-run)',
+        holder: 'the graph branch',
+        age: 'same',
+        publishes: true,
+      },
+      { name: 'no graph exists yet', holder: 'neither', age: 'none', publishes: true },
+    ])(
+      'when $name, publishes: $publishes',
+      ({ holder, age, publishes }) => {
+        using root = tempTree({ 'bin/gh': '#!/bin/sh\nexit 0\n' });
+        chmodSync(join(root.dir, 'bin', 'gh'), 0o755);
+        const remote = join(root.dir, 'origin.git');
+        const seed = join(root.dir, 'seed');
+        const work = join(root.dir, 'work');
+        const branch = (parseYaml(raw()) as { env: { GRAPH_BRANCH: string } }).env.GRAPH_BRANCH;
+
+        git(root.dir, 'init', '-q', '--bare', remote);
+        git(root.dir, 'init', '-q', '-b', 'main', seed);
+        const commit = (msg: string, files: Record<string, string>): string => {
+          for (const [path, body] of Object.entries(files)) {
+            mkdirSync(dirname(join(seed, path)), { recursive: true });
+            writeFileSync(join(seed, path), body);
+          }
+          git(seed, 'add', '-A');
+          git(seed, 'commit', '-q', '-m', msg);
+          return git(seed, 'rev-parse', 'HEAD');
+        };
+        const base = commit('base', { 'graphify-out/graph.json': graph({ marker: 'base' }) });
+        const mergeA = commit('merge A', { 'a.ts': 'a\n' });
+        const mergeB = commit('merge B', { 'b.ts': 'b\n' });
+        if (holder === 'the default branch') {
+          commit('graph PR for B', {
+            'graphify-out/graph.json': graph({ built_at_commit: mergeB, marker: 'remote' }),
+          });
+        }
+        git(seed, 'push', '-q', remote, 'main');
+        if (holder === 'the graph branch') {
+          const builtAt = { older: base, same: mergeA, newer: mergeB }[age] ?? base;
+          git(seed, 'checkout', '-q', '-b', branch, builtAt);
+          commit('graph', {
+            'graphify-out/graph.json': graph({ built_at_commit: builtAt, marker: 'remote' }),
+          });
+          git(seed, 'push', '-q', remote, branch);
+        }
+
+        // Publish's own checkout — the merge it was built from — with the artifact on top.
+        git(root.dir, 'clone', '-q', remote, work);
+        git(work, 'checkout', '-q', '--detach', mergeA);
+        writeFileSync(
+          join(work, 'graphify-out', 'graph.json'),
+          graph({ built_at_commit: mergeA, marker: 'ours' }),
+        );
+
+        const step = workflow().jobs.publish.steps.find((s) => s.env?.GH_TOKEN !== undefined);
+        const r = spawnSync('bash', ['-c', step?.run ?? 'exit 99'], {
+          cwd: work,
+          encoding: 'utf8',
+          env: {
+            ...gitEnv,
+            PATH: `${join(root.dir, 'bin')}:${process.env.PATH ?? ''}`,
+            GRAPH_BRANCH: branch,
+            DEFAULT_BRANCH: 'main',
+            MERGE_SHA: mergeA,
+            PR_NUMBER: '7',
+            GH_TOKEN: 'unused',
+          },
+        });
+        expect(r.status, r.stderr).toBe(0);
+
+        const landed = spawnSync(
+          'git',
+          ['--git-dir', remote, 'show', `${branch}:graphify-out/graph.json`],
+          { env: gitEnv, encoding: 'utf8' },
+        );
+        const marker = landed.status === 0 ? JSON.parse(landed.stdout).marker : undefined;
+        expect(marker === 'ours').toBe(publishes);
+      },
+      30_000,
+    );
+  });
+
+  it('pins graphify and titles its own PR with a prefix the filter skips', () => {
+    const text = runnable();
+    expect(text).toContain('graphifyy==0.7.8');
+    expect(text).toContain('chore(graph):');
+    expect(text).not.toMatch(/--title "(feat|fix|refactor)/);
+  });
+
+  it('checks out an explicit sha and force-updates one fixed bot branch', () => {
+    const text = runnable();
+    expect(text).toContain('github.event.pull_request.merge_commit_sha');
+    expect(text).toContain('GRAPH_BRANCH: noldor/graph-refresh');
+    expect(text).toContain('git checkout -B "$GRAPH_BRANCH"');
+    expect(text).toContain('git push --force origin "HEAD:$GRAPH_BRANCH"');
+  });
+
+  it('stages the directory so each repo own ignore rules decide', () => {
+    // Naming files breaks any consumer tracking a different subset: charuy
+    // ignores everything under graphify-out/ but graph.json and GRAPH_REPORT.md.
+    const text = runnable();
+    expect(text).toContain('git add graphify-out/');
+    expect(text).not.toContain('git add --force');
+  });
+
+  it('is byte-identical to the self-host copy noldor own CI runs', () => {
+    expect(readFileSync(join(TEMPLATES_ROOT, '..', rel), 'utf8')).toBe(raw());
+  });
+
+  it('is excluded from the template-sync drift set', () => {
+    // `check-template-sync` and `doctor` both filter on this set — membership is
+    // what makes a consumer's edited runner labels not read as drift.
+    expect(templateFiles().filter((f) => !SCAFFOLD_ONLY_TEMPLATES.has(f))).not.toContain(rel);
   });
 });

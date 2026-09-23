@@ -4,26 +4,47 @@ category: Tooling
 deps: []
 entry-id: Q-0260
 links:
-  code: []
+  code:
+    - .github/workflows/update-knowledge-graph.yml
+    - src/graphify/graph-to-toon.ts
+    - src/templates/manifest.ts
+    - templates/.github/workflows/update-knowledge-graph.yml
   spec: >-
-    docs/design/specs/2026-09-22-self-refreshing-compact-knowledge-graph-design.md
+    docs/design/specs/archive/2026-09-22-self-refreshing-compact-knowledge-graph-design.md
   tests:
     - src/graphify/__tests__/graph-to-toon.test.ts
+    - src/templates/__tests__/templates.test.ts
 name: 'Self-Refreshing, Compact Knowledge Graph'
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
 ## Summary
 
-<!-- TODO 1-3 sentences. What the feature is. -->
+The committed knowledge graph refreshes itself: a merged `feat`, `fix` or
+`refactor` PR rebuilds `graphify-out/` on CI and lands it through a graph PR of
+its own, so no feature PR carries the diff. The emitted `.toon` is v3 — about
+two-thirds smaller (697 KB to about 235 KB on noldor's own 3,578-node graph),
+addressed by community-local index, and fronted by a table of contents an agent
+can `Read offset/limit` against.
 
 ## Diagram
 
-<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
-     two beside it for readers that do not render mermaid. No shape worth drawing?
-     Replace this comment with: noldor:cut <reason> -->
+```mermaid
+flowchart LR
+  M[merged PR<br/>feat / fix / refactor] --> B[build job<br/>read-only, no token]
+  B --> G[clean AST pass, code only<br/>graph-to-toon]
+  G --> A[(artifact<br/>graphify-out)]
+  A --> P[publish job<br/>token, no deps installed]
+  P --> R[(branch<br/>noldor/graph-refresh)]
+  R --> Q[chore graph PR<br/>auto-merged where enabled]
+  Q --> D[(default branch<br/>graphify-out/)]
+  D -.read offset/limit via toc.-> Z[agent]
+```
+
+No job pushes to the default branch: the only write to it is the merge of the
+graph PR.
 
 ## User Story
 
@@ -36,7 +57,7 @@ instead of a 697 KB file — or, worse, reason from a graph that no longer match
 ```bash
 # Consumers get the workflow from init. It is scaffold-only, so your edits survive.
 pnpm noldor init            # writes .github/workflows/update-knowledge-graph.yml
-pnpm noldor init --update   # never overwrites a modified copy
+pnpm noldor init --update   # never overwrites an existing copy
 
 # Locally nothing changes — the renderer just emits v3 now
 pnpm noldor graphify graph-to-toon graphify-out/graph.json
@@ -45,10 +66,13 @@ pnpm noldor graphify graph-to-toon graphify-out/graph.json
 On CI, a merged PR titled `feat`, `fix` or `refactor` regenerates `graphify-out/` onto the
 fixed `noldor/graph-refresh` branch and opens one `chore(graph): …` PR, force-updated by
 each later run — so the queue never grows past one. Where auto-merge is enabled the PR
-merges itself; where it is not (charuy today) it waits for a human. Two repository
-settings the template cannot set for you: auto-merge must be enabled, and a PR opened
-with the default `GITHUB_TOKEN` does not trigger other workflows, so required checks on
-the graph PR need a PAT or app token.
+merges itself; where it is not (charuy today) it waits for a human. Three repository
+settings the template cannot set for you. GitHub Actions must be allowed to create pull
+requests (Settings → Actions → General → Workflow permissions) — it is off by default,
+and while it is off the run pushes the branch and then fails at `gh pr create`.
+Auto-merge must be enabled, or the PR waits. And a PR opened with the default
+`GITHUB_TOKEN` does not trigger other workflows, so required checks on the graph PR
+need a PAT or app token.
 
 Reading one community means taking its line range from the `toc` block at the top of
 `graph.brainstorm.toon` and passing it as `Read offset/limit`:
@@ -58,8 +82,11 @@ Reading one community means taking its line range from the `toc` block at the to
   c85: 1204-1231
 ```
 
-Agent API: a pure render function in `src/graphify/graph-to-toon.ts` takes a parsed graph
-object and returns the `.toon` text without writing a file; the CLI reads, calls, writes.
+**Agent/Programmatic API** — all in `src/graphify/graph-to-toon.ts`:
+
+- `buildContext(data)` turns a parsed `graph.json` into the context both renderers read.
+- `renderBrainstormToon(ctx)` and `renderBrainstormSummary(ctx)` return the two `.toon`
+  texts without touching disk; the CLI reads the file, calls them, and writes the results.
 
 ## PRs
 

@@ -37,6 +37,12 @@ export const SCAFFOLD_ONLY_TEMPLATES: ReadonlySet<string> = new Set([
   // and appends their own hooks — template-sync would otherwise clobber those,
   // so this is a scaffold, not a synced twin.
   '.claude/settings.json',
+  // Graph-refresh workflow starter: runner labels, the Python and Node versions
+  // and the graphifyy pin are all properties of the CONSUMER's CI, so noldor
+  // writes it once and the consumer owns it afterwards. Also keeps `init
+  // --adopt` from snapshotting a consumer's own .github/workflows/ back into the
+  // template directory.
+  '.github/workflows/update-knowledge-graph.yml',
   // Architecture surface starters: the four registry pages, each shipped with a
   // placeholder marker. The content is entirely consumer-owned — these describe
   // THEIR system — so `init` writes them once and template-sync never demands

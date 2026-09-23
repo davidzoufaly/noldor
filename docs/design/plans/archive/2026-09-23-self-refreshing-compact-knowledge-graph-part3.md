@@ -32,7 +32,7 @@
 
 This is the first `.github` file noldor has ever shipped — a deliberate posture change, and the reason the acceptance criteria spend four entries on what the workflow must not do.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   Add `import { parse as parseYaml } from 'yaml';` to `src/templates/__tests__/templates.test.ts` — as the **last** import, after the relative ones, which is where oxfmt wants it — then append:
 
@@ -186,7 +186,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
   });
   ```
 
-- [ ] **Step 2: Run the tests and verify they FAIL.**
+- [x] **Step 2: Run the tests and verify they FAIL.**
 
   ```bash
   pnpm vitest run src/templates/__tests__/templates.test.ts
@@ -194,7 +194,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
 
   Expected output: `Tests  10 failed | 23 passed (33)`. Ten, not twelve: `is driver-neutral` passes because `filterTemplatesByAgents` returns any non-`.claude/`/`.opencode/` path unchanged, and `is excluded from the template-sync drift set` passes because it is a `not.toContain` against a list that does not hold the file yet. Of the ten, `is scaffold-only` fails on an assertion and the rest on `ENOENT` reading the template.
 
-- [ ] **Step 3: Write the workflow.**
+- [x] **Step 3: Write the workflow.**
 
   Create `templates/.github/workflows/update-knowledge-graph.yml`:
 
@@ -397,7 +397,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
               echo "::warning::auto-merge unavailable — the graph PR is open and waiting for a human"
   ```
 
-- [ ] **Step 4: Register it as scaffold-only.**
+- [x] **Step 4: Register it as scaffold-only.**
 
   In `src/templates/manifest.ts`, add to `SCAFFOLD_ONLY_TEMPLATES`, immediately before the `docs/architecture/context.md` entry:
 
@@ -410,7 +410,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
     '.github/workflows/update-knowledge-graph.yml',
   ```
 
-- [ ] **Step 5: Run the tests and verify they PASS.**
+- [x] **Step 5: Run the tests and verify they PASS.**
 
   ```bash
   pnpm vitest run src/templates/__tests__/templates.test.ts
@@ -418,7 +418,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
 
   Expected output: `Tests  33 passed (33)`.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
   ```bash
   cat > /tmp/msg-part3-task1.txt <<'EOF'
@@ -458,7 +458,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
 
 noldor's own graph is the stale one the spec's Problem section is about. Shipping only the template would leave the motivating defect in place and the workflow would ship having never run once. The byte-identity test is the same guard `.oxlintrc.json` already uses for its self-host copy.
 
-- [ ] **Step 1: Write the failing test.**
+- [x] **Step 1: Write the failing test.**
 
   Append inside the workflow `describe` added in Task 1, immediately before `is excluded from the template-sync drift set`:
 
@@ -468,7 +468,7 @@ noldor's own graph is the stale one the spec's Problem section is about. Shippin
     });
   ```
 
-- [ ] **Step 2: Run the test and verify it FAILS.**
+- [x] **Step 2: Run the test and verify it FAILS.**
 
   ```bash
   pnpm vitest run src/templates/__tests__/templates.test.ts
@@ -476,14 +476,14 @@ noldor's own graph is the stale one the spec's Problem section is about. Shippin
 
   Expected output: `Tests  1 failed | 33 passed (34)`, the failure an `ENOENT` on `.github/workflows/update-knowledge-graph.yml`.
 
-- [ ] **Step 3: Install the workflow into noldor.**
+- [x] **Step 3: Install the workflow into noldor.**
 
   ```bash
   mkdir -p .github/workflows
   cp templates/.github/workflows/update-knowledge-graph.yml .github/workflows/update-knowledge-graph.yml
   ```
 
-- [ ] **Step 4: Run the test and verify it PASSES.**
+- [x] **Step 4: Run the test and verify it PASSES.**
 
   ```bash
   pnpm vitest run src/templates/__tests__/templates.test.ts
@@ -491,7 +491,7 @@ noldor's own graph is the stale one the spec's Problem section is about. Shippin
 
   Expected output: `Tests  34 passed (34)`.
 
-- [ ] **Step 5: Dry-run the regeneration chain locally.**
+- [x] **Step 5: Dry-run the regeneration chain locally.**
 
   The `build` job's three regeneration commands are the only part CI cannot be asked about in advance. Run exactly what the workflow runs — not the `pnpm toon` alias, which is what the workflow deliberately does not call:
 
@@ -504,7 +504,7 @@ noldor's own graph is the stale one the spec's Problem section is about. Shippin
 
   Expected output: each command exits 0 and the toon header reads `# Domain Knowledge Graph (v3 — compact)` then `# version: 3`. If any command errors, fix it in **both** copies of the workflow — the byte-identity test catches a one-sided edit.
 
-- [ ] **Step 6: Discard the regenerated graph.**
+- [x] **Step 6: Discard the regenerated graph.**
 
   ```bash
   git checkout -- graphify-out/
@@ -513,7 +513,7 @@ noldor's own graph is the stale one the spec's Problem section is about. Shippin
 
   Expected output: no lines. The first regeneration that lands is the workflow's own, which is the feature proving itself.
 
-- [ ] **Step 7: Run the whole suite.**
+- [x] **Step 7: Run the whole suite.**
 
   ```bash
   pnpm verify
@@ -521,7 +521,7 @@ noldor's own graph is the stale one the spec's Problem section is about. Shippin
 
   Expected output: lint, typecheck and the full vitest run green — **except** on a machine whose locale is not English, where `sortEntries > defaults to name-asc when sort mode is empty` and `sortEntries > falls back to name-asc for unknown sort key` fail. That pair is red on `main` already (`ideas.md` records it: a bare `localeCompare` reads the machine locale, and Czech collates `ch` after `h`). Confirm they are the known pair rather than yours with `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pnpm vitest run src/dashboard/__tests__/dashboard-views.test.ts`, which passes 129/129. Any other failure is yours.
 
-- [ ] **Step 8: Commit.**
+- [x] **Step 8: Commit.**
 
   ```bash
   cat > /tmp/msg-part3-task2.txt <<'EOF'
@@ -550,7 +550,7 @@ noldor's own graph is the stale one the spec's Problem section is about. Shippin
 
 - Modify: `docs/features/self-refreshing-compact-knowledge-graph.md`
 
-- [ ] **Step 1: Sync the code and test links.**
+- [x] **Step 1: Sync the code and test links.**
 
   ```bash
   pnpm noldor sync code-links --fd self-refreshing-compact-knowledge-graph
@@ -560,7 +560,7 @@ noldor's own graph is the stale one the spec's Problem section is about. Shippin
 
   Expected output: `links.code` holds `src/graphify/graph-to-toon.ts`, `src/templates/manifest.ts` and both workflow copies; `links.tests` holds `src/graphify/__tests__/graph-to-toon.test.ts` and `src/templates/__tests__/templates.test.ts`. Both syncs rewrite unrelated feature docs — revert every file in the diff except this feature's own.
 
-- [ ] **Step 2: Write the Summary section.**
+- [x] **Step 2: Write the Summary section.**
 
   Replace the `<!-- TODO 1-3 sentences. -->` stub under `## Summary` with:
 
@@ -572,7 +572,7 @@ noldor's own graph is the stale one the spec's Problem section is about. Shippin
   contents an agent can `Read offset/limit` against.
   ```
 
-- [ ] **Step 3: Write the Diagram section.**
+- [x] **Step 3: Write the Diagram section.**
 
   Replace the `## Diagram` TODO comment with a `mermaid` fence holding:
 
@@ -591,7 +591,7 @@ noldor's own graph is the stale one the spec's Problem section is about. Shippin
   followed by a sentence for readers who do not render mermaid: no job pushes to
   the default branch, and the only write to it is the merge of the graph PR.
 
-- [ ] **Step 4: Format and verify.**
+- [x] **Step 4: Format and verify.**
 
   ```bash
   pnpm fmt
@@ -600,7 +600,7 @@ noldor's own graph is the stale one the spec's Problem section is about. Shippin
 
   Expected output: `pnpm fmt` reports the formatted file count, and `pnpm verify` is green but for the known `sortEntries` locale pair from Task 2 Step 7. Re-read the feature doc after `pnpm fmt` — oxfmt reformats fenced code inside markdown.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
   ```bash
   cat > /tmp/msg-part3-task3.txt <<'EOF'
