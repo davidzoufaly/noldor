@@ -40,21 +40,6 @@ An XS entry whose whole diff is `.claude/skills/**` routes to `fast-track`, and 
 
 Claude now reads `AGENTS.md`, which is the same file codex and opencode already read, so the framework no longer needs to scaffold a Claude-specific `CLAUDE.md` alongside it. Collapse the two onto one file: `noldor init` should write `AGENTS.md` and not create `CLAUDE.md` in a fresh consumer, and an existing consumer should get a migration path rather than a silently duplicated rule set — this repo itself runs the split today (`AGENTS.md` for codex/opencode, `.claude/` for Claude Code), and charuy carries the same duplication, so both need propagating. Adoption-weighted per the vision's standing tie-breaker: one agent-rules file is one less thing a new consumer has to understand, and a duplicated one is a drift source the moment the two copies disagree. Open questions for the spec: what happens to `.claude/skills/**`, which has no AGENTS.md equivalent and stays Claude-primary; and whether the migration rewrites an existing `CLAUDE.md` or leaves it and stops regenerating it. Deletion test: `noldor init` in a clean repo produces `AGENTS.md` and no `CLAUDE.md`, and a consumer that had both ends with one. (found 2026-09-22)
 
-### Hand-Edited Code Links Drift Against FD Tags
-
-- id: Q-0174
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: S
-- impact: med
-- confidence: med
-- parent: feature-md-links-overhaul
-
-Hand-editing an FD's `links.code` is only safe on an FD that carries **no** `// @fd:` tags. Add a `src/**` path to a tagged FD and `code-links-drift` immediately reports `links.code is stale vs // @fd: tags`, because the tag scan is the projection source and `sync code-links` will drop the hand-added row on the next write. Nothing surfaces that split at edit time — `validate features` passes, and the drift only appears from `garden detect`. Two candidate fixes: have `features validate` warn when `links.code` names a path under a scan root that carries no `@fd:` tag while the FD has tags elsewhere, or teach `sync code-links` to preserve untagged manual entries the way it already preserves whole tagless FDs. (found 2026-08-23 closing SDD gaps before the 1.5.0 release)
-
-- Consider deriving an FD's test and source links dynamically rather than storing them statically — the static projection drifts too easily, and every drift is a garden finding rather than a compile error. (surfaced 2026-09-08)
-
 ### Full-Suite Flake: route-sweep and sdd-report Still Unexplained
 
 - id: Q-0238

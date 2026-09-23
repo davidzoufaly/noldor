@@ -474,6 +474,36 @@ export function diffProjection(
   return drift;
 }
 
+/** Cached entries the next projection will drop from one FD. */
+export interface DoomedEntries {
+  slug: string;
+  paths: string[];
+}
+
+/**
+ * Entries a hand edit added that the next write will drop: on an FD whose tags
+ * matched at least one file, every owned entry the scan did not produce. Built
+ * on {@link diffProjection}, so a tagless FD — which the write leaves alone — is
+ * never named, and preserved entries never are either.
+ *
+ * @param scanned - slug → scanned paths
+ * @param cached - slug → cached arrays
+ * @param adapter - Supplies the preserve predicate
+ * @returns One entry per FD losing links on the next write, slug-sorted
+ */
+export function doomedEntries(
+  scanned: Map<string, string[]>,
+  cached: Map<string, string[]>,
+  adapter: LinkAdapter,
+): DoomedEntries[] {
+  return diffProjection(scanned, cached, adapter)
+    .map((d) => ({
+      slug: d.slug,
+      paths: d.cached.filter((p) => !adapter.preserve(p) && !d.scanned.includes(p)).toSorted(),
+    }))
+    .filter((d) => d.paths.length > 0);
+}
+
 /**
  * Slugs some file tagged that name no feature MD. Distinct from drift: no sync
  * run can fix these, only editing the tag or creating the FD can.

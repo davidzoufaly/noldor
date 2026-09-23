@@ -1,3 +1,5 @@
+// @fd: skill-vs-code-drift-detector
+
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 

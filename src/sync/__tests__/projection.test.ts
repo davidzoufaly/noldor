@@ -12,6 +12,7 @@ import { testsAdapter } from '../adapters/tests.js';
 import {
   collectTaggedMany,
   diffProjection,
+  doomedEntries,
   loadCachedAll,
   parseRunOptions,
   project,
@@ -494,6 +495,27 @@ describe('diffProjection', () => {
   it('excludes FDs the write path would skip', () => {
     const cached = new Map<string, string[]>([['feat', ['docs/user/how-to/gone.md']]]);
     expect(diffProjection(new Map(), cached, docsAdapter)).toEqual([]);
+  });
+});
+
+describe('doomedEntries', () => {
+  it('names a hand-added row on an FD whose tags matched elsewhere', () => {
+    const scanned = new Map([['feat', ['src/tagged.ts']]]);
+    const cached = new Map([['feat', ['src/hand.ts', 'src/tagged.ts']]]);
+    expect(doomedEntries(scanned, cached, codeAdapter)).toEqual([
+      { slug: 'feat', paths: ['src/hand.ts'] },
+    ]);
+  });
+
+  it('leaves a tagless FD alone, as the write path does', () => {
+    const cached = new Map([['feat', ['src/hand.ts']]]);
+    expect(doomedEntries(new Map(), cached, codeAdapter)).toEqual([]);
+  });
+
+  it('never names a preserved directory entry', () => {
+    const scanned = new Map([['feat', ['src/tagged.ts']]]);
+    const cached = new Map([['feat', ['packages/scenes', 'src/tagged.ts']]]);
+    expect(doomedEntries(scanned, cached, codeAdapter)).toEqual([]);
   });
 });
 
