@@ -15,11 +15,14 @@
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { isEntrypoint } from '../core/cli-entry.js';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface GraphNode {
+/** One graph node as graphify emits it; `community` is optional and defaults to the `-1` bucket. */
+export interface GraphNode {
   readonly id: string;
   readonly label: string;
   readonly community?: number;
@@ -27,14 +30,16 @@ interface GraphNode {
   readonly file_type?: string;
 }
 
-interface GraphLink {
+/** One directed edge. `relation` is optional and renders as `?` when it is not in `REL_CODE`. */
+export interface GraphLink {
   readonly source: string;
   readonly target: string;
   readonly relation?: string;
   readonly confidence?: string;
 }
 
-interface Hyperedge {
+/** An n-ary relation over named members; graphify writes it under either `nodes` or `members`. */
+export interface Hyperedge {
   readonly id?: string;
   readonly label: string;
   readonly nodes?: readonly string[];
@@ -43,11 +48,18 @@ interface Hyperedge {
   readonly confidence?: string;
 }
 
+/** A hyperedge's display label. `label` is required on the type, but the graph is
+ *  external data and an absent one used to throw inside `sanitizeLine`. */
+function hyperedgeLabel(he: Hyperedge): string {
+  return sanitizeLine(he.label ?? he.id ?? 'hyperedge');
+}
+
 function hyperedgeMembers(he: Hyperedge): readonly string[] {
   return he.nodes ?? he.members ?? [];
 }
 
-interface GraphData {
+/** A parsed `graphify-out/graph.json`. Hyperedges appear at the root or under `graph`. */
+export interface GraphData {
   readonly nodes: GraphNode[];
   readonly links: GraphLink[];
   readonly directed?: boolean;
@@ -56,7 +68,8 @@ interface GraphData {
   readonly graph?: { readonly hyperedges?: Hyperedge[] };
 }
 
-interface GraphContext {
+/** The render input, built once by {@link buildContext} and shared by both renderers. */
+export interface GraphContext {
   readonly nodes: GraphNode[];
   readonly links: GraphLink[];
   readonly communityLabels: Record<string, string>;
@@ -75,6 +88,217 @@ interface ClassifiedEdges {
 // ---------------------------------------------------------------------------
 
 const PATH_STRIP_PREFIXES = ['packages/', 'apps/', 'docs/'];
+
+/**
+ * Ordering pinned to raw code units. `localeCompare` resolves against the
+ * machine locale — under `cs_CZ` Czech collates `ch` after `h`, so the same
+ * graph would emit a different node order on an operator's laptop than on an
+ * `en_US` CI runner, and the two producers would churn against each other.
+ * Every ordering in both emitted files goes through this.
+ */
+export function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Single-letter relation codes. `p`/`s` cover `graphify enrich-docs` output.
+ *
+ * A Map, not an object literal: relations come from `graph.json` and a semantic
+ * run writes them free-form, so a relation named `constructor` or `toString`
+ * would resolve through `Object.prototype` and splice that member's source into
+ * the edge row. A Map has no prototype chain to fall through to.
+ */
+const REL_CODE: ReadonlyMap<string, string> = new Map([
+  ['calls', 'f'],
+  ['imports', 'i'],
+  ['method', 'm'],
+  ['plan-of', 'p'],
+  ['re_exports', 'e'],
+  ['references', 'r'],
+  ['spec-of', 's'],
+]);
+
+/** The code a relation renders as; `?` for anything the map does not carry. */
+function relCode(relation: string | undefined): string {
+  return REL_CODE.get(relation ?? '') ?? '?';
+}
+
+/** Edges recoverable from node placement or from other edges — dropped to save tokens. */
+const REL_OMIT: ReadonlySet<string> = new Set(['contains', 'imports_from']);
+
+const HUB_MIN_DEGREE = 2;
+const HUB_TOP_N = 5;
+const SIG_MIN_NODES = 3;
+const PREFIX_MIN_LEN = 4;
+
+/** Collapse newlines and tabs: the format is line-oriented, so a multi-line label corrupts it. */
+function sanitizeLine(s: string): string {
+  return s
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/ {2,}/g, ' ')
+    .trim();
+}
+
+/** A trailing `()` becomes `!` — two characters saved on every function node. */
+function formatNodeLabel(label: string): string {
+  const clean = sanitizeLine(label);
+  return clean.endsWith('()') ? `${clean.slice(0, -2)}!` : clean;
+}
+
+/** A node's path row, sanitized: the format is line-oriented and a newline in a
+ *  source path would split the row and shift every TOC range after it. */
+function nodePath(n: GraphNode): string {
+  return sanitizeLine(shortenPath(n.source_file ?? ''));
+}
+
+/** Longest common prefix truncated at the last slash, or none when it buys under 4 characters. */
+function factorCommonPrefix(paths: readonly string[]): {
+  prefix: string;
+  stripped: string[];
+} {
+  if (paths.length < 2) {
+    return { prefix: '', stripped: [...paths] };
+  }
+  let cp = paths[0];
+  for (let i = 1; i < paths.length; i++) {
+    const p = paths[i];
+    const lim = Math.min(cp.length, p.length);
+    let j = 0;
+    while (j < lim && cp[j] === p[j]) j++;
+    cp = cp.slice(0, j);
+    if (!cp) break;
+  }
+  const lastSlash = cp.lastIndexOf('/');
+  cp = lastSlash >= 0 ? cp.slice(0, lastSlash + 1) : '';
+  if (cp.length < PREFIX_MIN_LEN) {
+    return { prefix: '', stripped: [...paths] };
+  }
+  return { prefix: cp, stripped: paths.map((p) => p.slice(cp.length)) };
+}
+
+interface HubStats {
+  readonly idx: number;
+  readonly fanIn: number;
+  readonly fanOut: number;
+}
+
+/**
+ * Top hubs by total degree, ties broken by local index.
+ *
+ * Degrees are read from the emitted adjacency, not from the input links:
+ * parallel links between the same pair under one relation collapse into a single
+ * entry, so counting the links makes `sig` describe edges the block does not
+ * contain — the same "count the file does not encode" problem the header count
+ * already avoids.
+ *
+ * Index rather than label for the tie: two nodes can share a label AND a total
+ * degree, and the leftover order then came from a Set built in graphify's edge
+ * order — reversing the input flipped `dup(1/1) dup(0/2)` to `dup(0/2) dup(1/1)`.
+ * The node list is already ordered by label then id, so the index is total.
+ */
+function computeHubs(byRel: ReadonlyMap<string, Map<number, Set<number>>>): HubStats[] {
+  const fanOut = new Map<number, number>();
+  const fanIn = new Map<number, number>();
+  for (const bySrc of byRel.values()) {
+    for (const [s, targets] of bySrc) {
+      fanOut.set(s, (fanOut.get(s) ?? 0) + targets.size);
+      for (const t of targets) {
+        fanIn.set(t, (fanIn.get(t) ?? 0) + 1);
+      }
+    }
+  }
+  const stats: HubStats[] = [];
+  for (const idx of new Set<number>([...fanOut.keys(), ...fanIn.keys()])) {
+    const fi = fanIn.get(idx) ?? 0;
+    const fo = fanOut.get(idx) ?? 0;
+    if (fi + fo < HUB_MIN_DEGREE) continue;
+    stats.push({ fanIn: fi, fanOut: fo, idx });
+  }
+  return stats
+    .toSorted((a, b) => b.fanIn + b.fanOut - (a.fanIn + a.fanOut) || a.idx - b.idx)
+    .slice(0, HUB_TOP_N);
+}
+
+/**
+ * Push one community's v3 block onto `lines`. Indices are community-local and
+ * 0-based. The header's edge total comes from {@link encodedEdges}, which
+ * collapses the same duplicates these rows do.
+ */
+function emitCommunity(
+  lines: string[],
+  commId: number,
+  commNodes: readonly GraphNode[],
+  commEdges: readonly GraphLink[],
+  communityLabels: Record<string, string>,
+): void {
+  const label = communityLabels[String(commId)] ?? `Community ${commId}`;
+  // Label, then id. Labels are not unique inside a community, and a tie left
+  // to the input order makes every index in the block a function of how
+  // graphify happened to emit its nodes.
+  const sortedNodes = [...commNodes].toSorted(
+    (a, b) => byCodeUnit(a.label, b.label) || byCodeUnit(a.id, b.id),
+  );
+  const localIdx = new Map<string, number>(sortedNodes.map((n, i) => [n.id, i]));
+
+  const uniquePaths = [...new Set(sortedNodes.map(nodePath))].toSorted(byCodeUnit);
+  const { prefix, stripped } = factorCommonPrefix(uniquePaths);
+  const pathLocal = new Map<string, number>(uniquePaths.map((p, i) => [p, i]));
+
+  // Built before anything is pushed: the sig line's degrees are read from this,
+  // not from `commEdges`, so they describe the rows the block actually carries.
+  const byRel = new Map<string, Map<number, Set<number>>>();
+  for (const l of commEdges) {
+    const raw = l.relation ?? '';
+    const src = localIdx.get(l.source);
+    const tgt = localIdx.get(l.target);
+    if (src === undefined || tgt === undefined) continue;
+    if (!byRel.has(raw)) byRel.set(raw, new Map());
+    const bySrc = byRel.get(raw)!;
+    if (!bySrc.has(src)) bySrc.set(src, new Set());
+    bySrc.get(src)!.add(tgt);
+  }
+
+  lines.push(`## c${commId} (${commNodes.length}) ${sanitizeLine(label)}`);
+
+  if (commNodes.length >= SIG_MIN_NODES && byRel.size > 0) {
+    const hubs = computeHubs(byRel);
+    if (hubs.length > 0) {
+      const parts = hubs.map(
+        (h) => `${formatNodeLabel(sortedNodes[h.idx].label)}(${h.fanIn}/${h.fanOut})`,
+      );
+      lines.push(`sig hubs=${parts.join(' ')}`);
+    }
+  }
+
+  lines.push(prefix ? `p[${uniquePaths.length}] prefix=${prefix}` : `p[${uniquePaths.length}]`);
+  for (let i = 0; i < stripped.length; i++) {
+    lines.push(`  ${i}=${stripped[i]}`);
+  }
+
+  lines.push('n');
+  for (let i = 0; i < sortedNodes.length; i++) {
+    const n = sortedNodes[i];
+    const pi = pathLocal.get(nodePath(n)) ?? 0;
+    lines.push(`  ${i} ${formatNodeLabel(n.label)} @${pi}`);
+  }
+
+  if (byRel.size === 0) {
+    return;
+  }
+
+  lines.push('e');
+  const rels = [...byRel.keys()].toSorted(
+    (a, b) => byCodeUnit(relCode(a), relCode(b)) || byCodeUnit(a, b),
+  );
+  for (const raw of rels) {
+    const r = relCode(raw);
+    const bySrc = byRel.get(raw)!;
+    for (const src of [...bySrc.keys()].toSorted((a, b) => a - b)) {
+      const targets = [...bySrc.get(src)!].toSorted((a, b) => a - b);
+      lines.push(`  ${r} ${src}>${targets.join(',')}`);
+    }
+  }
+}
 
 function shortenPath(sourceFile: string): string {
   for (const prefix of PATH_STRIP_PREFIXES) {
@@ -107,7 +331,7 @@ function buildIdToLabel(nodes: GraphNode[]): Map<string, string> {
   return new Map(nodes.map((n) => [n.id, n.label]));
 }
 
-function buildNodeCommunityMap(nodes: GraphNode[]): Map<string, number> {
+function buildNodeCommunityMap(nodes: readonly GraphNode[]): Map<string, number> {
   return new Map(nodes.map((n) => [n.id, n.community ?? -1]));
 }
 
@@ -139,24 +363,29 @@ function deriveCommunityLabel(nodes: GraphNode[]): string {
         }
       }
     }
-    if (labelSamples.length < 3) {
-      labelSamples.push(n.label);
-    }
+    labelSamples.push(n.label);
   }
 
-  const topPkg = [...pkgCounts.entries()].toSorted((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+  // Ties break on the name. Without it, equal counts keep Map insertion order,
+  // which is graphify's node order — and this is the path production uses, since
+  // noldor's graph.json carries no `community_labels`. Two nodes under
+  // `packages/alpha` and `packages/beta` labelled the community after whichever
+  // arrived first.
+  const topPkg =
+    [...pkgCounts.entries()].toSorted((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))[0]?.[0] ??
+    '';
   const topSegs = [...segCounts.entries()]
-    .toSorted((a, b) => b[1] - a[1])
+    .toSorted((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))
     .slice(0, 2)
-    .map(([s]) => s);
+    .map(([seg]) => seg);
 
   const parts = [topPkg, ...topSegs].filter(Boolean);
   if (parts.length > 0) {
     return parts.join(' / ');
   }
 
-  // Fallback: top node labels
-  return labelSamples.slice(0, 3).join(' · ') || `unlabeled`;
+  // Fallback: node labels, sorted rather than "the first three that arrived".
+  return labelSamples.toSorted(byCodeUnit).slice(0, 3).join(' · ') || `unlabeled`;
 }
 
 function deriveCommunityLabels(communityGroups: Map<number, GraphNode[]>): Record<string, string> {
@@ -171,15 +400,26 @@ function deriveCommunityLabels(communityGroups: Map<number, GraphNode[]>): Recor
 // Edge classification
 // ---------------------------------------------------------------------------
 
-function classifyEdges(links: GraphLink[], nodeCommunityMap: Map<string, number>): ClassifiedEdges {
+function classifyEdges(
+  links: readonly GraphLink[],
+  nodeCommunityMap: Map<string, number>,
+): ClassifiedEdges {
   const intra = new Map<number, GraphLink[]>();
   const cross: GraphLink[] = [];
 
   for (const link of links) {
+    // A link to a node the graph does not carry is not an edge. Left in, it
+    // rendered as `@c-1` and read as membership of the community-less block.
+    if (!nodeCommunityMap.has(link.source) || !nodeCommunityMap.has(link.target)) {
+      continue;
+    }
     const srcComm = nodeCommunityMap.get(link.source) ?? -1;
     const tgtComm = nodeCommunityMap.get(link.target) ?? -1;
 
-    if (srcComm === tgtComm && srcComm !== -1) {
+    // `-1` counts as a community like any other: it gets a `## c-1` block, and
+    // `## cross` promises two DIFFERENT communities, so its internal edges
+    // belong inside it.
+    if (srcComm === tgtComm) {
       if (!intra.has(srcComm)) {
         intra.set(srcComm, []);
       }
@@ -192,119 +432,261 @@ function classifyEdges(links: GraphLink[], nodeCommunityMap: Map<string, number>
   return { cross, intra };
 }
 
-function formatEdgeLine(
-  link: GraphLink,
-  idToLabel: Map<string, string>,
-  directed: boolean,
-): string {
-  const src = idToLabel.get(link.source) ?? link.source;
-  const tgt = idToLabel.get(link.target) ?? link.target;
-  const rel = link.relation ?? 'related';
-  const arrow = directed ? `--${rel}-->` : `--${rel}--`;
-  return `  ${src} ${arrow} ${tgt}`;
-}
-
-function formatCrossEdgeLine(
-  link: GraphLink,
-  idToLabel: Map<string, string>,
-  nodeCommunityMap: Map<string, number>,
-  directed: boolean,
-): string {
-  const src = idToLabel.get(link.source) ?? link.source;
-  const tgt = idToLabel.get(link.target) ?? link.target;
-  const srcComm = nodeCommunityMap.get(link.source) ?? -1;
-  const tgtComm = nodeCommunityMap.get(link.target) ?? -1;
-  const rel = link.relation ?? 'related';
-  const arrow = directed ? `--${rel}-->` : `--${rel}--`;
-  return `  ${src} [c${srcComm}] ${arrow} ${tgt} [c${tgtComm}]`;
-}
-
 // ---------------------------------------------------------------------------
 // Brainstorm TOON (full)
 // ---------------------------------------------------------------------------
 
-function writeBrainstormToon(path: string, ctx: GraphContext): void {
-  const { nodes, links, communityLabels, idToLabel, directed, hyperedges } = ctx;
+/**
+ * How many edges the emitted format actually carries: `REL_OMIT` relations
+ * dropped, and parallel links between the same pair under the same relation
+ * collapsed, exactly as the `e` rows and `## cross` rows collapse them. Both
+ * headers read this, so they cannot disagree about the same graph.
+ */
+/** The identity two links share when the format collapses them into one row. */
+function edgeKey(l: GraphLink): string {
+  return `${l.relation ?? ''}\u0000${l.source}\u0000${l.target}`;
+}
+
+function encodedEdges(nodes: readonly GraphNode[], links: readonly GraphLink[]): number {
+  const nodeCommunityMap = buildNodeCommunityMap(nodes);
+  const { intra, cross } = classifyEdges(links, nodeCommunityMap);
+  const seen = new Set<string>();
+  for (const group of [...intra.values(), cross]) {
+    for (const l of group) {
+      if (REL_OMIT.has(l.relation ?? '')) continue;
+      seen.add(edgeKey(l));
+    }
+  }
+  return seen.size;
+}
+
+/** `<relCode> <srcLabel>@c<id>><tgtLabel>@c<id>`, shared by the brainstorm block
+ *  and the summary's top-25 list so the two never drift apart. */
+function crossRows(
+  cross: readonly GraphLink[],
+  idToLabel: Map<string, string>,
+  nodeCommunityMap: Map<string, number>,
+): string[] {
+  const seen = new Set<string>();
+  return cross
+    .filter((l) => {
+      if (REL_OMIT.has(l.relation ?? '')) return false;
+      const key = edgeKey(l);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((l) => ({
+      rel: relCode(l.relation),
+      src: formatNodeLabel(idToLabel.get(l.source) ?? l.source),
+      srcComm: nodeCommunityMap.get(l.source) ?? -1,
+      tgt: formatNodeLabel(idToLabel.get(l.target) ?? l.target),
+      tgtComm: nodeCommunityMap.get(l.target) ?? -1,
+    }))
+    .toSorted(
+      (a, b) =>
+        byCodeUnit(a.rel, b.rel) ||
+        byCodeUnit(a.src, b.src) ||
+        byCodeUnit(a.tgt, b.tgt) ||
+        // Labels are not unique across communities either — `main!` in c3 and
+        // `main!` in c9 tie on all three keys above, and the leftover order is
+        // graphify's.
+        a.srcComm - b.srcComm ||
+        a.tgtComm - b.tgtComm,
+    )
+    .map((r) => `  ${r.rel} ${r.src}@c${r.srcComm}>${r.tgt}@c${r.tgtComm}`);
+}
+
+/** Members are named rather than indexed: a hyperedge spans communities, so the
+ *  local indices do not apply. Graph order is kept — it is already deterministic. */
+function hyperedgeRows(hyperedges: readonly Hyperedge[], idToLabel: Map<string, string>): string[] {
+  return hyperedges.map((he) => {
+    const members = hyperedgeMembers(he)
+      .map((nid) => sanitizeLine(idToLabel.get(nid) ?? nid))
+      .join(', ');
+    return `  ${hyperedgeLabel(he)} [${sanitizeLine(he.relation ?? 'related')}]: ${members}`;
+  });
+}
+
+interface TocEntry {
+  readonly key: string;
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
+/**
+ * Re-reads the assembled lines and throws when a TOC entry does not land on its
+ * `## ` header. Hand-computed line arithmetic is exactly the kind of thing that
+ * drifts silently when the body emission changes, so the emitter checks itself.
+ */
+function validateToc(lines: readonly string[], entries: readonly TocEntry[]): void {
+  // Against the text that gets WRITTEN, not the pre-join array: one element
+  // holding a newline shifts every later line, and an array-indexed check would
+  // agree with itself while the file on disk was off by one.
+  const written = lines.join('\n').split('\n');
+  for (const e of entries) {
+    const actual = written[e.startLine - 1] ?? '';
+    // `c-1` is the bucket for nodes with no community — `community` is optional
+    // and `?? -1` is honoured everywhere else, so the key can carry a minus.
+    const isCommunity = /^c-?\d+$/.test(e.key);
+    const expected = isCommunity ? `## ${e.key} ` : `## ${e.key}`;
+    const ok = isCommunity ? actual.startsWith(expected) : actual === expected;
+    if (!ok) {
+      throw new Error(
+        `TOC drift: ${e.key} expected at line ${e.startLine} ("${expected}"), got "${actual}"`,
+      );
+    }
+  }
+}
+
+/**
+ * Render `graph.brainstorm.toon` — the v3 compact topology, one block per
+ * community, fronted by a TOC of absolute line ranges so a reader can load one
+ * section with `Read offset/limit` instead of the whole file. Pure: takes a
+ * parsed graph and returns text, touching no disk.
+ */
+export function renderBrainstormToon(ctx: GraphContext): string {
+  const { nodes, links, communityLabels, directed } = ctx;
   const communityGroups = groupByCommunity(nodes);
   const nodeCommunityMap = buildNodeCommunityMap(nodes);
   const { intra, cross } = classifyEdges(links, nodeCommunityMap);
 
-  const lines: string[] = [];
+  // Pass 1 — body, with line ranges relative to the body's own first line.
+  const body: string[] = [];
+  const entries: TocEntry[] = [];
 
-  lines.push('# Domain Knowledge Graph — Brainstorm Context');
-  lines.push(`# Generated from graph.json (${nodes.length} nodes, ${links.length} edges)`);
-  lines.push('');
-  lines.push(`directed: ${directed}`);
-
-  // Communities sorted by ID
-  const sortedComms = [...communityGroups.keys()].toSorted((a, b) => a - b);
-  for (const commId of sortedComms) {
+  for (const commId of [...communityGroups.keys()].toSorted((a, b) => a - b)) {
+    const startLine = body.length + 1;
     const commNodes = communityGroups.get(commId)!;
-    const label = communityLabels[String(commId)] ?? `Community ${commId}`;
-    lines.push('');
-    lines.push(`## community ${commId} (${commNodes.length} nodes) — ${label}`);
-
-    lines.push('nodes:');
-    const sorted = [...commNodes].toSorted((a, b) => a.label.localeCompare(b.label));
-    for (const n of sorted) {
-      const sf = shortenPath(n.source_file ?? '');
-      lines.push(`  ${n.label},${sf},${n.community ?? -1}`);
-    }
-
-    const commEdges = intra.get(commId);
-    if (commEdges?.length) {
-      lines.push('edges:');
-      for (const link of commEdges) {
-        lines.push(formatEdgeLine(link, idToLabel, directed));
-      }
-    }
+    const commEdges = (intra.get(commId) ?? []).filter((l) => !REL_OMIT.has(l.relation ?? ''));
+    emitCommunity(body, commId, commNodes, commEdges, communityLabels);
+    entries.push({ endLine: body.length, key: `c${commId}`, startLine });
+    body.push('');
   }
 
-  // Cross-community edges
-  if (cross.length) {
-    lines.push('');
-    lines.push('## cross-community edges');
-    for (const link of cross) {
-      lines.push(formatCrossEdgeLine(link, idToLabel, nodeCommunityMap, directed));
-    }
+  const crossLines = crossRows(cross, ctx.idToLabel, nodeCommunityMap);
+  if (crossLines.length > 0) {
+    const startLine = body.length + 1;
+    body.push('## cross', ...crossLines);
+    entries.push({ endLine: body.length, key: 'cross', startLine });
   }
 
-  // Hyperedges
-  if (hyperedges.length) {
-    lines.push('');
-    lines.push('## hyperedges');
-    for (const he of hyperedges) {
-      const nodeLabels = hyperedgeMembers(he)
-        .map((nid) => idToLabel.get(nid) ?? nid)
-        .join(', ');
-      lines.push(`  ${he.label} [${he.relation ?? 'related'}]: ${nodeLabels}`);
+  const hyperLines = hyperedgeRows(ctx.hyperedges, ctx.idToLabel);
+  if (hyperLines.length > 0) {
+    if (crossLines.length > 0) {
+      body.push('');
     }
+    const startLine = body.length + 1;
+    body.push('## hyperedges', ...hyperLines);
+    entries.push({ endLine: body.length, key: 'hyperedges', startLine });
   }
 
+  // Pass 2 — a header whose length is known, then shift every range by it.
+  const header: string[] = [
+    '# Domain Knowledge Graph (v3 — compact)',
+    '# version: 3',
+    `# ${nodes.length} nodes, ${encodedEdges(nodes, links)} edges (contains/imports_from omitted), ${communityGroups.size} communities, directed=${directed}`,
+    '# Per community: sig (top hubs by fan-in/out) | p (local paths, prefix-factored) | n (nodes) | e (edges)',
+    '# Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of ?=other',
+    '# Node row: <local_id> <label>[!=function] @<path_id>',
+    '# Edge row: <rel> <src>><t1,t2,...>',
+    '# TOC: <key>: <startLine>-<endLine>  (use Read offset/limit to load a single section)',
+    '',
+    'toc',
+  ];
+  const totalHeaderLines = header.length + entries.length + 1;
+  const shifted = entries.map(
+    (e): TocEntry => ({
+      endLine: e.endLine + totalHeaderLines,
+      key: e.key,
+      startLine: e.startLine + totalHeaderLines,
+    }),
+  );
+  for (const e of shifted) {
+    header.push(`  ${e.key}: ${e.startLine}-${e.endLine}`);
+  }
+  header.push('');
+
+  // Trailing blanks depend on which block came last — and on an EMPTY graph the
+  // last blank belongs to the header, not the body, so normalise the joined
+  // array rather than the body alone. Exactly one newline ends the file.
+  const lines = [...header, ...body];
+  while (lines.at(-1) === '') lines.pop();
   lines.push('');
-  writeAndLog(path, lines.join('\n'));
+  validateToc(lines, shifted);
+  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------
 // Summary TOON
 // ---------------------------------------------------------------------------
 
-function extractPackages(nodes: GraphNode[]): readonly [string, number][] {
+interface FeatureInfo {
+  readonly name: string;
+  readonly nodeCount: number;
+  readonly subfolders: string;
+}
+
+function extractPackages(nodes: readonly GraphNode[]): readonly (readonly [string, number])[] {
   const counts = new Map<string, number>();
   for (const n of nodes) {
-    const sf = n.source_file ?? '';
-    if (!sf) {
-      continue;
-    }
-    const parts = sf.split('/');
+    const parts = (n.source_file ?? '').split('/');
     if (parts.length >= 2 && (parts[0] === 'packages' || parts[0] === 'apps')) {
       counts.set(parts[1], (counts.get(parts[1]) ?? 0) + 1);
     }
   }
-  return [...counts.entries()].toSorted((a, b) => b[1] - a[1]);
+  return [...counts.entries()].toSorted((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]));
 }
 
-function extractConceptsAndRationales(nodes: GraphNode[]): {
+/**
+ * Feature folders, read from any `…/features/<name>/…` path segment.
+ *
+ * `__tests__` is excluded because it is a test location, not a feature. In
+ * noldor's own graph it is the *only* match — `src/features/__tests__/*` — so
+ * without the exclusion the block would read `__tests__: N nodes` and nothing
+ * else, which is worse than no block at all. With it, noldor emits no
+ * `## features` section and a consumer that really has feature folders still
+ * gets one.
+ */
+const NOT_A_FEATURE: ReadonlySet<string> = new Set(['__tests__', '__mocks__', '__fixtures__']);
+
+function extractFeatures(nodes: readonly GraphNode[]): FeatureInfo[] {
+  const counts = new Map<string, number>();
+  const subfolders = new Map<string, Map<string, number>>();
+
+  for (const n of nodes) {
+    const sf = n.source_file ?? '';
+    if (!sf.includes('/features/')) continue;
+    const parts = sf.split('/features/')[1].split('/');
+    const name = parts[0];
+    if (name.includes('.') || NOT_A_FEATURE.has(name)) continue;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+    if (parts.length > 1 && !parts[1].includes('.')) {
+      const subs = subfolders.get(name) ?? new Map<string, number>();
+      subs.set(parts[1], (subs.get(parts[1]) ?? 0) + 1);
+      subfolders.set(name, subs);
+    }
+  }
+
+  return [...counts.entries()]
+    .toSorted((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))
+    .map(([name, nodeCount]): FeatureInfo => {
+      const subs = subfolders.get(name);
+      return {
+        name,
+        nodeCount,
+        subfolders: subs
+          ? [...subs.entries()]
+              .toSorted((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))
+              .slice(0, 4)
+              .map(([sub]) => sub)
+              .join(', ')
+          : '',
+      };
+    });
+}
+
+function extractConceptsAndRationales(nodes: readonly GraphNode[]): {
   concepts: string[];
   rationales: string[];
 } {
@@ -317,136 +699,136 @@ function extractConceptsAndRationales(nodes: GraphNode[]): {
   for (const n of nodes) {
     const nid = n.id ?? '';
     if (nid.startsWith(RATIONALE_PREFIX)) {
-      const clean = n.label.startsWith('Rationale: ')
-        ? n.label.slice('Rationale: '.length)
-        : n.label;
-      rationales.push(clean);
-    } else if (CONCEPT_PREFIXES.some((p) => nid.startsWith(p))) {
+      rationales.push(
+        n.label.startsWith('Rationale: ') ? n.label.slice('Rationale: '.length) : n.label,
+      );
+    } else if (CONCEPT_PREFIXES.some((prefix) => nid.startsWith(prefix))) {
       concepts.push(n.label);
     }
   }
 
-  concepts.sort();
-  rationales.sort();
-  return { concepts, rationales };
+  return {
+    concepts: concepts.toSorted(byCodeUnit),
+    rationales: rationales.toSorted(byCodeUnit),
+  };
 }
 
-function writeBrainstormSummary(path: string, ctx: GraphContext): void {
-  const { nodes, links, communityLabels, idToLabel, directed, hyperedges } = ctx;
-  const nCommunities = new Set(nodes.map((n) => n.community)).size;
+/**
+ * Render `graph.brainstorm-summary.toon` — the orientation file: packages,
+ * feature folders, concepts, hyperedges, the 20 largest communities and the
+ * first 25 cross-community edges. Pure, like its sibling above.
+ */
+export function renderBrainstormSummary(ctx: GraphContext): string {
+  const { nodes, links, communityLabels, directed, hyperedges } = ctx;
   const communityGroups = groupByCommunity(nodes);
   const nodeCommunityMap = buildNodeCommunityMap(nodes);
   const { cross } = classifyEdges(links, nodeCommunityMap);
 
-  const lines: string[] = [];
+  const lines: string[] = [
+    '# Domain Knowledge Graph — Summary (v3)',
+    '# version: 3',
+    `# ${nodes.length} nodes, ${encodedEdges(nodes, links)} edges (contains/imports_from omitted), ${communityGroups.size} communities, directed=${directed}`,
+    '# Deep dive: graph.brainstorm.toon (TOC at top — use Read offset/limit per community)',
+    '# Compact format used in brainstorm.toon:',
+    '#   Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of ?=other  (contains/imports_from omitted — derivable)',
+    '#   Node row: <local_id> <label>[!=function] @<path_id>',
+    '#   Edge row: <rel> <src>><t1,t2,...>',
+    '#   Cross-edge row (this file + brainstorm.toon ## cross): <rel> <label>@c<src_comm>><label>@c<tgt_comm>',
+  ];
 
-  lines.push('# Domain Knowledge Graph — Summary');
-  lines.push(`# ${nodes.length} nodes, ${links.length} edges, ${nCommunities} communities`);
-  lines.push('');
-  lines.push(`directed: ${directed}`);
-
-  // Packages
   const packages = extractPackages(nodes);
-  if (packages.length) {
-    lines.push('');
-    lines.push('## packages');
+  if (packages.length > 0) {
+    lines.push('', '## packages');
     for (const [pkg, count] of packages) {
-      lines.push(`  ${pkg} (${count} nodes)`);
+      lines.push(`  ${sanitizeLine(pkg)} (${count} nodes)`);
     }
   }
 
-  // Concepts & rationales
-  const { concepts, rationales } = extractConceptsAndRationales(nodes);
-  if (concepts.length) {
-    lines.push('');
-    lines.push('## concepts');
-    for (const c of concepts) {
-      lines.push(`  ${c}`);
-    }
-  }
-  if (rationales.length) {
-    lines.push('');
-    lines.push('## rationales');
-    for (const r of rationales) {
-      lines.push(`  ${r}`);
-    }
-  }
-
-  // Hyperedges
-  if (hyperedges.length) {
-    lines.push('');
-    lines.push('## hyperedges');
-    for (const he of hyperedges) {
+  const features = extractFeatures(nodes);
+  if (features.length > 0) {
+    lines.push('', '## features');
+    for (const { name, nodeCount, subfolders } of features) {
       lines.push(
-        `  ${he.label} (${hyperedgeMembers(he).length} nodes, ${he.relation ?? 'related'})`,
+        subfolders
+          ? `  ${sanitizeLine(name)}: ${nodeCount} nodes — ${sanitizeLine(subfolders)}`
+          : `  ${sanitizeLine(name)}: ${nodeCount} nodes`,
       );
     }
   }
 
-  // Community index (top 20 by size)
-  lines.push('');
-  lines.push('## community index (top 20 by size)');
-  const sortedComms = [...communityGroups.entries()]
-    .toSorted((a, b) => b[1].length - a[1].length)
+  const { concepts, rationales } = extractConceptsAndRationales(nodes);
+  if (concepts.length > 0) {
+    lines.push('', '## concepts');
+    for (const c of concepts) lines.push(`  ${sanitizeLine(c)}`);
+  }
+  if (rationales.length > 0) {
+    lines.push('', '## rationales');
+    for (const r of rationales) lines.push(`  ${sanitizeLine(r)}`);
+  }
+
+  const hyperLines = hyperedges.map(
+    (he) =>
+      `  ${hyperedgeLabel(he)} (${hyperedgeMembers(he).length} nodes, ${sanitizeLine(he.relation ?? 'related')})`,
+  );
+  if (hyperLines.length > 0) {
+    lines.push('', '## hyperedges', ...hyperLines);
+  }
+
+  lines.push('', '## community index (top 20 by size)');
+  const ranked = [...communityGroups.entries()]
+    .toSorted((a, b) => b[1].length - a[1].length || a[0] - b[0])
     .slice(0, 20);
-  for (const [commId, commNodes] of sortedComms) {
+  for (const [commId, commNodes] of ranked) {
     const label = communityLabels[String(commId)] ?? `Community ${commId}`;
-    lines.push(`  c${commId} (${commNodes.length}): ${label}`);
+    lines.push(`  c${commId} (${commNodes.length}): ${sanitizeLine(label)}`);
   }
 
-  // Cross-community edges (top 25)
-  if (cross.length) {
-    lines.push('');
-    lines.push('## cross-community edges (top 25)');
-    for (const link of cross.slice(0, 25)) {
-      lines.push(formatCrossEdgeLine(link, idToLabel, nodeCommunityMap, directed));
-    }
+  const top25 = crossRows(cross, ctx.idToLabel, nodeCommunityMap).slice(0, 25);
+  if (top25.length > 0) {
+    lines.push('', '## cross-community edges (top 25)', ...top25);
   }
 
   lines.push('');
-  writeAndLog(path, lines.join('\n'));
+  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
+/** Build the shared render context from a parsed graph.json — the only place
+ *  the `community_labels` fallback and the two hyperedge locations are resolved. */
+export function buildContext(data: GraphData): GraphContext {
+  const { nodes, links, directed = false } = data;
+  return {
+    communityLabels: data.community_labels ?? deriveCommunityLabels(groupByCommunity(nodes)),
+    directed,
+    hyperedges: data.hyperedges ?? data.graph?.hyperedges ?? [],
+    idToLabel: buildIdToLabel(nodes),
+    links,
+    nodes,
+  };
+}
+
 function main(): void {
   const args = process.argv.slice(2);
   if (args.length === 0) {
-    console.error(`Usage: npx tsx ${process.argv[1]} <graph.json> [graph.json ...]`);
+    console.error(`Usage: noldor graphify graph-to-toon <graph.json> [graph.json ...]`);
     process.exit(1);
   }
 
   for (const inputPath of args) {
     const data: GraphData = JSON.parse(readFileSync(inputPath, 'utf8'));
-    const { nodes, links, directed = false } = data;
-    const nCommunities = new Set(nodes.map((n) => n.community)).size;
-
+    const nCommunities = groupByCommunity(data.nodes).size;
     console.log(
-      `Loaded ${inputPath}: ${nodes.length} nodes, ${links.length} links, ${nCommunities} communities`,
+      `Loaded ${inputPath}: ${data.nodes.length} nodes, ${data.links.length} links, ${nCommunities} communities`,
     );
 
-    // Derive community labels from node paths (graphify OOTB doesn't embed them)
-    const communityGroups = groupByCommunity(nodes);
-    const communityLabels = data.community_labels ?? deriveCommunityLabels(communityGroups);
-
-    // Collect hyperedges — prefer root, fall back to graph.hyperedges
-    const hyperedges: Hyperedge[] = data.hyperedges ?? data.graph?.hyperedges ?? [];
-
-    const ctx: GraphContext = {
-      communityLabels,
-      directed,
-      hyperedges,
-      idToLabel: buildIdToLabel(nodes),
-      links,
-      nodes,
-    };
-
+    const ctx = buildContext(data);
     const dir = dirname(inputPath);
-    writeBrainstormToon(join(dir, 'graph.brainstorm.toon'), ctx);
-    writeBrainstormSummary(join(dir, 'graph.brainstorm-summary.toon'), ctx);
+    writeAndLog(join(dir, 'graph.brainstorm.toon'), renderBrainstormToon(ctx));
+    writeAndLog(join(dir, 'graph.brainstorm-summary.toon'), renderBrainstormSummary(ctx));
   }
 }
 
-main();
+if (isEntrypoint(import.meta.url)) main();
