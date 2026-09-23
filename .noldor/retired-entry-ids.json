@@ -507,5 +507,9 @@
   "Q-0201": {
     "slug": "bugfix-lane-in-the-priority-suggestions",
     "retiredAt": "2026-09-23"
+  },
+  "Q-0206": {
+    "slug": "autonomous-address-blockers-without-an-operator-confirm",
+    "retiredAt": "2026-09-23"
   }
 }
