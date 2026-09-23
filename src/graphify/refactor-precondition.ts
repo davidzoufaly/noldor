@@ -77,10 +77,14 @@ export function decideRefactor(current: ReportShape, baseline: ReportShape | nul
   };
 }
 
-/** `git <args>` stdout, or `null` when git refuses (no tag, path absent at that ref). */
+/** `git <args>` stdout, or `null` when git refuses (no tag, path absent at that ref) or hangs. */
 function git(args: string[]): string | null {
   try {
-    return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return execFileSync('git', args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 10_000,
+    });
   } catch {
     // An absent tag or path is an expected answer here, not a failure: the
     // caller turns `null` into "no baseline", which runs the refactor pass.
@@ -109,7 +113,7 @@ export async function main(argv: string[]): Promise<number> {
     return 2;
   }
   const since = flags.values.get('--since') ?? git(['describe', '--tags', '--abbrev=0'])?.trim();
-  const baselineMd = since ? git(['show', `${since}:${REPORT}`]) : null;
+  const baselineMd = since ? git(['show', `${since}:${reportPath}`]) : null;
   const decision = decideRefactor(
     current,
     baselineMd === null ? null : parseReportShape(baselineMd),

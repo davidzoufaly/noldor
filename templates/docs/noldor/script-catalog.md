@@ -727,7 +727,7 @@ FD phase + pointer maintenance used by `/noldor-gate` Step 4 and `/noldor-draft-
 ### `graphify:refactor-precondition`
 
 - **Trigger:** `pnpm noldor graphify refactor-precondition` (`--report <path>` defaults to `graphify-out/GRAPH_REPORT.md`; `--since <ref>` defaults to the last tag). Run by `/noldor-release-sweep` step 3.
-- **Inputs:** the current report and the same report as committed at `<ref>`.
+- **Inputs:** the report at `--report` and the same repo-relative path as committed at `<ref>`.
 - **Outputs:** a `verdict: run|skip` line, the baseline ref, and the reason. `skip` when the god-node name set is unchanged and the lowest community cohesion did not fall by 0.02 or more; `run` otherwise, including when the ref has no readable report. Exit 0 = run, 10 = skip, 2 = the current report is unreadable — but `pnpm` reports any non-zero exit as 1, so callers read the `verdict:` line.
 - **Source:** [`src/graphify/refactor-precondition.ts`](../../src/graphify/refactor-precondition.ts)
 
