@@ -214,7 +214,7 @@ Behaviour-preserving. Today `main()` runs at module scope and every path ends in
 
 Replaces the per-community body: `sig hubs=`, a prefix-factored path table, nodes addressed by community-local index, edges collapsed to adjacency lists, and the code-unit comparator that makes all of it reproducible.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   Append to `src/graphify/__tests__/graph-to-toon.test.ts`, inside the existing `describe`:
 
@@ -301,7 +301,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
   });
   ```
 
-- [ ] **Step 2: Run the tests and verify they FAIL.**
+- [x] **Step 2: Run the tests and verify they FAIL.**
 
   ```bash
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
@@ -309,7 +309,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
 
   Expected output: `Tests  7 failed | 1 passed (8)`, the failures reporting that the received block still carries the v2 `nodes:` / `edges:` shape.
 
-- [ ] **Step 3: Add the comparator, the relation tables and the line helpers.**
+- [x] **Step 3: Add the comparator, the relation tables and the line helpers.**
 
   In `src/graphify/graph-to-toon.ts`, replace the `PATH_STRIP_PREFIXES` block with:
 
@@ -386,7 +386,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
   }
   ```
 
-- [ ] **Step 4: Add the hub computation.**
+- [x] **Step 4: Add the hub computation.**
 
   Insert after `factorCommonPrefix`:
 
@@ -428,7 +428,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
   }
   ```
 
-- [ ] **Step 5: Replace `formatEdgeLine` / `formatCrossEdgeLine` with `emitCommunity`.**
+- [x] **Step 5: Replace `formatEdgeLine` / `formatCrossEdgeLine` with `emitCommunity`.**
 
   Delete `formatEdgeLine` — the community block was its only caller. Leave
   `formatCrossEdgeLine` in place: `renderBrainstormSummary` still calls it, and
@@ -518,7 +518,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
   }
   ```
 
-- [ ] **Step 6: Call `emitCommunity` from the renderer.**
+- [x] **Step 6: Call `emitCommunity` from the renderer.**
 
   In `renderBrainstormToon`, replace the whole `for (const commId of sortedComms) { … }` body with:
 
@@ -532,7 +532,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
   }
   ```
 
-- [ ] **Step 7: Run the tests and verify they PASS.**
+- [x] **Step 7: Run the tests and verify they PASS.**
 
   ```bash
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
@@ -540,7 +540,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
 
   Expected output: `Tests  8 passed (8)`.
 
-- [ ] **Step 8: Commit.**
+- [x] **Step 8: Commit.**
 
   ```bash
   cat > /tmp/msg-task2.txt <<'EOF'

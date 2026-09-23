@@ -78,6 +78,193 @@ interface ClassifiedEdges {
 
 const PATH_STRIP_PREFIXES = ['packages/', 'apps/', 'docs/'];
 
+/**
+ * Ordering pinned to raw code units. `localeCompare` resolves against the
+ * machine locale — under `cs_CZ` Czech collates `ch` after `h`, so the same
+ * graph would emit a different node order on an operator's laptop than on an
+ * `en_US` CI runner, and the two producers would churn against each other.
+ * Every ordering in both emitted files goes through this.
+ */
+export function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Single-letter relation codes. `p`/`s` cover `graphify enrich-docs` output. */
+const REL_CODE: Record<string, string> = {
+  calls: 'f',
+  imports: 'i',
+  method: 'm',
+  'plan-of': 'p',
+  re_exports: 'e',
+  references: 'r',
+  'spec-of': 's',
+};
+
+/** Edges recoverable from node placement or from other edges — dropped to save tokens. */
+const REL_OMIT: ReadonlySet<string> = new Set(['contains', 'imports_from']);
+
+const HUB_MIN_DEGREE = 2;
+const HUB_TOP_N = 5;
+const SIG_MIN_NODES = 3;
+const PREFIX_MIN_LEN = 4;
+
+/** Collapse newlines and tabs: the format is line-oriented, so a multi-line label corrupts it. */
+function sanitizeLine(s: string): string {
+  return s
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/ {2,}/g, ' ')
+    .trim();
+}
+
+/** A trailing `()` becomes `!` — two characters saved on every function node. */
+function formatNodeLabel(label: string): string {
+  const clean = sanitizeLine(label);
+  return clean.endsWith('()') ? `${clean.slice(0, -2)}!` : clean;
+}
+
+/** Longest common prefix truncated at the last slash, or none when it buys under 4 characters. */
+function factorCommonPrefix(paths: readonly string[]): {
+  prefix: string;
+  stripped: string[];
+} {
+  if (paths.length < 2) {
+    return { prefix: '', stripped: [...paths] };
+  }
+  let cp = paths[0];
+  for (let i = 1; i < paths.length; i++) {
+    const p = paths[i];
+    const lim = Math.min(cp.length, p.length);
+    let j = 0;
+    while (j < lim && cp[j] === p[j]) j++;
+    cp = cp.slice(0, j);
+    if (!cp) break;
+  }
+  const lastSlash = cp.lastIndexOf('/');
+  cp = lastSlash >= 0 ? cp.slice(0, lastSlash + 1) : '';
+  if (cp.length < PREFIX_MIN_LEN) {
+    return { prefix: '', stripped: [...paths] };
+  }
+  return { prefix: cp, stripped: paths.map((p) => p.slice(cp.length)) };
+}
+
+interface HubStats {
+  readonly idx: number;
+  readonly fanIn: number;
+  readonly fanOut: number;
+}
+
+/** Top hubs by total degree, ties broken by label so the line is reproducible. */
+function computeHubs(
+  commEdges: readonly GraphLink[],
+  localIdx: Map<string, number>,
+  sortedNodes: readonly GraphNode[],
+): HubStats[] {
+  const fanOut = new Map<number, number>();
+  const fanIn = new Map<number, number>();
+  for (const l of commEdges) {
+    const s = localIdx.get(l.source);
+    const t = localIdx.get(l.target);
+    if (s !== undefined) fanOut.set(s, (fanOut.get(s) ?? 0) + 1);
+    if (t !== undefined) fanIn.set(t, (fanIn.get(t) ?? 0) + 1);
+  }
+  const stats: HubStats[] = [];
+  for (const idx of new Set<number>([...fanOut.keys(), ...fanIn.keys()])) {
+    const fi = fanIn.get(idx) ?? 0;
+    const fo = fanOut.get(idx) ?? 0;
+    if (fi + fo < HUB_MIN_DEGREE) continue;
+    stats.push({ fanIn: fi, fanOut: fo, idx });
+  }
+  return stats
+    .toSorted(
+      (a, b) =>
+        b.fanIn + b.fanOut - (a.fanIn + a.fanOut) ||
+        byCodeUnit(sortedNodes[a.idx].label, sortedNodes[b.idx].label),
+    )
+    .slice(0, HUB_TOP_N);
+}
+
+/**
+ * Push one community's v3 block onto `lines` and return the number of edge rows
+ * it emitted. Indices are community-local and 0-based. The return value is what
+ * the header's edge count is built from: adjacency collapses parallel links
+ * between the same pair under one relation into a single entry, so counting the
+ * input links instead would print a total the file does not encode.
+ */
+function emitCommunity(
+  lines: string[],
+  commId: number,
+  commNodes: readonly GraphNode[],
+  commEdges: readonly GraphLink[],
+  communityLabels: Record<string, string>,
+): number {
+  const label = communityLabels[String(commId)] ?? `Community ${commId}`;
+  // Label, then id. Labels are not unique inside a community, and a tie left
+  // to the input order makes every index in the block a function of how
+  // graphify happened to emit its nodes.
+  const sortedNodes = [...commNodes].toSorted(
+    (a, b) => byCodeUnit(a.label, b.label) || byCodeUnit(a.id, b.id),
+  );
+  const localIdx = new Map<string, number>(sortedNodes.map((n, i) => [n.id, i]));
+
+  const uniquePaths = [
+    ...new Set(sortedNodes.map((n) => shortenPath(n.source_file ?? ''))),
+  ].toSorted(byCodeUnit);
+  const { prefix, stripped } = factorCommonPrefix(uniquePaths);
+  const pathLocal = new Map<string, number>(uniquePaths.map((p, i) => [p, i]));
+
+  lines.push(`## c${commId} (${commNodes.length}) ${sanitizeLine(label)}`);
+
+  if (commNodes.length >= SIG_MIN_NODES && commEdges.length > 0) {
+    const hubs = computeHubs(commEdges, localIdx, sortedNodes);
+    if (hubs.length > 0) {
+      const parts = hubs.map(
+        (h) => `${formatNodeLabel(sortedNodes[h.idx].label)}(${h.fanIn}/${h.fanOut})`,
+      );
+      lines.push(`sig hubs=${parts.join(' ')}`);
+    }
+  }
+
+  lines.push(prefix ? `p[${uniquePaths.length}] prefix=${prefix}` : `p[${uniquePaths.length}]`);
+  for (let i = 0; i < stripped.length; i++) {
+    lines.push(`  ${i}=${stripped[i]}`);
+  }
+
+  lines.push('n');
+  for (let i = 0; i < sortedNodes.length; i++) {
+    const n = sortedNodes[i];
+    const pi = pathLocal.get(shortenPath(n.source_file ?? '')) ?? 0;
+    lines.push(`  ${i} ${formatNodeLabel(n.label)} @${pi}`);
+  }
+
+  if (commEdges.length === 0) {
+    return 0;
+  }
+
+  const byRel = new Map<string, Map<number, Set<number>>>();
+  for (const l of commEdges) {
+    const r = REL_CODE[l.relation ?? ''] ?? '?';
+    const s = localIdx.get(l.source);
+    const t = localIdx.get(l.target);
+    if (s === undefined || t === undefined) continue;
+    if (!byRel.has(r)) byRel.set(r, new Map());
+    const bySrc = byRel.get(r)!;
+    if (!bySrc.has(s)) bySrc.set(s, new Set());
+    bySrc.get(s)!.add(t);
+  }
+
+  lines.push('e');
+  let emitted = 0;
+  for (const r of [...byRel.keys()].toSorted(byCodeUnit)) {
+    const bySrc = byRel.get(r)!;
+    for (const s of [...bySrc.keys()].toSorted((a, b) => a - b)) {
+      const targets = [...bySrc.get(s)!].toSorted((a, b) => a - b);
+      lines.push(`  ${r} ${s}>${targets.join(',')}`);
+      emitted += targets.length;
+    }
+  }
+  return emitted;
+}
+
 function shortenPath(sourceFile: string): string {
   for (const prefix of PATH_STRIP_PREFIXES) {
     if (sourceFile.startsWith(prefix)) {
@@ -194,18 +381,6 @@ function classifyEdges(links: GraphLink[], nodeCommunityMap: Map<string, number>
   return { cross, intra };
 }
 
-function formatEdgeLine(
-  link: GraphLink,
-  idToLabel: Map<string, string>,
-  directed: boolean,
-): string {
-  const src = idToLabel.get(link.source) ?? link.source;
-  const tgt = idToLabel.get(link.target) ?? link.target;
-  const rel = link.relation ?? 'related';
-  const arrow = directed ? `--${rel}-->` : `--${rel}--`;
-  return `  ${src} ${arrow} ${tgt}`;
-}
-
 function formatCrossEdgeLine(
   link: GraphLink,
   idToLabel: Map<string, string>,
@@ -238,28 +413,12 @@ export function renderBrainstormToon(ctx: GraphContext): string {
   lines.push('');
   lines.push(`directed: ${directed}`);
 
-  // Communities sorted by ID
   const sortedComms = [...communityGroups.keys()].toSorted((a, b) => a - b);
   for (const commId of sortedComms) {
     const commNodes = communityGroups.get(commId)!;
-    const label = communityLabels[String(commId)] ?? `Community ${commId}`;
+    const commEdges = (intra.get(commId) ?? []).filter((l) => !REL_OMIT.has(l.relation ?? ''));
+    emitCommunity(lines, commId, commNodes, commEdges, communityLabels);
     lines.push('');
-    lines.push(`## community ${commId} (${commNodes.length} nodes) — ${label}`);
-
-    lines.push('nodes:');
-    const sorted = [...commNodes].toSorted((a, b) => a.label.localeCompare(b.label));
-    for (const n of sorted) {
-      const sf = shortenPath(n.source_file ?? '');
-      lines.push(`  ${n.label},${sf},${n.community ?? -1}`);
-    }
-
-    const commEdges = intra.get(commId);
-    if (commEdges?.length) {
-      lines.push('edges:');
-      for (const link of commEdges) {
-        lines.push(formatEdgeLine(link, idToLabel, directed));
-      }
-    }
   }
 
   // Cross-community edges
