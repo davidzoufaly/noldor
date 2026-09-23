@@ -131,4 +131,30 @@ describe('graph-to-toon', () => {
     expect(block).not.toContain('prefix='); // a single path factors nothing
     expect(block).not.toMatch(/\ne\n/); // no surviving edges
   });
+
+  it('puts every TOC entry on its own section header line', () => {
+    const lines = renderBrainstormToon(buildContext(fixture())).split('\n');
+    const tocStart = lines.indexOf('toc');
+    expect(tocStart).toBeGreaterThan(0);
+
+    const entries = lines
+      .slice(tocStart + 1)
+      .filter((l) => /^ {2}\S+: \d+-\d+$/.test(l))
+      .map((l) => {
+        const [key, range] = l.trim().split(': ');
+        const [start, end] = range.split('-').map(Number);
+        return { end, key, start };
+      });
+
+    expect(entries.map((e) => e.key)).toContain('c1');
+    for (const e of entries) {
+      expect(lines[e.start - 1]).toMatch(new RegExp(`^## ${e.key}( |$)`));
+      expect(e.end).toBeGreaterThanOrEqual(e.start);
+    }
+  });
+
+  it('declares the format version in the header', () => {
+    const text = renderBrainstormToon(buildContext(fixture()));
+    expect(text.startsWith('# Domain Knowledge Graph (v3 — compact)\n# version: 3\n')).toBe(true);
+  });
 });

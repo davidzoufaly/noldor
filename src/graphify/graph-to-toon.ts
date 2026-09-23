@@ -400,49 +400,79 @@ function formatCrossEdgeLine(
 // Brainstorm TOON (full)
 // ---------------------------------------------------------------------------
 
+interface TocEntry {
+  readonly key: string;
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
+/**
+ * Re-reads the assembled lines and throws when a TOC entry does not land on its
+ * `## ` header. Hand-computed line arithmetic is exactly the kind of thing that
+ * drifts silently when the body emission changes, so the emitter checks itself.
+ */
+function validateToc(lines: readonly string[], entries: readonly TocEntry[]): void {
+  for (const e of entries) {
+    const actual = lines[e.startLine - 1] ?? '';
+    const isCommunity = /^c\d+$/.test(e.key);
+    const expected = isCommunity ? `## ${e.key} ` : `## ${e.key}`;
+    const ok = isCommunity ? actual.startsWith(expected) : actual === expected;
+    if (!ok) {
+      throw new Error(
+        `TOC drift: ${e.key} expected at line ${e.startLine} ("${expected}"), got "${actual}"`,
+      );
+    }
+  }
+}
+
 export function renderBrainstormToon(ctx: GraphContext): string {
-  const { nodes, links, communityLabels, idToLabel, directed, hyperedges } = ctx;
+  const { nodes, links, communityLabels, directed } = ctx;
   const communityGroups = groupByCommunity(nodes);
   const nodeCommunityMap = buildNodeCommunityMap(nodes);
-  const { intra, cross } = classifyEdges(links, nodeCommunityMap);
+  const { intra } = classifyEdges(links, nodeCommunityMap);
 
-  const lines: string[] = [];
+  // Pass 1 — body, with line ranges relative to the body's own first line.
+  const body: string[] = [];
+  const entries: TocEntry[] = [];
+  let totalEdges = 0;
 
-  lines.push('# Domain Knowledge Graph — Brainstorm Context');
-  lines.push(`# Generated from graph.json (${nodes.length} nodes, ${links.length} edges)`);
-  lines.push('');
-  lines.push(`directed: ${directed}`);
-
-  const sortedComms = [...communityGroups.keys()].toSorted((a, b) => a - b);
-  for (const commId of sortedComms) {
+  for (const commId of [...communityGroups.keys()].toSorted((a, b) => a - b)) {
+    const startLine = body.length + 1;
     const commNodes = communityGroups.get(commId)!;
     const commEdges = (intra.get(commId) ?? []).filter((l) => !REL_OMIT.has(l.relation ?? ''));
-    emitCommunity(lines, commId, commNodes, commEdges, communityLabels);
-    lines.push('');
+    totalEdges += emitCommunity(body, commId, commNodes, commEdges, communityLabels);
+    entries.push({ endLine: body.length, key: `c${commId}`, startLine });
+    body.push('');
   }
 
-  // Cross-community edges
-  if (cross.length) {
-    lines.push('');
-    lines.push('## cross-community edges');
-    for (const link of cross) {
-      lines.push(formatCrossEdgeLine(link, idToLabel, nodeCommunityMap, directed));
-    }
+  // Pass 2 — a header whose length is known, then shift every range by it.
+  const header: string[] = [
+    '# Domain Knowledge Graph (v3 — compact)',
+    '# version: 3',
+    `# ${nodes.length} nodes, ${totalEdges} edges (contains/imports_from omitted), ${communityGroups.size} communities, directed=${directed}`,
+    '# Per community: sig (top hubs by fan-in/out) | p (local paths, prefix-factored) | n (nodes) | e (edges)',
+    '# Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of',
+    '# Node row: <local_id> <label>[!=function] @<path_id>',
+    '# Edge row: <rel> <src>><t1,t2,...>',
+    '# TOC: <key>: <startLine>-<endLine>  (use Read offset/limit to load a single section)',
+    '',
+    'toc',
+  ];
+  const totalHeaderLines = header.length + entries.length + 1;
+  const shifted = entries.map(
+    (e): TocEntry => ({
+      endLine: e.endLine + totalHeaderLines,
+      key: e.key,
+      startLine: e.startLine + totalHeaderLines,
+    }),
+  );
+  for (const e of shifted) {
+    header.push(`  ${e.key}: ${e.startLine}-${e.endLine}`);
   }
+  header.push('');
 
-  // Hyperedges
-  if (hyperedges.length) {
-    lines.push('');
-    lines.push('## hyperedges');
-    for (const he of hyperedges) {
-      const nodeLabels = hyperedgeMembers(he)
-        .map((nid) => idToLabel.get(nid) ?? nid)
-        .join(', ');
-      lines.push(`  ${he.label} [${he.relation ?? 'related'}]: ${nodeLabels}`);
-    }
-  }
-
-  lines.push('');
+  const lines = [...header, ...body, ''];
+  validateToc(lines, shifted);
   return lines.join('\n');
 }
 

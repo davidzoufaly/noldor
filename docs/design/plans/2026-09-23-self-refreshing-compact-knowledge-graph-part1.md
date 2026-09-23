@@ -574,7 +574,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
 
 The TOC is the feature: without it a reader has no way to fetch less than the whole file. Line numbers are 1-based, absolute and inclusive at both ends, computed by emitting the body first and then shifting by a header whose length is known.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   Append inside the existing `describe`:
 
@@ -606,7 +606,7 @@ The TOC is the feature: without it a reader has no way to fetch less than the wh
   });
   ```
 
-- [ ] **Step 2: Run the tests and verify they FAIL.**
+- [x] **Step 2: Run the tests and verify they FAIL.**
 
   ```bash
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
@@ -614,7 +614,7 @@ The TOC is the feature: without it a reader has no way to fetch less than the wh
 
   Expected output: `Tests  2 failed | 8 passed (10)` — `expect(tocStart).toBeGreaterThan(0)` receives `-1`, and the header assertion receives the v2 first line.
 
-- [ ] **Step 3: Add the TOC entry type and `validateToc`.**
+- [x] **Step 3: Add the TOC entry type and `validateToc`.**
 
   Insert above `renderBrainstormToon`:
 
@@ -633,8 +633,9 @@ The TOC is the feature: without it a reader has no way to fetch less than the wh
   function validateToc(lines: readonly string[], entries: readonly TocEntry[]): void {
     for (const e of entries) {
       const actual = lines[e.startLine - 1] ?? '';
-      const expected = e.key.startsWith('c') && /^c\d+$/.test(e.key) ? `## ${e.key} ` : `## ${e.key}`;
-      const ok = /^c\d+$/.test(e.key) ? actual.startsWith(expected) : actual === expected;
+      const isCommunity = /^c\d+$/.test(e.key);
+      const expected = isCommunity ? `## ${e.key} ` : `## ${e.key}`;
+      const ok = isCommunity ? actual.startsWith(expected) : actual === expected;
       if (!ok) {
         throw new Error(
           `TOC drift: ${e.key} expected at line ${e.startLine} ("${expected}"), got "${actual}"`,
@@ -644,7 +645,7 @@ The TOC is the feature: without it a reader has no way to fetch less than the wh
   }
   ```
 
-- [ ] **Step 4: Rewrite `renderBrainstormToon` as two passes.**
+- [x] **Step 4: Rewrite `renderBrainstormToon` as two passes.**
 
   Replace the whole function with:
 
@@ -653,7 +654,7 @@ The TOC is the feature: without it a reader has no way to fetch less than the wh
     const { nodes, links, communityLabels, directed } = ctx;
     const communityGroups = groupByCommunity(nodes);
     const nodeCommunityMap = buildNodeCommunityMap(nodes);
-    const { intra, cross } = classifyEdges(links, nodeCommunityMap);
+    const { intra } = classifyEdges(links, nodeCommunityMap);
 
     // Pass 1 — body, with line ranges relative to the body's own first line.
     const body: string[] = [];
@@ -703,7 +704,7 @@ The TOC is the feature: without it a reader has no way to fetch less than the wh
 
   `totalHeaderLines` counts the lines already pushed, one line per entry, and the blank that closes the block — so it is known before the entries are written, which is what makes the arithmetic possible in one pass over the header.
 
-- [ ] **Step 5: Run the tests and verify they PASS.**
+- [x] **Step 5: Run the tests and verify they PASS.**
 
   ```bash
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
@@ -711,7 +712,7 @@ The TOC is the feature: without it a reader has no way to fetch less than the wh
 
   Expected output: `Tests  10 passed (10)`.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
   ```bash
   cat > /tmp/msg-task3.txt <<'EOF'
