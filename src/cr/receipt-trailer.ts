@@ -24,11 +24,24 @@ import { join } from 'node:path';
  * `key` is a literal git trailer token (letters and hyphens, as in
  * `Noldor-Reviewed-Subagent`); it is matched case-insensitively, like git's own
  * trailer-token matching.
+ *
+ * `also` names trailers kept in step with the receipt (Q-0261's
+ * `Noldor-CR-Settled:`): every existing `also.key` line is replaced by
+ * `also.values`, in order, even when the receipt value is unchanged, and the
+ * amend is still a no-op when both already match. Without `also`, such lines are
+ * left alone.
  */
-export function replaceReceiptTrailer(opts: { cwd: string; key: string; value: string }): {
+export function replaceReceiptTrailer(opts: {
+  cwd: string;
+  key: string;
+  value: string;
+  also?: { key: string; values: readonly string[] };
+}): {
   amended: boolean;
 } {
   const line = new RegExp(`^${opts.key}:[ \\t]*(\\S*)`, 'i');
+  const alsoLine =
+    opts.also === undefined ? null : new RegExp(`^${opts.also.key}:[ \\t]*(.*)$`, 'i');
 
   const msg = execFileSync('git', ['log', '-1', '--format=%B'], {
     cwd: opts.cwd,
@@ -37,16 +50,33 @@ export function replaceReceiptTrailer(opts: { cwd: string; key: string; value: s
 
   const kept: string[] = [];
   const existing: string[] = [];
-  for (const l of msg.split('\n')) (line.test(l) ? existing : kept).push(l);
-  if (existing.length === 1 && line.exec(existing[0])?.[1] === opts.value) {
+  const existingAlso: string[] = [];
+  for (const l of msg.split('\n')) {
+    const also = alsoLine?.exec(l);
+    if (line.test(l)) existing.push(l);
+    else if (also) existingAlso.push(also[1].trim());
+    else kept.push(l);
+  }
+  const receiptCurrent = existing.length === 1 && line.exec(existing[0])?.[1] === opts.value;
+  const alsoCurrent =
+    opts.also === undefined ||
+    (existingAlso.length === opts.also.values.length &&
+      existingAlso.every((v, i) => v === opts.also?.values[i]));
+  if (receiptCurrent && alsoCurrent) {
     return { amended: false };
   }
 
   const msgFile = join(mkdtempSync(join(tmpdir(), 'noldor-receipt-')), 'COMMIT_RECEIPT_MSG');
   writeFileSync(msgFile, kept.join('\n'), 'utf8');
+  const trailers = [
+    ...(opts.also?.values ?? []).map((v) => `${opts.also?.key}: ${v}`),
+    `${opts.key}: ${opts.value}`,
+  ].flatMap((t) => ['--trailer', t]);
+  // `--if-exists add`: two rulings may share a trailer text, and git's default drops a
+  // trailer identical to its neighbour. Every line the key owned was stripped above.
   execFileSync(
     'git',
-    ['interpret-trailers', '--in-place', '--trailer', `${opts.key}: ${opts.value}`, msgFile],
+    ['interpret-trailers', '--in-place', '--if-exists', 'add', ...trailers, msgFile],
     { cwd: opts.cwd },
   );
   execFileSync('git', ['commit', '--amend', '-F', msgFile], { cwd: opts.cwd });

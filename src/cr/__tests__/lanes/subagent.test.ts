@@ -12,6 +12,7 @@ vi.mock('../../../core/branch-added.js', () => ({
 }));
 import { discoverChangedFiles } from '../../../core/branch-added.js';
 
+import { fingerprintBlocker } from '../../fingerprint.js';
 import { setDispatcher } from '../../lanes/subagent-dispatch.js';
 import {
   normalizeFinding,
@@ -316,6 +317,98 @@ describe('runSubagent re-round (Q-0260)', () => {
     expect(j.blockers[0].file).toBe('<reviewer>');
     expect(j.blockers[0].message).toMatch(/no trustworthy answer/);
     expect(j.blockers.slice(1)).toEqual([p1, p2]);
+  });
+});
+
+describe("runSubagent — the series' decided findings (Q-0261)", () => {
+  // A reviewer blocker's sink form: `file` is the artifact label, critical maps to high.
+  const ruled = {
+    file: 'docs/design/plans/x.md',
+    severity: 'high' as const,
+    message: 'the fallback hides a failure',
+  };
+  const restated = {
+    severity: 'critical',
+    blocking: true,
+    class: 'design',
+    message: 'the fallback hides a failure',
+  };
+  const withDecided = (disposition: 'rejected' | 'fixed', holds?: boolean): LaneInput => ({
+    ...input(),
+    priorReview: {
+      mode: 'fixes-in-diff',
+      blockers: [],
+      decided: [
+        {
+          id: fingerprintBlocker(ruled),
+          finding: ruled,
+          disposition,
+          reason: 'intentional',
+          round: 1,
+          ...(holds === undefined ? {} : { holds }),
+        },
+      ],
+    },
+  });
+
+  it('files an exact restatement of a ruling that still holds as a suggestion, with a note', async () => {
+    dispatchSubagent.mockResolvedValueOnce(answer([restated], 'looks fine'));
+    const r = await runSubagent(withDecided('rejected', true));
+    expect(r.ok).toBe(true);
+    const j = await sinkOf(r);
+    expect(j.blockers).toEqual([]);
+    expect(j.suggestions).toEqual([{ ...ruled, class: 'design' }]);
+    expect(j.notes.join('\n')).toContain('restates settled S1 (rejected)');
+  });
+
+  it('keeps blocking a restatement of a fixed finding, or of a ruling that no longer holds', async () => {
+    for (const d of [withDecided('fixed'), withDecided('rejected', false)]) {
+      dispatchSubagent.mockResolvedValueOnce(answer([restated], 'the defect is back'));
+      const r = await runSubagent(d);
+      expect(r.ok).toBe(false);
+      expect((await sinkOf(r)).blockers.map((f: { message: string }) => f.message)).toEqual([
+        ruled.message,
+      ]);
+    }
+  });
+
+  it('shows the decided list to the reviewer even with no priors of its own', async () => {
+    dispatchSubagent.mockResolvedValueOnce(CLEAN);
+    await runSubagent(withDecided('rejected', true));
+    expect(dispatchSubagent.mock.calls[0][0].priorReview.decided).toHaveLength(1);
+  });
+
+  it('writes the priors it resolved into the sink, and no resolved key when none were', async () => {
+    const p1 = { file: 'docs/design/plans/x.md', severity: 'high' as const, message: 'p1' };
+    const p2 = { file: 'docs/design/plans/x.md', severity: 'med' as const, message: 'p2' };
+    const reRound: LaneInput = {
+      ...input(),
+      priorReview: { mode: 'fixes-in-diff', blockers: [p1, p2] },
+    };
+    const withPrior = (prior: unknown[]): string =>
+      JSON.stringify({ assessment: 'checked', strengths: 's', findings: [], prior });
+
+    dispatchSubagent.mockResolvedValueOnce(
+      withPrior([
+        { n: 1, resolved: true, why: 'the check is gone' },
+        { n: 2, resolved: false, why: 'still there' },
+      ]),
+    );
+    expect((await sinkOf(await runSubagent(reRound))).resolved).toEqual([
+      { finding: p1, why: 'the check is gone' },
+    ]);
+
+    dispatchSubagent.mockResolvedValueOnce(withPrior([{ n: 1, resolved: false, why: 'no' }]));
+    expect('resolved' in (await sinkOf(await runSubagent(reRound)))).toBe(false);
+  });
+
+  it('a failed dispatch writes no resolved list', async () => {
+    dispatchSubagent.mockRejectedValueOnce(new Error('claude not on PATH'));
+    const r = await runSubagent({
+      ...input(),
+      priorReview: { mode: 'fixes-in-diff', blockers: [ruled] },
+    });
+    expect('resolved' in (await sinkOf(r))).toBe(false);
   });
 });
 

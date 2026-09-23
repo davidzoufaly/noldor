@@ -4,7 +4,12 @@ import { makeCodexSpawn } from '../codex-adapter.js';
 import { openLane } from '../filename.js';
 import type { LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
-import { applyPriorAnswers, isLaneFailureBlocker, splitCarriedByBasis } from '../re-round.js';
+import {
+  applyPriorAnswers,
+  isLaneFailureBlocker,
+  splitCarriedByBasis,
+  splitSettled,
+} from '../re-round.js';
 import { reviewWithCodex } from '../review-with-codex.js';
 
 /**
@@ -50,17 +55,24 @@ export async function runCodex(input: LaneInput): Promise<LaneResult> {
   const failed = out.findings.some(isLaneFailureBlocker);
   const prior =
     input.priorReview === undefined
-      ? { carried: [], notes: [] }
+      ? { carried: [], resolved: [], notes: [] }
       : failed
-        ? { carried: input.priorReview.blockers, notes: [] }
+        ? { carried: input.priorReview.blockers, resolved: [], notes: [] }
         : applyPriorAnswers(input.priorReview.blockers, out.prior);
   // A failed review keeps every prior a blocker, for the next round to judge; one that ran applies
   // the spec-stage rule to the priors it carries (Q-0263).
   const carried = failed
     ? { blocking: prior.carried, demoted: [], notes: [] }
     : splitCarriedByBasis(input.priorReview?.blockers ?? [], prior.carried, input.kind);
-  const blockers = failed ? [...found, ...carried.blocking] : [...carried.blocking, ...found];
-  const notes = [...prior.notes, ...carried.notes];
+  // A new blocker that restates a ruling still holding is filed as a suggestion (Q-0261). Never on
+  // a failed review: its only blocker is the lane's own failure, which no ruling can settle.
+  const settled = failed
+    ? { blocking: found, demoted: [], notes: [] }
+    : splitSettled(found, input.priorReview?.decided ?? []);
+  const blockers = failed
+    ? [...settled.blocking, ...carried.blocking]
+    : [...carried.blocking, ...settled.blocking];
+  const notes = [...prior.notes, ...carried.notes, ...settled.notes];
 
   const payload: LaneFindings = {
     lane: 'codex',
@@ -68,9 +80,14 @@ export async function runCodex(input: LaneInput): Promise<LaneResult> {
     kind: input.kind,
     slug: input.slug,
     blockers,
-    suggestions: [...carried.demoted, ...out.findings.filter((f) => f.severity !== 'high')],
+    suggestions: [
+      ...carried.demoted,
+      ...settled.demoted,
+      ...out.findings.filter((f) => f.severity !== 'high'),
+    ],
     summary: out.summary,
     ...(notes.length > 0 ? { notes } : {}),
+    ...(prior.resolved.length > 0 ? { resolved: prior.resolved } : {}),
     startedAt,
     finishedAt: new Date().toISOString(),
     ...(scoped && input.baseSha !== undefined ? { baseSha: input.baseSha } : {}),

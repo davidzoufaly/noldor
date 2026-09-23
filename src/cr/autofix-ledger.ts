@@ -10,6 +10,10 @@ import { writeJsonAtomic } from './atomic-write.js';
 import { artifactKindSchema } from './findings-schema.js';
 import type { ArtifactKind, Finding } from './findings-schema.js';
 
+// Moved to a leaf module so the review lanes can use it (Q-0261); every caller that imported it
+// from here keeps doing so.
+export { fingerprintBlocker } from './fingerprint.js';
+
 /**
  * Maximum auto-fix rounds per gate session, per `slug`+`kind`. A CONSTANT, not a
  * config knob: `docs/vision.md` ("opinionated, not configurable") and one
@@ -171,9 +175,13 @@ export function quarantinePath(cwd: string, slug: Slug, kind: ArtifactKind): str
  * The SINGLE session-match predicate. Both {@link readLedger} and
  * {@link appendRound} route their session verdict through here: reader and
  * writer must key on the same value or the scoping is decorative, and two
- * hand-written comparisons can drift apart silently.
+ * hand-written comparisons can drift apart silently. The decision store
+ * (`decisions.ts`) scopes its series through here too, hence the narrow input.
  */
-export function isSameSeries(ledger: AutofixLedger, sessionStartedAt: string): boolean {
+export function isSameSeries(
+  ledger: Pick<AutofixLedger, 'sessionStartedAt'>,
+  sessionStartedAt: string,
+): boolean {
   return ledger.sessionStartedAt === sessionStartedAt;
 }
 
@@ -296,30 +304,6 @@ export function roundsExcludingHead(
   const current = rounds.findLast((r) => headMatches(r.headSha, headSha));
   if (!current) return rounds;
   return rounds.filter((r) => r !== current);
-}
-
-/**
- * Stable id for a SINGLE blocker — what R1 compares, what a signal points at,
- * and what an arbitration disposition keys on.
- *
- * Length-prefixed rather than `|`-joined: a message may itself contain `|`, so
- * a plain join lets two different findings encode identically. (The set-level
- * {@link fingerprintBlockers} below has the same latent ambiguity and is left
- * alone deliberately — changing it would invalidate every digest already
- * written to a ledger.)
- *
- * `line` is excluded for the same reason it is excluded there: an unrelated
- * edit elsewhere in the file shifts it, and an unfixed blocker must not
- * fingerprint as progress.
- *
- * The id identifies a LOGICAL finding, so the same blocker filed by two lanes
- * shares one. That is intended: the operator arbitrates the finding once, not
- * once per lane.
- */
-export function fingerprintBlocker(b: Finding): string {
-  const parts = [b.severity, b.file, b.message];
-  const encoded = parts.map((p) => `${p.length}:${p}`).join('');
-  return createHash('sha1').update(encoded).digest('hex');
 }
 
 /**
