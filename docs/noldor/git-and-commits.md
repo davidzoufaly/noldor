@@ -27,7 +27,7 @@ Noldor-Path: fast-track
 - Tokens are `noldor` (any page set) or `noldor:<slug>` with `<slug>` an existing page; every staged page must be covered by a token. Prefer the precise slug form.
 - Unknown slugs and malformed tokens fail the commit, same as subject scopes.
 - Page changelog derivation (`pnpm noldor changelog`) reads the trailer, so sibling pages keep their history.
-- Never auto-injected — add it deliberately; the `noldor-scope` failure message prints the exact trailer line to add.
+- Never auto-injected — add it deliberately. You hear about it before the commit: the `sibling-scope-trailer` rule (`.noldor/rules/sibling-scope-trailer.md`) is scoped to `docs/noldor/**/*.md`, so the gate's `pnpm noldor rules brief --file <page>` names it before the first edit to a page. The `noldor-scope` failure message still prints the exact trailer line as the backstop.
 - **A combined `/noldor-triage` + `/noldor-absorb` batch needs this trailer, every time.** Triage writes `docs/roadmap.md` + `ideas.md`; absorb writes `docs/noldor/*.md` and their `templates/docs/noldor/` twins. One batch, one commit — and `validate noldor-scope` then refuses `docs(triage)` on a diff touching `docs/noldor/`, demanding `docs(noldor)` or a sibling trailer. The diff is mixed (the roadmap/ideas edits sit outside `docs/noldor/`), so the trailer is honored; name every absorbed page:
 
   ```
