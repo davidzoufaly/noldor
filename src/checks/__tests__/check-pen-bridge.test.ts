@@ -14,6 +14,7 @@ import {
   penBridgeExitCode,
   renderPenBridgeRow,
   type PenBridgeRow,
+  type WindowProbe,
 } from '../check-pen-bridge.js';
 
 /** A pencil server entry with the given `args`, as it appears under `mcpServers`. */
@@ -94,6 +95,7 @@ function rows(
     platform: 'darwin',
     home: f.home,
     probeExtensions: extensions(probe),
+    probeWindows: oneWindow,
     readEnv: env(WORKING_ENTRYPOINT),
   });
 }
@@ -108,6 +110,9 @@ function extensions(probe: 'ok' | 'missing' | 'indeterminate') {
     probe === 'indeterminate' ? undefined : probe === 'ok' ? [PENCIL_EXTENSION_ID] : [];
 }
 
+/** One window holding the socket — the only layout the bridge is sure to serve. */
+const oneWindow: WindowProbe = () => ({ windows: 1, socketPids: [101] });
+
 /** The single harness row from a run under `entrypoint`. */
 function harnessRow(entrypoint: string | undefined): PenBridgeRow {
   const f = fixture({ user: pencil(['--app', 'visual_studio_code']) });
@@ -115,6 +120,7 @@ function harnessRow(entrypoint: string | undefined): PenBridgeRow {
     platform: 'darwin',
     home: f.home,
     probeExtensions: extensions('ok'),
+    probeWindows: oneWindow,
     readEnv: env(entrypoint),
   }).find((r) => r.kind.startsWith('harness-'));
   if (row === undefined) throw new Error('no harness row');
@@ -260,6 +266,7 @@ describe('checkPenBridge — the harness row', () => {
       platform: 'darwin',
       home: f.home,
       probeExtensions: extensions('ok'),
+      probeWindows: oneWindow,
       readEnv: env('claude-vscode'),
     });
     expect(found).toContainEqual({ kind: 'mcp-app-ok', source: 'user (~/.claude.json)' });
@@ -298,6 +305,7 @@ describe('checkPenBridge — the harness row', () => {
       platform: 'darwin',
       home: f.home,
       probeExtensions: extensions('ok'),
+      probeWindows: oneWindow,
       readEnv: env('claude-vscode'),
     });
     expect(first?.kind).toBe('harness-unsupported');
@@ -342,6 +350,55 @@ describe('checkPenBridge — the extension row', () => {
   });
 });
 
+describe('checkPenBridge — the window row', () => {
+  /** The window row from a run whose probe answers `found`. */
+  function windowsRow(found: ReturnType<WindowProbe>): PenBridgeRow {
+    const f = fixture({ user: pencil(['--app', EXPECTED_MCP_APP]) });
+    let asked: string | undefined;
+    const row = checkPenBridge(f.cwd, {
+      platform: 'darwin',
+      home: f.home,
+      probeExtensions: extensions('ok'),
+      probeWindows: (socketPath) => {
+        asked = socketPath;
+        return found;
+      },
+      readEnv: env(WORKING_ENTRYPOINT),
+    }).find((r) => r.kind.startsWith('windows-'));
+    if (row === undefined) throw new Error('no windows row');
+    // The socket the server derives from its --app, under the same home.
+    expect(asked).toBe(join(f.home, '.pencil', 'socket', `pencil-${EXPECTED_MCP_APP}.sock`));
+    return row;
+  }
+
+  // The deletion test: two windows, and the check names the count and the remedy
+  // instead of exiting 0 on a bridge that cannot see the operator's canvas.
+  it('reds on two windows, naming the count, the socket holders and the remedy', () => {
+    const row = windowsRow({ windows: 2, socketPids: [101, 202] });
+    expect(row).toEqual({ kind: 'windows-many', windows: 2, socketPids: [101, 202] });
+    expect(penBridgeExitCode([row])).toBe(1);
+    const out = renderPenBridgeRow(row);
+    expect(out).toContain('2 VS Code windows are open');
+    expect(out).toContain('held by pid 101, 202');
+    expect(out).toContain('single owner');
+    expect(out).toContain('Quit all but one VS Code window');
+  });
+
+  it.each([0, 1])('stays green on %i window(s)', (windows) => {
+    const row = windowsRow({ windows, socketPids: [] });
+    expect(row.kind).toBe('windows-ok');
+    expect(penBridgeExitCode([row])).toBe(0);
+    expect(renderPenBridgeRow(row)).toContain('no process holds');
+  });
+
+  // Same stance as every other row: an unanswered question is never a finding.
+  it('reports an unreadable process table as indeterminate, keeping the exit green', () => {
+    const row = windowsRow(undefined);
+    expect(row.kind).toBe('windows-indeterminate');
+    expect(penBridgeExitCode([row])).toBe(0);
+  });
+});
+
 describe('checkPenBridge — platform gating', () => {
   it.each(['linux', 'win32'])(
     'returns one not-applicable row on %s, probing nothing',
@@ -354,6 +411,10 @@ describe('checkPenBridge — platform gating', () => {
         probeExtensions: () => {
           probed = true;
           return [PENCIL_EXTENSION_ID];
+        },
+        probeWindows: () => {
+          probed = true;
+          return { windows: 1, socketPids: [] };
         },
       });
       expect(found).toEqual([{ kind: 'not-applicable', platform }]);
