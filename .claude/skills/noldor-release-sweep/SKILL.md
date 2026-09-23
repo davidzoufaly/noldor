@@ -1,6 +1,6 @@
 ---
 name: noldor-release-sweep
-description: Orchestrate the full pre-release sweep — /graphify (AST-only by default) → graph-to-toon → /noldor-refactor against the new GRAPH_REPORT.md → README drift check → /graphify + graph-to-toon to capture the refactor → commit sweep results → pause for explicit user confirmation → the release pipeline. Full-semantic graphify is an explicit opt-in (--full-semantic). Use when the user signals they're ready to release. Never runs pnpm release without explicit confirmation.
+description: Orchestrate the full pre-release sweep — /graphify (AST-only by default) → graph-to-toon → /noldor-refactor against the new GRAPH_REPORT.md (skipped when god nodes and cohesion are unchanged since the last tag; --refactor forces it) → README drift check → /graphify + graph-to-toon to capture the refactor → commit sweep results → pause for explicit user confirmation → the release pipeline. Full-semantic graphify is an explicit opt-in (--full-semantic). Use when the user signals they're ready to release. Never runs pnpm release without explicit confirmation.
 user_invocable: true
 ---
 
@@ -69,6 +69,18 @@ This regenerates `graphify-out/graph.brainstorm.toon`, `graphify-out/graph.brain
 
 ### 3. /noldor-refactor against the fresh GRAPH_REPORT
 
+**Precondition first.** Ask whether the graph shape moved since the last release:
+
+```bash
+pnpm noldor graphify refactor-precondition
+```
+
+It compares the fresh `graphify-out/GRAPH_REPORT.md` with the one committed at the last tag: the god-node *name* set (edge counts grow every release and are ignored) and the lowest community cohesion (a drop of 0.02 or more counts; a rise does not). Read the `verdict:` line it prints, not the exit code — `pnpm` reports every non-zero exit as 1, so the command's exit 10 for `skip` does not survive the wrapper.
+
+- `verdict: skip` → the pass would re-read the same deliberate utilities it has re-read before. Do not invoke `noldor-refactor`; say "Refactor pass skipped — <the reason line>" in the sweep summary and go to step 4.
+- `verdict: run`, or no `verdict:` line at all (the report could not be read) → invoke the refactor skill as below. A broken check falls back to running the pass, never to skipping it.
+- The operator asked for the pass anyway (`/noldor-release-sweep --refactor`, or the same request in conversation) → invoke it whatever the verdict says.
+
 Invoke the `noldor-refactor` skill (Skill tool, name `noldor-refactor`). Pass the freshly-generated `graphify-out/GRAPH_REPORT.md` as input. The skill identifies god nodes, low-cohesion communities, and dead exports flagged by the audit and proposes targeted fixes.
 
 **This is where the sweep can stretch into real work.** If the refactor skill produces structural changes, accept them and let it commit per its own conventions. If the refactor surfaces nothing actionable (clean audit), skip ahead — that's a valid outcome.
@@ -89,7 +101,7 @@ If README looks current, say so explicitly: "README reflects current state — n
 
 ### 5. Second graphify pass + toon
 
-Invoke the `graphify` skill again — same mode as step 1 (AST-only by default; full-semantic only if the operator opted in there) — to capture the refactor. Then re-run `pnpm noldor graphify graph-to-toon graphify-out/graph.json`. The post-refactor graph is the snapshot that ships with the release tag.
+Invoke the `graphify` skill again — same mode as step 1 (AST-only by default; full-semantic only if the operator opted in there) — to capture the refactor. Then re-run `pnpm noldor graphify graph-to-toon graphify-out/graph.json`. The post-refactor graph is the snapshot that ships with the release tag. When step 3 skipped the refactor pass, nothing changed since step 1 — skip this pass too.
 
 ### 5.5. Drift pre-empt — sdd:report
 

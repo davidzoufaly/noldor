@@ -724,6 +724,13 @@ FD phase + pointer maintenance used by `/noldor-gate` Step 4 and `/noldor-draft-
 - **Outputs:** adds FD / plan / spec doc nodes plus `plan-of` / `spec-of` edges to `graphify-out/graph.json` (post-processes the `/graphify` output).
 - **Source:** [`src/graphify/enrich-doc-nodes.ts`](../../src/graphify/enrich-doc-nodes.ts)
 
+### `graphify:refactor-precondition`
+
+- **Trigger:** `pnpm noldor graphify refactor-precondition` (`--report <path>` defaults to `graphify-out/GRAPH_REPORT.md`; `--since <ref>` defaults to the last tag). Run by `/noldor-release-sweep` step 3.
+- **Inputs:** the current report and the same report as committed at `<ref>`.
+- **Outputs:** a `verdict: run|skip` line, the baseline ref, and the reason. `skip` when the god-node name set is unchanged and the lowest community cohesion did not fall by 0.02 or more; `run` otherwise, including when the ref has no readable report. Exit 0 = run, 10 = skip, 2 = the current report is unreadable — but `pnpm` reports any non-zero exit as 1, so callers read the `verdict:` line.
+- **Source:** [`src/graphify/refactor-precondition.ts`](../../src/graphify/refactor-precondition.ts)
+
 ## Testing harness
 
 Framework self-test layer: a generated fixture-consumer repo (the *contract*) plus headless skill-flow runs (the *e2e layer*). Closes the PR-#33-class blind spot where a headless gate change shipped broken because no test drove the real flow. Builders live in `src/testing/`; see [testing-principles.md](./testing-principles.md#framework-self-test).
