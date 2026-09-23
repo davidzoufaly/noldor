@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Stale-Base Two-Dot Diffs Hand CR Lanes Foreign Changes
-
-- id: Q-0265
-- area: tooling
-- type: fix
-- since: 2026-09-23
-- size: S
-- impact: med
-- split-from: Q-0262
-- recovered: 2026-09-23
-
-A CR lane reviews `<base>..<head>` — the reviewer prompt names `${baseSha}..${headSha}` (`src/cr/lanes/subagent-dispatch.ts`), codex diffs `${review.baseSha}..HEAD` (`src/cr/review-with-codex.ts`), and the `range` lane in `src/cr/context.ts` diffs `${lane.from}..${lane.to}`. `git diff A..B` compares two trees, so once `origin/main` has moved past the branch's fork point the diff also carries main's newer commits, reversed, and a reviewer files blockers against code the branch never touched. Charuy hit this on #214 and #109. Diff from the merge-base instead (`A...B`, or one `git merge-base` resolved in orchestrate and handed to every lane), so each lane sees only the branch's own change. Deletion test: a branch whose base is behind `origin/main` gets a review diff that contains only its own commits' changes. (split from Q-0262, 2026-09-23)
-
 ### Path Pick Cannot See the Shared-File Block
 
 - id: Q-0244

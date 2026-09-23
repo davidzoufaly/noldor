@@ -159,6 +159,28 @@ async function isEmptyDiffDefault(
   }
 }
 
+/**
+ * The fork point of `baseSha` and `headSha`. Every lane reviews `<base>..<head>`, a two-tree
+ * comparison: once `--base-sha origin/main` has moved past the branch's fork point, that range
+ * also carries main's newer commits, reversed, and a reviewer files blockers against code the
+ * branch never touched (Q-0265). Resolved once here so every lane — and the empty-diff check —
+ * sees only the branch's own change. A base already on the branch (a delta re-round) is its own
+ * merge-base, so this changes nothing there. Falls back to `baseSha` when git cannot answer.
+ */
+async function resolveMergeBaseDefault(
+  repoRoot: string,
+  baseSha: string,
+  headSha: string,
+): Promise<string> {
+  if (headSha === '') return baseSha;
+  try {
+    const r = await execAsync('git', ['merge-base', baseSha, headSha], { cwd: repoRoot });
+    return r.stdout.trim() || baseSha;
+  } catch {
+    return baseSha;
+  }
+}
+
 async function writeSyntheticOk(input: LaneInput, lane: Lane): Promise<LaneResult> {
   const sinkPath = join(
     input.repoRoot,
@@ -353,6 +375,7 @@ export interface RunOpts {
   ) => Promise<boolean>;
   /** Injection seam for the prior-sink read (tests assert read counts through it). */
   readPriorSink?: ReadPriorSink;
+  resolveMergeBase?: (repoRoot: string, baseSha: string, headSha: string) => Promise<string>;
 }
 
 export interface RunResult {
@@ -945,6 +968,9 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     await writeExpectedLanes(cwd, opts.args.slug, opts.args.kind, requested, headSha);
   }
 
+  const baseSha = opts.args.baseSha
+    ? await (opts.resolveMergeBase ?? resolveMergeBaseDefault)(cwd, opts.args.baseSha, headSha)
+    : undefined;
   const input: LaneInput = {
     slug: opts.args.slug,
     artifact: opts.args.artifact,
@@ -954,7 +980,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     repoRoot: cwd,
     reviewProfile,
     dispatchTimeoutMs: resolveDispatchTimeoutMs(cfg),
-    ...(opts.args.baseSha ? { baseSha: opts.args.baseSha } : {}),
+    ...(baseSha ? { baseSha } : {}),
     ...(opts.args.fullReview ? { fullReview: true } : {}),
   };
 

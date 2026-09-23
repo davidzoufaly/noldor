@@ -45,8 +45,8 @@ describe('buildContext', () => {
     expect(ctx.diff).toBe('SHA_DIFF');
   });
 
-  it('range lane uses <from>..<to>', () => {
-    const git = fakeGit({ [withExcludes('diff aaa..bbb')]: 'RANGE' });
+  it('range lane diffs from the merge-base (<from>...<to>)', () => {
+    const git = fakeGit({ [withExcludes('diff aaa...bbb')]: 'RANGE' });
     const ctx = buildContext({
       lane: { kind: 'range', from: 'aaa', to: 'bbb' },
       runGit: git,
