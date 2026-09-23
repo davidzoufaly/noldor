@@ -89,6 +89,9 @@ pre-commit:
           - name: script-catalog
             glob: '{src/cli/manifest.ts,docs/noldor/script-catalog.md}'
             run: pnpm noldor validate script-catalog
+          - name: capability-index
+            glob: '{src/cli/manifest.ts,AGENTS.md,templates/AGENTS.md}'
+            run: pnpm noldor docs capability-index
           - name: triage
             glob: 'docs/{roadmap,backlog}.md'
             run: pnpm noldor triage validate

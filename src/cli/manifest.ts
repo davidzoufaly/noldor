@@ -421,6 +421,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'docs/docs-architecture.ts',
         desc: 'Check the architecture diagram pages',
       },
+      'capability-index': {
+        src: 'docs/capability-index.ts',
+        desc: 'Check (or --write) the generated verb-group index in AGENTS.md + its template',
+      },
     },
   },
   worktrees: {
