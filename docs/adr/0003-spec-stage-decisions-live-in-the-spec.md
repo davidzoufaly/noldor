@@ -1,6 +1,7 @@
 ---
-status: accepted
+status: superseded
 date: 2026-09-23
+superseded-by: '0004'
 ---
 
 # Spec-Stage Decisions Live in the Spec
