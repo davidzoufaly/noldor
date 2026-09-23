@@ -40,6 +40,7 @@ vi.mock('../lanes/codex.js', () => ({ runCodex: laneMock('codex') }));
 import { readDecisions, updateDecisions, upsertDecision } from '../decisions.js';
 import type { Decision } from '../decisions.js';
 import { fingerprintBlocker } from '../fingerprint.js';
+import { setJudgeDispatcher } from '../judge.js';
 import { runCodex } from '../lanes/codex.js';
 import { runSubagent } from '../lanes/subagent.js';
 import { run } from '../orchestrate.js';
@@ -75,8 +76,13 @@ beforeEach(() => {
   script.codex = [];
   vi.mocked(runSubagent).mockClear();
   vi.mocked(runCodex).mockClear();
+  // The refutation judge (Q-0262) upholds every blocker, so each round keeps the lanes' verdict.
+  setJudgeDispatcher(async (input) =>
+    JSON.stringify({ verdicts: input.blockers.map((_, i) => ({ n: i + 1, verdict: 'stands' })) }),
+  );
 });
 afterEach(() => {
+  setJudgeDispatcher(undefined);
   rmSync(root, { recursive: true, force: true });
 });
 

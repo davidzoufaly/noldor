@@ -1,4 +1,4 @@
-// @tests: noldor, spec-stage-cr-stopping-rule
+// @tests: noldor, spec-stage-cr-stopping-rule, refutation-judge-pass-before-a-blocker-can-red-a-round
 import { execFile, execFileSync } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -23,6 +23,35 @@ afterEach(async () => {
 });
 
 describe('aggregate CLI', () => {
+  it('prints a refuted blocker with its reason and evidence, and never gates on it (Q-0262)', async () => {
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-code-codex.json'),
+      JSON.stringify({
+        lane: 'codex',
+        artifact: 'src/a.ts',
+        kind: 'code',
+        slug: 'x',
+        blockers: [],
+        suggestions: [],
+        refuted: [
+          {
+            finding: { file: 'src/a.ts', severity: 'high', message: 'run never checks retries' },
+            why: 'run returns early unless retries is positive',
+            evidence: [{ file: 'src/a.ts', line: 3, quote: 'if (retries > 0) return retry();' }],
+          },
+        ],
+        summary: 'blockers found — judge refuted 1 of 1',
+        startedAt: '2026-09-23T00:00:00.000Z',
+        finishedAt: '2026-09-23T00:00:05.000Z',
+      }),
+    );
+    const r = await exec(TSX, [CLI, '--slug', 'x', '--kind', 'code'], { cwd: root });
+    expect(r.stdout).toMatch(/ok=true/);
+    expect(r.stdout).toMatch(
+      /refuted.*\[high\] codex src\/a\.ts: run never checks retries.*run returns early unless retries is positive.*src\/a\.ts:3/,
+    );
+  });
+
   it('exits 0 when clean', async () => {
     await copyFile(
       join(FIX, 'findings-clean.json'),

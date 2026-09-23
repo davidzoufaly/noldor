@@ -10,11 +10,12 @@ import { replaceReceiptTrailer } from './receipt-trailer.js';
  * `Noldor-Reviewed`.
  *
  * `also` rides the same amend: orchestrate passes the session's
- * `Noldor-CR-Settled:` lines (Q-0261), so this stays a leaf that reads no CR state.
+ * `Noldor-CR-Settled:` (Q-0261) and `Noldor-CR-Refuted:` (Q-0262) lines, so this
+ * stays a leaf that reads no CR state.
  */
 export function amendSubagentReceipt(opts: {
   cwd: string;
-  also?: { key: string; values: readonly string[] };
+  also?: readonly { key: string; values: readonly string[] }[];
 }): { amended: boolean; tree: string } {
   const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], {
     cwd: opts.cwd,

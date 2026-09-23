@@ -12,6 +12,9 @@ export const AGENT_ROLES = [
   // Exists so a consumer can pin it to a pencil-capable runner.
   'render-compare',
   'researcher',
+  // The CR refutation judge (Q-0262) — tries to refute a round's blockers before the verdict.
+  // Its own role so a consumer can pin it to a cheaper model than the reviewer's.
+  'judge',
 ] as const;
 export type AgentRole = (typeof AGENT_ROLES)[number];
 

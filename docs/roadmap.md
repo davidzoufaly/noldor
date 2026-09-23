@@ -16,19 +16,31 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Refutation Judge Pass Before a Blocker Can Red a Round
+### Framework-Only Rules Leak Into Consumer Review Context
 
-- id: Q-0262
+- id: Q-0264
 - area: tooling
 - type: fix
 - since: 2026-09-23
-- size: M
+- size: S
 - impact: med
-- confidence: med
-- split-from: Q-0250
+- split-from: Q-0262
 - recovered: 2026-09-23
 
-Some blockers are simply wrong, and today nothing checks a claim before it turns a round red. In Charuy, 51 blockers (2.2%) contradicted the code they cited. 92% of them came from codex, and several were repeated across rounds: "announces its runId" kept coming back after a rebuttal (#179), and "upgrades unrelated dependencies" was filed although the base lockfile already had those versions (#126). In Noldor, codex's "placeholder classification can never succeed" was false five rounds in a row (#405). The panther claude-reviewer (gooddata/gdc-mastercard-panther `.github/claude-reviewer`) handles this with a judge: a cheap second model reads the diff plus the emitted findings and tries to refute each one with concrete contrary evidence. It drops only refuted findings and fails open, keeping everything when the result is inconclusive or the judge errors. Add the same pass after the lanes finish and before aggregate. A refuted blocker is demoted to a note that carries the judge's evidence, never silently dropped. Context leaks cause part of this class and may deserve their own fix. A framework-only rule vendored into a consumer's `.claude/engineering-rules.md` produced 27 Charuy blockers demanding a `templates/` twin in a repo that has none. Stale-base two-dot diffs caused others (#214, #109). Deletion test: a blocker whose cited line contradicts its claim is demoted, with the judge's evidence attached.
+A rule written for the framework repo reaches a consumer's CR lanes as if the consumer had written it. `templates/.claude/engineering-rules.md` is vendored into every consumer's `.claude/engineering-rules.md`, and it still carries framework-only prose — `templates/.oxlintrc.json` as a scaffold twin "kept byte-identical" with the root config — which the codex lane reads as review context (`readRules` in `src/cr/review-with-codex.ts`). In Charuy that produced 27 blockers demanding a `templates/` twin in a repo that has none. The refutation judge (Q-0262) can demote such a blocker after the fact, but each one still costs a lane round and a judge call. Fix it at the source: mark framework-only rule text so it is not vendored, or strip it at scaffold and upgrade time. Deletion test: a consumer with no `templates/` tree is never handed a rule that demands a `templates/` twin. (split from Q-0262, 2026-09-23)
+
+### Stale-Base Two-Dot Diffs Hand CR Lanes Foreign Changes
+
+- id: Q-0265
+- area: tooling
+- type: fix
+- since: 2026-09-23
+- size: S
+- impact: med
+- split-from: Q-0262
+- recovered: 2026-09-23
+
+A CR lane reviews `<base>..<head>` — the reviewer prompt names `${baseSha}..${headSha}` (`src/cr/lanes/subagent-dispatch.ts`), codex diffs `${review.baseSha}..HEAD` (`src/cr/review-with-codex.ts`), and the `range` lane in `src/cr/context.ts` diffs `${lane.from}..${lane.to}`. `git diff A..B` compares two trees, so once `origin/main` has moved past the branch's fork point the diff also carries main's newer commits, reversed, and a reviewer files blockers against code the branch never touched. Charuy hit this on #214 and #109. Diff from the merge-base instead (`A...B`, or one `git merge-base` resolved in orchestrate and handed to every lane), so each lane sees only the branch's own change. Deletion test: a branch whose base is behind `origin/main` gets a review diff that contains only its own commits' changes. (split from Q-0262, 2026-09-23)
 
 ### Path Pick Cannot See the Shared-File Block
 

@@ -25,25 +25,26 @@ import { join } from 'node:path';
  * `Noldor-Reviewed-Subagent`); it is matched case-insensitively, like git's own
  * trailer-token matching.
  *
- * `also` names trailers kept in step with the receipt (Q-0261's
- * `Noldor-CR-Settled:`): every existing `also.key` line is replaced by
- * `also.values`, in order, even when the receipt value is unchanged, and the
- * amend is still a no-op when both already match. Without `also`, such lines are
- * left alone.
+ * `also` names trailer families kept in step with the receipt (Q-0261's
+ * `Noldor-CR-Settled:`, Q-0262's `Noldor-CR-Refuted:`): every existing line of
+ * each listed key is replaced by that key's `values`, in order, even when the
+ * receipt value is unchanged, and the amend is still a no-op when all of them
+ * already match. A key left out of `also` keeps its lines untouched.
  */
 export function replaceReceiptTrailer(opts: {
   cwd: string;
   key: string;
   value: string;
-  also?: { key: string; values: readonly string[] };
+  also?: readonly { key: string; values: readonly string[] }[];
 }): {
   amended: boolean;
 } {
   const line = new RegExp(`^${RegExp.escape(opts.key)}:[ \\t]*(\\S*)`, 'i');
-  const alsoLine =
-    opts.also === undefined
-      ? null
-      : new RegExp(`^${RegExp.escape(opts.also.key)}:[ \\t]*(.*)$`, 'i');
+  const families = (opts.also ?? []).map((a) => ({
+    ...a,
+    line: new RegExp(`^${RegExp.escape(a.key)}:[ \\t]*(.*)$`, 'i'),
+    existing: [] as string[],
+  }));
 
   const msg = execFileSync('git', ['log', '-1', '--format=%B'], {
     cwd: opts.cwd,
@@ -52,18 +53,19 @@ export function replaceReceiptTrailer(opts: {
 
   const kept: string[] = [];
   const existing: string[] = [];
-  const existingAlso: string[] = [];
   for (const l of msg.split('\n')) {
-    const also = alsoLine?.exec(l);
-    if (line.test(l)) existing.push(l);
-    else if (also) existingAlso.push(also[1].trim());
+    if (line.test(l)) {
+      existing.push(l);
+      continue;
+    }
+    const hit = families.map((f) => ({ f, m: f.line.exec(l) })).find((x) => x.m !== null);
+    if (hit?.m) hit.f.existing.push(hit.m[1].trim());
     else kept.push(l);
   }
   const receiptCurrent = existing.length === 1 && line.exec(existing[0])?.[1] === opts.value;
-  const alsoCurrent =
-    opts.also === undefined ||
-    (existingAlso.length === opts.also.values.length &&
-      existingAlso.every((v, i) => v === opts.also?.values[i]));
+  const alsoCurrent = families.every(
+    (f) => f.existing.length === f.values.length && f.existing.every((v, i) => v === f.values[i]),
+  );
   if (receiptCurrent && alsoCurrent) {
     return { amended: false };
   }
@@ -71,7 +73,7 @@ export function replaceReceiptTrailer(opts: {
   const msgFile = join(mkdtempSync(join(tmpdir(), 'noldor-receipt-')), 'COMMIT_RECEIPT_MSG');
   writeFileSync(msgFile, kept.join('\n'), 'utf8');
   const trailers = [
-    ...(opts.also?.values ?? []).map((v) => `${opts.also?.key}: ${v}`),
+    ...families.flatMap((f) => f.values.map((v) => `${f.key}: ${v}`)),
     `${opts.key}: ${opts.value}`,
   ].flatMap((t) => ['--trailer', t]);
   // `--if-exists add`: two rulings may share a trailer text, and git's default drops a

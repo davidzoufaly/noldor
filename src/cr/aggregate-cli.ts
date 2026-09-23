@@ -88,6 +88,14 @@ async function main() {
           `  [${b.severity}]${b.basis ? `[${b.basis}]` : ''} ${b.lane} ${b.file}: ${b.message}`,
         );
       }
+      // Demoted by the refutation judge (Q-0262): shown with the evidence, so a wrong refutation
+      // can be spotted, but never gating.
+      for (const x of r.refuted) {
+        const where = x.evidence.map((e) => `${e.file}:${e.line}`).join(', ');
+        console.log(
+          `  refuted, not gating: [${x.finding.severity}] ${x.lane} ${x.finding.file}: ${x.finding.message} — judge: ${x.why} (${where})`,
+        );
+      }
       // Printed AFTER the findings it qualifies: the whole point is that the
       // lines above are not about the current tree, and a caveat ahead of the
       // thing it caveats reads as unrelated preamble.

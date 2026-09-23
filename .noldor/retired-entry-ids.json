@@ -459,5 +459,9 @@
     "slug": "cr-finding-identity-and-settled-decisions-across-rounds-and-lanes",
     "retiredInto": "cr-re-round-cap-enforcement-and-oscillation-detector",
     "retiredAt": "2026-09-23"
+  },
+  "Q-0262": {
+    "slug": "refutation-judge-pass-before-a-blocker-can-red-a-round",
+    "retiredAt": "2026-09-23"
   }
 }

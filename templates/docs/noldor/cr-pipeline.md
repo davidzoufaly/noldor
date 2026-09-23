@@ -220,6 +220,60 @@ inherit them, `reviewer` and `codex`, and both render one contract from `src/cr/
 Whoever writes the fix works to the rule `cr autofix plan` prints as its `fix-rule:` line: make
 the smallest change that resolves the blocker, and prefer deleting a claim to adding one.
 
+## Refutation judge
+
+After a round's lanes settle, and before anything reads its verdict, `cr orchestrate` puts every
+blocker the `reviewer` and `codex` lanes filed to one judge dispatch (Q-0262, `src/cr/judge.ts`).
+The judge's only job is catching blockers that are wrong: misread code, a "missing" thing that is
+present, a claim the repository contradicts. It filters out hallucinations and gives no second
+opinion, so a true claim it thinks should not block stands, and so does a real defect with a bad
+suggested fix.
+
+A blocker is demoted only when both of these hold:
+
+- the judge answered it exactly once, with `refuted` and a reason;
+- it cited at least one quote, and every quote matches the file it names **at the reviewed commit**,
+  starting within 3 lines of the line it names. A quote needs at least 10 non-whitespace characters,
+  and lines are compared trimmed, with runs of whitespace collapsed.
+
+Evidence is read at head only. Text that exists only before the change is what a regression blocker
+cites, so evidence read from the base would let a judge that misread the diff demote a true
+blocker. For the same reason, a claim about what the change did to its base stands.
+
+Every failure falls back to the lanes' verdict. A spawn failure, a timeout, an answer still
+malformed after the one repair round, or a quote that does not verify leaves the blockers where the
+lanes wrote them and adds a `judge:` note to the sink. The judge never sees:
+
+- suggestions;
+- a lane's own failure blocker (`<reviewer>` / `<codex>`);
+- anything from the `manual`, `verifier`, `ui-reviewer` or `render-compare` lanes.
+
+A demoted blocker moves out of `blockers` into the sink's `refuted` list, whole, with the judge's
+reason and evidence. Everything downstream reads the sinks as the judge left them: the exit code,
+the receipt amend, the round ledger, `cr autofix plan`, the arbitration skeleton and the next
+round's priors. The judge keeps no memory across rounds, so a lane that files a refuted claim again
+is judged again.
+
+Where a refutation shows:
+
+- `cr orchestrate` prints one `judge:` line, either `refuted <k> of <n>`, `skipped — …` or
+  `failed — every blocker stands (…)`.
+- `cr aggregate` lists each refuted blocker after the standing ones, marked `refuted, not gating`,
+  with the reason and the evidence location. Read those lines: a verified quote proves the text is
+  there, not that it contradicts the claim.
+- The code receipt carries one `Noldor-CR-Refuted: <kind> <lane> <id12> — <why>` trailer per
+  refutation of the session. A round the judge turned green does not read in git as a clean review.
+
+`agents.roles.judge` pins the judge's runner and model. Without it, the judge runs on the default
+runner. `crReview.judge: false` turns the judge off. Each child the dispatch spawns is capped at the
+smaller of 300 s and `crReview.dispatchTimeoutMs`.
+
+**In tests.** An orchestrate test whose round files a reviewer or codex blocker reaches the judge,
+and with no double installed the judge spawns a real agent. Install one with `setJudgeDispatcher`.
+`src/cr/__tests__/settled-findings.integration.test.ts` shows one that upholds every blocker, so the
+round keeps the lanes' verdict. The other way is to write `crReview.judge: false` into the test
+repo's config.
+
 ## Escalation
 
 When aggregate surfaces a blocker, control passes to

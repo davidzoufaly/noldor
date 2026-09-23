@@ -73,6 +73,17 @@ export const autofixRoundSchema = z.object({
    */
   signals: z.array(z.record(z.unknown())).optional(),
   /**
+   * The blockers this round's refutation judge demoted (Q-0262), by {@link fingerprintBlocker}
+   * id. Recorded here because the lane sinks are overwritten every round: the code receipt
+   * names every refutation of the session, and this is the only place an earlier round's
+   * survives. Optional so every ledger written before the judge existed still parses.
+   */
+  refuted: z
+    .array(
+      z.object({ id: z.string().min(1), lane: z.enum(['reviewer', 'codex']), why: z.string() }),
+    )
+    .optional(),
+  /**
    * Whether the round found anything. `green` only when at least one lane wrote
    * a sink and none of those filed a real finding. An unresolved lane no longer
    * makes a round red on its own — the verdict comes from what was FILED — but a

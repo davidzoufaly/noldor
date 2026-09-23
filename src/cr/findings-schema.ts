@@ -50,6 +50,25 @@ export const findingSchema = z.object({
 });
 export type Finding = z.infer<typeof findingSchema>;
 
+/**
+ * One quote a refutation rests on (Q-0262): the file, the line the quote starts at, and the
+ * text. Code checks the quote there, in the commit the round reviewed, before it demotes.
+ */
+export const refutationEvidenceSchema = z.object({
+  file: z.string().min(1),
+  line: z.number().int().positive(),
+  quote: z.string().min(1),
+});
+export type RefutationEvidence = z.infer<typeof refutationEvidenceSchema>;
+
+/** A blocker the refutation judge demoted, kept whole beside its evidence so it can be audited. */
+export const refutedFindingSchema = z.object({
+  finding: findingSchema,
+  why: z.string(),
+  evidence: z.array(refutationEvidenceSchema),
+});
+export type RefutedFinding = z.infer<typeof refutedFindingSchema>;
+
 export const verifyVerdictValueSchema = z.enum(['pass', 'fail', 'cannot-verify']);
 export type VerifyVerdictValue = z.infer<typeof verifyVerdictValueSchema>;
 
@@ -145,6 +164,9 @@ export const laneFindingsSchema = z.object({
   // each one as a `fixed` decision for later rounds. Optional, like every field added after the
   // first sinks were written, so they still parse; absent when nothing was resolved.
   resolved: z.array(z.object({ finding: findingSchema, why: z.string() })).optional(),
+  // Blockers the refutation judge demoted on verified evidence (Q-0262). Optional for the same
+  // reason as `resolved`: every sink written before the judge existed must still parse.
+  refuted: z.array(refutedFindingSchema).optional(),
   baseSha: z.string().optional(),
   fullReview: z.boolean().optional(),
   // Lane verdict payload (absent on the lanes that carry none). A union of the two
