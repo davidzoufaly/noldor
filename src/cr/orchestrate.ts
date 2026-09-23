@@ -1107,9 +1107,15 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   if (exitCode === 0 && opts.args.kind === 'code' && lanesRun.includes('reviewer')) {
     try {
       // The receipt names every ruling of the session (Q-0261): a round that went
-      // green on a disposed blocker must not read in git as a clean review.
+      // green on a disposed blocker must not read in git as a clean review. With no
+      // rulings to name, the tip's existing lines are left alone: a receipt re-minted
+      // after the gate's clean-exit cleanup has removed the stores, or in a resumed
+      // session, must not erase the rulings an earlier round already named.
       const values = await settledTrailers(cwd, opts.args.slug, roundKey);
-      amendSubagentReceipt({ cwd, also: { key: SETTLED_TRAILER, values } });
+      amendSubagentReceipt({
+        cwd,
+        ...(values.length > 0 ? { also: { key: SETTLED_TRAILER, values } } : {}),
+      });
     } catch (err) {
       console.error(`receipt amend failed: ${(err as Error).message}`);
       exitCode = 1;

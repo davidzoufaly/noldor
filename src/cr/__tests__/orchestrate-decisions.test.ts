@@ -253,4 +253,25 @@ describe('a green code round names every ruling of the session on its receipt (Q
     expect(r.exitCode).toBe(0);
     expect(settledLines()).toEqual([]);
   });
+
+  it('keeps the ruling trailers a re-minted receipt finds on the tip once the stores are gone', async () => {
+    await decide('code', { finding: X });
+    expect(
+      (await run({ args: args({ kind: 'code', lanes: ['reviewer'] }), cwd: root })).exitCode,
+    ).toBe(0);
+    const named = settledLines();
+    expect(named).toHaveLength(1);
+    // The gate's clean-exit cleanup removes the stores; a later fix amended into the tip
+    // re-mints the receipt.
+    rmSync(join(root, '.noldor', 'cr', 'decisions'), { recursive: true, force: true });
+    writeFileSync(join(root, 'src', 'a.ts'), 'line 1\nline 2\nline 3\nline 4\n');
+    git('add', '-A');
+    git('commit', '-q', '--amend', '--no-edit', '--no-verify');
+    const r = await run({
+      args: args({ kind: 'code', lanes: ['reviewer'], headSha: git('rev-parse', 'HEAD') }),
+      cwd: root,
+    });
+    expect(r.exitCode).toBe(0);
+    expect(settledLines()).toEqual(named);
+  });
 });
