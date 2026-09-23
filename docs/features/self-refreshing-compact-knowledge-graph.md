@@ -10,14 +10,14 @@ links:
     - src/templates/manifest.ts
     - templates/.github/workflows/update-knowledge-graph.yml
   spec: >-
-    docs/design/specs/2026-09-22-self-refreshing-compact-knowledge-graph-design.md
+    docs/design/specs/archive/2026-09-22-self-refreshing-compact-knowledge-graph-design.md
   tests:
     - src/graphify/__tests__/graph-to-toon.test.ts
     - src/templates/__tests__/templates.test.ts
 name: 'Self-Refreshing, Compact Knowledge Graph'
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
 ## Summary
@@ -57,7 +57,7 @@ instead of a 697 KB file — or, worse, reason from a graph that no longer match
 ```bash
 # Consumers get the workflow from init. It is scaffold-only, so your edits survive.
 pnpm noldor init            # writes .github/workflows/update-knowledge-graph.yml
-pnpm noldor init --update   # never overwrites a modified copy
+pnpm noldor init --update   # never overwrites an existing copy
 
 # Locally nothing changes — the renderer just emits v3 now
 pnpm noldor graphify graph-to-toon graphify-out/graph.json
@@ -82,8 +82,11 @@ Reading one community means taking its line range from the `toc` block at the to
   c85: 1204-1231
 ```
 
-Agent API: a pure render function in `src/graphify/graph-to-toon.ts` takes a parsed graph
-object and returns the `.toon` text without writing a file; the CLI reads, calls, writes.
+**Agent/Programmatic API** — all in `src/graphify/graph-to-toon.ts`:
+
+- `buildContext(data)` turns a parsed `graph.json` into the context both renderers read.
+- `renderBrainstormToon(ctx)` and `renderBrainstormSummary(ctx)` return the two `.toon`
+  texts without touching disk; the CLI reads the file, calls them, and writes the results.
 
 ## PRs
 
