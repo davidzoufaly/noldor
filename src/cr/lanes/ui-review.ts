@@ -50,7 +50,7 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
           fdSummary: design.fdSummary,
           ...cap,
         },
-        { repoRoot: input.repoRoot, slug: input.slug, kind: input.kind },
+        input,
       );
     } catch (err) {
       dispatchFailure = {

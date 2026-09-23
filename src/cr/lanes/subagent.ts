@@ -176,7 +176,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
         ...(input.priorReview !== undefined ? { priorReview: input.priorReview } : {}),
         ...(input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {}),
       },
-      { repoRoot: input.repoRoot, slug: input.slug, kind: input.kind },
+      input,
     );
   } catch (err) {
     const errMsg = (err as NodeJS.ErrnoException).message ?? String(err);

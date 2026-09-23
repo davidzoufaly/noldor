@@ -3,6 +3,7 @@ import type { VerifySurface } from '../../core/consumer-config.js';
 import { verifyEvidenceSchema, verifyVerdictValueSchema } from '../findings-schema.js';
 import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
 import { createAnswerSeam } from '../lane-spawn.js';
+import { repairEvidence } from './prompt-parts.js';
 
 /**
  * The verifier's answer. The refinement ties the verdict to its mismatches: a `pass` that
@@ -83,11 +84,7 @@ Hard rules:
 export function buildVerifyRepairPrompt(ctx: RepairContext): string {
   return `A previous Acceptance Verifier finished its work, but its answer was rejected: ${ctx.error}. Your ONLY job is to restate that verifier's conclusion as a valid answer — do not re-verify, do not boot anything, do not judge the change yourself.
 
-Its rejected answer:
-${ctx.rejected ?? '(it wrote no answer file)'}
-
-Its output:
-${ctx.stdout.trim() === '' ? '(none captured)' : ctx.stdout}
+${repairEvidence(ctx)}
 
 Transcription rules:
 1. Report the verdict that verifier actually reached. Never upgrade a partial, hedged, or ambiguous report into \`pass\`.
@@ -106,14 +103,8 @@ export const VERIFY_ANSWER: LaneAnswerContract<VerifyVerdict> = {
 };
 
 const seam = createAnswerSeam<VerifyDispatchInput, VerifyVerdict>(buildVerifyPrompt, {
-  role: 'verifier',
   site: 'cr.verify-dispatch',
   contract: VERIFY_ANSWER,
-  onFailure: (f) => {
-    throw new Error(
-      `verify dispatch failed: ${f.detail ?? `exit ${f.exitCode}`}${f.timedOut ? ' (timeout)' : ''}`,
-    );
-  },
 });
 
 /** Test seam, mirroring subagent-dispatch's setDispatcher. */

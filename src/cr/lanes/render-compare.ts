@@ -233,7 +233,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
               ? { timeoutMs: input.dispatchTimeoutMs }
               : {}),
           },
-          { repoRoot: input.repoRoot, slug: input.slug, kind: input.kind },
+          input,
         );
       } catch (err) {
         exportFailure =

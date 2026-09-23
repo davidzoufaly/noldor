@@ -1,3 +1,4 @@
+import type { AgentRole } from '../core/agent-runner/types.js';
 import type { Slug } from '../core/slug.js';
 import type { ArtifactKind } from './findings-schema.js';
 
@@ -45,8 +46,8 @@ export interface SafeParser<T> {
 
 /** What a lane's child must hand back, and how to read it. */
 export interface LaneAnswerContract<T> {
-  /** Lane segment of the answer file name, e.g. `verifier`. */
-  lane: string;
+  /** The role the lane's child runs as, and the lane segment of its answer file name, e.g. `verifier`. */
+  lane: AgentRole;
   /** Schema sketch rendered into the answer instruction. */
   shape: string;
   schema: SafeParser<T>;

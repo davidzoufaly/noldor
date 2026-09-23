@@ -5,6 +5,7 @@
 // agree, so they are worth keeping within one edit of each other.
 
 import type { RunnerCapabilities } from '../../core/agent-runner/types.js';
+import type { RepairContext } from '../lane-answer.js';
 
 /**
  * The closing instruction for a lane whose child hands back one JSON object (Q-0250).
@@ -21,4 +22,17 @@ export function answerInstruction(
     return `When done, make your FINAL message exactly ONE JSON object with this shape, and nothing else — no code fence, no prose before or after it:\n\n${shape}`;
   }
   return `When done, write your answer to the file \`${path}\` as exactly ONE JSON object with this shape, and nothing else in that file — no code fence, no prose:\n\n${shape}\n\nUse your file-writing tool. Only that file is read: an answer you print instead is ignored.`;
+}
+
+/**
+ * The evidence block every lane's repair prompt hands its transcriber: the answer the seam
+ * rejected and the first child's output. One copy, so the four repair prompts cannot drift
+ * on what they show.
+ */
+export function repairEvidence(ctx: RepairContext): string {
+  return `Its rejected answer:
+${ctx.rejected ?? '(it wrote no answer file)'}
+
+Its output:
+${ctx.stdout.trim() === '' ? '(none captured)' : ctx.stdout}`;
 }

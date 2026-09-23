@@ -141,7 +141,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
         port,
         ...(input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {}),
       },
-      { repoRoot: input.repoRoot, slug: input.slug, kind: input.kind },
+      input,
     );
   } catch (err) {
     dispatchErr = (err as Error).message;

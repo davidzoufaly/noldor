@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { penBridgeRecipe } from '../../design/pen-bridge.js';
 import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
 import { createAnswerSeam } from '../lane-spawn.js';
+import { repairEvidence } from './prompt-parts.js';
 
 /** One surface's export instruction. */
 export interface ExportRequest {
@@ -86,11 +87,7 @@ export const RENDER_EXPORT_SHAPE =
 export function buildRenderExportRepairPrompt(ctx: RepairContext): string {
   return `A previous design exporter finished its exports, but its report was rejected: ${ctx.error}. Your ONLY job is to restate the per-surface page enumeration that exporter reported — do not open the design, do not export anything, do not move any file.
 
-Its rejected report:
-${ctx.rejected ?? '(it wrote no answer file)'}
-
-Its output:
-${ctx.stdout.trim() === '' ? '(none captured)' : ctx.stdout}
+${repairEvidence(ctx)}
 
 Transcription rules:
 1. One entry per surface the exporter reported, carrying the \`FINAL:<surface>:\` page names it found, verbatim.
@@ -118,7 +115,6 @@ export class RenderExportError extends Error {
 }
 
 const seam = createAnswerSeam<RenderExportInput, RenderExportReport>(buildRenderExportPrompt, {
-  role: 'render-compare',
   site: 'cr.render-export-dispatch',
   contract: RENDER_EXPORT_ANSWER,
   onFailure: (f) => {

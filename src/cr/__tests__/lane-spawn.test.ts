@@ -18,7 +18,6 @@ const CONTRACT: LaneAnswerContract<Answer> = {
   repairPrompt: (ctx) => `REPAIR because ${ctx.error}; rejected=${ctx.rejected ?? 'none'}`,
 };
 const seam = createAnswerSeam<{ timeoutMs?: number }, Answer>(() => 'REVIEW THE CHANGE', {
-  role: 'verifier',
   site: 'test.lane-spawn',
   contract: CONTRACT,
   onFailure: (f) => {
@@ -145,6 +144,19 @@ describe('createAnswerSeam', () => {
     writeFileSync(join(root, '.noldor', 'cr', 'answers'), 'a file where the directory goes');
     child([{ file: '{"verdict":"pass"}' }]);
     await expect(seam.dispatch({}, at)).rejects.toThrow();
+  });
+
+  it('names the lane in the failure it throws when the lane brings no onFailure', async () => {
+    const plain = createAnswerSeam<{ timeoutMs?: number }, Answer>(() => 'REVIEW THE CHANGE', {
+      site: 'test.lane-spawn',
+      contract: CONTRACT,
+    });
+    const { at } = repo();
+    child([{ exitCode: 1 }, { timedOut: true, exitCode: -1 }]);
+    await expect(plain.dispatch({}, at)).rejects.toThrow(/^verifier dispatch failed: exit 1$/);
+    await expect(plain.dispatch({}, at)).rejects.toThrow(
+      /^verifier dispatch failed: exit -1 \(timeout\)$/,
+    );
   });
 
   it('runs the reader and the repair round for an injected child too', async () => {

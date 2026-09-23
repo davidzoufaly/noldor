@@ -9,7 +9,7 @@ import { mkdir, readFile, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { CAPABILITIES } from '../core/agent-runner/capabilities.js';
 import { loadAgentsConfig, resolveRunner, spawnAgent } from '../core/agent-runner/registry.js';
-import type { AgentResult, AgentRole, SpawnAgentOpts } from '../core/agent-runner/types.js';
+import type { AgentResult, SpawnAgentOpts } from '../core/agent-runner/types.js';
 import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../core/config.js';
 import { laneAnswerDebugPath, laneAnswerPath } from './filename.js';
 import {
@@ -91,12 +91,15 @@ async function takeAnswerFile(
 export function createAnswerSeam<I extends { timeoutMs?: number }, T>(
   build: (input: I) => string,
   opts: {
-    role: AgentRole;
     /** Telemetry site tag, e.g. `cr.verify-dispatch`. */
     site: string;
+    /** The child's answer contract; its `lane` is also the role the child runs as. */
     contract: LaneAnswerContract<T>;
-    /** Turn an unusable dispatch into this lane's own failure. Must throw. */
-    onFailure: (failure: LaneDispatchFailure) => never;
+    /**
+     * Turn an unusable dispatch into this lane's own failure; must throw. Omitted, the seam
+     * throws a plain Error that leads with the lane, e.g. "verifier dispatch failed: exit 1".
+     */
+    onFailure?: (failure: LaneDispatchFailure) => never;
   },
 ): {
   dispatch: (input: I, at: AnswerLocation) => Promise<LaneAnswer<T>>;
@@ -104,7 +107,15 @@ export function createAnswerSeam<I extends { timeoutMs?: number }, T>(
     impl: ((input: I, repair?: RepairContext) => Promise<ChildAnswer>) | undefined,
   ) => void;
 } {
+  const { lane } = opts.contract;
   let injected: ((input: I, repair?: RepairContext) => Promise<ChildAnswer>) | undefined;
+  const fail =
+    opts.onFailure ??
+    ((f: LaneDispatchFailure): never => {
+      throw new Error(
+        `${lane} dispatch failed: ${f.detail ?? `exit ${f.exitCode}`}${f.timedOut ? ' (timeout)' : ''}`,
+      );
+    });
 
   const runChild = async (
     input: I,
@@ -116,18 +127,18 @@ export function createAnswerSeam<I extends { timeoutMs?: number }, T>(
       const answerText = await (repair === undefined ? injected(input) : injected(input, repair));
       return { answerText, stdout: '' };
     }
-    const resolved = resolveRunner(opts.role, loadAgentsConfig(at.repoRoot));
+    const resolved = resolveRunner(lane, loadAgentsConfig(at.repoRoot));
     const channel = CAPABILITIES[resolved.runner].answerFile;
-    const built = laneAnswerPath(at.repoRoot, at.slug, at.kind, opts.contract.lane, randomUUID());
+    const built = laneAnswerPath(at.repoRoot, at.slug, at.kind, lane, randomUUID());
     if (!built.ok) {
       // The slug is branded, so only repository tampering inside `.noldor/cr/answers` reaches
       // this arm — the same posture `openLane` takes for a sink path.
-      throw new Error(`cannot place the ${opts.contract.lane} answer file: ${built.error.kind}`);
+      throw new Error(`cannot place the ${lane} answer file: ${built.error.kind}`);
     }
     try {
       await mkdir(dirname(built.path), { recursive: true });
     } catch (err) {
-      opts.onFailure({
+      fail({
         reason: 'dispatch-failed',
         exitCode: -1,
         timedOut: false,
@@ -138,7 +149,7 @@ export function createAnswerSeam<I extends { timeoutMs?: number }, T>(
     const r = await laneSpawn(
       `${body}\n\n${answerInstruction(channel, built.path, opts.contract.shape)}`,
       {
-        role: opts.role,
+        role: lane,
         runner: resolved.runner,
         ...(resolved.model !== undefined ? { model: resolved.model } : {}),
         cwd: at.repoRoot,
@@ -148,11 +159,10 @@ export function createAnswerSeam<I extends { timeoutMs?: number }, T>(
       },
     );
     // Settled before the failure checks, so a timed-out or crashed child leaves no orphan.
-    const answerText = await takeAnswerFile(built.path, at, opts.contract.lane);
-    if (r.timedOut) opts.onFailure({ reason: 'timeout', exitCode: r.exitCode, timedOut: true });
-    if (r.exitCode !== 0) {
-      opts.onFailure({ reason: 'dispatch-failed', exitCode: r.exitCode, timedOut: false });
-    }
+    const answerText = await takeAnswerFile(built.path, at, lane);
+    if (r.timedOut) fail({ reason: 'timeout', exitCode: r.exitCode, timedOut: true });
+    if (r.exitCode !== 0)
+      fail({ reason: 'dispatch-failed', exitCode: r.exitCode, timedOut: false });
     return { answerText, stdout: r.stdout };
   };
 

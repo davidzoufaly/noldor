@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { penBridgeRecipe } from '../../design/pen-bridge.js';
 import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
 import { createAnswerSeam } from '../lane-spawn.js';
+import { repairEvidence } from './prompt-parts.js';
 
 /**
  * One finding from the child. `designPage` + `designElement` are REQUIRED: a
@@ -126,11 +127,7 @@ export const UI_REVIEW_SHAPE =
 export function buildUiReviewRepairPrompt(ctx: RepairContext): string {
   return `A previous UI-Design Reviewer finished its review, but its answer was rejected: ${ctx.error}. Your ONLY job is to restate that reviewer's conclusion as a valid answer — do not open the design, do not read the code, do not review anything yourself.
 
-Its rejected answer:
-${ctx.rejected ?? '(it wrote no answer file)'}
-
-Its output:
-${ctx.stdout.trim() === '' ? '(none captured)' : ctx.stdout}
+${repairEvidence(ctx)}
 
 Transcription rules:
 1. Use exactly one of the three shapes: pass with an empty findings array; fail with at least one finding naming its file, severity, message, designPage and designElement; or cannot-review with reason pen-unreadable or no-final-pages.
@@ -159,7 +156,6 @@ export class UiDispatchError extends Error {
 }
 
 const seam = createAnswerSeam<UiDispatchInput, UiReviewReport>(buildUiReviewPrompt, {
-  role: 'ui-reviewer',
   site: 'cr.ui-review-dispatch',
   contract: UI_REVIEW_ANSWER,
   onFailure: (f) => {

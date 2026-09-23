@@ -3,6 +3,7 @@ import { BLOCKING_DEFINITION } from '../blocking-definition.js';
 import { FINDING_CLASSES } from '../finding-class.js';
 import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
 import { createAnswerSeam } from '../lane-spawn.js';
+import { repairEvidence } from './prompt-parts.js';
 import { DEFAULT_REVIEW_PROFILES } from '../../core/review-profile.js';
 import type { ReviewDimension, ReviewEffort, ReviewProfile } from '../../core/review-profile.js';
 import type { PriorReview } from '../lane-types.js';
@@ -209,11 +210,7 @@ const REVIEWER_SHAPE =
 export function buildReviewerRepairPrompt(ctx: RepairContext): string {
   return `A previous Senior Code Reviewer finished its review, but its answer was rejected: ${ctx.error}. Your ONLY job is to restate that review as a valid answer — do not review anything yourself, do not read any file.
 
-Its rejected answer:
-${ctx.rejected ?? '(it wrote no answer file)'}
-
-Its output:
-${ctx.stdout.trim() === '' ? '(none captured)' : ctx.stdout}
+${repairEvidence(ctx)}
 
 Transcription rules:
 1. Carry over every finding the review states, with its severity, whether it blocks, its class and its message. Invent no finding and drop none.
@@ -231,14 +228,8 @@ export const REVIEWER_ANSWER: LaneAnswerContract<ReviewerAnswer> = {
 };
 
 const seam = createAnswerSeam<DispatchInput, ReviewerAnswer>(buildPrompt, {
-  role: 'reviewer',
   site: 'cr.subagent-dispatch',
   contract: REVIEWER_ANSWER,
-  onFailure: (f) => {
-    throw new Error(
-      `subagent dispatch failed: ${f.detail ?? `exit ${f.exitCode}`}${f.timedOut ? ' (timeout)' : ''}`,
-    );
-  },
 });
 
 /** Test injection point: swaps the reviewer child (see `createAnswerSeam`). */
