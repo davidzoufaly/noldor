@@ -24,15 +24,10 @@ function log(cwd: string, ...argv: string[]): { code: number; err: string } {
 }
 
 function check(cwd: string, ...argv: string[]): { code: number; out: string; err: string } {
-  let out = '';
-  let err = '';
-  const code = runSupportCheck(
-    argv,
-    cwd,
-    (s) => (out += s),
-    (s) => (err += s),
-  );
-  return { code, out, err };
+  const r = runSupportCheck(argv, cwd);
+  return r.stream === 'stdout'
+    ? { code: r.code, out: r.text, err: '' }
+    : { code: r.code, out: '', err: r.text };
 }
 
 describe('supportVerdict', () => {
@@ -133,5 +128,13 @@ describe('design support-check', () => {
     const r = check(cwd, '--slug', SLUG);
     expect(r.code).toBe(1);
     expect(r.err).toContain("cannot parse 'Existing support'");
+  });
+});
+
+describe('design support-check slug validation', () => {
+  it('refuses a non-slug --slug with the corrected spelling', () => {
+    const r = check(repo(), '--slug', 'My Dialogue');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain("expected 'my-dialogue'");
   });
 });

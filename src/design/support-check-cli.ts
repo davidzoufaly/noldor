@@ -13,8 +13,8 @@ import { basename } from 'node:path';
 
 import { runIfDirect } from '../core/cli-entry.js';
 import { specSlugFromFilename } from '../core/design-artifact-names.js';
-import { isSlug, slugErrorMessage } from '../core/slug.js';
-import { ledgerPath, readLedger, supportVerdict, validateSlugs } from './ledger.js';
+import { parseSlug, type Slug } from '../core/slug.js';
+import { ledgerPath, readLedger, supportVerdict, validateSlug } from './ledger.js';
 
 const USAGE = 'usage: noldor design support-check (--slug <dialogue-slug> | --spec <path>)';
 
@@ -24,9 +24,7 @@ const USAGE = 'usage: noldor design support-check (--slug <dialogue-slug> | --sp
  * seeded under on both `*-new` and `*-attach` paths, so the gate can pass the
  * artifact path it already holds.
  */
-export function parseSupportCheckArgs(
-  argv: readonly string[],
-): { slug: string } | { error: string } {
+export function parseSupportCheckArgs(argv: readonly string[]): { slug: Slug } | { error: string } {
   let slug: string | undefined;
   let spec: string | undefined;
   for (let i = 0; i < argv.length; i += 1) {
@@ -42,64 +40,66 @@ export function parseSupportCheckArgs(
   if ((slug === undefined) === (spec === undefined)) {
     return { error: 'exactly one of --slug / --spec is required' };
   }
-  if (slug !== undefined) return { slug };
-  const key = specSlugFromFilename(basename(spec!));
+  const key = slug ?? specSlugFromFilename(basename(spec!));
   if (key === null) {
     return { error: `--spec: '${basename(spec!)}' does not match <date>-<slug>-design.md` };
   }
-  return { slug: key };
+  // The key becomes a path component under `.noldor/design/`, so it is checked
+  // here whichever flag supplied it; `validateSlug` adds the corrected spelling.
+  const parsedSlug = parseSlug(key);
+  if (!parsedSlug.ok) return { error: validateSlug(key, '--slug') ?? parsedSlug.error.message };
+  return { slug: parsedSlug.slug };
 }
 
-export function runSupportCheck(
-  argv: readonly string[],
-  cwd: string,
-  out: (s: string) => void = (s) => process.stdout.write(s),
-  err: (s: string) => void = (s) => process.stderr.write(s),
-): number {
+/** What one check decided: the exit code plus the one line (or block) it prints. */
+export interface SupportCheckResult {
+  code: 0 | 1 | 2;
+  /** `stdout` for a verdict (0 / 2), `stderr` for a check that could not run (1). */
+  stream: 'stdout' | 'stderr';
+  text: string;
+}
+
+/** Decide the verdict for argv against the ledger under `cwd`. No printing. */
+export function runSupportCheck(argv: readonly string[], cwd: string): SupportCheckResult {
   const parsed = parseSupportCheckArgs(argv);
   if ('error' in parsed) {
-    err(`design support-check: ${parsed.error}\n${USAGE}\n`);
-    return 1;
+    return { code: 1, stream: 'stderr', text: `design support-check: ${parsed.error}\n${USAGE}\n` };
   }
-  const badSlug = validateSlugs([['--slug', parsed.slug]]);
-  if (badSlug) {
-    err(`design support-check: ${badSlug}\n`);
-    return 1;
-  }
-  if (!isSlug(parsed.slug)) {
-    err(`design support-check: ${slugErrorMessage(parsed.slug)}\n`);
-    return 1;
-  }
-
   const state = readLedger(cwd, parsed.slug);
   // Only this section decides the verdict. An unparsed `Existing support` is
   // dropped to `[]` by the parser, which would read as `missing` and send the
   // operator to record anchors the file may already hold — say so instead.
   if (state.unparsed.includes('Existing support')) {
-    err(
-      `design support-check: cannot parse 'Existing support' in ${ledgerPath(cwd, parsed.slug)} — ` +
+    return {
+      code: 1,
+      stream: 'stderr',
+      text:
+        `design support-check: cannot parse 'Existing support' in ${ledgerPath(cwd, parsed.slug)} — ` +
         'fix or delete the ledger, then re-run.\n',
-    );
-    return 1;
+    };
   }
 
   const verdict = supportVerdict(state.support);
+  const report = (code: 0 | 2, text: string): SupportCheckResult => ({
+    code,
+    stream: 'stdout',
+    text,
+  });
   if (verdict.kind === 'anchored') {
-    out(`support: ${verdict.anchors} anchor(s) recorded for '${parsed.slug}'\n`);
-    return 0;
+    return report(0, `support: ${verdict.anchors} anchor(s) recorded for '${parsed.slug}'\n`);
   }
-  if (verdict.kind === 'waived') {
-    out(`support: none — ${verdict.reasons.join('; ')}\n`);
-    return 0;
-  }
-  out(
+  if (verdict.kind === 'waived')
+    return report(0, `support: none — ${verdict.reasons.join('; ')}\n`);
+  return report(
+    2,
     `support: no prior art recorded for '${parsed.slug}' — the reuse question was never asked.\n` +
       `  record what already exists:  pnpm noldor design log --slug ${parsed.slug} --support "<path:line — what it already does>"\n` +
       `  or say why nothing does:     pnpm noldor design log --slug ${parsed.slug} --support "none: <reason>"\n`,
   );
-  return 2;
 }
 
-runIfDirect('support-check-cli', 'design support-check', async () =>
-  runSupportCheck(process.argv.slice(2), process.cwd()),
-);
+runIfDirect('support-check-cli', 'design support-check', async () => {
+  const result = runSupportCheck(process.argv.slice(2), process.cwd());
+  (result.stream === 'stdout' ? process.stdout : process.stderr).write(result.text);
+  return result.code;
+});
