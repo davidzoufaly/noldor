@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import {
   backupFeatures,
   collectCandidateFiles,
+  collectTestOwners,
   generateProposal,
   parseLlmResponse,
   parseProposal,
@@ -144,6 +145,57 @@ describe('resolveByPath', () => {
     expect(result.length).toBeGreaterThanOrEqual(1);
     expect(result.some((m) => m.fdSlug === 'release-pipeline')).toBe(true);
   });
+
+  // Regression (Q-0173): on a standalone src/ repo whose FDs are all
+  // `area: tooling, packages: [scripts]`, the appPathPrefix branch matched
+  // every file and found no web FD, so every row came back `candidates []`.
+  const toolingFd = (slug: string, code: string[]): FeatureRow => ({
+    slug,
+    frontmatter: {
+      ...fmBase,
+      area: 'tooling',
+      name: slug,
+      packages: ['scripts'],
+      links: { code, docs: [], tests: [] },
+    },
+  });
+
+  it('falls back to sibling-directory owners when no layout branch has a candidate', () => {
+    const result = resolveByPath({
+      filePath: 'src/cr/lanes/new-lane.ts',
+      features: [toolingFd('cr-pipeline', ['src/cr/lanes/reviewer.ts']), toolingFd('other', [])],
+      appPathPrefix: 'src',
+    });
+    expect(result).toEqual([
+      { fdSlug: 'cr-pipeline', confidence: 'medium', reason: 'owns a sibling in src/cr/lanes/' },
+    ]);
+  });
+
+  it('credits the FDs tagged by tests that import the file', () => {
+    const result = resolveByPath({
+      filePath: 'src/cr/lanes/new-lane.ts',
+      features: [toolingFd('cr-pipeline', ['src/cr/lanes/reviewer.ts']), toolingFd('lanes', [])],
+      appPathPrefix: 'src',
+      testOwners: new Map([['src/cr/lanes/new-lane.ts', ['lanes', 'cr-pipeline', 'gone-fd']]]),
+    });
+    expect(result).toEqual([
+      {
+        fdSlug: 'cr-pipeline',
+        confidence: 'medium',
+        reason: 'owns a sibling in src/cr/lanes/; tagged by a test that imports it',
+      },
+      { fdSlug: 'lanes', confidence: 'medium', reason: 'tagged by a test that imports it' },
+    ]);
+  });
+
+  it('never rates an ownership-fallback match high, so --auto-high cannot apply it', () => {
+    const result = resolveByPath({
+      filePath: 'src/widget.ts',
+      features: [toolingFd('only-owner', ['src/other.ts'])],
+      appPathPrefix: '',
+    });
+    expect(result.map((m) => m.confidence)).toEqual(['medium']);
+  });
 });
 
 describe('parseLlmResponse', () => {
@@ -207,6 +259,17 @@ describe('generateProposal', () => {
     expect(md).toContain('## UNASSIGNED');
     expect(md).toContain('apps/web/src/lib/utils.ts');
     expect(md).toContain('candidates [editor-shell, state-management]');
+  });
+
+  it('labels a candidate-less row as unmatched, not as an LLM verdict', () => {
+    const md = generateProposal({
+      assignments: [],
+      unassigned: [{ filePath: 'src/orphan.ts', candidates: [] }],
+    });
+    expect(md).toContain(
+      '- src/orphan.ts (no candidates: no path, sibling, or test-import signal matched)',
+    );
+    expect(md).not.toContain('LLM low confidence');
   });
 
   it('omits UNASSIGNED when no unassigned files', () => {
@@ -350,6 +413,44 @@ describe('collectCandidateFiles', () => {
     try {
       const files = await collectCandidateFiles(new Set(['src/widget.ts']));
       expect(files).toEqual([]);
+    } finally {
+      process.chdir(previousCwd);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('collectTestOwners', () => {
+  it("maps each file a tagged test imports to the test's @tests slugs", async () => {
+    const dir = makeStandaloneRepo();
+    mkdirSync(join(dir, 'src', '__tests__'));
+    writeFileSync(
+      join(dir, 'src', '__tests__', 'widget.test.ts'),
+      "// @tests: widget-fd\n\nimport { widget } from '../widget.js';\n",
+    );
+    writeFileSync(join(dir, 'src', '__tests__', 'untagged.test.ts'), "import '../gadget.js';\n");
+    const previousCwd = process.cwd();
+    process.chdir(dir);
+    try {
+      const owners = await collectTestOwners();
+      expect(owners.get('src/widget.ts')).toEqual(['widget-fd']);
+      expect(owners.has('src/gadget.ts')).toBe(false);
+
+      // Deletion test from Q-0173: a repo with a known unreferenced file
+      // yields a non-empty candidate list for it.
+      const [file] = await collectCandidateFiles(new Set());
+      const matches = resolveByPath({
+        filePath: file,
+        features: [
+          {
+            slug: 'widget-fd',
+            frontmatter: { ...fmBase, area: 'tooling', name: 'W', packages: [] },
+          },
+        ],
+        appPathPrefix: '',
+        testOwners: owners,
+      });
+      expect(matches.map((m) => m.fdSlug)).toEqual(['widget-fd']);
     } finally {
       process.chdir(previousCwd);
       rmSync(dir, { recursive: true, force: true });

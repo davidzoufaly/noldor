@@ -10,7 +10,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 
 import matter from 'gray-matter';
 
@@ -21,6 +21,7 @@ import { scanRoots } from '../core/repo-paths.js';
 
 import type { FeatureFrontmatter } from '../core/feature-schema.js';
 import { isEntrypoint } from '../core/cli-entry.js';
+import { extractTags } from '../sync/sync-test-links.js';
 
 /**
  * One candidate-FD match for an unreferenced code file. Confidence indicates
@@ -43,30 +44,40 @@ export type ResolverInput = {
   features: { slug: string; frontmatter: FeatureFrontmatter }[];
   /** Override the consumer config's `appPathPrefix` (defaults to loadConsumerConfig). */
   appPathPrefix?: string;
+  /**
+   * Code file → FD slugs named in the `// @tests:` header of every test file
+   * that imports it (see {@link collectTestOwners}). Feeds the ownership
+   * fallback; omitted, only the sibling-directory signal remains.
+   */
+  testOwners?: Map<string, string[]>;
 };
 
 /**
  * Match an unreferenced code file to candidate FD MDs by `packages` field
- * intersection plus slug-substring match against the filename. Returns
- * candidates sorted by confidence; empty array when no path-only match
- * applies (caller should fall back to LLM).
+ * intersection plus slug-substring match against the filename. When no
+ * layout branch yields a candidate — a standalone `src/` repo whose FDs carry
+ * no `web`/`scripts` packages — falls back to ownership signals: FDs that
+ * already own a sibling file in the same directory, and FDs named by the
+ * tests that import the file. Fallback matches are never `high`, so the
+ * pre-commit `--auto-high` pass stays path-deterministic.
  *
  * @param input - The file to attribute and the FD universe
- * @returns Candidate matches; `[]` when no package match found
+ * @returns Candidate matches; `[]` when no signal matched at all
  */
 export function resolveByPath({
   filePath,
   features,
   appPathPrefix = loadConsumerConfig().appPathPrefix,
+  testOwners,
 }: ResolverInput): CandidateMatch[] {
   const segments = filePath.split('/');
   const pkgIdx = segments.indexOf('packages');
   const pkg = pkgIdx >= 0 ? segments[pkgIdx + 1] : undefined;
 
-  let candidates: ResolverInput['features'];
+  let candidates: ResolverInput['features'] = [];
   if (pkg) {
     candidates = features.filter((f) => f.frontmatter.packages.includes(pkg));
-  } else if (filePath.startsWith(appPathPrefix)) {
+  } else if (appPathPrefix !== '' && filePath.startsWith(appPathPrefix)) {
     candidates = features.filter(
       (f) =>
         f.frontmatter.packages.includes('web') ||
@@ -77,8 +88,6 @@ export function resolveByPath({
     candidates = features.filter(
       (f) => f.frontmatter.packages.includes('scripts') || f.frontmatter.area === scriptsGroup,
     );
-  } else {
-    return [];
   }
 
   if (candidates.length === 1) {
@@ -119,7 +128,82 @@ export function resolveByPath({
     }));
   }
 
-  return [];
+  return resolveByOwnership(filePath, features, testOwners);
+}
+
+/**
+ * The layout-independent fallback of {@link resolveByPath}: every FD whose
+ * `links.code` already holds a file in the same directory, plus every FD a
+ * test importing the file is tagged for. Each hit is `medium` — a signal for
+ * the LLM tie-break and the operator, never an automatic assignment.
+ */
+function resolveByOwnership(
+  filePath: string,
+  features: ResolverInput['features'],
+  testOwners: Map<string, string[]> | undefined,
+): CandidateMatch[] {
+  const dir = posix.dirname(filePath);
+  const reasons = new Map<string, string[]>();
+  const add = (slug: string, reason: string): void => {
+    const list = reasons.get(slug) ?? [];
+    if (!list.includes(reason)) list.push(reason);
+    reasons.set(slug, list);
+  };
+  for (const f of features) {
+    if (f.frontmatter.links.code.some((c) => posix.dirname(c) === dir)) {
+      add(f.slug, `owns a sibling in ${dir}/`);
+    }
+  }
+  const known = new Set(features.map((f) => f.slug));
+  for (const slug of testOwners?.get(filePath) ?? []) {
+    if (known.has(slug)) add(slug, 'tagged by a test that imports it');
+  }
+  return [...reasons.entries()].map(([fdSlug, why]) => ({
+    fdSlug,
+    confidence: 'medium' as const,
+    reason: why.join('; '),
+  }));
+}
+
+/**
+ * Map each code file to the FD slugs its importing tests are tagged for:
+ * walk the scan roots, and for every test file carrying a `// @tests:` header,
+ * credit those slugs to each relative import it names. A `.js` specifier is
+ * credited to its `.ts` and `.tsx` sources, since either may be what exists.
+ *
+ * @returns Repo-relative code path → deduped FD slugs
+ */
+export async function collectTestOwners(): Promise<Map<string, string[]>> {
+  const allPaths: string[] = [];
+  for (const root of scanRoots()) {
+    await walkRepo(root, allPaths);
+  }
+  const owners = new Map<string, string[]>();
+  for (const testPath of allPaths.filter(isTestFile)) {
+    const content = readFileSync(testPath, 'utf8');
+    const tags = extractTags(content);
+    if (tags.length === 0) continue;
+    const testDir = posix.dirname(testPath);
+    for (const [, spec] of content.matchAll(/(?:from|import\()\s*['"](\.{1,2}\/[^'"]+)['"]/g)) {
+      const target = posix.join(testDir, spec);
+      const sources = target.endsWith('.js')
+        ? [target.replace(/\.js$/, '.ts'), target.replace(/\.js$/, '.tsx')]
+        : [target];
+      for (const source of sources) {
+        owners.set(source, [...new Set([...(owners.get(source) ?? []), ...tags])]);
+      }
+    }
+  }
+  return owners;
+}
+
+function isTestFile(p: string): boolean {
+  return (
+    p.endsWith('.test.ts') ||
+    p.endsWith('.test.tsx') ||
+    p.endsWith('.spec.ts') ||
+    p.includes('/__tests__/')
+  );
 }
 
 /**
@@ -251,7 +335,11 @@ export function generateProposal({ assignments, unassigned }: ProposalInput): st
   if (unassigned.length > 0) {
     lines.push('## UNASSIGNED (operator must choose)', '');
     for (const u of unassigned) {
-      lines.push(`- ${u.filePath} (LLM low confidence: candidates [${u.candidates.join(', ')}])`);
+      lines.push(
+        u.candidates.length === 0
+          ? `- ${u.filePath} (no candidates: no path, sibling, or test-import signal matched)`
+          : `- ${u.filePath} (LLM low confidence: candidates [${u.candidates.join(', ')}])`,
+      );
     }
     lines.push('');
   }
@@ -400,6 +488,7 @@ async function main(): Promise<void> {
   const candidateFiles = await collectCandidateFiles(referenced);
 
   const featureRows = features.map((f) => ({ slug: f.slug, frontmatter: f.frontmatter }));
+  const testOwners = await collectTestOwners();
   const summaryByFd = new Map<string, string>();
   for (const f of features) {
     const raw = readFileSync(join(FEATURES_DIR, `${f.slug}.md`), 'utf8');
@@ -410,7 +499,7 @@ async function main(): Promise<void> {
   const unassigned: Unassigned[] = [];
 
   for (const file of candidateFiles) {
-    const matches = resolveByPath({ filePath: file, features: featureRows });
+    const matches = resolveByPath({ filePath: file, features: featureRows, testOwners });
     if (matches.length === 1 && matches[0].confidence === 'high') {
       assignments.push({ filePath: file, match: matches[0] });
       continue;
@@ -433,6 +522,20 @@ async function main(): Promise<void> {
     } else {
       unassigned.push({ filePath: file, candidates: candidates.map((c) => c.slug) });
     }
+  }
+
+  if (assignments.length === 0 && unassigned.every((u) => u.candidates.length === 0)) {
+    if (unassigned.length > 0) {
+      console.error(
+        `fill-links-code-gaps: no candidate FD for any of ${unassigned.length} unreferenced file(s) — no path, sibling, or test-import signal matched, so no proposal was written. Assign them by hand, or tag their tests with \`// @tests: <slug>\` and re-run.`,
+      );
+      process.exitCode = 1;
+    } else {
+      console.log(
+        'fill-links-code-gaps: every code file is already referenced — nothing to propose.',
+      );
+    }
+    return;
   }
 
   const md = generateProposal({ assignments, unassigned });
