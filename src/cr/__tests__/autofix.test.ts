@@ -1,7 +1,7 @@
 // @tests: specs-cr-gate-multi-reviewer
 import { describe, expect, it } from 'vitest';
 
-import { decide } from '../autofix.js';
+import { decide, resolveOnBlockers } from '../autofix.js';
 import type { LaneBlocker } from '../aggregate.js';
 import { fingerprintBlockers } from '../autofix-ledger.js';
 import type { AutofixLedger, AutofixRound } from '../autofix-ledger.js';
@@ -347,5 +347,17 @@ describe('decide — round number', () => {
 
   it('is reported even on a decline', () => {
     expect(decide({ ...base, onBlockers: 'prompt', blockers: [mech()] }).round).toBe(1);
+  });
+});
+
+describe('resolveOnBlockers', () => {
+  it('turns an unset knob on for an autonomous session only', () => {
+    expect(resolveOnBlockers(undefined, true)).toBe('auto-fix');
+    expect(resolveOnBlockers(undefined, false)).toBe('prompt');
+  });
+
+  it('lets an explicit value win over the session', () => {
+    expect(resolveOnBlockers('prompt', true)).toBe('prompt');
+    expect(resolveOnBlockers('auto-fix', false)).toBe('auto-fix');
   });
 });

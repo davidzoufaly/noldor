@@ -4,11 +4,12 @@
 import { execFile } from 'node:child_process';
 
 import { loadConfig } from '../core/config.js';
+import { readSession } from '../core/session.js';
 import { isSha } from '../core/sha.js';
 import { isSlug, type Slug } from '../core/slug.js';
 import { aggregate, describeStale } from './aggregate.js';
 import type { LaneBlocker } from './aggregate.js';
-import { decide, splitByClass } from './autofix.js';
+import { decide, resolveOnBlockers, splitByClass } from './autofix.js';
 import type { NextAction } from './autofix.js';
 import {
   LedgerParseError,
@@ -135,13 +136,14 @@ function printBlocker(tag: string, b: LaneBlocker): void {
 async function runPlan(cwd: string, a: Args): Promise<never> {
   const { slug, kind } = requireTarget(a);
   const cfg = await loadConfig().catch(() => null);
-  const onBlockers = cfg?.autonomous?.onBlockers ?? 'prompt';
 
   // Resolved OUTSIDE the try: `readSession` schema-parses the marker and throws
   // on a malformed `.noldor/session.json`, which inside the try would be reported
   // as "could not read the ledger at <ledgerPath>" — the wrong file and the wrong
   // cause. Here it surfaces through main()'s catch as itself.
   const key = sessionKey(cwd);
+  const configured = cfg?.autonomous?.onBlockers;
+  const onBlockers = resolveOnBlockers(configured, readSession(cwd)?.autonomous === true);
 
   let ledger;
   try {
@@ -179,6 +181,9 @@ async function runPlan(cwd: string, a: Args): Promise<never> {
 
   console.log(`verdict: ${r.verdict}`);
   console.log(`reason: ${r.reason ?? '-'}`);
+  // Where the posture came from, so a `knob-off` in one session and an auto-fix
+  // in the next (same config, different session) reads as policy, not as drift.
+  console.log(`knob: ${onBlockers} (${configured ? 'config' : 'session default'})`);
   console.log(`next: ${r.next}`);
   console.log(`base-sha: ${r.baseSha || '-'}`);
   console.log(`round: ${roundLabel(r.round)}`);

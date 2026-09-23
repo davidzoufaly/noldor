@@ -70,6 +70,21 @@ export interface DecideResult {
 }
 
 /**
+ * The posture a session runs the seam under. An explicit `autonomous.onBlockers`
+ * always wins; an unset knob follows the session. An autonomous session has no
+ * operator to answer a `prompt`, so leaving it `prompt` only turns a
+ * mechanical-only round into an escalation — the design blockers, the cap and
+ * every other decline still go to `onFailure` either way, so this widens nothing
+ * a human was deciding.
+ */
+export function resolveOnBlockers(
+  configured: 'auto-fix' | 'prompt' | undefined,
+  autonomous: boolean,
+): 'auto-fix' | 'prompt' {
+  return configured ?? (autonomous ? 'auto-fix' : 'prompt');
+}
+
+/**
  * An untagged blocker is `design`.
  *
  * The fail-safe read lives here rather than in the sink, so the sink keeps
