@@ -75,8 +75,8 @@ jobs:
 
       - name: Install graphify
         # Pinned: an unpinned install makes the extraction a function of the run
-        # date. The pin binds the top-level package only — tree-sitter grammars
-        # and the Python version above can still move.
+        # date. The pin binds the top-level package only — tree-sitter grammars,
+        # networkx and the Python version above can still move.
         run: pip install graphifyy==0.7.8 -q
 
       - uses: pnpm/action-setup@v4
@@ -87,17 +87,47 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Regenerate the graph
+        env:
+          # Without a fixed hash seed the same tree clusters into different
+          # communities on every run, so every graph PR would reshuffle the file.
+          PYTHONHASHSEED: '0'
         run: |
           set -euo pipefail
-          # --force: a `refactor` merge legitimately deletes code, and without it
-          # the rebuild refuses to shrink the graph — which would leave exactly
-          # the staleness this workflow exists to remove. The verify step below
-          # is what catches a genuinely broken extraction.
-          graphify update . --force
+          # A clean pass over code files, the same scope as the release sweep's
+          # `/graphify --ast-only`, so both commit the same nodes and edges. Not
+          # `graphify update`: it keeps every node graph.json already holds, so
+          # deleted code never leaves, and it extracts markdown too.
+          python3 - <<'PY'
+          from pathlib import Path
+          from graphify.analyze import god_nodes, surprising_connections, suggest_questions
+          from graphify.build import build_from_json
+          from graphify.cluster import cluster, score_all
+          from graphify.detect import detect
+          from graphify.export import to_json
+          from graphify.extract import extract
+          from graphify.report import generate
+
+          detected = detect(Path('.'))
+          # Sorted, so the node order does not follow the filesystem's listing
+          # order. One process: graphify's workers crash on start when this
+          # script comes from stdin and Python spawns rather than forks them.
+          ast = extract(sorted(Path(f) for f in detected['files']['code']), parallel=False)
+          G = build_from_json({'nodes': ast['nodes'], 'edges': ast['edges'], 'hyperedges': []})
+          communities = cluster(G)
+          labels = {c: f'Community {c}' for c in communities}
+          out = Path('graphify-out')
+          out.mkdir(exist_ok=True)
+          report = generate(G, communities, score_all(G, communities), labels, god_nodes(G),
+                            surprising_connections(G, communities), detected,
+                            {'input': 0, 'output': 0}, '.',
+                            suggested_questions=suggest_questions(G, communities, labels))
+          (out / 'GRAPH_REPORT.md').write_text(report, encoding='utf-8')
+          # force: a merge that deletes code legitimately shrinks the graph.
+          to_json(G, communities, str(out / 'graph.json'), force=True)
+          PY
           # `pnpm noldor` resolves the framework's own bin in a consumer and its
           # package script in noldor itself. A repo-local alias would not: `toon`
-          # and `graphify:enrich-docs` exist only in noldor's package.json.
-          pnpm noldor graphify enrich-docs graphify-out/graph.json
+          # exists only in noldor's package.json.
           pnpm noldor graphify graph-to-toon graphify-out/graph.json
 
       - name: Verify the outputs
@@ -128,6 +158,12 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    # A group of its own, queued rather than cancelled. Builds finish in merge
+    # order, so publishes queue in merge order and run one at a time: an older
+    # run can never force-push over a newer one, and none is cut off mid-push.
+    concurrency:
+      group: knowledge-graph-publish
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -160,6 +196,8 @@ jobs:
           # graphify-out/ except graph.json and GRAPH_REPORT.md, so a named
           # manifest.json would abort the step.
           git add graphify-out/
+          # graph.json records the sha it was built at, so this stop is reached
+          # only where the ignore rules leave graph.json untracked.
           if git diff --cached --quiet; then
             echo "graph unchanged — nothing to open"
             exit 0
@@ -171,14 +209,10 @@ jobs:
           # The override trailer is the established escape for a machine-written
           # commit that carries no FD and no review receipt; override-audit.ts
           # counts it into the SDD report, so it stays visible rather than silent.
-          {
-            echo "chore(graph): refresh the committed knowledge graph"
-            echo
-            echo "Regenerated by the update-knowledge-graph workflow after PR #${PR_NUMBER}."
-            echo
-            echo "Noldor-Path-Override: ci-graph-refresh machine-written graph regeneration"
-          } > ../graph-commit-msg.txt
-          git commit -F ../graph-commit-msg.txt
+          git commit \
+            -m "chore(graph): refresh the committed knowledge graph" \
+            -m "Regenerated by the update-knowledge-graph workflow after PR #${PR_NUMBER}." \
+            -m "Noldor-Path-Override: ci-graph-refresh machine-written graph regeneration"
 
           git push --force origin "HEAD:$GRAPH_BRANCH"
 
@@ -195,5 +229,6 @@ jobs:
 
           # Where auto-merge is off (charuy today) this is the documented stop:
           # the PR stays open for a human. It must never fall back to a push.
-          gh pr merge --auto --squash "$GRAPH_BRANCH" ||
-            echo "::warning::auto-merge unavailable — the graph PR is open and waiting for a human"
+          if ! merge_out=$(gh pr merge --auto --squash "$GRAPH_BRANCH" 2>&1); then
+            echo "::warning::the graph PR is open and waiting for a human — gh pr merge --auto said: $merge_out"
+          fi

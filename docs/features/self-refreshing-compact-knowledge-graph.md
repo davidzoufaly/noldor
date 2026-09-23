@@ -25,16 +25,16 @@ noldor-tier: full
 The committed knowledge graph refreshes itself: a merged `feat`, `fix` or
 `refactor` PR rebuilds `graphify-out/` on CI and lands it through a graph PR of
 its own, so no feature PR carries the diff. The emitted `.toon` is v3 — about
-two-thirds smaller (697 KB to 233 KB on noldor's own 3,578-node graph), addressed
-by community-local index, and fronted by a table of contents an agent can
-`Read offset/limit` against.
+two-thirds smaller (697 KB to about 235 KB on noldor's own 3,578-node graph),
+addressed by community-local index, and fronted by a table of contents an agent
+can `Read offset/limit` against.
 
 ## Diagram
 
 ```mermaid
 flowchart LR
   M[merged PR<br/>feat / fix / refactor] --> B[build job<br/>read-only, no token]
-  B --> G[graphify update --force<br/>enrich-docs · graph-to-toon]
+  B --> G[clean AST pass, code only<br/>graph-to-toon]
   G --> A[(artifact<br/>graphify-out)]
   A --> P[publish job<br/>token, no deps installed]
   P --> R[(branch<br/>noldor/graph-refresh)]

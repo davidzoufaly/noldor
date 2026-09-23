@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { computeDrift } from '../diff.js';
@@ -228,6 +229,20 @@ interface WfJob {
   readonly steps: WfStep[];
 }
 
+/** A throwaway directory holding `files`, removed when the owning scope ends. */
+function tempTree(files: Record<string, string>): { dir: string; [Symbol.dispose](): void } {
+  const dir = mkdtempSync(join(tmpdir(), 'noldor-graph-build-'));
+  for (const [rel, body] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true });
+    writeFileSync(join(dir, rel), body);
+  }
+  return { dir, [Symbol.dispose]: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+// The build case below runs graphify for real, which this repo's CI does not install.
+const graphifyImportable =
+  spawnSync('python3', ['-c', 'import graphify'], { stdio: 'ignore' }).status === 0;
+
 describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)', () => {
   const rel = '.github/workflows/update-knowledge-graph.yml';
   const raw = (): string => readFileSync(join(TEMPLATES_ROOT, rel), 'utf8');
@@ -247,6 +262,20 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
 
   const workflow = (): { permissions: unknown; jobs: Record<string, WfJob>; on?: unknown } =>
     parseYaml(raw()) as { permissions: unknown; jobs: Record<string, WfJob>; on?: unknown };
+
+  /** The build job's step that feeds the graph builder to python from a heredoc. */
+  const buildStep = (): WfStep => {
+    const step = workflow().jobs.build.steps.find((s) => (s.run ?? '').includes("<<'PY'"));
+    if (step === undefined) throw new Error('no build step runs a python heredoc');
+    return step;
+  };
+
+  /** That step's Python, exactly as bash hands it to `python3 -`. */
+  const buildScript = (): string => {
+    const run = buildStep().run ?? '';
+    const start = run.indexOf("<<'PY'\n") + "<<'PY'\n".length;
+    return run.slice(start, run.indexOf('\nPY\n', start) + 1);
+  };
 
   it('ships in the template manifest', () => {
     expect(templateFiles()).toContain(rel);
@@ -311,6 +340,60 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
     expect(text).toContain('pnpm noldor graphify graph-to-toon');
   });
 
+  it('builds in one clean pass, not an incremental update', () => {
+    // `graphify update` keeps every node graph.json already holds, so deleted
+    // code never leaves, and it extracts markdown too. `enrich-docs` adds doc
+    // nodes the release sweep's own pass never has.
+    const text = runnable();
+    expect(text).not.toMatch(/graphify\s+update/);
+    expect(text).not.toContain('enrich-docs');
+  });
+
+  it('pins the hash seed, the file order and a single extraction process', () => {
+    // Unseeded, the same tree clusters into different communities on every run.
+    expect(buildStep().env?.PYTHONHASHSEED).toBe('0');
+    expect(buildScript()).toMatch(/sorted\(/);
+    // The worker pool dies on a stdin script under spawn. The case below builds
+    // too small a tree to start the pool, so only this line holds it.
+    expect(buildScript()).toContain('parallel=False');
+  });
+
+  it.skipIf(!graphifyImportable)(
+    'builds code alone, forgets a deleted file, and repeats byte for byte',
+    () => {
+      using tree = tempTree({
+        'a.ts':
+          "import { beta } from './b';\nexport function alpha(): number {\n  return beta();\n}\n",
+        'b.ts': 'export function beta(): number {\n  return 1;\n}\n',
+        'README.md': '# Notes\n\n## Usage\n\nProse a markdown extractor would turn into nodes.\n',
+      });
+      const build = (): string => {
+        const r = spawnSync('python3', ['-'], {
+          cwd: tree.dir,
+          input: buildScript(),
+          env: { ...process.env, ...buildStep().env },
+          encoding: 'utf8',
+        });
+        expect(r.status, r.stderr).toBe(0);
+        return readFileSync(join(tree.dir, 'graphify-out', 'graph.json'), 'utf8');
+      };
+      const sources = (graph: string): string[] => {
+        const { nodes } = JSON.parse(graph) as { nodes: { source_file: string }[] };
+        return [...new Set(nodes.map((n) => n.source_file))].toSorted();
+      };
+
+      expect(sources(build())).toEqual(['a.ts', 'b.ts']);
+
+      // The first graph.json is still on disk, so a pass that merged into it
+      // would carry b's nodes forward.
+      rmSync(join(tree.dir, 'b.ts'));
+      const second = build();
+      expect(sources(second)).toEqual(['a.ts']);
+      expect(build()).toBe(second);
+    },
+    60_000,
+  );
+
   it('runs no repository code while the write token is in scope', () => {
     const { jobs } = workflow();
     const holdsToken = (j: WfJob): WfStep[] =>
@@ -331,6 +414,14 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
     // The job that DOES run merged-tree code keeps no credentials on disk.
     const checkout = jobs.build.steps.find((s) => (s.uses ?? '').startsWith('actions/checkout'));
     expect(checkout?.with?.['persist-credentials']).toBe(false);
+  });
+
+  it('queues publishes one at a time, in a group of their own', () => {
+    // Not the build group: its cancel-in-progress would cut a publish off mid-push.
+    expect(workflow().jobs.publish.concurrency).toEqual({
+      group: 'knowledge-graph-publish',
+      'cancel-in-progress': false,
+    });
   });
 
   it('pins graphify and titles its own PR with a prefix the filter skips', () => {
