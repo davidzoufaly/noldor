@@ -1,4 +1,5 @@
 import {
+  doomedCodeLinkWarnings,
   extractCodePackages,
   normalizeDeclaredPackage,
   validateDocFeatureSlugs,
@@ -15,6 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { FeatureFrontmatterSchema, LOST_SENTINEL } from '../../core/feature-schema.js';
+import { codeAdapter } from '../../sync/adapters/code.js';
 
 // @tests: feature-md-links-overhaul, framework-milestones-support-poc-mvp-100
 describe(validateFiles, () => {
@@ -291,5 +293,38 @@ describe(validateLinkTargets, () => {
 
   it('returns no errors when the FD declares no design pointers', () => {
     expect(validateLinkTargets(fd({}))).toStrictEqual([]);
+  });
+});
+
+describe(doomedCodeLinkWarnings, () => {
+  function repoWith(codeLinks: string[]): string {
+    const root = mkdtempSync(join(tmpdir(), 'doomed-links-'));
+    mkdirSync(join(root, 'docs', 'features'), { recursive: true });
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(join(root, 'src', 'tagged.ts'), '// @fd: feat\n', 'utf8');
+    writeFileSync(join(root, 'src', 'hand.ts'), 'export {};\n', 'utf8');
+    writeFileSync(
+      join(root, 'docs', 'features', 'feat.md'),
+      `---\nname: feat\nlinks:\n  code:\n${codeLinks.map((p) => `    - ${p}`).join('\n')}\n---\n`,
+      'utf8',
+    );
+    return root;
+  }
+  const rooted = {
+    ...codeAdapter,
+    roots: (cwd: string) => [{ path: join(cwd, 'src'), origin: 'configured' as const }],
+  };
+
+  it('warns on a hand-added row the next sync would drop', async () => {
+    const root = repoWith(['src/hand.ts', 'src/tagged.ts']);
+    const warnings = await doomedCodeLinkWarnings(join(root, 'docs', 'features'), root, rooted);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('src/hand.ts');
+    expect(warnings[0]).toContain('// @fd: feat');
+  });
+
+  it('is silent when links.code matches the tag scan', async () => {
+    const root = repoWith(['src/tagged.ts']);
+    expect(await doomedCodeLinkWarnings(join(root, 'docs', 'features'), root, rooted)).toEqual([]);
   });
 });

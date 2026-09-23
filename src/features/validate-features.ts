@@ -10,6 +10,14 @@ import {
 } from '../core/feature-schema.js';
 import { extractFeatureTags } from '../sync/sync-doc-links.js';
 import { extractTags } from '../sync/sync-test-links.js';
+import { codeAdapter } from '../sync/adapters/code.js';
+import {
+  buildSlugMap,
+  collectTaggedMany,
+  doomedEntries,
+  loadCachedAll,
+} from '../sync/projection.js';
+import type { LinkAdapter } from '../sync/projection.js';
 import { loadConsumerConfig, loadCategories } from '../core/consumer-config.js';
 import {
   docPresenceRoots,
@@ -379,6 +387,34 @@ export async function validateTaggedSlugs(paths: string[]): Promise<FileError[]>
   return errors;
 }
 
+/**
+ * Advisory: hand-added `links.code` rows the next `sync code-links` will drop.
+ * On an FD that carries `// @fd:` tags the tag scan owns `links.code`, so a row
+ * naming an untagged file passes every check here and then vanishes — or shows
+ * up only as garden drift. Warning at validate time names the split while the
+ * edit is still in front of the operator. An unreadable scan or FD makes no
+ * claim: `sync code-links` and `garden detect` report those themselves.
+ *
+ * @param featuresDir - Directory holding `<slug>.md` feature docs
+ * @param cwd - Consumer root the scan walks
+ * @param adapter - The code adapter; injectable so tests can root it
+ * @returns One warning per FD that would lose rows
+ */
+export async function doomedCodeLinkWarnings(
+  featuresDir: string,
+  cwd: string = process.cwd(),
+  adapter: LinkAdapter = codeAdapter,
+): Promise<string[]> {
+  const scan = (await collectTaggedMany([adapter], cwd)).get(adapter.key);
+  const load = await loadCachedAll(featuresDir, [adapter.key]);
+  if (!scan || scan.failures.length > 0 || load.failures.length > 0) return [];
+  const cached = load.byKey.get(adapter.key) ?? new Map<string, string[]>();
+  return doomedEntries(buildSlugMap(scan.tagged), cached, adapter).map(
+    (d) =>
+      `${join(featuresDir, `${d.slug}.md`)}: links.code names ${d.paths.join(', ')}, which carr${d.paths.length === 1 ? 'ies' : 'y'} no \`${adapter.tagLabel} ${d.slug}\` tag — this FD has tagged files, so the next \`pnpm noldor sync code-links\` drops ${d.paths.length === 1 ? 'it' : 'them'}. Add the tag to the file instead of editing links.code.`,
+  );
+}
+
 async function main(): Promise<void> {
   const dir = 'docs/features';
   let files: string[] = [];
@@ -428,6 +464,8 @@ async function main(): Promise<void> {
     ...docTagPresenceErrors,
     ...docTagErrors,
   ];
+
+  for (const warning of await doomedCodeLinkWarnings(dir)) console.warn(`WARN: ${warning}`);
 
   if (allErrors.length === 0) {
     console.log(`Validated ${files.length} feature MD(s) — all OK.`);
