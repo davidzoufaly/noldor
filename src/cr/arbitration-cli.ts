@@ -277,14 +277,15 @@ async function standingBlockers(
     try {
       raw = await readFileNoFollowAsync(path.path);
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') unread.push(path.path);
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT')
+        unread.push(`${path.path}: ${(err as Error).message}`);
       continue;
     }
     let sink;
     try {
       sink = laneFindingsSchema.parse(JSON.parse(raw));
-    } catch {
-      unread.push(path.path);
+    } catch (err) {
+      unread.push(`${path.path}: ${(err as Error).message}`);
       continue;
     }
     for (const b of sink.blockers) {

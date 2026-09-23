@@ -26,7 +26,8 @@ import {
   run,
   runReflagRules,
 } from '../orchestrate.js';
-import { buildSkeleton, priorRecordStands, renderSkeletonExit } from '../orchestrate.js';
+import { priorRecordStands } from '../arbitration.js';
+import { buildSkeleton, renderSkeletonExit } from '../orchestrate.js';
 import type { ArbitrationRecord } from '../arbitration.js';
 import { fingerprintBlockers, ledgerDir, ledgerPath } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';

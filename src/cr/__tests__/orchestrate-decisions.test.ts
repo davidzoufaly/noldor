@@ -254,6 +254,52 @@ describe('a green code round names every ruling of the session on its receipt (Q
     expect(settledLines()).toEqual([]);
   });
 
+  it("keeps an earlier session's ruling line when a later session rules on something else", async () => {
+    await decide('code', { finding: X });
+    expect(
+      (await run({ args: args({ kind: 'code', lanes: ['reviewer'] }), cwd: root })).exitCode,
+    ).toBe(0);
+    // A later session on the same tip: its store starts empty, and it rules only on Y.
+    writeFileSync(
+      join(root, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'fast-track', startedAt: 'S2' }),
+    );
+    const w = await updateDecisions(root, SLUG, 'code', 'S2', (cur) =>
+      upsertDecision(cur, {
+        id: fingerprintBlocker(Y),
+        finding: Y,
+        lanes: ['codex'],
+        disposition: 'deferred',
+        reason: 'next slice',
+        round: 1,
+      }),
+    );
+    expect(w.ok).toBe(true);
+    expect(
+      (await run({ args: args({ kind: 'code', lanes: ['reviewer'] }), cwd: root })).exitCode,
+    ).toBe(0);
+    expect(settledLines().toSorted()).toEqual(
+      [
+        `Noldor-CR-Settled: code rejected ${fingerprintBlocker(X).slice(0, 12)} — intentional`,
+        `Noldor-CR-Settled: code deferred ${fingerprintBlocker(Y).slice(0, 12)} — next slice`,
+      ].toSorted(),
+    );
+  });
+
+  it("replaces a ruling's own line, rather than adding a second one, when the ruling changes", async () => {
+    await decide('code', { finding: X });
+    expect(
+      (await run({ args: args({ kind: 'code', lanes: ['reviewer'] }), cwd: root })).exitCode,
+    ).toBe(0);
+    await decide('code', { finding: X, disposition: 'accepted', reason: 'the debt is taken' });
+    expect(
+      (await run({ args: args({ kind: 'code', lanes: ['reviewer'] }), cwd: root })).exitCode,
+    ).toBe(0);
+    expect(settledLines()).toEqual([
+      `Noldor-CR-Settled: code accepted ${fingerprintBlocker(X).slice(0, 12)} — the debt is taken`,
+    ]);
+  });
+
   it('keeps the ruling trailers a re-minted receipt finds on the tip once the stores are gone', async () => {
     await decide('code', { finding: X });
     expect(

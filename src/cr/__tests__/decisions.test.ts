@@ -130,6 +130,23 @@ describe('readDecisions / updateDecisions — session scoping', () => {
     expect(readFileSync(decisionsPath(cwd, SLUG, 'code'), 'utf8')).toBe('{not json');
   });
 
+  it('reads a store carrying a key this version does not know as unusable, and never rewrites it', async () => {
+    const newer = JSON.stringify({
+      version: 1,
+      slug: 'x',
+      kind: 'code',
+      sessionStartedAt: SESSION,
+      decisions: [{ ...decision(), addedLater: 'kept by a newer version' }],
+    });
+    writeStore(newer);
+    expect((await readDecisions(cwd, SLUG, 'code', SESSION)).ok).toBe(false);
+    const w = await updateDecisions(cwd, SLUG, 'code', SESSION, (cur) =>
+      upsertDecision(cur, decision({ id: 'id-2' })),
+    );
+    expect(w.ok).toBe(false);
+    expect(readFileSync(decisionsPath(cwd, SLUG, 'code'), 'utf8')).toBe(newer);
+  });
+
   it('re-reads before writing, so an earlier write in the session survives a later one', async () => {
     await updateDecisions(cwd, SLUG, 'code', SESSION, (cur) =>
       upsertDecision(cur, decision({ id: 'a' })),

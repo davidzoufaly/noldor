@@ -14,6 +14,7 @@
 import { execFile } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { promisify } from 'node:util';
 import { z } from 'zod';
 
 import { readFileNoFollowAsync, slugKindJsonPath } from '../core/slug-paths.js';
@@ -24,36 +25,45 @@ import { isSameSeries } from './autofix-ledger.js';
 import { artifactKindSchema, findingSchema, laneSchema } from './findings-schema.js';
 import type { ArtifactKind, Finding } from './findings-schema.js';
 
+// Every schema here is strict: an unknown key is rejected rather than stripped, so a store a
+// newer version wrote reads as unusable (and carries) instead of losing that key on a rewrite.
+
 /** The text of one line span a ruling cites, read at the head its round reviewed. */
-export const citationSchema = z.object({
-  file: z.string().min(1),
-  line: z.number().int().positive(),
-  endLine: z.number().int().positive().optional(),
-  text: z.string().min(1),
-});
+export const citationSchema = z
+  .object({
+    file: z.string().min(1),
+    line: z.number().int().positive(),
+    endLine: z.number().int().positive().optional(),
+    text: z.string().min(1),
+  })
+  .strict();
 export type Citation = z.infer<typeof citationSchema>;
 
-export const decisionSchema = z.object({
-  /** The finding's `fingerprintBlocker` id. */
-  id: z.string().min(1),
-  finding: findingSchema,
-  lanes: z.array(laneSchema).min(1),
-  disposition: z.enum(['fixed', ...DISPOSITIONS]),
-  /** The lane's `why` for `fixed`, the operator's note for a ruling. */
-  reason: z.string(),
-  round: z.number().int().nonnegative(),
-  /** What an operator ruling cites. Absent on `fixed`, and on a ruling that cites nothing. */
-  cites: z.array(citationSchema).optional(),
-});
+export const decisionSchema = z
+  .object({
+    /** The finding's `fingerprintBlocker` id. */
+    id: z.string().min(1),
+    finding: findingSchema,
+    lanes: z.array(laneSchema).min(1),
+    disposition: z.enum(['fixed', ...DISPOSITIONS]),
+    /** The lane's `why` for `fixed`, the operator's note for a ruling. */
+    reason: z.string(),
+    round: z.number().int().nonnegative(),
+    /** What an operator ruling cites. Absent on `fixed`, and on a ruling that cites nothing. */
+    cites: z.array(citationSchema).optional(),
+  })
+  .strict();
 export type Decision = z.infer<typeof decisionSchema>;
 
-export const decisionStoreSchema = z.object({
-  version: z.literal(1),
-  slug: z.string().min(1),
-  kind: artifactKindSchema,
-  sessionStartedAt: z.string(),
-  decisions: z.array(decisionSchema),
-});
+export const decisionStoreSchema = z
+  .object({
+    version: z.literal(1),
+    slug: z.string().min(1),
+    kind: artifactKindSchema,
+    sessionStartedAt: z.string(),
+    decisions: z.array(decisionSchema),
+  })
+  .strict();
 export type DecisionStore = z.infer<typeof decisionStoreSchema>;
 
 /**
@@ -103,10 +113,14 @@ export type DecisionsWrite = { ok: true; decisions: Decision[] } | { ok: false; 
 
 /**
  * Re-read the store, apply `change`, and write the result atomically. Re-reading here, rather
- * than writing a list read earlier, is what keeps a ruling made while a round ran from being
- * overwritten by that round's `fixed` write. Refuses with no session (see {@link readDecisions}),
- * and refuses rather than replaces a file it cannot read: deleting it is the operator's call.
+ * than writing a list read earlier, narrows the window in which a ruling made while a round ran
+ * could be overwritten by that round's `fixed` write. Refuses with no session (see
+ * {@link readDecisions}), and refuses rather than replaces a file it cannot read: deleting it is
+ * the operator's call.
  */
+// noldor:cut check-then-act, one mutating process per slug+kind at a time — the gate runs
+// orchestrate and `dispose` in sequence, as it does orchestrate and `cr autofix record` over the
+// round ledger; a lock around the read-through-rename span is the upgrade path.
 export async function updateDecisions(
   cwd: string,
   slug: Slug,
@@ -153,15 +167,15 @@ export type TreeReader = (rev: string, path: string) => Promise<TreeRead>;
 /** Every git read here is bounded: a hung subprocess must not hang a CLI or a round. */
 const GIT_TIMEOUT_MS = 30_000;
 
-function git(cwd: string, args: readonly string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      'git',
-      [...args],
-      { cwd, timeout: GIT_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 },
-      (err, stdout) => (err ? reject(err) : resolve(String(stdout))),
-    );
+const execFileP = promisify(execFile);
+
+async function git(cwd: string, args: readonly string[]): Promise<string> {
+  const { stdout } = await execFileP('git', [...args], {
+    cwd,
+    timeout: GIT_TIMEOUT_MS,
+    maxBuffer: 64 * 1024 * 1024,
   });
+  return stdout;
 }
 
 /**

@@ -644,9 +644,6 @@ export function buildSkeleton(
   };
 }
 
-// Lives in `arbitration.ts` since `cr arbitration dispose` needs it too (Q-0261).
-export { priorRecordStands };
-
 /**
  * Write the skeleton, unless a record for this tree already exists.
  *
@@ -1106,12 +1103,15 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // skip when any lane was red.
   if (exitCode === 0 && opts.args.kind === 'code' && lanesRun.includes('reviewer')) {
     try {
-      // The receipt names every ruling of the session (Q-0261): a round that went
-      // green on a disposed blocker must not read in git as a clean review. With no
-      // rulings to name, the tip's existing lines are left alone: a receipt re-minted
-      // after the gate's clean-exit cleanup has removed the stores, or in a resumed
-      // session, must not erase the rulings an earlier round already named.
-      const values = await settledTrailers(cwd, opts.args.slug, roundKey);
+      // The receipt names every ruling made on the branch (Q-0261): a round that went
+      // green on a disposed blocker must not read in git as a clean review. The lines
+      // already on the tip are merged in, so a receipt re-minted after the gate's
+      // clean-exit cleanup removed the stores, or in a later session, keeps the rulings
+      // an earlier round named; a ruling that changed replaces its own line.
+      const values = mergeSettled(
+        await tipSettled(cwd),
+        await settledTrailers(cwd, opts.args.slug, roundKey),
+      );
       amendSubagentReceipt({
         cwd,
         ...(values.length > 0 ? { also: { key: SETTLED_TRAILER, values } } : {}),
@@ -1332,6 +1332,32 @@ async function recordFixed(
     return next.filter((d) => !(d.disposition === 'fixed' && standing.has(d.id)));
   });
   if (!w.ok) console.error(`fixed findings not recorded: ${w.reason}`);
+}
+
+/** The `Noldor-CR-Settled:` values already on the tip commit. */
+async function tipSettled(cwd: string): Promise<string[]> {
+  const { stdout } = await execAsync(
+    'git',
+    ['log', '-1', `--format=%(trailers:key=${SETTLED_TRAILER},valueonly,unfold)`],
+    { cwd },
+  );
+  return stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+}
+
+/**
+ * The tip's ruling lines plus the session's, one per ruling: a value names `<kind> <disposition>
+ * <id> — <note>`, and a current ruling replaces the tip's line for the same kind and id.
+ */
+function mergeSettled(onTip: readonly string[], current: readonly string[]): string[] {
+  const rulingOf = (value: string): string => {
+    const [kind, , id] = value.split(' ');
+    return `${kind} ${id}`;
+  };
+  const now = new Set(current.map(rulingOf));
+  return [...onTip.filter((v) => !now.has(rulingOf(v))), ...current];
 }
 
 /** One `Noldor-CR-Settled:` value per operator ruling of the session, across every artifact kind. */

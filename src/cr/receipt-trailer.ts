@@ -39,9 +39,11 @@ export function replaceReceiptTrailer(opts: {
 }): {
   amended: boolean;
 } {
-  const line = new RegExp(`^${opts.key}:[ \\t]*(\\S*)`, 'i');
+  const line = new RegExp(`^${RegExp.escape(opts.key)}:[ \\t]*(\\S*)`, 'i');
   const alsoLine =
-    opts.also === undefined ? null : new RegExp(`^${opts.also.key}:[ \\t]*(.*)$`, 'i');
+    opts.also === undefined
+      ? null
+      : new RegExp(`^${RegExp.escape(opts.also.key)}:[ \\t]*(.*)$`, 'i');
 
   const msg = execFileSync('git', ['log', '-1', '--format=%B'], {
     cwd: opts.cwd,

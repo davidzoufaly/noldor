@@ -13,9 +13,10 @@ export interface DecidedFinding {
   readonly id: string;
   readonly finding: Finding;
   /**
-   * `fixed`, or one of the arbitration record's `DISPOSITIONS`. Spelled out rather than imported
-   * so the lane types stay a leaf; `decisions.ts` builds these from its own schema, so a vocabulary
-   * that drifted would stop compiling there.
+   * `fixed`, or one of the arbitration record's `DISPOSITIONS`. Spelled out rather than imported so
+   * the lane types stay a leaf. `loadDecided` in `orchestrate.ts` builds these from the decision
+   * store's schema, so a disposition added to `DISPOSITIONS` stops compiling there; one removed
+   * from it would not, and would leave a member here no store can hold.
    */
   readonly disposition: 'fixed' | 'accepted' | 'rejected' | 'deferred';
   /** The lane's `why` for a fixed finding, the operator's note for a disposition. */
