@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -195,5 +195,76 @@ describe('remove-block milestone audit', () => {
   it('omits the key for an entry that declared none', () => {
     run('without-milestone');
     expect(ledger()['Q-0998']).not.toHaveProperty('milestone');
+  });
+});
+
+// @tests: stable-entry-ids-for-roadmap-backlog
+describe('remove-block --split-into sibling check', () => {
+  let repo: string;
+
+  beforeEach(async () => {
+    repo = await mkdtemp(join(tmpdir(), 'remove-block-split-'));
+    await mkdir(join(repo, 'docs'), { recursive: true });
+    await mkdir(join(repo, '.noldor'), { recursive: true });
+    await writeFile(
+      join(repo, 'docs/roadmap.md'),
+      [
+        '### Parent',
+        '',
+        '- id: Q-0997',
+        '- area: tooling',
+        '',
+        'Body.',
+        '',
+        '### Split the Façades',
+        '',
+        '- area: tooling',
+        '',
+        'Body.',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(
+      join(repo, 'docs/backlog.md'),
+      '# Backlog\n\n### Later Slice\n\n- area: tooling\n\nBody.\n',
+    );
+  });
+
+  afterEach(async () => {
+    await rm(repo, { recursive: true, force: true });
+  });
+
+  const run = (...args: string[]) =>
+    spawnSync(
+      process.execPath,
+      [join(process.cwd(), 'bin/noldor.mjs'), 'roadmap', 'remove-block', 'parent', ...args],
+      { cwd: repo, env: { ...process.env, NOLDOR_RUNTIME: 'source' }, encoding: 'utf8' },
+    );
+
+  const roadmap = (): string => readFileSync(join(repo, 'docs/roadmap.md'), 'utf8');
+
+  it('records siblings that resolve in either queue file', () => {
+    const result = run('--split-into', 'split-the-facades,later-slice');
+    expect(result.status).toBe(0);
+    expect(roadmap()).not.toContain('### Parent');
+    const ledger = JSON.parse(
+      readFileSync(join(repo, '.noldor/retired-entry-ids.json'), 'utf8'),
+    ) as Record<string, { splitInto?: string[] }>;
+    expect(ledger['Q-0997']?.splitInto).toStrictEqual(['split-the-facades', 'later-slice']);
+  });
+
+  it('refuses an unresolvable sibling and leaves the block in place', () => {
+    const result = run('--split-into', 'split-the-faades,later-slice');
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('split-the-faades');
+    expect(result.stderr).not.toContain('later-slice');
+    expect(roadmap()).toContain('### Parent');
+    expect(existsSync(join(repo, '.noldor/retired-entry-ids.json'))).toBe(false);
+  });
+
+  it('does not accept the removed entry as its own sibling', () => {
+    const result = run('--split-into', 'parent');
+    expect(result.status).toBe(1);
+    expect(roadmap()).toContain('### Parent');
   });
 });

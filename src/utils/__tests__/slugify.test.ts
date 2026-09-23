@@ -18,6 +18,19 @@ describe(slugify, () => {
     expect(slugify('  ---weird---name---  ')).toBe('weird-name');
   });
 
+  it('folds accented letters to their ASCII base instead of deleting them', () => {
+    expect(slugify('Split the Façades')).toBe('split-the-facades');
+    expect(slugify('Café Résumé Naïve')).toBe('cafe-resume-naive');
+  });
+
+  it('folds letters that have no Unicode decomposition', () => {
+    expect(slugify('Straße Ærø Łódź')).toBe('strasse-aero-lodz');
+  });
+
+  it('still strips non-letter symbols such as the em dash', () => {
+    expect(slugify('Geometry Lane — the Half')).toBe('geometry-lane-the-half');
+  });
+
   it('returns empty string when input has no slug-safe characters', () => {
     expect(slugify('!!!')).toBe('');
   });
