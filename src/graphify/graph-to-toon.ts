@@ -21,6 +21,7 @@ import { isEntrypoint } from '../core/cli-entry.js';
 // Types
 // ---------------------------------------------------------------------------
 
+/** One graph node as graphify emits it; `community` is optional and defaults to the `-1` bucket. */
 export interface GraphNode {
   readonly id: string;
   readonly label: string;
@@ -29,6 +30,7 @@ export interface GraphNode {
   readonly file_type?: string;
 }
 
+/** One directed edge. `relation` is optional and renders as `?` when it is not in `REL_CODE`. */
 export interface GraphLink {
   readonly source: string;
   readonly target: string;
@@ -36,6 +38,7 @@ export interface GraphLink {
   readonly confidence?: string;
 }
 
+/** An n-ary relation over named members; graphify writes it under either `nodes` or `members`. */
 export interface Hyperedge {
   readonly id?: string;
   readonly label: string;
@@ -49,6 +52,7 @@ function hyperedgeMembers(he: Hyperedge): readonly string[] {
   return he.nodes ?? he.members ?? [];
 }
 
+/** A parsed `graphify-out/graph.json`. Hyperedges appear at the root or under `graph`. */
 export interface GraphData {
   readonly nodes: GraphNode[];
   readonly links: GraphLink[];
@@ -58,6 +62,7 @@ export interface GraphData {
   readonly graph?: { readonly hyperedges?: Hyperedge[] };
 }
 
+/** The render input, built once by {@link buildContext} and shared by both renderers. */
 export interface GraphContext {
   readonly nodes: GraphNode[];
   readonly links: GraphLink[];
@@ -122,6 +127,12 @@ function formatNodeLabel(label: string): string {
   return clean.endsWith('()') ? `${clean.slice(0, -2)}!` : clean;
 }
 
+/** A node's path row, sanitized: the format is line-oriented and a newline in a
+ *  source path would split the row and shift every TOC range after it. */
+function nodePath(n: GraphNode): string {
+  return sanitizeLine(shortenPath(n.source_file ?? ''));
+}
+
 /** Longest common prefix truncated at the last slash, or none when it buys under 4 characters. */
 function factorCommonPrefix(paths: readonly string[]): {
   prefix: string;
@@ -153,12 +164,14 @@ interface HubStats {
   readonly fanOut: number;
 }
 
-/** Top hubs by total degree, ties broken by label so the line is reproducible. */
-function computeHubs(
-  commEdges: readonly GraphLink[],
-  localIdx: Map<string, number>,
-  sortedNodes: readonly GraphNode[],
-): HubStats[] {
+/**
+ * Top hubs by total degree, ties broken by local index. Index rather than label:
+ * two nodes can share a label AND a total degree, and the leftover order then
+ * came from a Set built in graphify's edge order — reversing the input flipped
+ * `dup(1/1) dup(0/2)` to `dup(0/2) dup(1/1)`. `sortedNodes` is already ordered by
+ * label then id, so the index is a total order.
+ */
+function computeHubs(commEdges: readonly GraphLink[], localIdx: Map<string, number>): HubStats[] {
   const fanOut = new Map<number, number>();
   const fanIn = new Map<number, number>();
   for (const l of commEdges) {
@@ -175,11 +188,7 @@ function computeHubs(
     stats.push({ fanIn: fi, fanOut: fo, idx });
   }
   return stats
-    .toSorted(
-      (a, b) =>
-        b.fanIn + b.fanOut - (a.fanIn + a.fanOut) ||
-        byCodeUnit(sortedNodes[a.idx].label, sortedNodes[b.idx].label),
-    )
+    .toSorted((a, b) => b.fanIn + b.fanOut - (a.fanIn + a.fanOut) || a.idx - b.idx)
     .slice(0, HUB_TOP_N);
 }
 
@@ -206,16 +215,14 @@ function emitCommunity(
   );
   const localIdx = new Map<string, number>(sortedNodes.map((n, i) => [n.id, i]));
 
-  const uniquePaths = [
-    ...new Set(sortedNodes.map((n) => shortenPath(n.source_file ?? ''))),
-  ].toSorted(byCodeUnit);
+  const uniquePaths = [...new Set(sortedNodes.map(nodePath))].toSorted(byCodeUnit);
   const { prefix, stripped } = factorCommonPrefix(uniquePaths);
   const pathLocal = new Map<string, number>(uniquePaths.map((p, i) => [p, i]));
 
   lines.push(`## c${commId} (${commNodes.length}) ${sanitizeLine(label)}`);
 
   if (commNodes.length >= SIG_MIN_NODES && commEdges.length > 0) {
-    const hubs = computeHubs(commEdges, localIdx, sortedNodes);
+    const hubs = computeHubs(commEdges, localIdx);
     if (hubs.length > 0) {
       const parts = hubs.map(
         (h) => `${formatNodeLabel(sortedNodes[h.idx].label)}(${h.fanIn}/${h.fanOut})`,
@@ -232,7 +239,7 @@ function emitCommunity(
   lines.push('n');
   for (let i = 0; i < sortedNodes.length; i++) {
     const n = sortedNodes[i];
-    const pi = pathLocal.get(shortenPath(n.source_file ?? '')) ?? 0;
+    const pi = pathLocal.get(nodePath(n)) ?? 0;
     lines.push(`  ${i} ${formatNodeLabel(n.label)} @${pi}`);
   }
 
@@ -240,22 +247,30 @@ function emitCommunity(
     return 0;
   }
 
+  // Keyed by the RAW relation, not by its rendered code. Every unmapped relation
+  // renders `?`, so keying by the code would merge `inherits` and `implements`
+  // between the same pair into one adjacency set — an edge lost and the header's
+  // count short by one.
   const byRel = new Map<string, Map<number, Set<number>>>();
   for (const l of commEdges) {
-    const r = REL_CODE[l.relation ?? ''] ?? '?';
+    const raw = l.relation ?? '';
     const s = localIdx.get(l.source);
     const t = localIdx.get(l.target);
     if (s === undefined || t === undefined) continue;
-    if (!byRel.has(r)) byRel.set(r, new Map());
-    const bySrc = byRel.get(r)!;
+    if (!byRel.has(raw)) byRel.set(raw, new Map());
+    const bySrc = byRel.get(raw)!;
     if (!bySrc.has(s)) bySrc.set(s, new Set());
     bySrc.get(s)!.add(t);
   }
 
   lines.push('e');
   let emitted = 0;
-  for (const r of [...byRel.keys()].toSorted(byCodeUnit)) {
-    const bySrc = byRel.get(r)!;
+  const rels = [...byRel.keys()].toSorted(
+    (a, b) => byCodeUnit(REL_CODE[a] ?? '?', REL_CODE[b] ?? '?') || byCodeUnit(a, b),
+  );
+  for (const raw of rels) {
+    const r = REL_CODE[raw] ?? '?';
+    const bySrc = byRel.get(raw)!;
     for (const s of [...bySrc.keys()].toSorted((a, b) => a - b)) {
       const targets = [...bySrc.get(s)!].toSorted((a, b) => a - b);
       lines.push(`  ${r} ${s}>${targets.join(',')}`);
@@ -422,7 +437,7 @@ function hyperedgeRows(hyperedges: readonly Hyperedge[], idToLabel: Map<string, 
     const members = hyperedgeMembers(he)
       .map((nid) => sanitizeLine(idToLabel.get(nid) ?? nid))
       .join(', ');
-    return `  ${sanitizeLine(he.label)} [${he.relation ?? 'related'}]: ${members}`;
+    return `  ${sanitizeLine(he.label)} [${sanitizeLine(he.relation ?? 'related')}]: ${members}`;
   });
 }
 
@@ -438,9 +453,15 @@ interface TocEntry {
  * drifts silently when the body emission changes, so the emitter checks itself.
  */
 function validateToc(lines: readonly string[], entries: readonly TocEntry[]): void {
+  // Against the text that gets WRITTEN, not the pre-join array: one element
+  // holding a newline shifts every later line, and an array-indexed check would
+  // agree with itself while the file on disk was off by one.
+  const written = lines.join('\n').split('\n');
   for (const e of entries) {
-    const actual = lines[e.startLine - 1] ?? '';
-    const isCommunity = /^c\d+$/.test(e.key);
+    const actual = written[e.startLine - 1] ?? '';
+    // `c-1` is the bucket for nodes with no community — `community` is optional
+    // and `?? -1` is honoured everywhere else, so the key can carry a minus.
+    const isCommunity = /^c-?\d+$/.test(e.key);
     const expected = isCommunity ? `## ${e.key} ` : `## ${e.key}`;
     const ok = isCommunity ? actual.startsWith(expected) : actual === expected;
     if (!ok) {
@@ -451,6 +472,12 @@ function validateToc(lines: readonly string[], entries: readonly TocEntry[]): vo
   }
 }
 
+/**
+ * Render `graph.brainstorm.toon` — the v3 compact topology, one block per
+ * community, fronted by a TOC of absolute line ranges so a reader can load one
+ * section with `Read offset/limit` instead of the whole file. Pure: takes a
+ * parsed graph and returns text, touching no disk.
+ */
 export function renderBrainstormToon(ctx: GraphContext): string {
   const { nodes, links, communityLabels, directed } = ctx;
   const communityGroups = groupByCommunity(nodes);
@@ -495,7 +522,7 @@ export function renderBrainstormToon(ctx: GraphContext): string {
     '# version: 3',
     `# ${nodes.length} nodes, ${totalEdges} edges (contains/imports_from omitted), ${communityGroups.size} communities, directed=${directed}`,
     '# Per community: sig (top hubs by fan-in/out) | p (local paths, prefix-factored) | n (nodes) | e (edges)',
-    '# Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of',
+    '# Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of ?=other',
     '# Node row: <local_id> <label>[!=function] @<path_id>',
     '# Edge row: <rel> <src>><t1,t2,...>',
     '# TOC: <key>: <startLine>-<endLine>  (use Read offset/limit to load a single section)',
@@ -616,6 +643,11 @@ function extractConceptsAndRationales(nodes: readonly GraphNode[]): {
   };
 }
 
+/**
+ * Render `graph.brainstorm-summary.toon` — the orientation file: packages,
+ * feature folders, concepts, hyperedges, the 20 largest communities and the
+ * first 25 cross-community edges. Pure, like its sibling above.
+ */
 export function renderBrainstormSummary(ctx: GraphContext): string {
   const { nodes, links, communityLabels, directed, hyperedges } = ctx;
   const communityGroups = groupByCommunity(nodes);
@@ -628,7 +660,7 @@ export function renderBrainstormSummary(ctx: GraphContext): string {
     `# ${nodes.length} nodes, ${links.length} edges, ${communityGroups.size} communities, directed=${directed}`,
     '# Deep dive: graph.brainstorm.toon (TOC at top — use Read offset/limit per community)',
     '# Compact format used in brainstorm.toon:',
-    '#   Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of  (contains/imports_from omitted — derivable)',
+    '#   Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of ?=other  (contains/imports_from omitted — derivable)',
     '#   Node row: <local_id> <label>[!=function] @<path_id>',
     '#   Edge row: <rel> <src>><t1,t2,...>',
     '#   Cross-edge row (this file + brainstorm.toon ## cross): <rel> <label>@c<src_comm>><label>@c<tgt_comm>',
@@ -666,7 +698,7 @@ export function renderBrainstormSummary(ctx: GraphContext): string {
 
   const hyperLines = hyperedges.map(
     (he) =>
-      `  ${sanitizeLine(he.label)} (${hyperedgeMembers(he).length} nodes, ${he.relation ?? 'related'})`,
+      `  ${sanitizeLine(he.label)} (${hyperedgeMembers(he).length} nodes, ${sanitizeLine(he.relation ?? 'related')})`,
   );
   if (hyperLines.length > 0) {
     lines.push('', '## hyperedges', ...hyperLines);

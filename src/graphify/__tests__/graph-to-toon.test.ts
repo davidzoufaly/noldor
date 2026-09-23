@@ -258,4 +258,87 @@ describe('graph-to-toon', () => {
     // Equal-size communities fall back to ascending id.
     expect(first.indexOf('  c2 (1): ')).toBeLessThan(first.indexOf('  c3 (1): '));
   });
+
+  it('renders a graph whose nodes carry no community', () => {
+    // `community` is optional on the type and `?? -1` is honoured everywhere
+    // else, so bucket -1 must be emittable — its TOC key is `c-1`.
+    const text = renderBrainstormToon(
+      buildContext({
+        links: [],
+        nodes: [
+          { id: 'a', label: 'A' },
+          { community: 0, id: 'b', label: 'B' },
+        ],
+      }),
+    );
+    expect(text).toContain('## c-1 (1) ');
+    expect(text).toMatch(/\n {2}c-1: \d+-\d+\n/);
+  });
+
+  it('keeps the TOC honest when a field carries a newline', () => {
+    // validateToc must see the text that gets written, not the pre-join array —
+    // one element holding a newline shifts every later range by one.
+    const text = renderBrainstormToon(
+      buildContext({
+        links: [],
+        nodes: [
+          { community: 0, id: 'a', label: 'A', source_file: 'src/x\ny.ts' },
+          { community: 1, id: 'b', label: 'B', source_file: 'src/b.ts' },
+        ],
+      }),
+    );
+    const lines = text.split('\n');
+    for (const entry of lines.filter((l) => /^ {2}c-?\d+: /.test(l))) {
+      const [key, range] = entry.trim().split(': ');
+      expect(lines[Number(range.split('-')[0]) - 1]).toMatch(new RegExp(`^## ${key}( |$)`));
+    }
+  });
+
+  it('breaks hub ties by index, not by insertion order', () => {
+    // Two nodes sharing a label and a total degree tie on both sort keys, and
+    // the leftover order came from a Set built in graphify's edge order. Their
+    // fan-in/fan-out split differs, so the rendered line exposes the swap.
+    const nodes = [
+      { community: 1, id: 'p', label: 'p', source_file: 'src/p.ts' },
+      { community: 1, id: 'x', label: 'dup', source_file: 'src/x.ts' },
+      { community: 1, id: 'y', label: 'dup', source_file: 'src/y.ts' },
+      { community: 1, id: 'z', label: 'z', source_file: 'src/z.ts' },
+    ];
+    const links = [
+      { relation: 'calls', source: 'y', target: 'p' },
+      { relation: 'calls', source: 'y', target: 'z' },
+      { relation: 'calls', source: 'x', target: 'p' },
+      { relation: 'calls', source: 'p', target: 'x' },
+    ];
+    const forward = blockOf(renderBrainstormToon(buildContext({ links, nodes })), 'c1');
+    const reversed = blockOf(
+      renderBrainstormToon(buildContext({ links: links.toReversed(), nodes })),
+      'c1',
+    );
+    expect(forward).toContain('sig hubs=p(2/1) dup(1/1) dup(0/2)');
+    expect(reversed).toBe(forward);
+  });
+
+  it('keeps two distinct unmapped relations apart', () => {
+    // Both render `?`, but they are different edges — collapsing them into one
+    // adjacency set loses an edge and undercounts the header.
+    const text = renderBrainstormToon(
+      buildContext({
+        links: [
+          { relation: 'inherits', source: 'a', target: 'b' },
+          { relation: 'implements', source: 'a', target: 'b' },
+        ],
+        nodes: [
+          { community: 1, id: 'a', label: 'a', source_file: 'src/a.ts' },
+          { community: 1, id: 'b', label: 'b', source_file: 'src/b.ts' },
+        ],
+      }),
+    );
+    expect(
+      blockOf(text, 'c1')
+        .split('\n')
+        .filter((l) => l.startsWith('  ? ')).length,
+    ).toBe(2);
+    expect(text).toContain('# 2 nodes, 2 edges');
+  });
 });

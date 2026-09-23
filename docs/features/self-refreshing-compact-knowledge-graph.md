@@ -5,15 +5,16 @@ deps: []
 entry-id: Q-0260
 links:
   code: []
-  spec: docs/design/specs/2026-09-22-self-refreshing-compact-knowledge-graph-design.md
-  tests: []
-name: Self-Refreshing, Compact Knowledge Graph
+  spec: >-
+    docs/design/specs/2026-09-22-self-refreshing-compact-knowledge-graph-design.md
+  tests:
+    - src/graphify/__tests__/graph-to-toon.test.ts
+name: 'Self-Refreshing, Compact Knowledge Graph'
 packages:
   - scripts
 phase: in-progress
 noldor-tier: full
 ---
-
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->
