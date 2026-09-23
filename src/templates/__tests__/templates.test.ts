@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import {
+  chmodSync,
+  mkdtempSync,
+  writeFileSync,
+  rmSync,
+  mkdirSync,
+  readFileSync,
+  existsSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -242,6 +250,8 @@ function tempTree(files: Record<string, string>): { dir: string; [Symbol.dispose
 // The build case below runs graphify for real, which this repo's CI does not install.
 const graphifyImportable =
   spawnSync('python3', ['-c', 'import graphify'], { stdio: 'ignore' }).status === 0;
+// The publish cases run the step's own script, which reads graph.json with jq.
+const jqAvailable = spawnSync('jq', ['--version'], { stdio: 'ignore' }).status === 0;
 
 describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)', () => {
   const rel = '.github/workflows/update-knowledge-graph.yml';
@@ -416,12 +426,124 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
     expect(checkout?.with?.['persist-credentials']).toBe(false);
   });
 
-  it('queues publishes one at a time, in a group of their own', () => {
+  it('runs publishes one at a time, in a group of their own', () => {
     // Not the build group: its cancel-in-progress would cut a publish off mid-push.
     expect(workflow().jobs.publish.concurrency).toEqual({
       group: 'knowledge-graph-publish',
       'cancel-in-progress': false,
     });
+  });
+
+  describe.skipIf(!jqAvailable)('publish, run against a local remote', () => {
+    // No signing and no global hooks, whatever this machine's git config says.
+    const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+    const git = (cwd: string, ...args: string[]): string =>
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], {
+        cwd,
+        env: gitEnv,
+        encoding: 'utf8',
+      }).trim();
+    const graph = (fields: Record<string, string>): string => `${JSON.stringify(fields)}\n`;
+
+    it.each([
+      {
+        name: 'the graph branch has a newer merge graph',
+        holder: 'the graph branch',
+        age: 'newer',
+        publishes: false,
+      },
+      {
+        name: 'the default branch has a newer merge graph',
+        holder: 'the default branch',
+        age: 'newer',
+        publishes: false,
+      },
+      {
+        name: 'the graph branch has an older merge graph',
+        holder: 'the graph branch',
+        age: 'older',
+        publishes: true,
+      },
+      {
+        name: 'the graph branch has this merge graph (a re-run)',
+        holder: 'the graph branch',
+        age: 'same',
+        publishes: true,
+      },
+      { name: 'no graph exists yet', holder: 'neither', age: 'none', publishes: true },
+    ])(
+      'when $name, publishes: $publishes',
+      ({ holder, age, publishes }) => {
+        using root = tempTree({ 'bin/gh': '#!/bin/sh\nexit 0\n' });
+        chmodSync(join(root.dir, 'bin', 'gh'), 0o755);
+        const remote = join(root.dir, 'origin.git');
+        const seed = join(root.dir, 'seed');
+        const work = join(root.dir, 'work');
+        const branch = (parseYaml(raw()) as { env: { GRAPH_BRANCH: string } }).env.GRAPH_BRANCH;
+
+        git(root.dir, 'init', '-q', '--bare', remote);
+        git(root.dir, 'init', '-q', '-b', 'main', seed);
+        const commit = (msg: string, files: Record<string, string>): string => {
+          for (const [path, body] of Object.entries(files)) {
+            mkdirSync(dirname(join(seed, path)), { recursive: true });
+            writeFileSync(join(seed, path), body);
+          }
+          git(seed, 'add', '-A');
+          git(seed, 'commit', '-q', '-m', msg);
+          return git(seed, 'rev-parse', 'HEAD');
+        };
+        const base = commit('base', { 'graphify-out/graph.json': graph({ marker: 'base' }) });
+        const mergeA = commit('merge A', { 'a.ts': 'a\n' });
+        const mergeB = commit('merge B', { 'b.ts': 'b\n' });
+        if (holder === 'the default branch') {
+          commit('graph PR for B', {
+            'graphify-out/graph.json': graph({ built_at_commit: mergeB, marker: 'remote' }),
+          });
+        }
+        git(seed, 'push', '-q', remote, 'main');
+        if (holder === 'the graph branch') {
+          const builtAt = { older: base, same: mergeA, newer: mergeB }[age] ?? base;
+          git(seed, 'checkout', '-q', '-b', branch, builtAt);
+          commit('graph', {
+            'graphify-out/graph.json': graph({ built_at_commit: builtAt, marker: 'remote' }),
+          });
+          git(seed, 'push', '-q', remote, branch);
+        }
+
+        // Publish's own checkout — the merge it was built from — with the artifact on top.
+        git(root.dir, 'clone', '-q', remote, work);
+        git(work, 'checkout', '-q', '--detach', mergeA);
+        writeFileSync(
+          join(work, 'graphify-out', 'graph.json'),
+          graph({ built_at_commit: mergeA, marker: 'ours' }),
+        );
+
+        const step = workflow().jobs.publish.steps.find((s) => s.env?.GH_TOKEN !== undefined);
+        const r = spawnSync('bash', ['-c', step?.run ?? 'exit 99'], {
+          cwd: work,
+          encoding: 'utf8',
+          env: {
+            ...gitEnv,
+            PATH: `${join(root.dir, 'bin')}:${process.env.PATH ?? ''}`,
+            GRAPH_BRANCH: branch,
+            DEFAULT_BRANCH: 'main',
+            MERGE_SHA: mergeA,
+            PR_NUMBER: '7',
+            GH_TOKEN: 'unused',
+          },
+        });
+        expect(r.status, r.stderr).toBe(0);
+
+        const landed = spawnSync(
+          'git',
+          ['--git-dir', remote, 'show', `${branch}:graphify-out/graph.json`],
+          { env: gitEnv, encoding: 'utf8' },
+        );
+        const marker = landed.status === 0 ? JSON.parse(landed.stdout).marker : undefined;
+        expect(marker === 'ours').toBe(publishes);
+      },
+      30_000,
+    );
   });
 
   it('pins graphify and titles its own PR with a prefix the filter skips', () => {

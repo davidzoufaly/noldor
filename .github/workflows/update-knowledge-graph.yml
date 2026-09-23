@@ -158,9 +158,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    # A group of its own, queued rather than cancelled. Builds finish in merge
-    # order, so publishes queue in merge order and run one at a time: an older
-    # run can never force-push over a newer one, and none is cut off mid-push.
+    # Its own group, with no cancelling: one publish runs at a time and none is
+    # cut off mid-push. The newer-graph check below is check-then-act and needs
+    # exactly that.
     concurrency:
       group: knowledge-graph-publish
       cancel-in-progress: false
@@ -181,10 +181,25 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
           set -euo pipefail
           git config user.name "noldor-graph-bot"
           git config user.email "noldor-graph-bot@users.noreply.github.com"
+
+          # Runs can still publish out of order: the group admits one at a time
+          # but does not order them, and re-running an old run publishes it
+          # late. So never replace a graph built from a newer merge than this.
+          for ref in "$DEFAULT_BRANCH" "$GRAPH_BRANCH"; do
+            git fetch --quiet origin "$ref" 2>/dev/null || continue
+            built=$(git show FETCH_HEAD:graphify-out/graph.json 2>/dev/null |
+              jq -r '.built_at_commit // empty' || true)
+            if [ -n "$built" ] && [ "$built" != "$MERGE_SHA" ] &&
+              git merge-base --is-ancestor "$MERGE_SHA" "$built" 2>/dev/null; then
+              echo "$ref holds a graph built from a newer merge ($built) — nothing to publish"
+              exit 0
+            fi
+          done
 
           # One fixed branch, force-updated in place, so an unmerged queue is
           # bounded at one PR rather than growing per merge.
