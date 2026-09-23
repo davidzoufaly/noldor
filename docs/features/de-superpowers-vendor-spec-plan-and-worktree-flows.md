@@ -26,6 +26,7 @@ links:
     - src/design/__tests__/ledger.test.ts
     - src/design/__tests__/render-digest.test.ts
     - src/design/__tests__/render.test.ts
+    - src/design/__tests__/support-check.test.ts
     - src/prep/__tests__/formats.test.ts
     - src/prep/__tests__/print-format.test.ts
     - src/utils/__tests__/markdown-sections.test.ts

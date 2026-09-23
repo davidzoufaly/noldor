@@ -492,6 +492,49 @@ export function writeLedger(cwd: string, slug: Slug, state: LedgerState): void {
   atomicWriteFileSync(p, serializeLedger(slug, state));
 }
 
+/**
+ * An `Existing support` value that records the absence of prior art rather than
+ * an anchor: `none: <reason>`. Case-insensitive on the keyword, so `None:` from
+ * a hand-typed flag still counts; the reason is group 1.
+ */
+const NONE_SUPPORT_RE = /^none\s*:\s*(.*)$/i;
+
+/**
+ * Whether a `--support` value is a bare `none` — the keyword with no reason.
+ * `design log` refuses it: the waiver exists to make the operator say *why*
+ * nothing could be reused, and a reasonless one says nothing a missing anchor
+ * does not.
+ */
+export function isReasonlessNone(value: string): boolean {
+  return /^none\s*(:\s*)?$/i.test(value.trim());
+}
+
+/**
+ * Whether a dialogue asked the reuse question (Q-0067).
+ *
+ * - `anchored` — at least one real anchor; any `none:` entry beside it is moot.
+ * - `waived` — only `none: <reason>` entries, the explicit "nothing to reuse".
+ * - `missing` — nothing recorded, so the question was never asked. A reasonless
+ *   `none:` hand-edited into the ledger lands here too: it is not a waiver.
+ */
+export type SupportVerdict =
+  | { kind: 'anchored'; anchors: number }
+  | { kind: 'waived'; reasons: string[] }
+  | { kind: 'missing' };
+
+export function supportVerdict(support: readonly string[]): SupportVerdict {
+  const reasons: string[] = [];
+  let anchors = 0;
+  for (const s of support) {
+    const m = s.match(NONE_SUPPORT_RE);
+    if (m === null) anchors += 1;
+    else if (m[1]!.trim().length > 0) reasons.push(m[1]!.trim());
+  }
+  if (anchors > 0) return { kind: 'anchored', anchors };
+  if (reasons.length > 0) return { kind: 'waived', reasons };
+  return { kind: 'missing' };
+}
+
 /** Next unused `D`/`O` id — max existing + 1, so ids are never reused. */
 export function nextId(prefix: 'D' | 'O', existing: readonly { id: string }[]): string {
   const max = existing.reduce((acc, e) => {
