@@ -9,7 +9,7 @@ import { templateFiles, TEMPLATES_ROOT, SCAFFOLD_ONLY_TEMPLATES } from '../manif
 import { filterTemplatesByAgents } from '../agent-filter.js';
 import { parse as parseYaml } from 'yaml';
 
-// @tests: noldor-package-lift
+// @tests: noldor-package-lift, self-refreshing-compact-knowledge-graph
 
 describe('computeDrift', () => {
   let dir: string;
