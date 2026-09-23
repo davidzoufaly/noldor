@@ -10,6 +10,8 @@ import {
   loadMilestoneBySlug,
   draftMilestone,
   activateMilestone,
+  buildMilestoneGroupBases,
+  type Milestone,
 } from '../lib.js';
 
 let tmp: string;
@@ -48,6 +50,18 @@ describe('milestoneFrontmatterSchema', () => {
 
   it('rejects unknown status value', () => {
     expect(() => milestoneFrontmatterSchema.parse({ name: 'foo', status: 'archived' })).toThrow();
+  });
+
+  it('reads an unquoted YAML date as the written day', () => {
+    const path = join(tmp, 'docs/milestones/dated.md');
+    writeFileSync(path, `---\nname: dated\nstatus: draft\nsince: 2026-07-11\n---\n`);
+    expect(readMilestone(path).frontmatter.since).toBe('2026-07-11');
+  });
+
+  it('rejects a since that is not YYYY-MM-DD', () => {
+    expect(() =>
+      milestoneFrontmatterSchema.parse({ name: 'foo', status: 'draft', since: 'July' }),
+    ).toThrow(/YYYY-MM-DD/);
   });
 });
 
@@ -124,6 +138,14 @@ describe('draftMilestone', () => {
     expect(raw).toContain('## Success Criteria');
     expect(raw).toContain('## Out of Scope');
     expect(raw).toContain('<!-- TODO');
+  });
+
+  it('stamps since with the draft day, which survives activation', () => {
+    draftMilestone('foo', undefined, tmp, new Date('2026-09-22T23:30:00Z'));
+    writeFileSync(join(tmp, 'docs/vision.md'), '---\ncurrent-milestone: \n---\n');
+    activateMilestone('foo', tmp);
+    const m = readMilestone(join(tmp, 'docs/milestones/foo.md'));
+    expect(m.frontmatter).toMatchObject({ status: 'active', since: '2026-09-22' });
   });
 
   it('writes description when provided', () => {
@@ -348,5 +370,44 @@ describe('listMilestones', () => {
     expect(result.active.map((m) => m.slug)).toEqual(['a']);
     expect(result.draft.map((m) => m.slug).toSorted()).toEqual(['d1', 'd2']);
     expect(result.shipped.map((m) => m.slug)).toEqual(['s']);
+  });
+});
+
+describe('buildMilestoneGroupBases order', () => {
+  const ms = (slug: string, status: Milestone['frontmatter']['status'], since?: string) =>
+    ({
+      slug,
+      frontmatter: { name: slug, status, ...(since ? { since } : {}) },
+      body: '',
+    }) as Milestone;
+
+  it('sequences each status by since, not by name', () => {
+    const order = buildMilestoneGroupBases(
+      [
+        ms('garden-addon', 'draft', '2026-08-02'),
+        ms('public-release', 'draft', '2026-07-11'),
+        ms('community', 'draft', '2026-09-01'),
+        ms('energy-addon', 'draft', '2026-08-01'),
+        ms('poc', 'shipped', '2026-05-13'),
+        ms('mvp', 'active', '2026-06-01'),
+      ],
+      [],
+    ).map((g) => g.slug);
+    expect(order).toEqual([
+      'mvp',
+      'public-release',
+      'energy-addon',
+      'garden-addon',
+      'community',
+      'poc',
+    ]);
+  });
+
+  it('puts undated milestones after dated ones, by name', () => {
+    const order = buildMilestoneGroupBases(
+      [ms('zeta', 'draft'), ms('beta', 'draft'), ms('omega', 'draft', '2026-09-01')],
+      [],
+    ).map((g) => g.slug);
+    expect(order).toEqual(['omega', 'beta', 'zeta']);
   });
 });

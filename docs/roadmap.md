@@ -151,18 +151,6 @@ Extract the shared tsconfig reader into a neutral module. `src/invariants/toolch
 
 - The same coverage hole bites a *feature's* `.pen`, not only a baseline, and the one page-level rule is a count the agent executes by hand. The enforced set is existence (`no-design-artifact`, `ambiguous-design`), ratification (`design-unapproved`) and freshness (`pen-modified`); `noldor-spec` step 1.5(b) adds "exactly one `FINAL:` page per surface", which is prose and counts pages rather than asking what is in them. Shipping Q-0275 the first design drew only the happy path — rest, keyboard focus, empty scene, engine error, in-flight and the folded-bar layout were all missing until the operator asked where the interactions were, and three of those states are pinned by acceptance criteria. This sharpens wanted-item (b) above: the declared coverage set should be **derived from the spec's acceptance criteria**, not hand-written, and the verdict step should check against that list rather than a page count. `render-export-dispatch` / `render-compare` already export `.pen` pages to images, so a model-driven check can read them even where a static one cannot. (found 2026-09-22 shipping Q-0275)
 
-### Milestones Have No Explicit Order
-
-- id: Q-0254
-- area: tooling
-- type: feat
-- since: 2026-09-22
-- size: S
-- impact: med
-- confidence: med
-
-`milestones show` and the `/milestones` dashboard page sort drafts alphabetically and therefore paint the ladder wrong. `buildMilestoneGroupBases` (`src/milestones/lib.ts`) orders by status then `name.localeCompare`, and the frontmatter schema carries only `name` / `status` / `description` — no date, no rank. In a consumer with four drafts the list read `community, energy-addon, garden-addon, public-release`: two paid post-GA addons rendered *above* the GA milestone whose `## Out of Scope` explicitly defers them, and the only place the real sequence lived was prose. Git birth date does not rescue it either — in that consumer one milestone was born 2026-05-13 and the other four all on 2026-07-11, so git order puts milestone 2 first and leaves a four-way tie. Two shapes, pick one in the spec: `since: <YYYY-MM-DD>` stamped by `/noldor-milestone draft` and sorted within each status, falling back to name when absent — the zero-thought default; or an explicit `after: <slug>` honoured by `show`, the dashboard page and `milestones validate` (unknown slug, cycle, two milestones claiming the same predecessor) — right when the ladder disagrees with the calendar. Deletion test: a set of milestones whose alphabetical order contradicts their real sequence renders in the real sequence. (found 2026-09-22)
-
 ### Milestone Membership Has No Tagger and No Counter
 
 - id: Q-0255
