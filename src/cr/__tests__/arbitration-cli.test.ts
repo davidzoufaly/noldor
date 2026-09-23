@@ -1,11 +1,13 @@
-// @tests: specs-cr-gate-multi-reviewer
+// @tests: specs-cr-gate-multi-reviewer, cr-re-round-cap-enforcement-and-oscillation-detector
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { arbitrationPath, arbitrationRecordSchema, recordDigest } from '../arbitration.js';
+import { decisionsPath } from '../decisions.js';
+import { fingerprintBlocker } from '../fingerprint.js';
 import type { Slug } from '../../core/slug.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/noldor.mjs');
@@ -24,11 +26,16 @@ interface Run {
  * where the entrypoint looks for it.
  */
 function run(...args: string[]): Run {
+  return runEnv({}, ...args);
+}
+
+function runEnv(env: Record<string, string>, ...args: string[]): Run {
   try {
     const stdout = execFileSync('node', [BIN, 'cr', 'arbitration', ...args], {
       cwd,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, NOLDOR_DRAIN: '', ...env },
     });
     return { status: 0, stdout, stderr: '' };
   } catch (err) {
@@ -334,5 +341,209 @@ describe('cr arbitration digest', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('integrity blockers alone');
     expect(r.stderr).toContain('re-run the lane');
+  });
+});
+
+describe('cr arbitration dispose — a ruling before the cap (Q-0261)', () => {
+  const blocker = {
+    file: 'src/a.ts',
+    severity: 'high' as const,
+    message: 'the fallback hides a failure',
+    locations: [{ file: 'src/a.ts', line: 2 }],
+  };
+  const ID = fingerprintBlocker(blocker);
+
+  function git(...args: string[]): string {
+    return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+  }
+
+  /** A reviewed round: the cited file committed, its head stamped, the reviewer's sink on disk. */
+  function reviewedRound(blockers: unknown[] = [blocker]): string {
+    mkdirSync(join(cwd, 'src'), { recursive: true });
+    writeFileSync(join(cwd, 'src', 'a.ts'), 'line 1\nline 2\nline 3\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'code', '--no-verify');
+    const head = git('rev-parse', 'HEAD');
+    mkdirSync(join(cwd, '.noldor', 'cr', 'expected'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.noldor', 'cr', 'expected', 'slug-code.json'),
+      JSON.stringify({ slug: 'slug', kind: 'code', lanes: ['reviewer'], headSha: head }),
+    );
+    writeFileSync(
+      join(cwd, '.noldor', 'cr', 'slug-code-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'src/a.ts',
+        kind: 'code',
+        slug: 'slug',
+        blockers,
+        suggestions: [],
+        summary: 'blockers found',
+        startedAt: '2026-09-23T00:00:00.000Z',
+      }),
+    );
+    writeFileSync(
+      join(cwd, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'fast-track', startedAt: 'S1' }),
+    );
+    return head;
+  }
+
+  const store = (): { decisions: Array<Record<string, any>> } | null => {
+    const path = decisionsPath(cwd, 'slug' as Slug, 'code');
+    return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+  };
+
+  const disposeArgs = (...extra: string[]): string[] => [
+    'dispose',
+    '--slug',
+    'slug',
+    '--kind',
+    'code',
+    '--blocker',
+    ID,
+    '--disposition',
+    'rejected',
+    '--note',
+    'the fallback is intentional',
+    ...extra,
+  ];
+
+  it('records the ruling on a standing blocker, with the lines it cites, and exits 0', () => {
+    reviewedRound();
+    const r = run(...disposeArgs());
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(`recorded ${ID}: rejected`);
+    const d = store()!.decisions;
+    expect(d).toHaveLength(1);
+    expect(d[0]).toMatchObject({
+      id: ID,
+      disposition: 'rejected',
+      reason: 'the fallback is intentional',
+      lanes: ['reviewer'],
+      cites: [{ file: 'src/a.ts', line: 2, text: 'line 2' }],
+    });
+  });
+
+  it('lists the standing blockers and their ids when --blocker is missing or unknown, recording nothing', () => {
+    reviewedRound();
+    for (const args of [
+      ['dispose', '--slug', 'slug', '--kind', 'code'],
+      [
+        'dispose',
+        '--slug',
+        'slug',
+        '--kind',
+        'code',
+        '--blocker',
+        'nope',
+        '--disposition',
+        'rejected',
+        '--note',
+        'x',
+      ],
+    ]) {
+      const r = run(...args);
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain(ID);
+      expect(r.stderr).toContain('the fallback hides a failure');
+    }
+    expect(store()).toBeNull();
+  });
+
+  it('refuses without a note, under a drain child, with no session marker, or with no reviewed head', () => {
+    reviewedRound();
+    expect(run(...disposeArgs().slice(0, -2)).status).toBe(2);
+    expect(runEnv({ NOLDOR_DRAIN: '1' }, ...disposeArgs()).status).toBe(2);
+    rmSync(join(cwd, '.noldor', 'session.json'));
+    expect(run(...disposeArgs()).status).toBe(2);
+    writeFileSync(
+      join(cwd, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'fast-track', startedAt: 'S1' }),
+    );
+    rmSync(join(cwd, '.noldor', 'cr', 'expected', 'slug-code.json'));
+    expect(run(...disposeArgs()).status).toBe(2);
+    expect(store()).toBeNull();
+  });
+
+  it('never takes a ruling on a lane failure blocker', () => {
+    const failure = { file: '<reviewer>', severity: 'high', message: 'subagent lane errored: x' };
+    reviewedRound([failure]);
+    const r = run(
+      'dispose',
+      '--slug',
+      'slug',
+      '--kind',
+      'code',
+      '--blocker',
+      fingerprintBlocker(failure as never),
+      '--disposition',
+      'rejected',
+      '--note',
+      'x',
+    );
+    expect(r.status).toBe(2);
+    expect(store()).toBeNull();
+  });
+
+  it('changes an earlier ruling whose finding no longer stands, keeping what it cites', () => {
+    reviewedRound();
+    expect(run(...disposeArgs()).status).toBe(0);
+    reviewedRound([]);
+    const r = run(
+      'dispose',
+      '--slug',
+      'slug',
+      '--kind',
+      'code',
+      '--blocker',
+      ID,
+      '--disposition',
+      'accepted',
+      '--note',
+      'the debt is taken',
+    );
+    expect(r.status).toBe(0);
+    expect(store()!.decisions).toEqual([
+      expect.objectContaining({
+        id: ID,
+        disposition: 'accepted',
+        reason: 'the debt is taken',
+        cites: [{ file: 'src/a.ts', line: 2, text: 'line 2' }],
+      }),
+    ]);
+  });
+
+  it('at the cap, fills the record and records the same ruling', () => {
+    reviewedRound();
+    writeRecord({
+      blockers: [{ id: ID, severity: 'high', message: blocker.message, lanes: ['reviewer'] }],
+    });
+    const r = run(...disposeArgs());
+    expect(r.status).toBe(0);
+    expect(readRecord().dispositions).toEqual([
+      { blockerId: ID, disposition: 'rejected', note: 'the fallback is intentional' },
+    ]);
+    expect(store()!.decisions.map((d) => d.id)).toEqual([ID]);
+  });
+
+  it('at the cap under a drain child, fills the record but keeps no ruling', () => {
+    reviewedRound();
+    writeRecord({
+      blockers: [{ id: ID, severity: 'high', message: blocker.message, lanes: ['reviewer'] }],
+    });
+    const r = runEnv({ NOLDOR_DRAIN: '1' }, ...disposeArgs());
+    expect(r.status).toBe(0);
+    expect(readRecord().dispositions).toHaveLength(1);
+    expect(store()).toBeNull();
+  });
+
+  it('a record left for another tree does not take a ruling made before the cap', () => {
+    reviewedRound();
+    writeRecord({ boundTree: 'another-tree' });
+    const r = run(...disposeArgs());
+    expect(r.status).toBe(0);
+    expect(readRecord().dispositions).toEqual([]);
+    expect(store()!.decisions.map((d) => d.id)).toEqual([ID]);
   });
 });

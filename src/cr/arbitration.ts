@@ -160,6 +160,29 @@ export function isIntegrityOnly(rec: Pick<ArbitrationRecord, 'blockers'>): boole
   return rec.blockers.length === 0;
 }
 
+/**
+ * Whether a record already on disk still speaks for this tree.
+ *
+ * Same tree is the first half — a record bound to another tree arbitrated
+ * different work. An EMPTY record is the second, and it is what keeps the
+ * fail-open branch in the pre-push guard honest. The early return exists to
+ * protect dispositions the operator has already filled in; an integrity-only
+ * record has none to protect, because the schema refuses a disposition naming a
+ * blocker the record does not carry. Left standing, it is sticky per-tree: the
+ * remedy for an integrity-only round (repair the sink, clear the ledger, re-run)
+ * moves nothing into git, so the NEXT cap cycle at the same tree — one with real
+ * reviewed blockers — would hit this return, print "already present", and leave
+ * `blockerCount` at 0. The guard would then read a genuinely arbitrable round as
+ * "nothing was reviewed" and wave a bare override through.
+ *
+ * `cr arbitration dispose` asks the same question (Q-0261): only a record that
+ * stands for the current tree takes a disposition, and anything else is a
+ * ruling made before the cap.
+ */
+export function priorRecordStands(prior: ArbitrationRecord, tree: string): boolean {
+  return prior.boundTree === tree && !isIntegrityOnly(prior);
+}
+
 /** Blocker ids still awaiting a disposition, in record order. */
 export function undisposed(rec: ArbitrationRecord): string[] {
   const disposed = new Set(rec.dispositions.map((d) => d.blockerId));

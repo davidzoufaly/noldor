@@ -141,6 +141,10 @@ export const laneFindingsSchema = z.object({
   suggestions: z.array(findingSchema).default([]),
   summary: z.string().min(1),
   notes: z.array(z.string()).optional(),
+  // The priors a prior-aware lane answered resolved, with its why (Q-0261). Orchestrate records
+  // each one as a `fixed` decision for later rounds. Optional, like every field added after the
+  // first sinks were written, so they still parse; absent when nothing was resolved.
+  resolved: z.array(z.object({ finding: findingSchema, why: z.string() })).optional(),
   baseSha: z.string().optional(),
   fullReview: z.boolean().optional(),
   // Lane verdict payload (absent on the lanes that carry none). A union of the two

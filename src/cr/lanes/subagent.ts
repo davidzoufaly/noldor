@@ -5,7 +5,12 @@ import { runResolve } from '../../rules/cli-cores.js';
 import { writeJsonAtomic } from '../atomic-write.js';
 import type { ArtifactKind, Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
-import { applyPriorAnswers, laneFailureFile, splitCarriedByBasis } from '../re-round.js';
+import {
+  applyPriorAnswers,
+  laneFailureFile,
+  splitCarriedByBasis,
+  splitSettled,
+} from '../re-round.js';
 import { readFdSummary } from '../read-fd-summary.js';
 import { splitClassTag } from '../finding-class.js';
 import { extractLocations } from '../locations.js';
@@ -249,11 +254,20 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
   // keeps its fingerprint across the round (docs/adr/0002).
   const prior =
     input.priorReview === undefined
-      ? { carried: [], notes: [] }
+      ? { carried: [], resolved: [], notes: [] }
       : applyPriorAnswers(input.priorReview.blockers, answer.answer.prior);
   const carried = splitCarriedByBasis(input.priorReview?.blockers ?? [], prior.carried, input.kind);
-  const blockers = [...carried.blocking, ...findings.filter(blocks).map(toSink)];
-  const suggestions = [...carried.demoted, ...findings.filter((f) => !blocks(f)).map(toSink)];
+  // A new blocker that restates a ruling still holding is filed as a suggestion (Q-0261).
+  const settled = splitSettled(
+    findings.filter(blocks).map(toSink),
+    input.priorReview?.decided ?? [],
+  );
+  const blockers = [...carried.blocking, ...settled.blocking];
+  const suggestions = [
+    ...carried.demoted,
+    ...settled.demoted,
+    ...findings.filter((f) => !blocks(f)).map(toSink),
+  ];
   const payload: LaneFindings = {
     lane: 'reviewer',
     artifact: input.artifact,
@@ -267,8 +281,10 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       `Strengths: ${answer.answer.strengths}`,
       ...prior.notes,
       ...carried.notes,
+      ...settled.notes,
       ...answer.notes,
     ],
+    ...(prior.resolved.length > 0 ? { resolved: prior.resolved } : {}),
     startedAt,
     finishedAt: new Date().toISOString(),
     ...(input.baseSha ? { baseSha: input.baseSha } : {}),

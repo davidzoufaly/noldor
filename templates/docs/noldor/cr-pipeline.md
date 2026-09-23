@@ -68,7 +68,7 @@ A spec is a document an implementer acts on, so the code-stage definition (`BLOC
 
 Wording, formatting, cross-references, section structure, detail an implementer can decide, a preference between workable designs, a choice the spec already records, and the FD's scaffold stubs never block a spec. Code enforces the structural half: a spec-kind finding marked blocking with no valid `basis` is filed as a suggestion (`isEffectivelyBlocking` in `src/cr/lanes/subagent.ts`, `toFindings` in `src/cr/review-with-codex.ts`). A blocker a lane files about its own failure, against `<reviewer>` or `<codex>`, is never demoted, so a failed review still reds its round. A prior carried from a sink written before the rule names no basis, so a spec re-round carries it as a suggestion rather than a blocker (`splitCarriedByBasis` in `src/cr/re-round.ts`); a round whose lane failed keeps it a blocker for the next round to judge. The basis rides the sink finding and shows in the re-round prior list and the `cr aggregate` blocker line (`[high][risk] …`).
 
-Settle a spec blocker you reject by recording the ruling in the spec itself, not in chat: the next round's lanes read the spec (`docs/adr/0003-spec-stage-decisions-live-in-the-spec.md`). Codex reads only the FD's Summary at this kind because the FD's Diagram, User Story and Usage sections are stubs filled after the spec.
+Settle a spec blocker you reject in two places, neither of them chat: write the ruling into the spec itself, so the next round's lanes read it, and dispose the blocker, so no later round carries it (see [Rulings before the cap](#rulings-before-the-cap), `docs/adr/0004-operator-rulings-on-cr-findings-hold-for-the-session.md`). Codex reads only the FD's Summary at this kind because the FD's Diagram, User Story and Usage sections are stubs filled after the spec.
 
 ## Step 4 collapse
 
@@ -209,6 +209,13 @@ inherit them, `reviewer` and `codex`, and both render one contract from `src/cr/
 - A prior sink that exists but cannot be read, does not parse, or fails `laneFindingsSchema`
   refuses the round with exit 4, before anything is dispatched or recorded. Repair the file, or
   remove it to start that lane's series over.
+- Both lanes are also shown the series' decided findings, from every lane, as `S1…Sm` (Q-0261):
+  each prior a lane answered resolved (`fixed`, recorded from the sink's `resolved` list) and each
+  blocker the operator ruled on, with its note. A fixed finding blocks again only as a regression.
+  A ruling holds while the lines it cites are unchanged: its finding is not handed to any lane as
+  a prior, and a new finding with the same `fingerprintBlocker` id is filed as a suggestion.
+  Identity is exact, so a reworded restatement still blocks. See
+  [Rulings before the cap](#rulings-before-the-cap).
 
 Whoever writes the fix works to the rule `cr autofix plan` prints as its `fix-rule:` line: make
 the smallest change that resolves the blocker, and prefer deleting a claim to adding one.
@@ -796,6 +803,34 @@ settled, and the close itself happens at `--kind code`.
 Both commands existed only as functions before Q-0228, which made the one exit
 past a capped round also the one surface that asked for a hand-edited,
 schema-validated JSON file — against a disposition vocabulary nothing printed.
+
+### Rulings before the cap
+
+`cr arbitration dispose` works at any round, not only at the cap (Q-0261,
+`docs/adr/0004-operator-rulings-on-cr-findings-hold-for-the-session.md`). With no
+arbitration record standing for the current tree, it records a ruling on a
+standing reviewer or codex blocker in the series' decision store,
+`.noldor/cr/decisions/<slug>-<kind>.json`:
+
+```
+pnpm noldor cr arbitration dispose --slug <slug> --kind <kind> \
+  --blocker <id> --disposition rejected --note "<why>"
+```
+
+`--note` is required here, because it is the reason every later lane is shown.
+Run the command without `--blocker` to list the standing blockers and their ids.
+The ruling cites the lines its finding points at, read through git at the head
+the round reviewed, and it holds while those lines are unchanged. A finding with
+no citable line holds for the rest of the series. Disposing the same id again
+changes the ruling. At the cap, `dispose` fills the arbitration record as before
+and records the same ruling, so a closing round does not carry it either.
+
+A ruling is the operator's. A drain child (`NOLDOR_DRAIN=1`) records none, and
+neither does a run with no session marker: the store is scoped to the gate
+session like the round ledger, and the empty key would be shared by every
+sessionless run. When a code round then goes green, its receipt amend writes one
+`Noldor-CR-Settled: <kind> <disposition> <id> — <note>` trailer per ruling of
+the session, so a receipt earned after a ruling says so in git.
 
 Sink-file mechanics (stale sink after amend, archive-to-subdir, headless
 overwrite crash) live in [`gotchas.md`](gotchas.md#cr-sinks).

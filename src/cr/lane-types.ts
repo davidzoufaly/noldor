@@ -4,6 +4,33 @@ import type { ArtifactKind, Finding, Lane, LaneFindings } from './findings-schem
 import type { ReviewProfile } from '../core/review-profile.js';
 
 /**
+ * A finding the series has already decided (Q-0261): one a lane answered resolved (`fixed`), or
+ * one the operator disposed. Every prior-aware lane is shown the series' decided findings, from
+ * every lane, after its own priors.
+ */
+export interface DecidedFinding {
+  /** The finding's `fingerprintBlocker` id. */
+  readonly id: string;
+  readonly finding: Finding;
+  /**
+   * `fixed`, or one of the arbitration record's `DISPOSITIONS`. Spelled out rather than imported so
+   * the lane types stay a leaf. `loadDecided` in `orchestrate.ts` builds these from the decision
+   * store's schema, so a disposition added to `DISPOSITIONS` stops compiling there; one removed
+   * from it would not, and would leave a member here no store can hold.
+   */
+  readonly disposition: 'fixed' | 'accepted' | 'rejected' | 'deferred';
+  /** The lane's `why` for a fixed finding, the operator's note for a disposition. */
+  readonly reason: string;
+  readonly round: number;
+  /**
+   * Operator dispositions only: true while the content the finding cites is unchanged at the head
+   * under review, so the ruling still holds. Absent on a fixed finding, which nothing enforces.
+   * Anything but `true` reads as not holding, which carries rather than suppresses.
+   */
+  readonly holds?: boolean;
+}
+
+/**
  * The prior round's adjudicated blockers plus how the prompt must frame them.
  * `fixes-in-diff` is granted only when a non-empty fix diff was verified;
  * every other re-run shape gets `reexamine`, which asserts nothing unverified
@@ -12,6 +39,8 @@ import type { ReviewProfile } from '../core/review-profile.js';
 export interface PriorReview {
   blockers: Finding[];
   mode: 'fixes-in-diff' | 'reexamine';
+  /** The series' decided findings (Q-0261). Absent when the series has decided nothing. */
+  decided?: readonly DecidedFinding[];
 }
 
 export interface LaneInput {
@@ -31,8 +60,8 @@ export interface LaneInput {
    */
   dispatchTimeoutMs?: number;
   /**
-   * Prior-round context for the reviewer lane. Lane-generic on purpose so other
-   * lanes can opt in later; today only `runSubagent` forwards it into the prompt.
+   * Prior-round context for the prior-aware lanes (`reviewer`, `codex`): their own standing
+   * blockers and the series' decided findings.
    */
   priorReview?: PriorReview;
   repoRoot: string;

@@ -7,14 +7,23 @@
  * — never the model — re-files the ones still standing, so a blocker keeps its
  * `fingerprintBlocker` id for as long as it stands (docs/adr/0002). Kept in ONE place, like
  * `BLOCKING_DEFINITION` (`blocking-definition.ts`), so the reviewer and codex prompts cannot drift apart.
+ *
+ * Q-0261 adds the series' decided findings: every prior-aware lane is shown what any lane fixed
+ * and what the operator disposed, and code files an exact restatement of a ruling that still
+ * holds as a suggestion (docs/adr/0004).
  */
 import { z } from 'zod';
 import { isSpecBlockingBasis } from './blocking-definition.js';
+import { fingerprintBlocker } from './fingerprint.js';
 import type { ArtifactKind, Finding, Lane } from './findings-schema.js';
-import type { PriorReview } from './lane-types.js';
+import type { DecidedFinding, PriorReview } from './lane-types.js';
 
 /** Per-prior message bound. Code re-files the full finding, so the model never re-types it. */
 const PRIOR_MESSAGE_MAX_CHARS = 300;
+
+/** `text` on one line, cut to the prior message bound — for messages and reasons alike. */
+const oneLine = (text: string): string =>
+  text.replace(/\s*\n\s*/g, ' ').slice(0, PRIOR_MESSAGE_MAX_CHARS);
 
 /** One lane's answer about one prior blocker, addressed by its `P<n>` number. */
 export const priorAnswerSchema = z.object({
@@ -31,12 +40,20 @@ const MODE_LINE: Record<PriorReview['mode'], string> = {
 };
 
 /**
- * The prior-round section of a re-round prompt: every prior blocker, numbered, then the contract.
- * Every prior is listed — a prior the lane never sees can only be carried unexamined.
+ * The prior-round section of a re-round prompt: every prior blocker, numbered, then the contract,
+ * then the series' decided findings. Every prior is listed — a prior the lane never sees can only
+ * be carried unexamined. With nothing decided the section is the Q-0260 one, byte for byte; with no
+ * priors it is the decided list alone, without the re-round framing.
  */
 export function renderPriorSection(prior: PriorReview): string {
+  const decided = prior.decided ?? [];
+  const priors = prior.blockers.length === 0 ? '' : renderPriors(prior);
+  return decided.length === 0 ? priors : `${priors}${renderDecided(decided)}`;
+}
+
+function renderPriors(prior: PriorReview): string {
   const lines = prior.blockers.map((b, i) => {
-    const msg = b.message.replace(/\s*\n\s*/g, ' ').slice(0, PRIOR_MESSAGE_MAX_CHARS);
+    const msg = oneLine(b.message);
     return `P${i + 1} [${b.severity}]${b.class ? `[${b.class}]` : ''}${b.basis ? `[${b.basis}]` : ''} ${msg}`;
   });
   return `
@@ -49,9 +66,62 @@ ${MODE_LINE[prior.mode]} This is a re-round: check the fix, do not review it as 
 `;
 }
 
+/** Whether an operator ruling still stands — anything but an explicit `true` carries. */
+const isHeldRuling = (d: DecidedFinding): boolean => d.disposition !== 'fixed' && d.holds === true;
+
+function renderDecided(decided: readonly DecidedFinding[]): string {
+  const lines = decided.map((d, i) => {
+    const reason = d.reason.trim() === '' ? '' : ` — ${oneLine(d.reason)}`;
+    const changed =
+      d.disposition !== 'fixed' && d.holds === false
+        ? ' (its cited content has changed since the ruling)'
+        : '';
+    return `S${i + 1} [${d.disposition} r${d.round}][${d.finding.severity}] ${oneLine(d.finding.message)}${reason}${changed}`;
+  });
+  return `
+Findings this review series has already decided, from every lane. Do not file any of them again as a new finding.
+${lines.join('\n')}
+
+A fixed finding blocks again only as a regression: its defect is back. A rejected, accepted or deferred finding is settled: raise it again only when the content it cites has changed, and say what changed.
+`;
+}
+
+/**
+ * The code half of the decided contract (Q-0261): a new blocking finding with the same
+ * `fingerprintBlocker` id as an operator ruling that still holds is filed as a suggestion, with a
+ * note naming the ruling. Identity is exact — a reworded restatement still blocks — and a finding
+ * that restates a fixed decision still blocks, because it claims the defect is back.
+ */
+export function splitSettled(
+  findings: readonly Finding[],
+  decided: readonly DecidedFinding[],
+): { blocking: Finding[]; demoted: Finding[]; notes: string[] } {
+  const held = new Map<string, { n: number; disposition: string }>();
+  decided.forEach((d, i) => {
+    if (isHeldRuling(d)) held.set(d.id, { n: i + 1, disposition: d.disposition });
+  });
+  const blocking: Finding[] = [];
+  const demoted: Finding[] = [];
+  const notes: string[] = [];
+  for (const f of findings) {
+    const ruling = held.size === 0 ? undefined : held.get(fingerprintBlocker(f));
+    if (ruling === undefined) {
+      blocking.push(f);
+      continue;
+    }
+    demoted.push(f);
+    notes.push(
+      `finding filed as a suggestion: it restates settled S${ruling.n} (${ruling.disposition}), whose cited content is unchanged`,
+    );
+  }
+  return { blocking, demoted, notes };
+}
+
 export interface PriorOutcome {
   /** Every prior not answered resolved, as the prior finding unchanged. */
   readonly carried: Finding[];
+  /** Every prior answered resolved, with the lane's why — the sink's `resolved` list (Q-0261). */
+  readonly resolved: { finding: Finding; why: string }[];
   readonly notes: string[];
 }
 
@@ -79,6 +149,7 @@ export function applyPriorAnswers(
     byN.set(a.data.n, [...(byN.get(a.data.n) ?? []), a.data]);
   }
   const carried: Finding[] = [];
+  const resolved: { finding: Finding; why: string }[] = [];
   priors.forEach((p, i) => {
     const n = i + 1;
     const got = byN.get(n) ?? [];
@@ -89,13 +160,14 @@ export function applyPriorAnswers(
       carried.push(p);
       notes.push(`prior P${n} answered both ways — carried`);
     } else if (got[0].resolved) {
+      resolved.push({ finding: p, why: got[0].why });
       notes.push(`prior P${n} resolved: ${got[0].why}`);
     } else {
       carried.push(p);
       notes.push(`prior P${n} still stands: ${got[0].why}`);
     }
   });
-  return { carried, notes };
+  return { carried, resolved, notes };
 }
 
 /**

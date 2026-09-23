@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, noldor
+// @tests: acceptance-verify-lane, noldor, cr-re-round-cap-enforcement-and-oscillation-detector
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -108,5 +108,71 @@ describe('amendSubagentReceipt', () => {
     expect(r.amended).toBe(true);
     expect(r.tree).toBe(newTree);
     expect(lastMsg(cwd)).toMatch(new RegExp(`Noldor-Reviewed-Subagent: ${newTree}`));
+  });
+});
+
+describe('amendSubagentReceipt — settled rulings ride the same amend (Q-0261)', () => {
+  const KEY = 'Noldor-CR-Settled';
+  const settled = (cwd: string): string[] =>
+    lastMsg(cwd)
+      .split('\n')
+      .filter((l) => l.startsWith(`${KEY}:`));
+  const head = (cwd: string): string =>
+    spawnSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).stdout.trim();
+
+  it('writes one line per ruling beside the receipt, in order', () => {
+    const cwd = makeRepo();
+    const r = amendSubagentReceipt({
+      cwd,
+      also: {
+        key: KEY,
+        values: ['code rejected aaaaaaaaaaaa — intentional', 'spec deferred bbbbbbbbbbbb'],
+      },
+    });
+    expect(r.amended).toBe(true);
+    expect(settled(cwd)).toEqual([
+      `${KEY}: code rejected aaaaaaaaaaaa — intentional`,
+      `${KEY}: spec deferred bbbbbbbbbbbb`,
+    ]);
+    expect(receipts(cwd)).toEqual([`Noldor-Reviewed-Subagent: ${r.tree}`]);
+    expect(lastMsg(cwd)).toContain('Noldor-Path: full-new');
+  });
+
+  it('replaces the ruling lines when they change, even though the receipt did not', () => {
+    const cwd = makeRepo();
+    amendSubagentReceipt({ cwd, also: { key: KEY, values: ['code rejected aaaaaaaaaaaa'] } });
+    const r = amendSubagentReceipt({
+      cwd,
+      also: { key: KEY, values: ['code accepted aaaaaaaaaaaa — the debt is taken'] },
+    });
+    expect(r.amended).toBe(true);
+    expect(settled(cwd)).toEqual([`${KEY}: code accepted aaaaaaaaaaaa — the debt is taken`]);
+  });
+
+  it('is a no-op when the receipt and every ruling line already match', () => {
+    const cwd = makeRepo();
+    const also = { key: KEY, values: ['code rejected aaaaaaaaaaaa'] };
+    amendSubagentReceipt({ cwd, also });
+    const before = head(cwd);
+    expect(amendSubagentReceipt({ cwd, also }).amended).toBe(false);
+    expect(head(cwd)).toBe(before);
+  });
+
+  it('keeps two identical ruling lines rather than folding them into one', () => {
+    const cwd = makeRepo();
+    amendSubagentReceipt({
+      cwd,
+      also: { key: KEY, values: ['code rejected aaaaaaaaaaaa', 'code rejected aaaaaaaaaaaa'] },
+    });
+    expect(settled(cwd)).toHaveLength(2);
+  });
+
+  it('with no rulings, strips stale ruling lines; without `also`, leaves them alone', () => {
+    const cwd = makeRepo();
+    amendSubagentReceipt({ cwd, also: { key: KEY, values: ['code rejected aaaaaaaaaaaa'] } });
+    amendSubagentReceipt({ cwd });
+    expect(settled(cwd)).toHaveLength(1);
+    amendSubagentReceipt({ cwd, also: { key: KEY, values: [] } });
+    expect(settled(cwd)).toEqual([]);
   });
 });

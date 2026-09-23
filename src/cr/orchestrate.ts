@@ -45,12 +45,23 @@ import {
   arbitrationRecordSchema,
   integrityOnlyRemedy,
   isIntegrityOnly,
+  priorRecordStands,
 } from './arbitration.js';
 import type { ArbitrationRecord } from './arbitration.js';
+import {
+  SETTLED_TRAILER,
+  gitTreeReader,
+  readDecisions,
+  settledTrailerValue,
+  stillHolds,
+  updateDecisions,
+  upsertDecision,
+} from './decisions.js';
+import type { Decision } from './decisions.js';
 import type { CutScope } from './cut-scan.js';
-import { laneFindingsSchema } from './findings-schema.js';
+import { artifactKindSchema, laneFindingsSchema } from './findings-schema.js';
 import type { ArtifactKind, Finding, Lane, LaneFindings } from './findings-schema.js';
-import type { LaneInput, LaneResult, PriorReview } from './lane-types.js';
+import type { DecidedFinding, LaneInput, LaneResult, PriorReview } from './lane-types.js';
 import { isLaneFailureBlocker, PRIOR_AWARE_LANES } from './re-round.js';
 import { laneSinkPath } from './filename.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
@@ -634,25 +645,6 @@ export function buildSkeleton(
 }
 
 /**
- * Whether a record already on disk still speaks for this tree.
- *
- * Same tree is the first half — a record bound to another tree arbitrated
- * different work. An EMPTY record is the second, and it is what keeps the
- * fail-open branch in the pre-push guard honest. The early return exists to
- * protect dispositions the operator has already filled in; an integrity-only
- * record has none to protect, because the schema refuses a disposition naming a
- * blocker the record does not carry. Left standing, it is sticky per-tree: the
- * remedy for an integrity-only round (repair the sink, clear the ledger, re-run)
- * moves nothing into git, so the NEXT cap cycle at the same tree — one with real
- * reviewed blockers — would hit this return, print "already present", and leave
- * `blockerCount` at 0. The guard would then read a genuinely arbitrable round as
- * "nothing was reviewed" and wave a bare override through.
- */
-export function priorRecordStands(prior: ArbitrationRecord, tree: string): boolean {
-  return prior.boundTree === tree && !isIntegrityOnly(prior);
-}
-
-/**
  * Write the skeleton, unless a record for this tree already exists.
  *
  * Re-running orchestrate at the cap refuses again and reaches here again, so
@@ -1039,12 +1031,22 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // Prior-round context rides ONLY the prior-aware lanes' input — attached per-lane
   // at the dispatch call, so `manual`/`verifier` and the rest stay unchanged by
   // construction rather than by their ignoring an unknown field. A lane's own
-  // failure blocker is never carried: no fix can resolve it (Q-0260).
+  // failure blocker is never carried: no fix can resolve it (Q-0260). Nor is a
+  // finding an operator ruled on while the ruling holds, and every prior-aware
+  // lane — one with no priors of its own included — is shown the series'
+  // decided findings (Q-0261, docs/adr/0004).
+  const decided = await loadDecided(cwd, opts.args.slug, opts.args.kind, roundKey, headSha);
+  const held = new Set(decided.filter((d) => d.holds === true).map((d) => d.id));
   const contexts = new Map<Lane, PriorReview>();
   for (const [l, read] of priors) {
-    if (read.kind !== 'found') continue;
-    const blockers = read.sink.blockers.filter((b) => !isLaneFailureBlocker(b));
-    if (blockers.length > 0) contexts.set(l, { blockers, mode: priorMode });
+    const blockers =
+      read.kind === 'found'
+        ? read.sink.blockers.filter(
+            (b) => !isLaneFailureBlocker(b) && !held.has(fingerprintBlocker(b)),
+          )
+        : [];
+    if (blockers.length > 0 || decided.length > 0)
+      contexts.set(l, { blockers, mode: priorMode, ...(decided.length > 0 ? { decided } : {}) });
   }
 
   // Port contention is real: `verifier` boots the same `verifyCommands` servers
@@ -1101,7 +1103,19 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // skip when any lane was red.
   if (exitCode === 0 && opts.args.kind === 'code' && lanesRun.includes('reviewer')) {
     try {
-      amendSubagentReceipt({ cwd });
+      // The receipt names every ruling made on the branch (Q-0261): a round that went
+      // green on a disposed blocker must not read in git as a clean review. The lines
+      // already on the tip are merged in, so a receipt re-minted after the gate's
+      // clean-exit cleanup removed the stores, or in a later session, keeps the rulings
+      // an earlier round named; a ruling that changed replaces its own line.
+      const values = mergeSettled(
+        await tipSettled(cwd),
+        await settledTrailers(cwd, opts.args.slug, roundKey),
+      );
+      amendSubagentReceipt({
+        cwd,
+        ...(values.length > 0 ? { also: { key: SETTLED_TRAILER, values } } : {}),
+      });
     } catch (err) {
       console.error(`receipt amend failed: ${(err as Error).message}`);
       exitCode = 1;
@@ -1136,6 +1150,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   //  - An INTEGRITY blocker says the verdict cannot be trusted, so it reds the
   //    round but must never mark it terminal: a single corrupt sink would
   //    otherwise wedge the pair permanently behind the override.
+  let recorded: AutofixLedger | null = null;
   try {
     const agg = await aggregate(opts.args.slug, opts.args.kind, { cwd });
     if (effective.length > 0) {
@@ -1206,7 +1221,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       // `console.error`, not `console.log`: the round summary already goes to
       // stderr, and stdout carries the `lanes run:` line the gate parses.
       for (const line of reflag.lines) console.error(line);
-      await appendRound(cwd, opts.args.slug, opts.args.kind, roundKey, {
+      recorded = await appendRound(cwd, opts.args.slug, opts.args.kind, roundKey, {
         headSha,
         fingerprint: fingerprintBlockers(agg.blockers),
         blockerIds: ruleBlockers.map((b) => b.id).sort(),
@@ -1231,7 +1246,135 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     console.error(`round not recorded — cap will under-count: ${(err as Error).message}`);
   }
 
+  if (effective.length > 0) {
+    try {
+      await recordFixed(cwd, opts.args.slug, opts.args.kind, roundKey, {
+        round: recorded?.rounds.length ?? 0,
+        lanesRun,
+        readPrior,
+      });
+    } catch (err) {
+      console.error(`fixed findings not recorded: ${(err as Error).message}`);
+    }
+  }
+
   return { lanesRun, syntheticOks, exitCode };
+}
+
+/**
+ * The series' decisions as the lanes see them, each operator ruling marked with whether it still
+ * holds at `headSha` (Q-0261). An unreadable store is reported and read as empty, and no ruling
+ * holds against an unknown head: both carry blockers rather than suppress them.
+ */
+async function loadDecided(
+  cwd: string,
+  slug: Slug,
+  kind: ArtifactKind,
+  roundKey: string,
+  headSha: string,
+): Promise<DecidedFinding[]> {
+  const read = await readDecisions(cwd, slug, kind, roundKey);
+  if (!read.ok) {
+    console.error(
+      `decision store unreadable — this round honors no ruling: ${read.path}: ${read.detail}`,
+    );
+    return [];
+  }
+  const tree = gitTreeReader(cwd);
+  const out: DecidedFinding[] = [];
+  for (const d of read.decisions) {
+    if (d.disposition === 'fixed') out.push(d);
+    else out.push({ ...d, holds: headSha !== '' && (await stillHolds(d, headSha, tree)) });
+  }
+  return out;
+}
+
+/**
+ * After a round: a `fixed` decision for every prior a prior-aware lane answered resolved, read
+ * from the sinks this round wrote, and none left for a finding a lane filed again — that one is
+ * standing, not decided, and removal wins when a round does both. A `fixed` decision never
+ * replaces an operator ruling. A sessionless run records nothing (`updateDecisions`).
+ */
+async function recordFixed(
+  cwd: string,
+  slug: Slug,
+  kind: ArtifactKind,
+  roundKey: string,
+  ctx: { round: number; lanesRun: readonly Lane[]; readPrior: ReadPriorSink },
+): Promise<void> {
+  if (roundKey === '') return;
+  const fixed: Decision[] = [];
+  const standing = new Set<string>();
+  for (const l of PRIOR_AWARE_LANES) {
+    if (!ctx.lanesRun.includes(l)) continue;
+    const read = await ctx.readPrior(cwd, slug, kind, l);
+    if (read.kind !== 'found') continue;
+    for (const b of read.sink.blockers) standing.add(fingerprintBlocker(b));
+    for (const r of read.sink.resolved ?? []) {
+      fixed.push({
+        id: fingerprintBlocker(r.finding),
+        finding: r.finding,
+        lanes: [l],
+        disposition: 'fixed',
+        reason: r.why,
+        round: ctx.round,
+      });
+    }
+  }
+  if (fixed.length === 0 && standing.size === 0) return;
+  const w = await updateDecisions(cwd, slug, kind, roundKey, (current) => {
+    let next = [...current];
+    for (const f of fixed) {
+      const existing = next.find((d) => d.id === f.id);
+      if (existing !== undefined && existing.disposition !== 'fixed') continue;
+      next = upsertDecision(next, f);
+    }
+    return next.filter((d) => !(d.disposition === 'fixed' && standing.has(d.id)));
+  });
+  if (!w.ok) console.error(`fixed findings not recorded: ${w.reason}`);
+}
+
+/** The `Noldor-CR-Settled:` values already on the tip commit. */
+async function tipSettled(cwd: string): Promise<string[]> {
+  const { stdout } = await execAsync(
+    'git',
+    ['log', '-1', `--format=%(trailers:key=${SETTLED_TRAILER},valueonly,unfold)`],
+    { cwd },
+  );
+  return stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+}
+
+/**
+ * The tip's ruling lines plus the session's, one per ruling: a value names `<kind> <disposition>
+ * <id> — <note>`, and a current ruling replaces the tip's line for the same kind and id.
+ */
+function mergeSettled(onTip: readonly string[], current: readonly string[]): string[] {
+  const rulingOf = (value: string): string => {
+    const [kind, , id] = value.split(' ');
+    return `${kind} ${id}`;
+  };
+  const now = new Set(current.map(rulingOf));
+  return [...onTip.filter((v) => !now.has(rulingOf(v))), ...current];
+}
+
+/** One `Noldor-CR-Settled:` value per operator ruling of the session, across every artifact kind. */
+async function settledTrailers(cwd: string, slug: Slug, roundKey: string): Promise<string[]> {
+  const values: string[] = [];
+  for (const kind of artifactKindSchema.options) {
+    const read = await readDecisions(cwd, slug, kind, roundKey);
+    if (!read.ok) {
+      console.error(
+        `the ${kind} decision store could not be read, so its rulings are not named on the receipt: ${read.path}: ${read.detail}`,
+      );
+      continue;
+    }
+    for (const d of read.decisions)
+      if (d.disposition !== 'fixed') values.push(settledTrailerValue(kind, d));
+  }
+  return values;
 }
 
 // CLI entry — wired up in Task 5.4
