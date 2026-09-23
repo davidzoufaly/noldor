@@ -1,6 +1,6 @@
 // @tests: refutation-judge-pass-before-a-blocker-can-red-a-round
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -365,6 +365,61 @@ describe('judgeRound — one pass over the round sinks (Q-0262)', () => {
     expect(prompt).not.toContain(failure.message);
     expect(prompt.indexOf('J1')).toBeLessThan(prompt.indexOf(A.message));
     expect(prompt.indexOf('J2')).toBeLessThan(prompt.indexOf(B.message));
+  });
+
+  it('names a sink it could not write on the failure line instead of dropping the error', async () => {
+    writeSink('reviewer', [A]);
+    writeSink('codex', []);
+    setJudgeDispatcher(async () => 'not an answer');
+    const dir = join(root, '.noldor', 'cr');
+    chmodSync(dir, 0o555);
+    try {
+      const r = await round();
+      expect(r.line.startsWith('failed')).toBe(true);
+      expect(r.line).toMatch(/reviewer sink/);
+    } finally {
+      chmodSync(dir, 0o755);
+    }
+    expect(readSink('reviewer').blockers).toEqual([A]);
+  });
+
+  it('records a recovered answer on the sink even when every verdict is `stands`', async () => {
+    writeSink('reviewer', [A]);
+    writeSink('codex', []);
+    setJudgeDispatcher(async (_input, repair) =>
+      repair === undefined
+        ? 'not an answer'
+        : JSON.stringify({ verdicts: [{ n: 1, verdict: 'stands', why: 'it holds' }] }),
+    );
+    await round();
+    const reviewer = readSink('reviewer');
+    expect(reviewer.blockers).toEqual([A]);
+    expect(reviewer.notes?.some((n) => n.includes('repair round'))).toBe(true);
+  });
+
+  it('reads each cited file once per round, however many quotes cite it', async () => {
+    writeSink('reviewer', [A]);
+    writeSink('codex', [C]);
+    answerWith([
+      { n: 1, verdict: 'refuted', why: 'load throws on an empty file', evidence: GOOD },
+      {
+        n: 2,
+        verdict: 'refuted',
+        why: 'save writes to the path it is given',
+        evidence: [
+          ev(13, 'writeFileSync(path, "{}");'),
+          ev(12, 'export function save(path: string) {'),
+        ],
+      },
+    ]);
+    const reads: string[] = [];
+    const counting: ShowFile = (rev, file) => {
+      reads.push(`${rev}:${file}`);
+      return execFileSync('git', ['show', `${rev}:${file}`], { cwd: root, encoding: 'utf8' });
+    };
+    const r = await round({ show: counting });
+    expect(r.refuted.map((d) => d.n)).toEqual([1, 2]);
+    expect(reads).toEqual([`${head}:src/config.ts`]);
   });
 
   it('judges the readable sink when the other one does not parse', async () => {

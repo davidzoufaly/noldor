@@ -1097,6 +1097,11 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     cfg,
     args: opts.args,
     headSha,
+    // The range the lanes were shown: none when they reviewed the whole artifact, whether
+    // asked to (`--full-review`) or widened to it by the empty-delta override.
+    ...(dispatchInput.baseSha !== undefined && !dispatchInput.fullReview
+      ? { baseSha: dispatchInput.baseSha }
+      : {}),
     sinks: effective.flatMap((l, i) => {
       const r = settled[i];
       return (l === 'reviewer' || l === 'codex') && r.status === 'fulfilled'
@@ -1383,6 +1388,7 @@ async function judgeThisRound(o: {
   cfg: NoldorConfig | null;
   args: OrchestrateArgs;
   headSha: string;
+  baseSha?: string;
   sinks: readonly { lane: JudgedLane; sinkPath: string }[];
 }): Promise<JudgeRoundResult | null> {
   if (o.sinks.length === 0) return null;
@@ -1403,7 +1409,7 @@ async function judgeThisRound(o: {
         kind: o.args.kind,
         artifact: o.args.artifact,
         headSha: o.headSha,
-        ...(o.args.baseSha ? { baseSha: o.args.baseSha } : {}),
+        ...(o.baseSha !== undefined ? { baseSha: o.baseSha } : {}),
         sinks: o.sinks,
         // A timeout costs only the judge's own verdict, so it gets a tighter cap than a lane.
         timeoutMs: Math.min(300_000, resolveDispatchTimeoutMs(o.cfg)),

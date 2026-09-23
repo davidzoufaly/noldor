@@ -251,6 +251,10 @@ const gitShow =
     return r.status === 0 ? r.stdout : null;
   };
 
+/** The problems a `judge:` line names after its verdict, if any. */
+const suffix = (problems: readonly string[]): string =>
+  problems.length > 0 ? ` (${problems.join('; ')})` : '';
+
 /** What a round's judge did, for `run()`. */
 export interface JudgeRoundResult {
   /** The one line `run()` prints after `judge: `. */
@@ -303,7 +307,6 @@ export async function judgeRound(input: {
     if (typeof r === 'string') unread.push(r);
     else read.push(r);
   }
-  const unreadNote = unread.length > 0 ? ` (${unread.join('; ')})` : '';
   // J number → the sink and the blocker's index in it, so a demotion removes that entry even
   // when a sink holds two identical findings.
   const slots = read.flatMap((s) =>
@@ -312,7 +315,7 @@ export async function judgeRound(input: {
     ),
   );
   if (slots.length === 0)
-    return { line: `skipped — nothing to judge${unreadNote}`, refuted: [], ok: {} };
+    return { line: `skipped — nothing to judge${suffix(unread)}`, refuted: [], ok: {} };
   const blockers = slots.map((s) => ({ lane: s.sink.lane, finding: s.finding }));
 
   const rewrite = async (s: ReadSink, patch: Partial<LaneFindings>): Promise<string | null> => {
@@ -342,22 +345,27 @@ export async function judgeRound(input: {
   }
   if (!answer.ok) {
     const note = `judge: no trustworthy answer — every blocker stands (${answer.detail})`;
+    const problems: string[] = [];
     for (const s of new Set(slots.map((x) => x.sink))) {
-      await rewrite(s, { notes: [...(s.sink.notes ?? []), note, ...answer.notes] });
+      const problem = await rewrite(s, { notes: [...(s.sink.notes ?? []), note, ...answer.notes] });
+      if (problem !== null) problems.push(problem);
     }
     return {
-      line: `failed — every blocker stands (${answer.detail})${unreadNote}`,
+      line: `failed — every blocker stands (${answer.detail})${suffix([...unread, ...problems])}`,
       refuted: [],
       ok: {},
     };
   }
 
-  const verdicts = applyVerdicts(
-    blockers,
-    answer.answer,
-    input.headSha,
-    input.show ?? gitShow(input.repoRoot),
-  );
+  // Each cited file is read once per round, however many quotes cite it.
+  const read1 = input.show ?? gitShow(input.repoRoot);
+  const files = new Map<string, string | null>();
+  const show: ShowFile = (rev, file) => {
+    const key = `${rev}:${file}`;
+    if (!files.has(key)) files.set(key, read1(rev, file));
+    return files.get(key) ?? null;
+  };
+  const verdicts = applyVerdicts(blockers, answer.answer, input.headSha, show);
   const refuted: Demotion[] = [];
   const ok: Partial<Record<JudgedLane, boolean>> = {};
   const problems: string[] = [];
@@ -375,7 +383,9 @@ export async function judgeRound(input: {
       ),
       ...verdicts.notes.filter((x) => ns.has(x.n)).map((x) => x.note),
     ];
-    if (notes.length === 0) continue;
+    // A sink whose every verdict was a clean `stands` still records the seam's notes, such as an
+    // answer recovered by a repair round.
+    if (notes.length === 0 && answer.notes.length === 0) continue;
     const gone = new Set(mine.filter((m) => demoted.some((d) => d.n === m.n)).map((m) => m.index));
     const remaining = s.sink.blockers.filter((_, index) => !gone.has(index));
     const problem = await rewrite(s, {
@@ -405,9 +415,8 @@ export async function judgeRound(input: {
     }
   }
   refuted.sort((a, b) => a.n - b.n);
-  const tail = [...unread, ...problems];
   return {
-    line: `refuted ${refuted.length} of ${slots.length}${tail.length > 0 ? ` (${tail.join('; ')})` : ''}`,
+    line: `refuted ${refuted.length} of ${slots.length}${suffix([...unread, ...problems])}`,
     refuted,
     ok,
   };

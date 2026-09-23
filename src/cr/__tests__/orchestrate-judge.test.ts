@@ -39,7 +39,7 @@ vi.mock('../lanes/codex.js', () => ({ runCodex: laneMock('codex') }));
 
 import { readLedger } from '../autofix-ledger.js';
 import { fingerprintBlocker } from '../fingerprint.js';
-import { setJudgeDispatcher } from '../judge.js';
+import { setJudgeDispatcher, type JudgeInput } from '../judge.js';
 import { run } from '../orchestrate.js';
 
 const SLUG = 'x' as Slug;
@@ -165,6 +165,25 @@ describe('orchestrate runs the refutation judge before the verdict (Q-0262)', ()
     err.mockRestore();
     expect(r.exitCode).toBe(1);
     expect(judged).toBe(0);
+  });
+
+  it('tells the judge the range the lanes reviewed, and no range when they reviewed the whole artifact', async () => {
+    const base = git('rev-parse', 'HEAD');
+    writeFileSync(join(root, 'src', 'a.ts'), `${SOURCE}// one more line\n`);
+    git('add', '-A');
+    git('commit', '-q', '-m', 'feat: more', '--no-verify');
+    const head = git('rev-parse', 'HEAD');
+    script.reviewer = [{ blockers: [WRONG] }, { blockers: [WRONG] }];
+    const inputs: JudgeInput[] = [];
+    setJudgeDispatcher(async (input) => {
+      inputs.push(input);
+      return JSON.stringify({ verdicts: [] });
+    });
+    const err = quiet();
+    await run({ args: args({ baseSha: base, headSha: head }), cwd: root });
+    await run({ args: args({ baseSha: base, headSha: head, fullReview: true }), cwd: root });
+    err.mockRestore();
+    expect(inputs.map((i) => i.baseSha)).toEqual([base, undefined]);
   });
 
   it('names the refutation on the code receipt, though the round reaches the ledger after the amend', async () => {
