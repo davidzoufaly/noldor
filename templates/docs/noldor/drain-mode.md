@@ -155,9 +155,15 @@ dependency, so the prompt stays a thin pointer.
   a missing section or an unmet stated contract. Bounded at 2 rounds per session
   plus a no-progress stop, and it declines outright (`reason: lanes-in-flight`)
   while any lane is still writing its sink; any other non-zero from either verb
-  falls through to the next bullet. The knob defaults to `prompt`, in which case `plan` exits 10 with
-  `knob-off` and behaviour is unchanged. `onBlockers` is deliberately NOT part of
-  the headless-safe precondition set: both values are safe unattended.
+  falls through to the next bullet. Unset, the knob follows the session: a drain
+  child's session is autonomous (`set-autonomous`), so it runs as `auto-fix`;
+  set `prompt` explicitly to make `plan` exit 10 with `knob-off` instead. `plan`
+  prints `knob: <value> (config|session default)` so the source is visible. A
+  design blocker, the round cap and every other decline still take the next
+  bullet — they fail the iteration, and the supervisor's retry-then-skip parks
+  the slug in `.noldor/escalations.jsonl` (`retries-exhausted`) rather than
+  leaving it on a prompt nobody will answer. `onBlockers` is deliberately NOT
+  part of the headless-safe precondition set: both values are safe unattended.
 - On a CR-red the seam declined, or on test/typecheck-red: run
   `pnpm noldor cr escalate --autonomous` (config `autonomous.onFailure` governs)
   and exit non-zero — the supervisor retries from clean or skips.

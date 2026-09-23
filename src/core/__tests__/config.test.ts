@@ -57,9 +57,9 @@ describe('loadConfig', () => {
     const cfg = await loadConfig(path);
     expect(cfg?.autonomous?.skipLanePicker).toBe(false);
     expect(cfg?.autonomous?.onFailure).toBe('prompt');
-    // Auto-fix stays OFF unless a consumer opts in: the framework cannot know a
-    // round carries no design disagreement.
-    expect(cfg?.autonomous?.onBlockers).toBe('prompt');
+    // No schema default: an unset knob resolves per session (resolveOnBlockers),
+    // so the loader must not synthesize a value that would read as explicit.
+    expect(cfg?.autonomous?.onBlockers).toBeUndefined();
   });
   it('accepts autonomous.onBlockers auto-fix', async () => {
     const path = join(dir, 'config.json');

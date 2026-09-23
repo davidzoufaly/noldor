@@ -246,12 +246,38 @@ describe('cr autofix plan', () => {
     expect(field(r.stdout, 'reason')).toBe('knob-off');
   });
 
-  it('exits 10 with knob-off when the knob is absent (default prompt)', () => {
+  it('exits 10 with knob-off when the knob is absent in an interactive session', () => {
     setConfig(null);
     writeSink('reviewer', 'spec', [MECH]);
     expect(field(run('plan', '--slug', 'slug', '--kind', 'spec').stdout, 'reason')).toBe(
       'knob-off',
     );
+  });
+
+  it('auto-fixes with the knob absent when the session is autonomous', () => {
+    setConfig(null);
+    writeFileSync(
+      join(cwd, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'fast-track', startedAt: SESSION, autonomous: true }),
+      'utf8',
+    );
+    writeSink('reviewer', 'spec', [MECH]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(0);
+    expect(field(r.stdout, 'knob')).toBe('auto-fix (session default)');
+  });
+
+  it('keeps an explicit prompt in an autonomous session', () => {
+    setConfig('prompt');
+    writeFileSync(
+      join(cwd, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'fast-track', startedAt: SESSION, autonomous: true }),
+      'utf8',
+    );
+    writeSink('reviewer', 'spec', [MECH]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(10);
+    expect(field(r.stdout, 'knob')).toBe('prompt (config)');
   });
 
   it('exits 10 with no-mechanical when every blocker is design', () => {
