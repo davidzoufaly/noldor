@@ -28,6 +28,7 @@ import {
   renderPenBridgeRow,
 } from '../../checks/check-pen-bridge.js';
 import { checkOxfmtIgnores } from '../../checks/check-oxfmt-ignores.js';
+import { checkParentOptIn, renderParentOptInRow } from '../../checks/check-parent-opt-in.js';
 import { loadUiConfig } from '../../core/consumer-config.js';
 import { evaluateUiDesignFreshness } from '../../release/ui-design-freshness.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
@@ -154,6 +155,13 @@ if (uiConfig !== null) {
       console.log(`warn         ui-design: ${s.surface} ${s.status} — ${s.detail}`);
     }
   }
+}
+
+// Parent-feature opt-in: advisory only (does NOT affect exit code). A queued
+// entry extending a feature no known repo has switched on is a sizing question
+// for a human, not a broken repo.
+for (const row of await checkParentOptIn(process.cwd())) {
+  console.log(`${'warn'.padEnd(12)} ${renderParentOptInRow(row)}`);
 }
 
 if (prereqBad === 0 && bad === 0 && runnerBad === 0 && wiringBad === 0 && freshnessBad === 0) {

@@ -282,6 +282,13 @@ export const ConsumerConfigSchema = z
      */
     toolchainFloor: ToolchainFloorSchema.optional(),
     /**
+     * Roots of other Noldor repos (absolute, or relative to this repo) whose
+     * `.noldor/config.json` `doctor` reads to tell whether a feature's
+     * `opt-in:` keys are set anywhere. This repo is always included. Absent ⇒
+     * only this repo is checked.
+     */
+    knownConsumers: z.array(z.string().min(1)).optional(),
+    /**
      * Framework version this consumer tree was last migrated to. Written by
      * `init` (fresh scaffold = current) and `noldor upgrade` (after a chain).
      * Absent on a tree scaffolded before the upgrade feature; `upgrade --from`

@@ -120,6 +120,18 @@ export const FeatureFrontmatterSchema = z
      *  Drives `/noldor-gate` Step 4 bootstrap-immunity (auto-stamps the matching override
      *  on the branch's commits). Absent by default. */
     'introduces-gate': z.string().min(1).optional(),
+    /** Optional: `.noldor/config.json` keys that switch this feature on in a
+     *  consumer — any one satisfied means enabled. `a.b` = present and
+     *  non-empty; `a.b=v` = equals `v` or is an array containing it. Read by
+     *  `doctor`'s parent-opt-in row (`src/checks/check-parent-opt-in.ts`) to
+     *  flag queued entries that extend a feature no known repo has enabled.
+     *  Absent by default (the feature is always on). */
+    'opt-in': z
+      .array(
+        z.string().regex(/^[\w-]+(\.[\w-]+)*(=.+)?$/, 'Expected dotted.key or dotted.key=value'),
+      )
+      .min(1)
+      .optional(),
     /** Optional stable entry ID (`Q-NNNN`) lifted from the source roadmap/backlog
      *  block's `- id:` by `/noldor-promote` (or minted fresh by `/noldor-new-feature`). Lets
      *  `resolveEntryRef` map an ID `deps:` reference to a shipped feature, and
