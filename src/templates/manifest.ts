@@ -28,7 +28,9 @@ export const SCAFFOLD_ONLY_TEMPLATES: ReadonlySet<string> = new Set([
   // Linter config starter: makes the `correctness`/`suspicious`/`perf` contract
   // in `.claude/engineering-rules.md` executable instead of prose. Which rules a
   // consumer must switch off is a property of ITS code (deliberate sequential
-  // IO, JSX or not), so the consumer owns the file after scaffold.
+  // IO, JSX or not), so the consumer owns the file after scaffold. In this repo
+  // the root `.oxlintrc.json` and this template are kept byte-identical — a
+  // framework-only fact, so it lives here and not in the vendored rules file.
   '.oxlintrc.json',
   // Claude Code hooks starter: wires the `pre-edit-guard` PreToolUse gate (live
   // edit-gating) + the dashboard-ensure SessionStart hook. The consumer owns it
