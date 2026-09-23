@@ -815,7 +815,15 @@ Both blocks span communities, so local indices do not apply and both carry full 
         tgtComm: nodeCommunityMap.get(l.target) ?? -1,
       }))
       .toSorted(
-        (a, b) => byCodeUnit(a.rel, b.rel) || byCodeUnit(a.src, b.src) || byCodeUnit(a.tgt, b.tgt),
+        (a, b) =>
+          byCodeUnit(a.rel, b.rel) ||
+          byCodeUnit(a.src, b.src) ||
+          byCodeUnit(a.tgt, b.tgt) ||
+          // Labels are not unique across communities either — `main!` in c3 and
+          // `main!` in c9 tie on all three keys above, and the leftover order is
+          // graphify's.
+          a.srcComm - b.srcComm ||
+          a.tgtComm - b.tgtComm,
       )
       .map((r) => `  ${r.rel} ${r.src}@c${r.srcComm}>${r.tgt}@c${r.tgtComm}`);
   }

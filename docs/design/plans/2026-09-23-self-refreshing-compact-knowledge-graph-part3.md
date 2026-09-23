@@ -295,11 +295,12 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
             # One fixed branch, force-updated in place, so an unmerged queue is
             # bounded at one PR rather than growing per merge.
             git checkout -B "$GRAPH_BRANCH"
-            # Named files, not the directory: `graphify update` also writes
+            # Named files, and no --force: `graphify update` also writes
             # graph.html, cost.json, cache/ and .graphify_python, every one of them
-            # gitignored and machine-local, and `--force` would carry them onto the
-            # default branch. These five are what the repo actually tracks.
-            git add --force \
+            # gitignored and machine-local. --force would override those ignore
+            # rules and carry them onto the default branch. These five are what the
+            # repo actually tracks, and none of them needs the flag.
+            git add \
               graphify-out/graph.json \
               graphify-out/graph.brainstorm.toon \
               graphify-out/graph.brainstorm-summary.toon \
