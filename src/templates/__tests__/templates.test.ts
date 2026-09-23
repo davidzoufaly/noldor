@@ -7,6 +7,7 @@ import { computeDrift } from '../diff.js';
 import { copyTemplate, adoptTemplate } from '../copy.js';
 import { templateFiles, TEMPLATES_ROOT, SCAFFOLD_ONLY_TEMPLATES } from '../manifest.js';
 import { filterTemplatesByAgents } from '../agent-filter.js';
+import { parse as parseYaml } from 'yaml';
 
 // @tests: noldor-package-lift
 
@@ -211,5 +212,153 @@ describe('.oxlintrc.json template (lint contract)', () => {
       'unicorn/consistent-function-scoping',
       'unicorn/no-array-sort',
     ]);
+  });
+});
+
+interface WfStep {
+  readonly uses?: string;
+  readonly run?: string;
+  readonly env?: Record<string, string>;
+  readonly with?: Record<string, unknown>;
+}
+interface WfJob {
+  readonly if: string;
+  readonly concurrency: unknown;
+  readonly permissions: Record<string, string>;
+  readonly steps: WfStep[];
+}
+
+describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)', () => {
+  const rel = '.github/workflows/update-knowledge-graph.yml';
+  const raw = (): string => readFileSync(join(TEMPLATES_ROOT, rel), 'utf8');
+
+  /**
+   * The workflow with comment lines stripped. Every `not.toContain` below is an
+   * assertion about what the file *does*, and the file explains each of those
+   * absences in a comment — grepping the raw text makes the explanation fail the
+   * test it explains. Both YAML `#` comments and shell `#` comments inside `run:`
+   * blocks start their line, so one filter covers both.
+   */
+  const runnable = (): string =>
+    raw()
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+
+  const workflow = (): { permissions: unknown; jobs: Record<string, WfJob>; on?: unknown } =>
+    parseYaml(raw()) as { permissions: unknown; jobs: Record<string, WfJob>; on?: unknown };
+
+  it('ships in the template manifest', () => {
+    expect(templateFiles()).toContain(rel);
+  });
+
+  it('is scaffold-only (runner labels and the pin are the consumer own)', () => {
+    expect(SCAFFOLD_ONLY_TEMPLATES.has(rel)).toBe(true);
+  });
+
+  it('is driver-neutral — every agent target gets it', () => {
+    expect(filterTemplatesByAgents([rel], ['claude'])).toEqual([rel]);
+    expect(filterTemplatesByAgents([rel], ['codex'])).toEqual([rel]);
+  });
+
+  it('parses, and triggers only on a merged PR with a code-change title', () => {
+    const wf = workflow() as Record<string, unknown>;
+    // `on` is the YAML 1.1 boolean `true`, which is why this reads both keys.
+    const on = (wf.on ?? wf[true as unknown as string]) as {
+      pull_request: { types: string[]; branches?: string[] };
+    };
+    expect(on.pull_request.types).toEqual(['closed']);
+    // No hardcoded branch name: `branches:` takes no expression, so the
+    // default-branch check lives in the job's `if` instead.
+    expect(on.pull_request.branches).toBeUndefined();
+
+    const build = (wf.jobs as Record<string, WfJob>).build;
+    expect(build.if).toContain('github.event.pull_request.merged == true');
+    expect(build.if).toContain('github.event.repository.default_branch');
+    for (const prefix of ['feat', 'fix', 'refactor']) {
+      expect(build.if).toContain(`'${prefix}'`);
+    }
+    // Job level, not workflow level — see the comment in the file.
+    expect(build.concurrency).toEqual({ group: 'knowledge-graph', 'cancel-in-progress': true });
+    expect(wf.concurrency).toBeUndefined();
+  });
+
+  it('grants each job only the permissions it needs', () => {
+    const wf = workflow();
+    expect(wf.permissions).toEqual({});
+    expect(wf.jobs.build.permissions).toEqual({ contents: 'read' });
+    expect(wf.jobs.publish.permissions).toEqual({
+      contents: 'write',
+      'pull-requests': 'write',
+    });
+  });
+
+  it('never reaches the default branch except through a PR', () => {
+    const text = runnable();
+    expect(text).not.toContain('--no-verify');
+    expect(text).not.toContain('LEFTHOOK=0');
+    expect(text).not.toContain('refs/heads/main');
+    expect(text).not.toMatch(/HEAD:main\b/);
+    expect(text).toContain('gh pr create');
+  });
+
+  it('calls the framework CLI, not noldor-only package scripts', () => {
+    // Those scripts exist only in noldor's own package.json — a consumer would
+    // fail on a missing script.
+    const text = runnable();
+    expect(text).not.toMatch(/pnpm\s+toon\b/);
+    expect(text).not.toMatch(/pnpm\s+graphify:/);
+    expect(text).toContain('pnpm noldor graphify graph-to-toon');
+  });
+
+  it('runs no repository code while the write token is in scope', () => {
+    const { jobs } = workflow();
+    const holdsToken = (j: WfJob): WfStep[] =>
+      j.steps.filter((s) => JSON.stringify(s.env ?? {}).includes('GITHUB_TOKEN'));
+
+    // The token exists in exactly one job.
+    expect(holdsToken(jobs.build)).toHaveLength(0);
+    expect(holdsToken(jobs.publish).length).toBeGreaterThan(0);
+
+    // That job installs nothing, so lefthook is never installed in it — the
+    // hooks are absent rather than bypassed, which is why no step needs
+    // --no-verify or LEFTHOOK=0.
+    for (const s of jobs.publish.steps) {
+      expect(s.run ?? '').not.toMatch(/pnpm install|npm ci|yarn install/);
+      expect(s.uses ?? '').not.toContain('pnpm/action-setup');
+    }
+
+    // The job that DOES run merged-tree code keeps no credentials on disk.
+    const checkout = jobs.build.steps.find((s) => (s.uses ?? '').startsWith('actions/checkout'));
+    expect(checkout?.with?.['persist-credentials']).toBe(false);
+  });
+
+  it('pins graphify and titles its own PR with a prefix the filter skips', () => {
+    const text = runnable();
+    expect(text).toContain('graphifyy==0.7.8');
+    expect(text).toContain('chore(graph):');
+    expect(text).not.toMatch(/--title "(feat|fix|refactor)/);
+  });
+
+  it('checks out an explicit sha and force-updates one fixed bot branch', () => {
+    const text = runnable();
+    expect(text).toContain('github.event.pull_request.merge_commit_sha');
+    expect(text).toContain('GRAPH_BRANCH: noldor/graph-refresh');
+    expect(text).toContain('git checkout -B "$GRAPH_BRANCH"');
+    expect(text).toContain('git push --force origin "HEAD:$GRAPH_BRANCH"');
+  });
+
+  it('stages the directory so each repo own ignore rules decide', () => {
+    // Naming files breaks any consumer tracking a different subset: charuy
+    // ignores everything under graphify-out/ but graph.json and GRAPH_REPORT.md.
+    const text = runnable();
+    expect(text).toContain('git add graphify-out/');
+    expect(text).not.toContain('git add --force');
+  });
+
+  it('is excluded from the template-sync drift set', () => {
+    // `check-template-sync` and `doctor` both filter on this set — membership is
+    // what makes a consumer's edited runner labels not read as drift.
+    expect(templateFiles().filter((f) => !SCAFFOLD_ONLY_TEMPLATES.has(f))).not.toContain(rel);
   });
 });
