@@ -138,3 +138,12 @@ describe('design support-check slug validation', () => {
     expect(r.err).toContain("expected 'my-dialogue'");
   });
 });
+
+describe('design support-check --spec key validation', () => {
+  it('names --spec, not --slug, when a spec filename key is not a slug', () => {
+    const r = check(repo(), '--spec', 'docs/design/specs/2026-09-24-Foo_Bar-design.md');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('--spec:');
+    expect(r.err).not.toContain('--slug:');
+  });
+});

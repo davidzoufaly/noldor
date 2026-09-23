@@ -47,7 +47,11 @@ export function parseSupportCheckArgs(argv: readonly string[]): { slug: Slug } |
   // The key becomes a path component under `.noldor/design/`, so it is checked
   // here whichever flag supplied it; `validateSlug` adds the corrected spelling.
   const parsedSlug = parseSlug(key);
-  if (!parsedSlug.ok) return { error: validateSlug(key, '--slug') ?? parsedSlug.error.message };
+  if (!parsedSlug.ok)
+    return {
+      error:
+        validateSlug(key, slug !== undefined ? '--slug' : '--spec') ?? parsedSlug.error.message,
+    };
   return { slug: parsedSlug.slug };
 }
 
