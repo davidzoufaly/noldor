@@ -26,7 +26,7 @@
 
 The summary gains panther's `## features` block and the shared compact cross-edge row, and keeps the `community index (top 20 by size)` block panther dropped — noldor has 206 communities with far weaker derived labels, so the size-ranked index is the only place a reader sees which are worth opening.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   Append inside the existing `describe`, and **add** `renderBrainstormSummary` to
   the existing import at the top of the file — read the line first and keep every
@@ -61,15 +61,15 @@ The summary gains panther's `## features` block and the shared compact cross-edg
   property of `graph.json`, so it is already reproducible, and re-sorting would
   break the member↔summary correspondence the spec requires of both files.
 
-- [ ] **Step 2: Run the test and verify it FAILS.**
+- [x] **Step 2: Run the test and verify it FAILS.**
 
   ```bash
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: `Tests  2 failed | 15 passed (17)`, the first failure showing the v2 summary header `# Domain Knowledge Graph — Summary`.
+  Expected output: `Tests  1 failed | 16 passed (17)`, the failure showing the v2 summary header `# Domain Knowledge Graph — Summary`. Only one: the test-folder case passes vacuously at this point, because the v2 summary has no `## features` block at all to be wrong about. Step 5 is where it starts pinning something, and the check there proves it.
 
-- [ ] **Step 3: Add feature extraction and pin the existing extractors' ordering.**
+- [x] **Step 3: Add feature extraction and pin the existing extractors' ordering.**
 
   Delete `formatCrossEdgeLine` — Part 1 left it in place only because the v2
   summary still called it, and this task is what replaces that call. Then replace
@@ -169,7 +169,7 @@ The summary gains panther's `## features` block and the shared compact cross-edg
   }
   ```
 
-- [ ] **Step 4: Rewrite `renderBrainstormSummary`.**
+- [x] **Step 4: Rewrite `renderBrainstormSummary`.**
 
   Replace the whole function with:
 
@@ -245,7 +245,7 @@ The summary gains panther's `## features` block and the shared compact cross-edg
   }
   ```
 
-- [ ] **Step 5: Run the test and verify it PASSES.**
+- [x] **Step 5: Run the test and verify it PASSES.**
 
   ```bash
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
@@ -253,7 +253,13 @@ The summary gains panther's `## features` block and the shared compact cross-edg
 
   Expected output: `Tests  17 passed (17)`.
 
-- [ ] **Step 6: Commit.**
+  The test-folder case passed before this step too, so prove it now pins the
+  guard: drop `|| NOT_A_FEATURE.has(name)` from `extractFeatures` and re-run.
+  Expected: `does not mistake a test folder for a feature` red, reporting
+  `expected '# Domain Knowledge Graph — Summary (v…' not to contain '## features'`.
+  Restore the guard.
+
+- [x] **Step 6: Commit.**
 
   ```bash
   cat > /tmp/msg-part2-task1.txt <<'EOF'

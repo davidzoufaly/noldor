@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildContext, renderBrainstormToon, type GraphData } from '../graph-to-toon.js';
+import {
+  buildContext,
+  renderBrainstormSummary,
+  renderBrainstormToon,
+  type GraphData,
+} from '../graph-to-toon.js';
 
 // @tests: self-refreshing-compact-knowledge-graph
 
@@ -207,5 +212,29 @@ describe('graph-to-toon', () => {
     expect(block).toContain('  0 Charlie @');
     expect(block).toContain('  1 delta @');
     expect('Charlie'.localeCompare('delta', 'cs')).toBeGreaterThan(0);
+  });
+
+  it('renders a v3 summary with the community index and shared cross rows', () => {
+    const text = renderBrainstormSummary(buildContext(fixture()));
+    expect(text.startsWith('# Domain Knowledge Graph — Summary (v3)\n# version: 3\n')).toBe(true);
+    expect(text).toContain('## community index (top 20 by size)');
+    expect(text).toContain('  c1 (3): ');
+    expect(text).toContain('## cross-community edges (top 25)');
+    expect(text).toContain('  i alpha!@c1>delta@c2');
+    expect(text).toContain('## hyperedges');
+    expect(text).toContain('  boot path (2 nodes, flow)');
+  });
+
+  it('does not mistake a test folder for a feature', () => {
+    const graph: GraphData = {
+      directed: true,
+      links: [],
+      nodes: [
+        { community: 1, id: 'a', label: 'a', source_file: 'src/features/__tests__/a.test.ts' },
+      ],
+    };
+    // The only `/features/` match in noldor's own graph is this shape. A
+    // `## features` block naming it would be wrong, so there must be no block.
+    expect(renderBrainstormSummary(buildContext(graph))).not.toContain('## features');
   });
 });

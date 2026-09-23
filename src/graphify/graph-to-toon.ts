@@ -381,21 +381,6 @@ function classifyEdges(links: GraphLink[], nodeCommunityMap: Map<string, number>
   return { cross, intra };
 }
 
-function formatCrossEdgeLine(
-  link: GraphLink,
-  idToLabel: Map<string, string>,
-  nodeCommunityMap: Map<string, number>,
-  directed: boolean,
-): string {
-  const src = idToLabel.get(link.source) ?? link.source;
-  const tgt = idToLabel.get(link.target) ?? link.target;
-  const srcComm = nodeCommunityMap.get(link.source) ?? -1;
-  const tgtComm = nodeCommunityMap.get(link.target) ?? -1;
-  const rel = link.relation ?? 'related';
-  const arrow = directed ? `--${rel}-->` : `--${rel}--`;
-  return `  ${src} [c${srcComm}] ${arrow} ${tgt} [c${tgtComm}]`;
-}
-
 // ---------------------------------------------------------------------------
 // Brainstorm TOON (full)
 // ---------------------------------------------------------------------------
@@ -539,22 +524,72 @@ export function renderBrainstormToon(ctx: GraphContext): string {
 // Summary TOON
 // ---------------------------------------------------------------------------
 
-function extractPackages(nodes: GraphNode[]): readonly [string, number][] {
+interface FeatureInfo {
+  readonly name: string;
+  readonly nodeCount: number;
+  readonly subfolders: string;
+}
+
+function extractPackages(nodes: readonly GraphNode[]): readonly (readonly [string, number])[] {
   const counts = new Map<string, number>();
   for (const n of nodes) {
-    const sf = n.source_file ?? '';
-    if (!sf) {
-      continue;
-    }
-    const parts = sf.split('/');
+    const parts = (n.source_file ?? '').split('/');
     if (parts.length >= 2 && (parts[0] === 'packages' || parts[0] === 'apps')) {
       counts.set(parts[1], (counts.get(parts[1]) ?? 0) + 1);
     }
   }
-  return [...counts.entries()].toSorted((a, b) => b[1] - a[1]);
+  return [...counts.entries()].toSorted((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]));
 }
 
-function extractConceptsAndRationales(nodes: GraphNode[]): {
+/**
+ * Feature folders, read from any `…/features/<name>/…` path segment.
+ *
+ * `__tests__` is excluded because it is a test location, not a feature. In
+ * noldor's own graph it is the *only* match — `src/features/__tests__/*` — so
+ * without the exclusion the block would read `__tests__: N nodes` and nothing
+ * else, which is worse than no block at all. With it, noldor emits no
+ * `## features` section and a consumer that really has feature folders still
+ * gets one.
+ */
+const NOT_A_FEATURE: ReadonlySet<string> = new Set(['__tests__', '__mocks__', '__fixtures__']);
+
+function extractFeatures(nodes: readonly GraphNode[]): FeatureInfo[] {
+  const counts = new Map<string, number>();
+  const subfolders = new Map<string, Map<string, number>>();
+
+  for (const n of nodes) {
+    const sf = n.source_file ?? '';
+    if (!sf.includes('/features/')) continue;
+    const parts = sf.split('/features/')[1].split('/');
+    const name = parts[0];
+    if (name.includes('.') || NOT_A_FEATURE.has(name)) continue;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+    if (parts.length > 1 && !parts[1].includes('.')) {
+      const subs = subfolders.get(name) ?? new Map<string, number>();
+      subs.set(parts[1], (subs.get(parts[1]) ?? 0) + 1);
+      subfolders.set(name, subs);
+    }
+  }
+
+  return [...counts.entries()]
+    .toSorted((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))
+    .map(([name, nodeCount]): FeatureInfo => {
+      const subs = subfolders.get(name);
+      return {
+        name,
+        nodeCount,
+        subfolders: subs
+          ? [...subs.entries()]
+              .toSorted((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))
+              .slice(0, 4)
+              .map(([sub]) => sub)
+              .join(', ')
+          : '',
+      };
+    });
+}
+
+function extractConceptsAndRationales(nodes: readonly GraphNode[]): {
   concepts: string[];
   rationales: string[];
 } {
@@ -567,90 +602,88 @@ function extractConceptsAndRationales(nodes: GraphNode[]): {
   for (const n of nodes) {
     const nid = n.id ?? '';
     if (nid.startsWith(RATIONALE_PREFIX)) {
-      const clean = n.label.startsWith('Rationale: ')
-        ? n.label.slice('Rationale: '.length)
-        : n.label;
-      rationales.push(clean);
-    } else if (CONCEPT_PREFIXES.some((p) => nid.startsWith(p))) {
+      rationales.push(
+        n.label.startsWith('Rationale: ') ? n.label.slice('Rationale: '.length) : n.label,
+      );
+    } else if (CONCEPT_PREFIXES.some((prefix) => nid.startsWith(prefix))) {
       concepts.push(n.label);
     }
   }
 
-  concepts.sort();
-  rationales.sort();
-  return { concepts, rationales };
+  return {
+    concepts: concepts.toSorted(byCodeUnit),
+    rationales: rationales.toSorted(byCodeUnit),
+  };
 }
 
 export function renderBrainstormSummary(ctx: GraphContext): string {
-  const { nodes, links, communityLabels, idToLabel, directed, hyperedges } = ctx;
-  const nCommunities = new Set(nodes.map((n) => n.community)).size;
+  const { nodes, links, communityLabels, directed, hyperedges } = ctx;
   const communityGroups = groupByCommunity(nodes);
   const nodeCommunityMap = buildNodeCommunityMap(nodes);
   const { cross } = classifyEdges(links, nodeCommunityMap);
 
-  const lines: string[] = [];
+  const lines: string[] = [
+    '# Domain Knowledge Graph — Summary (v3)',
+    '# version: 3',
+    `# ${nodes.length} nodes, ${links.length} edges, ${communityGroups.size} communities, directed=${directed}`,
+    '# Deep dive: graph.brainstorm.toon (TOC at top — use Read offset/limit per community)',
+    '# Compact format used in brainstorm.toon:',
+    '#   Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of  (contains/imports_from omitted — derivable)',
+    '#   Node row: <local_id> <label>[!=function] @<path_id>',
+    '#   Edge row: <rel> <src>><t1,t2,...>',
+    '#   Cross-edge row (this file + brainstorm.toon ## cross): <rel> <label>@c<src_comm>><label>@c<tgt_comm>',
+  ];
 
-  lines.push('# Domain Knowledge Graph — Summary');
-  lines.push(`# ${nodes.length} nodes, ${links.length} edges, ${nCommunities} communities`);
-  lines.push('');
-  lines.push(`directed: ${directed}`);
-
-  // Packages
   const packages = extractPackages(nodes);
-  if (packages.length) {
-    lines.push('');
-    lines.push('## packages');
+  if (packages.length > 0) {
+    lines.push('', '## packages');
     for (const [pkg, count] of packages) {
       lines.push(`  ${pkg} (${count} nodes)`);
     }
   }
 
-  // Concepts & rationales
-  const { concepts, rationales } = extractConceptsAndRationales(nodes);
-  if (concepts.length) {
-    lines.push('');
-    lines.push('## concepts');
-    for (const c of concepts) {
-      lines.push(`  ${c}`);
-    }
-  }
-  if (rationales.length) {
-    lines.push('');
-    lines.push('## rationales');
-    for (const r of rationales) {
-      lines.push(`  ${r}`);
-    }
-  }
-
-  // Hyperedges
-  if (hyperedges.length) {
-    lines.push('');
-    lines.push('## hyperedges');
-    for (const he of hyperedges) {
+  const features = extractFeatures(nodes);
+  if (features.length > 0) {
+    lines.push('', '## features');
+    for (const { name, nodeCount, subfolders } of features) {
       lines.push(
-        `  ${he.label} (${hyperedgeMembers(he).length} nodes, ${he.relation ?? 'related'})`,
+        subfolders
+          ? `  ${name}: ${nodeCount} nodes — ${subfolders}`
+          : `  ${name}: ${nodeCount} nodes`,
       );
     }
   }
 
-  // Community index (top 20 by size)
-  lines.push('');
-  lines.push('## community index (top 20 by size)');
-  const sortedComms = [...communityGroups.entries()]
-    .toSorted((a, b) => b[1].length - a[1].length)
-    .slice(0, 20);
-  for (const [commId, commNodes] of sortedComms) {
-    const label = communityLabels[String(commId)] ?? `Community ${commId}`;
-    lines.push(`  c${commId} (${commNodes.length}): ${label}`);
+  const { concepts, rationales } = extractConceptsAndRationales(nodes);
+  if (concepts.length > 0) {
+    lines.push('', '## concepts');
+    for (const c of concepts) lines.push(`  ${sanitizeLine(c)}`);
+  }
+  if (rationales.length > 0) {
+    lines.push('', '## rationales');
+    for (const r of rationales) lines.push(`  ${sanitizeLine(r)}`);
   }
 
-  // Cross-community edges (top 25)
-  if (cross.length) {
-    lines.push('');
-    lines.push('## cross-community edges (top 25)');
-    for (const link of cross.slice(0, 25)) {
-      lines.push(formatCrossEdgeLine(link, idToLabel, nodeCommunityMap, directed));
-    }
+  const hyperLines = hyperedges.map(
+    (he) =>
+      `  ${sanitizeLine(he.label)} (${hyperedgeMembers(he).length} nodes, ${he.relation ?? 'related'})`,
+  );
+  if (hyperLines.length > 0) {
+    lines.push('', '## hyperedges', ...hyperLines);
+  }
+
+  lines.push('', '## community index (top 20 by size)');
+  const ranked = [...communityGroups.entries()]
+    .toSorted((a, b) => b[1].length - a[1].length || a[0] - b[0])
+    .slice(0, 20);
+  for (const [commId, commNodes] of ranked) {
+    const label = communityLabels[String(commId)] ?? `Community ${commId}`;
+    lines.push(`  c${commId} (${commNodes.length}): ${sanitizeLine(label)}`);
+  }
+
+  const top25 = crossRows(cross, ctx.idToLabel, nodeCommunityMap).slice(0, 25);
+  if (top25.length > 0) {
+    lines.push('', '## cross-community edges (top 25)', ...top25);
   }
 
   lines.push('');
