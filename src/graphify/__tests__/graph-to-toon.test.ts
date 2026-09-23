@@ -414,4 +414,45 @@ describe('graph-to-toon', () => {
     expect(text).not.toContain('## cross');
     expect(text).toContain('# 2 nodes, 0 edges');
   });
+
+  it('reports the same edge count in both files, and collapses duplicate cross edges', () => {
+    const graph: GraphData = {
+      directed: true,
+      links: [
+        { relation: 'imports', source: 'a', target: 'd' },
+        { relation: 'imports', source: 'a', target: 'd' },
+        { relation: 'calls', source: 'a', target: 'b' },
+        { relation: 'contains', source: 'a', target: 'b' },
+      ],
+      nodes: [
+        { community: 1, id: 'a', label: 'a', source_file: 'src/a.ts' },
+        { community: 1, id: 'b', label: 'b', source_file: 'src/b.ts' },
+        { community: 2, id: 'd', label: 'd', source_file: 'src/d.ts' },
+      ],
+    };
+    const ctx = buildContext(graph);
+    // `contains` dropped, the duplicate cross link collapsed: 2 edges encoded.
+    expect(renderBrainstormToon(ctx)).toContain('# 3 nodes, 2 edges');
+    expect(renderBrainstormSummary(ctx)).toContain('# 3 nodes, 2 edges');
+    // And the cross block carries that one row once, not twice.
+    const rows = renderBrainstormToon(ctx)
+      .split('\n')
+      .filter((l) => l === '  i a@c1>d@c2');
+    expect(rows).toHaveLength(1);
+  });
+
+  it('ends the file with exactly one newline whichever block came last', () => {
+    const withCross = renderBrainstormToon(buildContext(fixture()));
+    const noCross = renderBrainstormToon(
+      buildContext({
+        directed: true,
+        links: [],
+        nodes: [{ community: 1, id: 'a', label: 'a', source_file: 'src/a.ts' }],
+      }),
+    );
+    for (const text of [withCross, noCross]) {
+      expect(text.endsWith('\n')).toBe(true);
+      expect(text.endsWith('\n\n')).toBe(false);
+    }
+  });
 });

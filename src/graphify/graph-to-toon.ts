@@ -214,11 +214,9 @@ function computeHubs(byRel: ReadonlyMap<string, Map<number, Set<number>>>): HubS
 }
 
 /**
- * Push one community's v3 block onto `lines` and return the number of edge rows
- * it emitted. Indices are community-local and 0-based. The return value is what
- * the header's edge count is built from: adjacency collapses parallel links
- * between the same pair under one relation into a single entry, so counting the
- * input links instead would print a total the file does not encode.
+ * Push one community's v3 block onto `lines`. Indices are community-local and
+ * 0-based. The header's edge total comes from {@link encodedEdges}, which
+ * collapses the same duplicates these rows do.
  */
 function emitCommunity(
   lines: string[],
@@ -226,7 +224,7 @@ function emitCommunity(
   commNodes: readonly GraphNode[],
   commEdges: readonly GraphLink[],
   communityLabels: Record<string, string>,
-): number {
+): void {
   const label = communityLabels[String(commId)] ?? `Community ${commId}`;
   // Label, then id. Labels are not unique inside a community, and a tie left
   // to the input order makes every index in the block a function of how
@@ -279,11 +277,10 @@ function emitCommunity(
   }
 
   if (byRel.size === 0) {
-    return 0;
+    return;
   }
 
   lines.push('e');
-  let emitted = 0;
   const rels = [...byRel.keys()].toSorted(
     (a, b) => byCodeUnit(relCode(a), relCode(b)) || byCodeUnit(a, b),
   );
@@ -293,10 +290,8 @@ function emitCommunity(
     for (const src of [...bySrc.keys()].toSorted((a, b) => a - b)) {
       const targets = [...bySrc.get(src)!].toSorted((a, b) => a - b);
       lines.push(`  ${r} ${src}>${targets.join(',')}`);
-      emitted += targets.length;
     }
   }
-  return emitted;
 }
 
 function shortenPath(sourceFile: string): string {
@@ -330,7 +325,7 @@ function buildIdToLabel(nodes: GraphNode[]): Map<string, string> {
   return new Map(nodes.map((n) => [n.id, n.label]));
 }
 
-function buildNodeCommunityMap(nodes: GraphNode[]): Map<string, number> {
+function buildNodeCommunityMap(nodes: readonly GraphNode[]): Map<string, number> {
   return new Map(nodes.map((n) => [n.id, n.community ?? -1]));
 }
 
@@ -394,7 +389,10 @@ function deriveCommunityLabels(communityGroups: Map<number, GraphNode[]>): Recor
 // Edge classification
 // ---------------------------------------------------------------------------
 
-function classifyEdges(links: GraphLink[], nodeCommunityMap: Map<string, number>): ClassifiedEdges {
+function classifyEdges(
+  links: readonly GraphLink[],
+  nodeCommunityMap: Map<string, number>,
+): ClassifiedEdges {
   const intra = new Map<number, GraphLink[]>();
   const cross: GraphLink[] = [];
 
@@ -427,6 +425,25 @@ function classifyEdges(links: GraphLink[], nodeCommunityMap: Map<string, number>
 // Brainstorm TOON (full)
 // ---------------------------------------------------------------------------
 
+/**
+ * How many edges the emitted format actually carries: `REL_OMIT` relations
+ * dropped, and parallel links between the same pair under the same relation
+ * collapsed, exactly as the `e` rows and `## cross` rows collapse them. Both
+ * headers read this, so they cannot disagree about the same graph.
+ */
+function encodedEdges(nodes: readonly GraphNode[], links: readonly GraphLink[]): number {
+  const nodeCommunityMap = buildNodeCommunityMap(nodes);
+  const { intra, cross } = classifyEdges(links, nodeCommunityMap);
+  const seen = new Set<string>();
+  for (const group of [...intra.values(), cross]) {
+    for (const l of group) {
+      if (REL_OMIT.has(l.relation ?? '')) continue;
+      seen.add(`${l.relation ?? ''}\u0000${l.source}\u0000${l.target}`);
+    }
+  }
+  return seen.size;
+}
+
 /** `<relCode> <srcLabel>@c<id>><tgtLabel>@c<id>`, shared by the brainstorm block
  *  and the summary's top-25 list so the two never drift apart. */
 function crossRows(
@@ -434,8 +451,15 @@ function crossRows(
   idToLabel: Map<string, string>,
   nodeCommunityMap: Map<string, number>,
 ): string[] {
+  const seen = new Set<string>();
   return cross
-    .filter((l) => !REL_OMIT.has(l.relation ?? ''))
+    .filter((l) => {
+      if (REL_OMIT.has(l.relation ?? '')) return false;
+      const key = `${l.relation ?? ''}\u0000${l.source}\u0000${l.target}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .map((l) => ({
       rel: relCode(l.relation),
       src: formatNodeLabel(idToLabel.get(l.source) ?? l.source),
@@ -514,13 +538,12 @@ export function renderBrainstormToon(ctx: GraphContext): string {
   // Pass 1 — body, with line ranges relative to the body's own first line.
   const body: string[] = [];
   const entries: TocEntry[] = [];
-  let totalEdges = 0;
 
   for (const commId of [...communityGroups.keys()].toSorted((a, b) => a - b)) {
     const startLine = body.length + 1;
     const commNodes = communityGroups.get(commId)!;
     const commEdges = (intra.get(commId) ?? []).filter((l) => !REL_OMIT.has(l.relation ?? ''));
-    totalEdges += emitCommunity(body, commId, commNodes, commEdges, communityLabels);
+    emitCommunity(body, commId, commNodes, commEdges, communityLabels);
     entries.push({ endLine: body.length, key: `c${commId}`, startLine });
     body.push('');
   }
@@ -530,7 +553,6 @@ export function renderBrainstormToon(ctx: GraphContext): string {
     const startLine = body.length + 1;
     body.push('## cross', ...crossLines);
     entries.push({ endLine: body.length, key: 'cross', startLine });
-    totalEdges += crossLines.length;
   }
 
   const hyperLines = hyperedgeRows(ctx.hyperedges, ctx.idToLabel);
@@ -547,7 +569,7 @@ export function renderBrainstormToon(ctx: GraphContext): string {
   const header: string[] = [
     '# Domain Knowledge Graph (v3 — compact)',
     '# version: 3',
-    `# ${nodes.length} nodes, ${totalEdges} edges (contains/imports_from omitted), ${communityGroups.size} communities, directed=${directed}`,
+    `# ${nodes.length} nodes, ${encodedEdges(nodes, links)} edges (contains/imports_from omitted), ${communityGroups.size} communities, directed=${directed}`,
     '# Per community: sig (top hubs by fan-in/out) | p (local paths, prefix-factored) | n (nodes) | e (edges)',
     '# Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of ?=other',
     '# Node row: <local_id> <label>[!=function] @<path_id>',
@@ -569,6 +591,9 @@ export function renderBrainstormToon(ctx: GraphContext): string {
   }
   header.push('');
 
+  // Trailing blanks depend on which block came last, so normalise: exactly one
+  // newline ends the file either way.
+  while (body.at(-1) === '') body.pop();
   const lines = [...header, ...body, ''];
   validateToc(lines, shifted);
   return lines.join('\n');
@@ -684,7 +709,7 @@ export function renderBrainstormSummary(ctx: GraphContext): string {
   const lines: string[] = [
     '# Domain Knowledge Graph — Summary (v3)',
     '# version: 3',
-    `# ${nodes.length} nodes, ${links.length} edges, ${communityGroups.size} communities, directed=${directed}`,
+    `# ${nodes.length} nodes, ${encodedEdges(nodes, links)} edges (contains/imports_from omitted), ${communityGroups.size} communities, directed=${directed}`,
     '# Deep dive: graph.brainstorm.toon (TOC at top — use Read offset/limit per community)',
     '# Compact format used in brainstorm.toon:',
     '#   Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of ?=other  (contains/imports_from omitted — derivable)',
@@ -776,7 +801,7 @@ function main(): void {
 
   for (const inputPath of args) {
     const data: GraphData = JSON.parse(readFileSync(inputPath, 'utf8'));
-    const nCommunities = new Set(data.nodes.map((n) => n.community)).size;
+    const nCommunities = groupByCommunity(data.nodes).size;
     console.log(
       `Loaded ${inputPath}: ${data.nodes.length} nodes, ${data.links.length} links, ${nCommunities} communities`,
     );
