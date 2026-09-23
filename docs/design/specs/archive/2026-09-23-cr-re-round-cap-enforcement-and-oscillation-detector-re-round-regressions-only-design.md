@@ -44,7 +44,7 @@ A new `src/cr/re-round.ts`, beside `blocking-definition.ts`, owns everything bot
 1. Answer every prior blocker in `prior`: resolved (the current content no longer has the defect) or not resolved, with one line of why. Do not restate a prior blocker as a new finding.
 2. Report as blocking only (a) a regression the fix caused, meaning something that was correct before the fix and is not after it (a behaviour, a contract, or a statement elsewhere in the artifact the fix now contradicts), or (b) a finding that meets the blocking definition the prompt gives. Every other finding about the fix's own content is a suggestion.
 
-The section also tells the lane how to answer: add `"prior": [{"n": 1, "resolved": true | false, "why": "..."}]` to its answer object. The instruction lives only in this section, so a first round's prompt is unchanged.
+The section also tells the lane how to answer: add `"prior": [{"n": 1, "resolved": true | false, "why": "..."}]` to its answer object.
 
 The mode keeps one framing line. `fixes-in-diff` says the range under review is the fix for these blockers. `reexamine` says not to assume any of them were addressed. Every prior is rendered: the 20-blocker cap (`PRIOR_BLOCKER_CAP`, `subagent-dispatch.ts:94`) is deleted, because a prior the lane never sees can only be carried unexamined. Messages are truncated to 300 characters in both modes. Code now re-files a standing blocker verbatim, so the model never re-types it, and the reason `reexamine` kept messages untruncated is gone.
 
@@ -52,7 +52,7 @@ The mode keeps one framing line. `fixes-in-diff` says the range under review is 
 
 ### Unit 2 — The reviewer answers each prior blocker
 
-`reviewerAnswerSchema` (`subagent-dispatch.ts:196`) gains a `prior` list, `default([])`, whose entries `applyPriorAnswers` validates one by one, so a malformed entry carries its prior instead of failing the whole answer. `REVIEWER_SHAPE` stays as it is, because the prior section describes the field (Unit 1). `buildPrompt` renders `renderPriorSection` where `renderPriorReview` renders today. With no `priorReview` the whole prompt, answer instruction included, stays byte-identical to today's. When `input.priorReview` is present, `runSubagent` (`subagent.ts:131`) calls `applyPriorAnswers`. The carried priors join the blockers ahead of the new effectively-blocking findings, the notes join `notes`, and `summary`/`ok` count both. The repair prompt's transcription rules gain one: carry over the review's prior answers, and never mark a prior resolved that the review did not. A repair that drops an answer is safe, because a missing answer carries the blocker.
+`reviewerAnswerSchema` (`subagent-dispatch.ts:196`) gains a `prior` list, `default([])`, whose entries `applyPriorAnswers` validates one by one, so a malformed entry carries its prior instead of failing the whole answer. `REVIEWER_SHAPE` names the `prior` list too, because the child is held to exactly that shape. `buildPrompt` renders `renderPriorSection` where `renderPriorReview` renders today. With no `priorReview` the prompt body stays byte-identical to today's. When `input.priorReview` is present, `runSubagent` (`subagent.ts:131`) calls `applyPriorAnswers`. The carried priors join the blockers ahead of the new effectively-blocking findings, the notes join `notes`, and `summary`/`ok` count both. The repair prompt's transcription rules gain one: carry over the review's prior answers, and never mark a prior resolved that the review did not. A repair that drops an answer is safe, because a missing answer carries the blocker.
 
 ### Unit 3 — Codex gets the same contract
 
@@ -82,7 +82,7 @@ Unit tests pin `renderPriorSection` and `applyPriorAnswers` from literals. The e
 
 ## Acceptance criteria
 
-1. A first-round reviewer or codex prompt, with no prior blockers, is byte-identical to the current one.
+1. A first-round prompt body, reviewer or codex, with no prior blockers, is byte-identical to the current one.
 2. A re-round prompt, reviewer or codex, lists every inherited prior blocker as `P1…Pn`, with none dropped by a cap, and carries the re-round contract.
 3. A prior that the answer marks resolved is removed from the sink's `blockers` and recorded in `notes`.
 4. A prior that is marked not resolved, left unanswered, answered malformed, or answered twice with conflicting values is re-filed with the same `severity`, `file` and `message` (and `class` and `locations`), so its `fingerprintBlocker` id is unchanged across the two rounds.
@@ -121,5 +121,5 @@ Nothing new to invoke. Re-rounds run as today: `pnpm noldor cr orchestrate --slu
 5. *Does the 20-blocker render cap stay?* → Drop it (D5). Every prior must be answerable, and 300-character truncation already bounds the prompt. A prior that is never shown can only be carried unexamined.
 6. *Do per-prior answers enter the sink schema?* → No; they go in `notes` (D6). No sink migration is needed, and the answer only matters to the round it belongs to.
 7. *How does the prior reader tell a lane failure from a finding?* → By the `<lane>` sentinel file that codex's synthetic blocker already uses (D7). A sink-level flag such as `reason` cannot tell the failure blocker apart from the priors a failure sink now carries. Matching message text would break the first time a message is reworded.
-8. *Does the reviewer's answer shape change for every round?* → No (D8). Only the prior section describes the `prior` field, so a first-round prompt stays byte-identical, and the schema's `default([])` accepts an answer that omits it.
+8. *Does the reviewer's answer shape change for every round?* → Yes (D8). The child is held to exactly the closing shape, so a key the shape omits is a key it drops. A first round's `prior` entries are ignored, and the schema's `default([])` accepts an answer that omits the key.
 9. *What does an unreadable prior sink do?* → It refuses the round (D9). A silent first round would drop its blockers, which is the one outcome this spec exists to rule out. A forced whole-artifact review is undefined for the code kind, whose `--artifact` is only a label.

@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, rules-cascade-v1, cr-lane-verdicts-blocked-by-serialization-not-substance
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, rules-cascade-v1, cr-lane-verdicts-blocked-by-serialization-not-substance, cr-re-round-cap-enforcement-and-oscillation-detector
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -234,6 +234,19 @@ describe('default dispatcher', () => {
     clean();
     await dispatchSubagent({ ...base, timeoutMs: 42_000 }, at());
     expect(calls[0]!.timeoutMs).toBe(42_000);
+  });
+
+  it('names the prior list in the closing answer shape the child is held to', async () => {
+    let seen = '';
+    setLaneSpawn(async (prompt): Promise<AgentResult> => {
+      seen = prompt;
+      const path = /write your answer to the file `([^`]+)`/.exec(prompt)?.[1];
+      if (path) writeFileSync(path, '{"assessment":"approve","strengths":"s","findings":[]}');
+      return { exitCode: 0, stdout: '', stderr: '', stderrBytes: 0, timedOut: false };
+    });
+    await dispatchSubagent(base, at());
+    const closing = seen.slice(seen.indexOf('write your answer to the file'));
+    expect(closing).toContain('"prior"');
   });
 });
 

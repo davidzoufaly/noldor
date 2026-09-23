@@ -166,8 +166,11 @@ export const reviewerAnswerSchema = z.object({
 });
 export type ReviewerAnswer = z.infer<typeof reviewerAnswerSchema>;
 
+// `prior` sits in the closing shape, not only in the re-round section: the child is held to
+// "exactly ONE JSON object with this shape", so a key the shape omits is a key it drops. A first
+// round's `prior` entries are ignored — only a re-round's answers are applied.
 const REVIEWER_SHAPE =
-  '{"assessment": "...", "strengths": "...", "findings": [{"severity": "critical" | "important" | "minor", "blocking": true | false, "class": "mechanical" | "design", "message": "... path/to/file.ts:123 ..."}]}';
+  '{"assessment": "...", "strengths": "...", "findings": [{"severity": "critical" | "important" | "minor", "blocking": true | false, "class": "mechanical" | "design", "message": "... path/to/file.ts:123 ..."}], "prior": [{"n": 1, "resolved": true | false, "why": "..."}]}';
 
 /**
  * The repair round's prompt: restate the review as a valid answer. It reviews nothing,
