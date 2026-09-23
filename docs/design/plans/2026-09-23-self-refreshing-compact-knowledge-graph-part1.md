@@ -910,7 +910,7 @@ Both blocks span communities, so local indices do not apply and both carry full 
 
 The two properties the whole feature rests on: the same graph renders to the same bytes twice, and renders to the same bytes under two locales. Without these, CI and the operator's machine fight each other on every regeneration.
 
-- [ ] **Step 1: Write the determinism tests.**
+- [x] **Step 1: Write the determinism tests.**
 
   Append inside the existing `describe`:
 
@@ -933,7 +933,7 @@ The two properties the whole feature rests on: the same graph renders to the sam
   });
   ```
 
-- [ ] **Step 2: Prove the ordering test actually pins something.**
+- [x] **Step 2: Prove the ordering test actually pins something.**
 
   Both tests pass immediately, because Task 2 already pinned the comparator — a boundary test that passes either way pins nothing, so make it fail on purpose. Temporarily change `byCodeUnit`'s body to `return a.localeCompare(b);`, then:
 
@@ -949,7 +949,7 @@ The two properties the whole feature rests on: the same graph renders to the sam
 
   Expected output: `Tests  15 passed (15)`.
 
-- [ ] **Step 3: Run the whole suite and the type checker.**
+- [x] **Step 3: Run the whole suite and the type checker.**
 
   ```bash
   pnpm verify
@@ -957,7 +957,7 @@ The two properties the whole feature rests on: the same graph renders to the sam
 
   Expected output: lint, typecheck and the full vitest run all green, ending in the summary line with no failures.
 
-- [ ] **Step 4: Render the real graph and measure the reduction.**
+- [x] **Step 4: Render the real graph and measure the reduction.**
 
   ```bash
   pnpm toon
@@ -965,9 +965,9 @@ The two properties the whole feature rests on: the same graph renders to the sam
   head -20 graphify-out/graph.brainstorm.toon
   ```
 
-  Expected output: a byte count materially below the current 697 KB — the spec's target is roughly 270 KB — and a header whose first two lines are `# Domain Knowledge Graph (v3 — compact)` and `# version: 3`, followed by a `toc` block.
+  Expected output: `697273` bytes before, `233230` after — a 66.6% reduction, past the spec's ~270 KB target — and a header whose first two lines are `# Domain Knowledge Graph (v3 — compact)` and `# version: 3`, followed by a `toc` block. The header's edge count reads `4982 edges (contains/imports_from omitted)` against 9461 input links, which is the 4479 the spec predicted `REL_OMIT` would drop.
 
-- [ ] **Step 5: Discard the regenerated graph.**
+- [x] **Step 5: Discard the regenerated graph.**
 
   ```bash
   git checkout -- graphify-out/
@@ -976,7 +976,7 @@ The two properties the whole feature rests on: the same graph renders to the sam
 
   Expected output: no lines. The first real regeneration is Part 3's workflow doing its job; landing a 4 MB diff inside this PR is the exact cost this feature exists to remove.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
   ```bash
   cat > /tmp/msg-task5.txt <<'EOF'

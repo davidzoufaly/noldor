@@ -191,4 +191,21 @@ describe('graph-to-toon', () => {
     expect(text).not.toMatch(/\n {2}cross: /);
     expect(text).not.toMatch(/\n {2}hyperedges: /);
   });
+
+  it('renders byte-identical output twice from the same graph', () => {
+    const first = renderBrainstormToon(buildContext(fixture()));
+    const second = renderBrainstormToon(buildContext(fixture()));
+    expect(second).toBe(first);
+  });
+
+  it('orders every line by code unit, not by locale', () => {
+    // Czech collation sorts `ch` after `h`, so `Charlie` lands after `delta`
+    // under cs_CZ and before it under en_US. Code-unit ordering is uppercase-first
+    // and locale-independent, so `Charlie` precedes `delta` either way.
+    const text = renderBrainstormToon(buildContext(fixture()));
+    const block = blockOf(text, 'c2');
+    expect(block).toContain('  0 Charlie @');
+    expect(block).toContain('  1 delta @');
+    expect('Charlie'.localeCompare('delta', 'cs')).toBeGreaterThan(0);
+  });
 });
