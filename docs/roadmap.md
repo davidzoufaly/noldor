@@ -136,18 +136,6 @@ A fast-track ships without attaching to any feature MD, so when one or more fast
 
 Extract the shared tsconfig reader into a neutral module. `src/invariants/toolchain-floor.ts` and `src/indirection/detect.ts` each carry their own tsconfig discovery — `findPackageManifests`/`isTsconfigName` on one side, `findTsconfigFiles`/`readTsconfig`/`resolveExtends` on the other — and `detect.ts` already imports `stripJsonc` from `toolchain-floor.ts`, so importing discovery back would close a module cycle. PR #436 duplicated it deliberately and promised this entry in the spec's Risks section. The two walks are not a clean lift (async `readdir` + `WORKSPACE_SCAN_DEPTH` here, sync `readdirSync` + configured scan roots there), so the shared helper has to be designed rather than moved, and it touches the indirection ratchet. `clones check` was green on #436, so this is cohesion debt rather than a live gate failure. Deletion test: both modules import their tsconfig discovery from one place, and neither declares a private copy. (surfaced 2026-09-05, spec CR on nested-tsconfig-lib-floor)
 
-### Rules Must Not Snapshot Another Module's Shape
-
-- id: Q-0245
-- area: tooling
-- type: docs
-- since: 2026-09-16
-- size: S
-- impact: med
-- confidence: med
-
-A prose rule that audits the codebase's *current* shape is a self-feeding CR loop. Shipping Q-0223 (PR #457) the new `state-file-schema-additive` rule carried a paragraph characterising `config.json`'s schemas, and four consecutive review rounds each found one level deeper: round 1 said the break is required-ness not `.strict()`; round 2 said the `consumer:` block is strict and required-heavy; round 3 said `noldorConfigSchema`'s *nested* blocks are required-heavy too; round 4's verifier ran the real CLI and falsified the whole consequence claim (a rejected config makes `clones check` exit 0 and silently switch the gate off, because four call sites swallow the throw). Every round's finding was correct, and the round cap plus an arbitration override was the only way out. The rule only became stable once it stopped asserting what other schemas look like and said "audit the nesting level you are editing; establish the consequence by running the command". Wanted: a line in the rule-authoring guidance — a rule states a constraint and how to check it, never a snapshot of another module's field shapes, because the snapshot is wrong the moment it is written and every CR round finds the next exception. Deletion test: a new enforce rule that names another module's field list is caught at authoring time, not at round four. (found 2026-09-15 shipping Q-0223)
-
 ### UI Baseline Validity, Not Just Recency
 
 - id: Q-0247

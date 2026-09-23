@@ -42,6 +42,14 @@ links: [tsconfig.json]
 The toolchain is ESM … internal cross-module imports stay relative and carry an explicit `.js` specifier.
 ```
 
+### Writing the rule body
+
+A rule states a constraint and how to check it. It never describes what another module looks like today — no field lists, no "this schema is strict", no "those call sites throw".
+
+That kind of description goes stale as soon as it is written, and every CR round finds the next case where it is wrong. The Q-0223 rule `state-file-schema-additive` went four rounds because it described `config.json`'s schemas. Each round found a gap one level deeper. The fourth round ran the real CLI and showed the whole claim was false. The rule settled only once it said "audit the nesting level you are editing; establish the consequence by running the command".
+
+So when a rule needs a fact about another module, name the command or file that proves it, and let the author check it at edit time.
+
 ## Resolution model
 
 [`resolveRules(rules, { file?, stage? })`](../../src/rules/resolve.ts) returns `{ injected, enforce }`:
