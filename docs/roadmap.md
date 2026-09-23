@@ -83,19 +83,6 @@ The `geometry-compare` comparison engine shipped as two hand-runnable commands (
 
 - The operator restated the shape of the comparison on 2026-08-25: a SECOND verification mode alongside pixel comparison, not a replacement. Pen cannot reproduce some rendered effects (SVG filters among them), so pixel-perfect matching is the wrong instrument here and should stay reserved for cases where it holds; this lane's job is element alignment, font-size, and margins/paddings. The shipped `design geometry-validate` / `design geometry-diff` pair already reads that way — carry the framing into the lane's own prose and tolerance defaults when it unparks, so nobody re-derives it as pixel-diff with loose thresholds.
 
-### Release-Sweep Refactor Pass Needs a Precondition
-
-- id: Q-0217
-- area: tooling
-- type: chore
-- since: 2026-09-07
-- size: S
-- impact: med
-- confidence: med
-- parent: release-sweep-process-hardening
-
-The `/noldor-release-sweep` refactor pass has been a no-op for the seventh release running. v1.9.0 produced an identical god-node profile again — `loadDocRoots` 86 edges, `parseSlug` 41, `loadConsumerConfig` 40, `parseBacklog` 35, `detectAll` 32, `atomicWriteFileSync` 30, `escapeHtml` 28 — all deliberate single-source-of-truth utilities, and the Surprising Connections were again all `INFERRED` test-file → CLI edges. Seven releases of a step that has never once produced a change is not a step, it is a ritual that costs a full graph read and a refactor-skill invocation every release. Either give the sweep a cheap precondition (skip the refactor pass unless the god-node set or a cohesion score moved since the last tagged graph) or drop it to an explicit `--refactor` opt-in. Deletion test: a sweep on a release whose graph shape is unchanged since the last tag does not invoke the refactor skill. (surfaced 2026-09-06 releasing v1.9.0)
-
 ### Entrypoint-Guard Choke-Point Enforcement
 
 - id: Q-0221

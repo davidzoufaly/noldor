@@ -515,5 +515,9 @@
   "Q-0184": {
     "slug": "parent-feature-opt-in-check-before-sizing",
     "retiredAt": "2026-09-23"
+  },
+  "Q-0217": {
+    "slug": "release-sweep-refactor-pass-needs-a-precondition",
+    "retiredAt": "2026-09-23"
   }
 }
