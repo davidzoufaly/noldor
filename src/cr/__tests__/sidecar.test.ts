@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { sidecarFilename, writeSidecar, readSidecar, type CrRecord } from '../sidecar.js';
 
-const sample: CrRecord = { blockers: [], suggestions: [], summary: 'ok' };
+const sample: CrRecord = { blockers: [], suggestions: [], summary: 'ok', prior: [] };
 
 describe('sidecarFilename', () => {
   it('gate lane: <tree>.codex.json', () => {

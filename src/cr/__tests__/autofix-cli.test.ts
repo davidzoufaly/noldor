@@ -1,4 +1,4 @@
-// @tests: specs-cr-gate-multi-reviewer
+// @tests: specs-cr-gate-multi-reviewer, cr-re-round-cap-enforcement-and-oscillation-detector
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -273,6 +273,30 @@ describe('cr autofix plan', () => {
     const declined = run('plan', '--slug', 'slug', '--kind', 'spec');
     expect(declined.status).toBe(10);
     expect(field(declined.stdout, 'base-sha')).toMatch(/^[0-9a-f]{40}$/);
+  });
+});
+
+describe('cr autofix plan — fix rule (Q-0260)', () => {
+  it('prints the fix rule above the blockers on every exit that lists one', () => {
+    for (const [blockers, status] of [
+      [[MECH], 0],
+      [[MECH, DESIGN], 11],
+      [[DESIGN], 10],
+    ] as const) {
+      writeSink('reviewer', 'spec', [...blockers]);
+      const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+      expect(r.status).toBe(status);
+      expect(field(r.stdout, 'fix-rule')).toMatch(/smallest change/);
+      expect(field(r.stdout, 'fix-rule')).toMatch(/prefer deleting a claim to adding one/);
+      expect(r.stdout.indexOf('fix-rule:')).toBeLessThan(r.stdout.search(/^ {2}[MD]1 /m));
+    }
+  });
+
+  it('prints no fix rule when there is nothing to fix', () => {
+    writeSink('reviewer', 'spec', []);
+    expect(
+      field(run('plan', '--slug', 'slug', '--kind', 'spec').stdout, 'fix-rule'),
+    ).toBeUndefined();
   });
 });
 

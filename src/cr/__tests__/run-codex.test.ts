@@ -1,4 +1,7 @@
-// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor, cr-lane-verdicts-blocked-by-serialization-not-substance
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor, cr-lane-verdicts-blocked-by-serialization-not-substance, cr-re-round-cap-enforcement-and-oscillation-detector
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { runCodex, type Spawn } from '../run-codex.js';
 import { reviewWithCodex, toFindings } from '../review-with-codex.js';
@@ -11,7 +14,7 @@ const ctx = { diff: 'D', featureMd: 'F', rules: 'R' };
 describe('runCodex', () => {
   it('returns the parsed CR record on valid JSON', async () => {
     const spawn: Spawn = vi.fn(async () => ({
-      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
+      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok', prior: [] }),
       stderr: '',
       exitCode: 0,
       timedOut: false,
@@ -98,7 +101,7 @@ describe('runCodex', () => {
 
   it('recovers the CR record from stdout wrapped in non-JSON noise', async () => {
     const spawn: Spawn = vi.fn(async () => ({
-      stdout: `> some banner\n${JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' })}\ntrailing chatter`,
+      stdout: `> some banner\n${JSON.stringify({ blockers: [], suggestions: [], summary: 'ok', prior: [] })}\ntrailing chatter`,
       stderr: '',
       exitCode: 0,
       timedOut: false,
@@ -112,7 +115,7 @@ describe('runCodex', () => {
     // Argv belongs to the agent registry now (see codex-adapter). runCodex passing only
     // stdin is what makes it impossible for a caller to redirect the review spawn.
     const spawn: Spawn = vi.fn(async () => ({
-      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
+      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok', prior: [] }),
       stderr: '',
       exitCode: 0,
       timedOut: false,
@@ -126,7 +129,7 @@ describe('runCodex', () => {
 
   it('embeds the JSON-only directive at the top of the prompt', async () => {
     const spawn: Spawn = vi.fn(async () => ({
-      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
+      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok', prior: [] }),
       stderr: '',
       exitCode: 0,
       timedOut: false,
@@ -139,7 +142,7 @@ describe('runCodex', () => {
 
   it('plan ctx → plan-review prompt with artifact content and plan heuristics', async () => {
     const spawn: Spawn = vi.fn(async () => ({
-      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
+      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok', prior: [] }),
       stderr: '',
       exitCode: 0,
       timedOut: false,
@@ -161,7 +164,7 @@ describe('runCodex', () => {
 
   it('spec ctx → spec-review prompt mentioning spec', async () => {
     const spawn: Spawn = vi.fn(async () => ({
-      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
+      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok', prior: [] }),
       stderr: '',
       exitCode: 0,
       timedOut: false,
@@ -183,7 +186,7 @@ describe('cut-marker contract in the codex prompt (Q-0170)', () => {
     const spawn: Spawn = vi.fn(async (opts: { stdin: string }) => {
       seen = opts.stdin;
       return {
-        stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
+        stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok', prior: [] }),
         stderr: '',
         exitCode: 0,
         timedOut: false,
@@ -286,5 +289,116 @@ describe('toFindings never-blocks demotion (Q-0250)', () => {
       suggestions: [],
     };
     expect(toFindings(record, 'x').map((f) => f.severity)).toEqual(['high', 'med', 'med']);
+  });
+});
+
+describe('prior blockers in the codex prompt (Q-0260)', () => {
+  const p1 = { file: 'docs/x.md', severity: 'high' as const, message: 'first prior' };
+  const prior = { mode: 'fixes-in-diff' as const, blockers: [p1] };
+  function capture(
+    record: Record<string, unknown> = { blockers: [], suggestions: [], summary: 'ok', prior: [] },
+  ): { spawn: Spawn; stdin: () => string } {
+    let seen = '';
+    const spawn: Spawn = vi.fn(async (opts: { stdin: string }) => {
+      seen = opts.stdin;
+      return { stdout: JSON.stringify(record), stderr: '', exitCode: 0, timedOut: false };
+    }) as unknown as Spawn;
+    return { spawn, stdin: () => seen };
+  }
+
+  it('renders the numbered priors after the blocking definition in a code review', async () => {
+    const { spawn, stdin } = capture();
+    await runCodex({ ctx: { ...ctx, prior }, spawn });
+    expect(stdin()).toContain('P1 [high] first prior');
+    expect(stdin()).toContain('regression the fix caused');
+    expect(stdin().indexOf(BLOCKING_DEFINITION)).toBeLessThan(
+      stdin().indexOf('Prior review round'),
+    );
+  });
+
+  it('renders them in a spec review too', async () => {
+    const { spawn, stdin } = capture();
+    await runCodex({
+      ctx: { kind: 'spec', artifact: 'SPEC TEXT', featureMd: 'F', rules: 'R', prior },
+      spawn,
+    });
+    expect(stdin()).toContain('P1 [high] first prior');
+    expect(stdin().indexOf(BLOCKING_DEFINITION)).toBeLessThan(
+      stdin().indexOf('Prior review round'),
+    );
+  });
+
+  it('leaves a first-round prompt unchanged', async () => {
+    const a = capture();
+    const b = capture();
+    await runCodex({ ctx, spawn: a.spawn });
+    await runCodex({ ctx: { ...ctx, prior: undefined }, spawn: b.spawn });
+    expect(a.stdin()).not.toContain('Prior review round');
+    expect(b.stdin()).toBe(a.stdin());
+  });
+
+  it('returns the prior answers codex gives', async () => {
+    const { spawn } = capture({
+      blockers: [],
+      suggestions: [],
+      summary: 'ok',
+      prior: [{ n: 1, resolved: true, why: 'fixed' }],
+    });
+    const out = await runCodex({ ctx: { ...ctx, prior }, spawn });
+    expect(out.prior).toEqual([{ n: 1, resolved: true, why: 'fixed' }]);
+    expect(out.blockers).toEqual([]);
+  });
+
+  it('treats a record with no prior field as malformed', async () => {
+    const { spawn } = capture({ blockers: [], suggestions: [], summary: 'ok' });
+    const out = await runCodex({ ctx, spawn });
+    expect(out.blockers[0]!.message).toMatch(/malformed CR record/i);
+  });
+
+  it('files its own failure against <codex>, with no prior answers', async () => {
+    const spawn: Spawn = vi.fn(async () => ({ stdout: '!!! not json', stderr: '', exitCode: 0 }));
+    const out = await runCodex({ ctx, spawn });
+    expect(out.blockers[0]!.file).toBe('<codex>');
+    expect(out.prior).toEqual([]);
+  });
+});
+
+describe('reviewWithCodex prior threading (Q-0260)', () => {
+  it('hands the priors to the prompt and returns the answers beside the findings', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rwc-'));
+    writeFileSync(join(dir, 'spec.md'), '# Spec');
+    let seen = '';
+    const spawn = vi.fn(async (opts: { stdin: string }) => {
+      seen = opts.stdin;
+      return {
+        stdout: JSON.stringify({
+          blockers: [],
+          suggestions: [],
+          summary: 'ok',
+          prior: [{ n: 1, resolved: false, why: 'still there' }],
+        }),
+        stderr: '',
+        exitCode: 0,
+        timedOut: false,
+      };
+    }) as unknown as Spawn;
+    const out = await reviewWithCodex({ kind: 'spec', artifact: 'spec.md' }, dir, spawn, {
+      prior: {
+        mode: 'reexamine',
+        blockers: [{ file: 'spec.md', severity: 'high', message: 'old' }],
+      },
+    });
+    expect(seen).toContain('P1 [high] old');
+    expect(out.prior).toEqual([{ n: 1, resolved: false, why: 'still there' }]);
+  });
+
+  it('files a caught failure against <codex>', async () => {
+    const out = await reviewWithCodex(
+      { kind: 'spec', artifact: 'spec.md', baseSha: '-bad' },
+      process.cwd(),
+      vi.fn() as never,
+    );
+    expect(out.findings[0]!.file).toBe('<codex>');
+    expect(out.prior).toEqual([]);
   });
 });

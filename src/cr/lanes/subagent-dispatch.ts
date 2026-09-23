@@ -3,6 +3,7 @@ import { BLOCKING_DEFINITION } from '../blocking-definition.js';
 import { FINDING_CLASSES } from '../finding-class.js';
 import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
 import { createAnswerSeam } from '../lane-spawn.js';
+import { renderPriorSection } from '../re-round.js';
 import { repairEvidence } from './prompt-parts.js';
 import { DEFAULT_REVIEW_PROFILES } from '../../core/review-profile.js';
 import type { ReviewDimension, ReviewEffort, ReviewProfile } from '../../core/review-profile.js';
@@ -90,45 +91,6 @@ const CUT_MARKER_DIMENSIONS: ReadonlySet<ReviewDimension> = new Set([
 import { CUT_MARKER_GUIDE } from '../../core/structural-context-contract.js';
 export { CUT_MARKER_TOKEN } from '../../core/structural-context-contract.js';
 
-/** Most prior blockers a prompt renders; the rest collapse to a count line. */
-const PRIOR_BLOCKER_CAP = 20;
-/** Per-message bound in `fixes-in-diff` mode, where nothing asks for verbatim re-raise. */
-const PRIOR_MESSAGE_MAX_CHARS = 300;
-
-// `reexamine` must NOT truncate: its clause asks for identical re-raise, so the
-// renderer cannot mangle what it asks to be preserved. Bounded in practice by
-// the single-line reviewer-sink messages (line-based parser) and the cap above.
-const PRIOR_MODE_CLAUSE: Record<PriorReview['mode'], string> = {
-  'fixes-in-diff':
-    'The diff under review contains the fixes. Do not re-raise a blocker the diff resolves. ' +
-    'Before flagging anything that overlaps these, verify against the current content — never ' +
-    'propose a change the content already implements or falsifies. Adjudicated decisions are ' +
-    'settled unless the diff regresses them; regressions and genuinely new issues remain fully in scope.',
-  reexamine:
-    'Do not assume any of these blockers were addressed. Re-examine each against the current ' +
-    'content: re-raise every one that still stands, keeping its message text identical to the ' +
-    "listing above so the finding's identity stays stable across rounds; drop only those the " +
-    'content genuinely resolves; new findings remain fully in scope.',
-};
-
-function renderPriorReview(prior: PriorReview): string {
-  const capped = prior.blockers.slice(0, PRIOR_BLOCKER_CAP);
-  const bullets = capped
-    .map((b) => {
-      const oneLine = b.message.replace(/\s*\n\s*/g, ' ');
-      const msg =
-        prior.mode === 'fixes-in-diff' ? oneLine.slice(0, PRIOR_MESSAGE_MAX_CHARS) : oneLine;
-      return `- [${b.severity}]${b.class ? `[${b.class}]` : ''} ${msg}`;
-    })
-    .join('\n');
-  const overflow = prior.blockers.length - capped.length;
-  const overflowLine = overflow > 0 ? `\n…and ${overflow} more prior blockers` : '';
-  return (
-    `\nPrior review round — the previous reviewer pass over this artifact raised the blockers below.\n` +
-    `${bullets}${overflowLine}\n\n${PRIOR_MODE_CLAUSE[prior.mode]}\n`
-  );
-}
-
 /**
  * The reviewer child is spawned by the answer seam below through the agent-runner registry
  * (claude unless the consumer's agents config remaps the role), so it works from any agent
@@ -153,7 +115,7 @@ export function buildPrompt(input: DispatchInput): string {
       ? ''
       : `\nBinding rules for the files under review — a violation of any of these is a finding, ` +
         `reported under the dimension it belongs to (they are repo policy, not preference):\n\n${input.rulesBrief}\n`;
-  const priorSection = input.priorReview === undefined ? '' : renderPriorReview(input.priorReview);
+  const priorSection = input.priorReview === undefined ? '' : renderPriorSection(input.priorReview);
   return `You are a Senior Code Reviewer. Review the markdown artifact at \`${input.artifact}\` (description: ${input.description}).
 
 FD summary context:
@@ -197,6 +159,10 @@ export const reviewerAnswerSchema = z.object({
   assessment: z.string().min(1),
   strengths: z.string().default(''),
   findings: z.array(reviewerFindingSchema).default([]),
+  // Answers about the prior blockers on a re-round (Q-0260). Entries stay unvalidated here so one
+  // malformed entry cannot sink the whole review: `applyPriorAnswers` checks each and carries the
+  // prior when its answer is unusable. A first round has no priors and no entries.
+  prior: z.array(z.unknown()).default([]),
 });
 export type ReviewerAnswer = z.infer<typeof reviewerAnswerSchema>;
 
@@ -215,7 +181,8 @@ ${repairEvidence(ctx)}
 Transcription rules:
 1. Carry over every finding the review states, with its severity, whether it blocks, its class and its message. Invent no finding and drop none.
 2. Never turn a finding the review marked blocking into a non-blocking one, and never write an approving assessment the review did not give.
-3. If nothing above states a review at all, write no answer.`;
+3. Carry over any answers the review gave about prior blockers, as a "prior" list of {"n", "resolved", "why"}. Never mark a prior blocker resolved that the review did not.
+4. If nothing above states a review at all, write no answer.`;
 }
 
 /** What the reviewer child hands back, and how the seam reads it. */

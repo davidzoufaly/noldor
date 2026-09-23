@@ -14,10 +14,16 @@ links:
     - src/core/structural-context-contract.ts
     - src/cr/findings-schema.ts
     - src/cr/lanes/subagent.ts
+    - src/cr/re-round.ts
+    - src/cr/review-with-codex.ts
+    - src/cr/lanes/codex.ts
   tests:
-    - src/cr/__tests__/autofix-ledger.test.ts
     - src/cr/__tests__/autofix-cli.test.ts
+    - src/cr/__tests__/autofix-ledger.test.ts
+    - src/cr/__tests__/lanes/codex.test.ts
     - src/cr/__tests__/orchestrate.test.ts
+    - src/cr/__tests__/prior-review.test.ts
+    - src/cr/__tests__/re-round.test.ts
     - src/cr/__tests__/run-codex.test.ts
 name: CR Re-Round Cap Enforcement and Oscillation Detector
 packages:

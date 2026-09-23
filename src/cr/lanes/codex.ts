@@ -4,6 +4,7 @@ import { makeCodexSpawn } from '../codex-adapter.js';
 import { openLane } from '../filename.js';
 import type { LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
+import { applyPriorAnswers, isLaneFailureBlocker } from '../re-round.js';
 import { reviewWithCodex } from '../review-with-codex.js';
 
 /**
@@ -39,17 +40,31 @@ export async function runCodex(input: LaneInput): Promise<LaneResult> {
     },
     input.repoRoot,
     makeCodexSpawn({ timeoutMs, cwd: input.repoRoot }),
-    { timeoutMs },
+    { timeoutMs, ...(input.priorReview !== undefined ? { prior: input.priorReview } : {}) },
   );
+
+  // On a re-round, a review that failed keeps the priors it was handed behind its `<codex>`
+  // failure; one that ran answers for them, and every prior not answered resolved is re-filed
+  // unchanged ahead of the new blockers (Q-0260, docs/adr/0002).
+  const found = out.findings.filter((f) => f.severity === 'high');
+  const failed = out.findings.some(isLaneFailureBlocker);
+  const prior =
+    input.priorReview === undefined
+      ? { carried: [], notes: [] }
+      : failed
+        ? { carried: input.priorReview.blockers, notes: [] }
+        : applyPriorAnswers(input.priorReview.blockers, out.prior);
+  const blockers = failed ? [...found, ...prior.carried] : [...prior.carried, ...found];
 
   const payload: LaneFindings = {
     lane: 'codex',
     artifact: input.artifact,
     kind: input.kind,
     slug: input.slug,
-    blockers: out.findings.filter((f) => f.severity === 'high'),
+    blockers,
     suggestions: out.findings.filter((f) => f.severity !== 'high'),
     summary: out.summary,
+    ...(prior.notes.length > 0 ? { notes: prior.notes } : {}),
     startedAt,
     finishedAt: new Date().toISOString(),
     ...(scoped && input.baseSha !== undefined ? { baseSha: input.baseSha } : {}),

@@ -5,6 +5,7 @@ import { runResolve } from '../../rules/cli-cores.js';
 import { writeJsonAtomic } from '../atomic-write.js';
 import type { Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
+import { applyPriorAnswers, laneFailureFile } from '../re-round.js';
 import { readFdSummary } from '../read-fd-summary.js';
 import { splitClassTag } from '../finding-class.js';
 import { extractLocations } from '../locations.js';
@@ -153,6 +154,10 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
     head: input.artifactSha,
   });
 
+  // A failed dispatch still owes the next round the blockers it was handed (Q-0260): its sink
+  // keeps them behind its own `<reviewer>` failure blocker, which the next round never carries.
+  const priorsKept = input.priorReview?.blockers ?? [];
+
   let answer: LaneAnswer<ReviewerAnswer>;
   try {
     // Fast-track ships no FD, so a missing FD file is a legitimate state
@@ -188,9 +193,10 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       blockers: [
         {
           severity: 'high',
-          file: input.artifact,
+          file: laneFailureFile('reviewer'),
           message: `subagent lane errored: ${errMsg}`,
         },
+        ...priorsKept,
       ],
       suggestions: [],
       summary: 'subagent error',
@@ -210,9 +216,10 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       blockers: [
         {
           severity: 'high',
-          file: input.artifact,
+          file: laneFailureFile('reviewer'),
           message: `reviewer returned no trustworthy answer: ${answer.detail}`,
         },
+        ...priorsKept,
       ],
       suggestions: [],
       summary: 'subagent parse error',
@@ -229,7 +236,13 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
   // sink can no longer say "approve" over a red round (Q-0250).
   const findings = answer.answer.findings.map(normalizeFinding);
   const toSink = toSinkFinding(input.artifact, changedFiles);
-  const blockers = findings.filter(isEffectivelyBlocking).map(toSink);
+  // On a re-round the priors the lane did not answer resolved come first, unchanged, so each
+  // keeps its fingerprint across the round (docs/adr/0002).
+  const prior =
+    input.priorReview === undefined
+      ? { carried: [], notes: [] }
+      : applyPriorAnswers(input.priorReview.blockers, answer.answer.prior);
+  const blockers = [...prior.carried, ...findings.filter(isEffectivelyBlocking).map(toSink)];
   const suggestions = findings.filter((f) => !isEffectivelyBlocking(f)).map(toSink);
   const payload: LaneFindings = {
     lane: 'reviewer',
@@ -242,6 +255,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
     notes: [
       `Assessment: ${answer.answer.assessment}`,
       `Strengths: ${answer.answer.strengths}`,
+      ...prior.notes,
       ...answer.notes,
     ],
     startedAt,

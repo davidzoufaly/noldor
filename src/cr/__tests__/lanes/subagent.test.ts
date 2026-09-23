@@ -172,6 +172,7 @@ describe('runSubagent', () => {
     expect(j.blockers).toHaveLength(1);
     expect(j.blockers[0].severity).toBe('high');
     expect(j.blockers[0].message).toMatch(/subagent.*errored.*claude not on PATH/i);
+    expect(j.blockers[0].file).toBe('<reviewer>');
     expect(j.summary).toBe('subagent error');
   });
   it('forwards LaneInput.dispatchTimeoutMs to the dispatcher as timeoutMs', async () => {
@@ -220,6 +221,99 @@ describe('runSubagent', () => {
     expect(dispatchSubagent).toHaveBeenCalledWith(
       expect.objectContaining({ baseSha: 'aaa~1', headSha: 'aaa' }),
     );
+  });
+});
+
+describe('runSubagent re-round (Q-0260)', () => {
+  const p1 = {
+    file: 'docs/design/specs/x.md',
+    severity: 'high' as const,
+    message: 'first prior',
+    class: 'design' as const,
+  };
+  const p2 = { file: 'docs/design/specs/x.md', severity: 'med' as const, message: 'second prior' };
+  const reRound = (): LaneInput => ({
+    ...input(),
+    priorReview: { mode: 'fixes-in-diff', blockers: [p1, p2] },
+  });
+  const withPrior = (prior: unknown[], findings: unknown[] = []): string =>
+    JSON.stringify({ assessment: 'checked the fix', strengths: 's', findings, prior });
+
+  it('resolving every prior and adding one non-blocking finding writes a green sink', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      withPrior(
+        [
+          { n: 1, resolved: true, why: 'the section now says it' },
+          { n: 2, resolved: true, why: 'removed' },
+        ],
+        [
+          {
+            severity: 'important',
+            blocking: false,
+            message: 'the added sentence could be tighter',
+          },
+        ],
+      ),
+    );
+    const r = await runSubagent(reRound());
+    expect(r.ok).toBe(true);
+    const j = await sinkOf(r);
+    expect(j.summary).toBe('approve');
+    expect(j.blockers).toEqual([]);
+    expect(j.suggestions).toHaveLength(1);
+    expect(j.notes).toEqual(expect.arrayContaining(['prior P1 resolved: the section now says it']));
+  });
+
+  it('re-files a prior that still stands, and an unanswered one, verbatim ahead of new blockers', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      withPrior(
+        [{ n: 1, resolved: false, why: 'the fix missed the second caller' }],
+        [
+          {
+            severity: 'critical',
+            blocking: true,
+            class: 'mechanical',
+            message: 'the fix broke the parser',
+          },
+        ],
+      ),
+    );
+    const r = await runSubagent(reRound());
+    expect(r.ok).toBe(false);
+    const j = await sinkOf(r);
+    expect(j.blockers.map((b: { message: string }) => b.message)).toEqual([
+      'first prior',
+      'second prior',
+      'the fix broke the parser',
+    ]);
+    expect(j.blockers[0]).toEqual(p1);
+    expect(j.blockers[1]).toEqual(p2);
+    expect(j.summary).toBe('blockers found (3)');
+    expect(j.notes).toEqual(
+      expect.arrayContaining([
+        'prior P1 still stands: the fix missed the second caller',
+        'prior P2 unanswered — carried',
+      ]),
+    );
+  });
+
+  it('a dispatch error after being given priors keeps them behind its own failure blocker', async () => {
+    dispatchSubagent.mockRejectedValueOnce(new Error('claude not on PATH'));
+    const r = await runSubagent(reRound());
+    expect(r.ok).toBe(false);
+    const j = await sinkOf(r);
+    expect(j.blockers).toHaveLength(3);
+    expect(j.blockers[0].file).toBe('<reviewer>');
+    expect(j.blockers.slice(1)).toEqual([p1, p2]);
+  });
+
+  it('an untrustworthy answer after being given priors keeps them behind its own failure blocker', async () => {
+    dispatchSubagent.mockResolvedValue('not json at all');
+    const r = await runSubagent(reRound());
+    const j = await sinkOf(r);
+    expect(j.blockers[0].file).toBe('<reviewer>');
+    expect(j.blockers[0].message).toMatch(/no trustworthy answer/);
+    expect(j.blockers.slice(1)).toEqual([p1, p2]);
   });
 });
 

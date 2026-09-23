@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer, review-run-lifecycle-module
+// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer, review-run-lifecycle-module, cr-re-round-cap-enforcement-and-oscillation-detector
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -123,5 +123,72 @@ describe('runCodex lane — base-sha', () => {
       await runCodex(input({ kind }));
       expect(reviewFn.mock.calls[0]![0]).toMatchObject({ kind });
     }
+  });
+});
+
+describe('runCodex lane — re-round (Q-0260)', () => {
+  const p1 = { file: 'docs/design/specs/x.md', severity: 'high' as const, message: 'first prior' };
+  const p2 = { file: 'docs/design/specs/x.md', severity: 'high' as const, message: 'second prior' };
+  const reRound = (): LaneInput =>
+    input({ priorReview: { mode: 'fixes-in-diff', blockers: [p1, p2] } });
+
+  it('hands the priors to the review', async () => {
+    reviewFn.mockResolvedValue({ summary: 'ok', findings: [], prior: [] });
+    await runCodex({ ...reRound(), dispatchTimeoutMs: 999 });
+    expect(reviewFn.mock.calls[0]![3]).toEqual({
+      timeoutMs: 999,
+      prior: { mode: 'fixes-in-diff', blockers: [p1, p2] },
+    });
+  });
+
+  it('drops a resolved prior and re-files a standing one verbatim ahead of new blockers', async () => {
+    reviewFn.mockResolvedValue({
+      summary: 'checked',
+      findings: [{ file: 'a.ts', message: 'the fix broke x', severity: 'high' }],
+      prior: [
+        { n: 1, resolved: true, why: 'gone' },
+        { n: 2, resolved: false, why: 'still there' },
+      ],
+    });
+    const r = await runCodex(reRound());
+    const s = await sink();
+    expect(s.blockers).toEqual([
+      p2,
+      { file: 'a.ts', message: 'the fix broke x', severity: 'high' },
+    ]);
+    expect(s.notes).toEqual(
+      expect.arrayContaining(['prior P1 resolved: gone', 'prior P2 still stands: still there']),
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it('resolving every prior with no new blocker is green', async () => {
+    reviewFn.mockResolvedValue({
+      summary: 'ok',
+      findings: [{ file: 'a.ts', message: 'tighter wording', severity: 'med' }],
+      prior: [
+        { n: 1, resolved: true, why: 'gone' },
+        { n: 2, resolved: true, why: 'gone too' },
+      ],
+    });
+    const r = await runCodex(reRound());
+    expect(r.ok).toBe(true);
+    expect((await sink()).blockers).toEqual([]);
+  });
+
+  it('a failed review keeps the priors it was given behind its <codex> failure', async () => {
+    reviewFn.mockResolvedValue({
+      summary: 'codex exited 1',
+      findings: [{ file: '<codex>', message: 'codex exited 1', severity: 'high' }],
+      prior: [],
+    });
+    const r = await runCodex(reRound());
+    const s = await sink();
+    expect(s.blockers).toEqual([
+      { file: '<codex>', message: 'codex exited 1', severity: 'high' },
+      p1,
+      p2,
+    ]);
+    expect(r.ok).toBe(false);
   });
 });
