@@ -528,9 +528,17 @@ The ledger lives at `.noldor/design/<slug>.md` (untracked scratch, gitignored);
 
 - **Trigger:** `pnpm noldor design log --slug <slug> [--entry <roadmap-slug>] [--scope <text>] [--decide <text>]... [--open <text>]... [--resolve <id>]... [--support <text>]...`. Run by the design skills at dialogue start (seed) and after every operator answer.
 - **Inputs:** the existing ledger at `.noldor/design/<slug>.md`, when present.
-- **Outputs:** writes the ledger, minting `D<n>` / `O<n>` ids (never reused). Free text is normalized to one line and tilde runs collapsed, so no value can forge a section, an id, or a resolution. Exits 1 — writing nothing — on an unknown `--resolve` id, a non-slug `--slug`/`--entry`, or a ledger whose any section cannot be parsed, including a duplicate heading (fail closed: guessing the next id would re-issue one, and a write would erase an unparsed section).
+- **Outputs:** writes the ledger, minting `D<n>` / `O<n>` ids (never reused). Free text is normalized to one line and tilde runs collapsed, so no value can forge a section, an id, or a resolution. Exits 1 — writing nothing — on an unknown `--resolve` id, a non-slug `--slug`/`--entry`, or a reasonless `--support none` / `--support "none:"`, or a ledger whose any section cannot be parsed, including a duplicate heading (fail closed: guessing the next id would re-issue one, and a write would erase an unparsed section).
 - **When to use:** driven by the skills; run by hand only to seed or repair a ledger.
 - **Source:** [`src/design/log-cli.ts`](../../src/design/log-cli.ts)
+
+### `design:support-check`
+
+- **Trigger:** `pnpm noldor design support-check (--slug <dialogue-slug> | --spec <path>)`. `--spec` derives the dialogue key from the `<date>-<key>-design.md` filename, so it works on `*-attach` specs too. Run against a spec before it is approved.
+- **Inputs:** the ledger's `## Existing support` at `.noldor/design/<slug>.md` (a missing ledger reads as nothing recorded).
+- **Outputs:** exits 0 when at least one prior-art anchor is recorded, or when the only entries are explicit `none: <reason>` waivers (the reason is echoed). Exits 2 when nothing is recorded — the reuse question was never asked — and prints both remedies (`design log --support "<anchor>"` or `--support "none: <reason>"`). Exits 1 on bad argv, a spec name with no dialogue key, or an unparseable `Existing support` section.
+- **When to use:** before approving a spec, so the CR `reuse` dimension has a recorded claim to check instead of reviewing in the dark.
+- **Source:** [`src/design/support-check-cli.ts`](../../src/design/support-check-cli.ts)
 
 ### `design:context`
 

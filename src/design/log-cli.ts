@@ -11,6 +11,7 @@ import {
   type ArtifactKind,
 } from './artifact-locate.js';
 import {
+  isReasonlessNone,
   normalize,
   nextId,
   readLedger,
@@ -104,6 +105,11 @@ export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string
         args.resolve.push(value);
         break;
       case '--support':
+        if (isReasonlessNone(value)) {
+          return {
+            error: `--support: 'none' needs a reason — use --support "none: <why nothing exists to reuse>"`,
+          };
+        }
         args.support.push(value);
         break;
       case '--because':
