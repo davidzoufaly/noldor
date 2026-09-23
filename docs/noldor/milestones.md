@@ -16,7 +16,10 @@ never forces the abstraction on a project that grows organically.
   slug; `draftMilestone` writes `name: <slug>` into the frontmatter, so name ==
   slug today.
 - **Frontmatter:** `name`, `status` (`draft` | `active` | `shipped`), optional
-  `description`. Body sections (`## Gate`, `## Out of Scope`, `## Success Criteria`)
+  `description`, optional `since: YYYY-MM-DD`. `draft` stamps `since` with the
+  day it ran; `milestones show` and the dashboard order each status oldest
+  `since` first (undated last, name breaks ties), so the ladder reads in the
+  real sequence rather than alphabetically. Edit `since` to reorder. Body sections (`## Gate`, `## Out of Scope`, `## Success Criteria`)
   feed `/noldor-triage` bucketing and the `milestoneAligned` next-priority suggestion.
 - **Active pointer:** `docs/vision.md` frontmatter `current-milestone: <slug>`,
   written by `/noldor-milestone activate`.

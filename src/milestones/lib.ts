@@ -23,6 +23,14 @@ export const milestoneFrontmatterSchema = z
     name: z.string().min(1),
     status: milestoneStatusSchema,
     description: z.string().min(1).optional(),
+    // Sequence key: an unquoted YAML date parses to a Date, so fold it back to
+    // the written day before the format check.
+    since: z
+      .preprocess(
+        (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : v),
+        z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'since must be YYYY-MM-DD'),
+      )
+      .optional(),
   })
   .strict();
 
@@ -69,6 +77,7 @@ function resolveMilestone(
 function stringifyMilestone(body: string, fm: MilestoneFrontmatter): string {
   const data: Record<string, string> = { name: fm.name, status: fm.status };
   if (fm.description) data.description = fm.description;
+  if (fm.since) data.since = fm.since;
   return matter.stringify(body, data);
 }
 
@@ -117,6 +126,7 @@ export function draftMilestone(
   slug: string,
   description: string | undefined,
   cwd: string = process.cwd(),
+  now: Date = new Date(),
 ): MilestoneWriteResult {
   // Resolve before mkdir: an unguarded slug let `draft` create a file outside
   // the repository wherever its parent directory happened to exist.
@@ -129,7 +139,11 @@ export function draftMilestone(
     throw new Error(`Milestone "${slug}" already exists at ${path}`);
   }
   const body = `\n## Gate\n\n<!-- TODO: paragraph describing the strategic gate -->\n\n## Success Criteria\n\n<!-- TODO: bulleted list of measurable ship conditions -->\n\n## Out of Scope\n\n<!-- TODO: deliberate exclusions -->\n`;
-  const fm: MilestoneFrontmatter = { name: slug, status: 'draft' };
+  const fm: MilestoneFrontmatter = {
+    name: slug,
+    status: 'draft',
+    since: now.toISOString().slice(0, 10),
+  };
   if (description) fm.description = description;
   atomicWriteFileSync(path, stringifyMilestone(body, fm));
   return { ok: true };
@@ -267,6 +281,8 @@ export interface MilestoneGroupBase {
   name: string;
   status: MilestoneStatus;
   description: string | null;
+  /** Frontmatter `since:` (YYYY-MM-DD), the within-status sequence key. */
+  since: string | null;
   /** Feature MDs whose `milestone:` frontmatter names this milestone. */
   members: FeatureRecord[];
   /** How many of {@link MilestoneGroupBase.members} are `phase: done`. */
@@ -300,6 +316,17 @@ export interface MilestoneGroupBase {
 
 const STATUS_ORDER: Record<MilestoneStatus, number> = { active: 0, draft: 1, shipped: 2 };
 
+/** Oldest `since` first; a dated milestone precedes an undated one, whose
+ *  position nobody declared; name breaks every remaining tie. */
+function compareSequence(a: MilestoneGroupBase, b: MilestoneGroupBase): number {
+  if (a.since !== b.since) {
+    if (a.since === null) return 1;
+    if (b.since === null) return -1;
+    return a.since < b.since ? -1 : 1;
+  }
+  return a.name.localeCompare(b.name);
+}
+
 /**
  * Group features and queue entries under their declared milestone.
  *
@@ -307,12 +334,12 @@ const STATUS_ORDER: Record<MilestoneStatus, number> = { active: 0, draft: 1, shi
  * unit-testable and shared by the dashboard and the CLI. Members are matched by
  * `milestone === milestone.slug` on either side; work naming no milestone, or
  * one that is not declared, is omitted. Order: active → draft → shipped, then
- * by name within each status.
+ * by `since` within each status (undated last), then by name.
  *
  * @param milestones - Every declared milestone.
  * @param features - Every feature MD.
  * @param entries - Roadmap + backlog entries, unfiltered.
- * @returns One group per milestone, ordered by status then name.
+ * @returns One group per milestone, ordered by status, then `since`, then name.
  */
 export function buildMilestoneGroupBases(
   milestones: readonly Milestone[],
@@ -330,6 +357,7 @@ export function buildMilestoneGroupBases(
         name: m.frontmatter.name,
         status,
         description: m.frontmatter.description ?? null,
+        since: m.frontmatter.since ?? null,
         members: [...members],
         doneCount,
         total: members.length,
@@ -338,9 +366,7 @@ export function buildMilestoneGroupBases(
         incomplete: status === 'shipped' && doneCount < members.length,
       };
     })
-    .sort(
-      (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name),
-    );
+    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || compareSequence(a, b));
 }
 
 /**
