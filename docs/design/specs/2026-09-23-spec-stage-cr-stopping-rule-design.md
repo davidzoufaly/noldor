@@ -47,7 +47,11 @@ Nothing else blocks a spec: wording, formatting, cross-references and line numbe
 
 ### Unit 2 — A spec blocker names its basis
 
-The definition gets a code half, as Q-0250's did with `isNeverBlockingMessage`. At kind `spec`, every finding a lane marks blocking carries `basis`, one of `SPEC_BLOCKING_BASES`, and a finding marked blocking with no valid basis is filed as a suggestion. The reviewer's spec-kind answer adds `basis` to each finding, and `isEffectivelyBlocking` (`subagent.ts:102`) additionally requires a valid one at that kind. The answer schema takes `basis` as any string, so one unknown value demotes its own finding instead of failing the whole answer. The plan- and code-kind answer shape stays byte-identical, so the spec kind gets its own answer contract beside `REVIEWER_ANSWER` (`subagent-dispatch.ts:192`), selected by kind. `DispatchInput` gains `kind` for that. That contract's repair prompt carries each finding's basis, so a repair round never demotes a blocker the review had based. Codex's `FindingSchema` (`src/cr/sidecar.ts:6`) gains `basis`, nullable but required, because strict structured output rejects an optional key. Code and plan reviews answer `null`, and `cr-record.schema.json` is regenerated. `toFindings` (`review-with-codex.ts:117`) demotes a spec-kind blocker whose basis is `null` exactly as it demotes a `maybe:` one today.
+The definition gets a code half, as Q-0250's did with `isNeverBlockingMessage`. At kind `spec`, every finding a lane marks blocking carries `basis`, one of `SPEC_BLOCKING_BASES`, and a finding marked blocking with no valid basis is filed as a suggestion. A blocker a lane files about its own failure, against a `<lane>` file (`isLaneFailureBlocker`, `src/cr/re-round.ts:116`), is not a finding about the spec and is never demoted, so a review that failed still reds its round.
+
+The reviewer's spec-kind answer adds `basis` to each finding. `isEffectivelyBlocking` (`subagent.ts:102`) and `toSinkFinding`, which calls it to pick a severity, take the kind and require a valid basis at kind `spec`. The answer schema takes `basis` as any string, so one unknown value demotes its own finding instead of failing the whole answer. The plan- and code-kind answer shape stays byte-identical, so the spec kind gets its own answer contract beside `REVIEWER_ANSWER` (`subagent-dispatch.ts:192`) and a second answer seam built from it. `dispatchSubagent` picks the seam by `DispatchInput.kind`, a new field, and `setDispatcher` injects into both. The spec contract's repair prompt carries each finding's basis, so a repair round never demotes a blocker the review had based.
+
+Codex's `FindingSchema` (`src/cr/sidecar.ts:6`) gains `basis`: one of `SPEC_BLOCKING_BASES` or `null`, required because strict structured output rejects an optional key, so the three values reach codex through the regenerated `cr-record.schema.json`. Code and plan reviews answer `null`. `toFindings` (`review-with-codex.ts:117`) takes the kind and demotes a spec-kind blocker whose basis is not one of the three, as it demotes a `maybe:` one today. `OutFinding` gains `basis`, which the codex lane writes into its sink finding at kind `spec`.
 
 The sink's `findingSchema` (`src/cr/findings-schema.ts:30`) gains an optional `basis`, the way it carries `class`. Lanes write it at kind `spec` only. `renderPriorSection` shows it beside the class (`P1 [high][design][risk] …`), and the `cr aggregate` blocker line shows it beside the severity. `fingerprintBlocker` hashes severity, file and message only, so a blocker's id does not change.
 
@@ -63,28 +67,29 @@ The gate skill's bounded re-round rule (`.claude/skills/noldor-gate/SKILL.md:186
 
 ### Data flow
 
-Orchestrate passes the kind through `LaneInput` as today. For the reviewer, `runSubagent` dispatches the spec-kind contract at kind `spec`, `buildPrompt` renders `SPEC_BLOCKING_DEFINITION`, and each answer finding goes through `isEffectivelyBlocking(f, kind)` before `toSinkFinding` writes it with its basis. For codex, the lane calls `reviewWithCodex`, which reads the FD Summary at kind `spec`, renders the spec prompt and maps the record through `toFindings`, demoting basis-less blockers. The aggregate, the ledger, R1–R3 and the prior contract read the sinks as today.
+Orchestrate passes the kind through `LaneInput` as today. For the reviewer, `runSubagent` dispatches the spec-kind contract at kind `spec`, `buildPrompt` renders `SPEC_BLOCKING_DEFINITION`, and `toSinkFinding(f, kind)` writes each answer finding with its basis, as a blocker only when `isEffectivelyBlocking(f, kind)` holds. For codex, the lane calls `reviewWithCodex`, which reads the FD Summary at kind `spec`, renders the spec prompt and maps the record through `toFindings`, demoting every blocker about the spec that lacks a valid basis. The aggregate, the ledger, R1–R3 and the prior contract read the sinks as today.
 
 ### Error handling
 
-A finding the rule does not admit is demoted, never dropped: a basis that is missing, `null` or outside the three values turns a blocking finding into a suggestion that stays visible in the sink. A transport step never changes a finding's basis, which is why the spec-kind repair prompt carries it. A reviewer answer that fails its spec-kind schema takes the existing repair round and, after it, the existing "no trustworthy answer" failure. A codex record without `basis` fails `CrRecordSchema` and takes codex's existing malformed-record path, a synthetic blocker. A malformed FD fails the codex spec review into a synthetic blocker, as it fails the reviewer lane.
+A finding the rule does not admit is demoted, never dropped: a basis that is missing, `null` or outside the three values turns a blocking finding about the spec into a suggestion that stays visible in the sink. A lane-failure blocker is never demoted. A transport step never changes a finding's basis, which is why the spec-kind repair prompt carries it. A reviewer answer that fails its spec-kind schema takes the existing repair round and, after it, the existing "no trustworthy answer" failure. A codex record without `basis` fails `CrRecordSchema` and takes codex's existing malformed-record path, a synthetic blocker against `<codex>`, which stays red. A malformed FD fails the codex spec review into a synthetic blocker, as it fails the reviewer lane.
 
 ### Testing
 
-Unit tests pin `SPEC_BLOCKING_DEFINITION` rendering in both prompt builders at kind `spec`, and byte-identity of the plan- and code-kind reviewer prompts and answer shape. `subagent` lane tests with a fake dispatcher cover a spec-kind finding marked blocking with each basis, with none and with an invalid one. Codex lane tests with a fake spawn cover `basis: null` blockers at kind `spec` and at kind `code`. A `review-with-codex` test asserts the spec prompt carries the FD Summary and no other FD section. The schema-parity test covers `cr-record.schema.json`. Template-sync covers the doc twins.
+Unit tests pin `SPEC_BLOCKING_DEFINITION` rendering in both prompt builders at kind `spec`, and byte-identity of the plan- and code-kind reviewer prompts and answer shape. `subagent` lane tests with a fake dispatcher cover a spec-kind finding marked blocking with each basis, with none and with an invalid one. Codex lane tests with a fake spawn cover blockers with a valid and a `null` basis at kind `spec` and at kind `code`, and a spec-kind timeout and malformed record, each of which must write a red sink. A `review-with-codex` test asserts the spec prompt carries the FD Summary and no other FD section. The schema-parity test covers `cr-record.schema.json`. Template-sync covers the doc twins.
 
 ## Acceptance criteria
 
 1. A spec-kind review prompt, reviewer or codex, renders `SPEC_BLOCKING_DEFINITION` and not `BLOCKING_DEFINITION`. Plan- and code-kind reviewer prompts and answer shape are byte-identical to today's, and so are the plan- and code-kind codex prompt texts.
 2. At kind `spec`, a reviewer finding lands in the blockers only when it is effectively blocking under Q-0250's rule and names a basis from `SPEC_BLOCKING_BASES`. A finding marked blocking with a missing or unknown basis lands in the suggestions, and the rest of the answer is still used.
 3. A spec-kind reviewer repair round keeps every finding's basis.
-4. At kind `spec`, a codex blocker with `basis: null` lands in the suggestions. At plan and code kinds `basis` has no effect.
-5. Deletion test: a spec round whose lanes file only findings with no basis (wording, formatting, cross-references, FD stubs) writes green reviewer and codex sinks, and orchestrate exits 0.
-6. The codex spec-kind prompt carries the FD's Summary and none of the FD's other sections; plan- and code-kind codex prompts carry the whole FD.
-7. A blocker's basis is recorded in its sink finding and shown in the re-round prior list and the `cr aggregate` blocker line. Its `fingerprintBlocker` id does not depend on it.
-8. `CrRecordSchema` requires `basis` (nullable) on every finding, and the committed `cr-record.schema.json` matches it.
-9. Sinks written before this change still pass `cr aggregate` unchanged.
-10. The gate skill and `docs/noldor/cr-pipeline.md` say a rejected spec blocker is recorded in the spec, and each `templates/` twin matches.
+4. At kind `spec`, a codex blocker whose basis is not one of `SPEC_BLOCKING_BASES` lands in the suggestions. At plan and code kinds `basis` has no effect.
+5. At kind `spec`, a lane that fails still writes a red sink: a codex spawn failure, timeout, non-JSON output or malformed record, and a reviewer dispatch or answer failure.
+6. Deletion test: a spec round whose lanes file only findings with no basis (wording, formatting, cross-references, FD stubs) writes green reviewer and codex sinks, and orchestrate exits 0.
+7. The codex spec-kind prompt carries the FD's Summary and none of the FD's other sections; plan- and code-kind codex prompts carry the whole FD.
+8. A blocker's basis is recorded in its sink finding and shown in the re-round prior list and the `cr aggregate` blocker line. Its `fingerprintBlocker` id does not depend on it.
+9. `CrRecordSchema` requires `basis` (nullable) on every finding, and the committed `cr-record.schema.json` matches it.
+10. Sinks written before this change still pass `cr aggregate` unchanged.
+11. The gate skill and `docs/noldor/cr-pipeline.md` say a rejected spec blocker is recorded in the spec, and each `templates/` twin matches.
 
 ## Risks / trade-offs
 
