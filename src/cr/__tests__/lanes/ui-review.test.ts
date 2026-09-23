@@ -1,4 +1,4 @@
-// @tests: ui-design-review-lane
+// @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -138,8 +138,8 @@ function sink(cwd: string): Record<string, unknown> {
   ) as Record<string, unknown>;
 }
 
-const report = (payload: unknown): string =>
-  `prose\n\`\`\`json\n${JSON.stringify(payload)}\n\`\`\`\n`;
+/** What the child writes to its answer file: the report and nothing else. */
+const report = (payload: unknown): string => JSON.stringify(payload);
 
 /**
  * Dispatcher that records what the lane handed the child, reading the scratch

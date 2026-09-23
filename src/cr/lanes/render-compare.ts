@@ -37,8 +37,9 @@ import type { SurfaceOutcome } from './render-compare-core.js';
 import {
   RenderExportError,
   dispatchRenderExport,
-  parseRenderExportReport,
+  type RenderExportReport,
 } from './render-export-dispatch.js';
+import type { LaneAnswer } from '../lane-answer.js';
 import { writeFailByMode, writePenModified } from './ui-design-resolve.js';
 
 const LANE = 'render-compare' as const;
@@ -221,21 +222,26 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           : {}),
         outPath: join(exportDir, `${sanitizeSurfaceName(surface)}.design.png`),
       }));
-      let raw: string | null = null;
+      let answer: LaneAnswer<RenderExportReport> | null = null;
       let exportFailure: string | null = null;
       try {
-        raw = await dispatchRenderExport({
-          penPath: scratchPen,
-          requests,
-          ...(input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {}),
-        });
+        answer = await dispatchRenderExport(
+          {
+            penPath: scratchPen,
+            requests,
+            ...(input.dispatchTimeoutMs !== undefined
+              ? { timeoutMs: input.dispatchTimeoutMs }
+              : {}),
+          },
+          input,
+        );
       } catch (err) {
         exportFailure =
           err instanceof RenderExportError
             ? err.message
             : `exporter dispatch failed: ${errMessage(err)}`;
       }
-      const report = exportFailure === null ? parseRenderExportReport(raw ?? '') : null;
+      const report = exportFailure === null && answer?.ok === true ? answer.answer : null;
       if (exportFailure !== null) {
         for (const r of requests) outcomes.push(cannot(r.surface, 'export-failed', exportFailure));
       } else if (report === null) {

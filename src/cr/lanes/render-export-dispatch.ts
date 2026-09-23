@@ -9,9 +9,9 @@
 import { z } from 'zod';
 
 import { penBridgeRecipe } from '../../design/pen-bridge.js';
-import { parseFencedJson } from '../extract-json.js';
-import { createDispatcherSeam } from '../lane-spawn.js';
-import { fencedJsonInstruction } from './prompt-parts.js';
+import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
+import { createAnswerSeam } from '../lane-spawn.js';
+import { repairEvidence } from './prompt-parts.js';
 
 /** One surface's export instruction. */
 export interface ExportRequest {
@@ -73,19 +73,35 @@ For each surface:
 
 Do not create, modify, or save anything in the design; do not write any file except the listed output paths (and the exporter's intermediate \`<nodeId>.png\`, which you move).
 
-Report one entry per surface — the candidates are the report; there is no verdict field:
-
-${fencedJsonInstruction(
-  `{"surfaces": [{"surface": "dashboard", "candidates": ["overview"]}, {"surface": "settings", "candidates": ["default", "expanded"]}]}`,
-)}`;
+Report one entry per surface — the candidates are the report; there is no verdict field.`;
 }
 
+/** The example the answer instruction shows the exporter — valid JSON, so an echo still parses. */
+export const RENDER_EXPORT_SHAPE =
+  '{"surfaces": [{"surface": "dashboard", "candidates": ["overview"]}, {"surface": "settings", "candidates": ["default", "expanded"]}]}';
+
 /**
- * Last fenced \`\`\`json block wins; null on absence, bad JSON, or schema
- * mismatch — one class for the caller, which then trusts only the files.
+ * The repair round's prompt: restate the exporter's page enumeration as a valid report. It
+ * opens no design, exports nothing and moves no file.
  */
-export const parseRenderExportReport = (md: string): RenderExportReport | null =>
-  parseFencedJson(md, renderExportReportSchema);
+export function buildRenderExportRepairPrompt(ctx: RepairContext): string {
+  return `A previous design exporter finished its exports, but its report was rejected: ${ctx.error}. Your ONLY job is to restate the per-surface page enumeration that exporter reported — do not open the design, do not export anything, do not move any file.
+
+${repairEvidence(ctx)}
+
+Transcription rules:
+1. One entry per surface the exporter reported, carrying the \`FINAL:<surface>:\` page names it found, verbatim.
+2. Invent no surface and no page name the output does not state.
+3. If nothing above states the enumeration, write no answer at all.`;
+}
+
+/** What the exporter child hands back, and how the seam reads it. */
+export const RENDER_EXPORT_ANSWER: LaneAnswerContract<RenderExportReport> = {
+  lane: 'render-compare',
+  shape: RENDER_EXPORT_SHAPE,
+  schema: renderExportReportSchema,
+  repairPrompt: buildRenderExportRepairPrompt,
+};
 
 /** Carries which reason detail the lane should record, so the sink stays specific. */
 export class RenderExportError extends Error {
@@ -98,15 +114,15 @@ export class RenderExportError extends Error {
   }
 }
 
-const seam = createDispatcherSeam<RenderExportInput>(buildRenderExportPrompt, {
-  role: 'render-compare',
+const seam = createAnswerSeam<RenderExportInput, RenderExportReport>(buildRenderExportPrompt, {
   site: 'cr.render-export-dispatch',
+  contract: RENDER_EXPORT_ANSWER,
   onFailure: (f) => {
     throw new RenderExportError(
       f.reason,
       f.timedOut
         ? 'render-compare export dispatch timed out'
-        : `render-compare export dispatch failed: exit ${f.exitCode}`,
+        : `render-compare export dispatch failed: ${f.detail ?? `exit ${f.exitCode}`}`,
     );
   },
 });

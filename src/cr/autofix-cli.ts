@@ -114,6 +114,14 @@ function oneLine(s: string): string {
 }
 
 /**
+ * Printed above the blocker list, because every fixer — operator, autofix controller,
+ * drain child — reads that list before it fixes (Q-0260). Re-rounds review the fix, so
+ * whatever a fix adds is what the next round finds.
+ */
+const FIX_RULE =
+  'make the smallest change that resolves the blocker, and prefer deleting a claim to adding one — a sentence, case or distinction the fix adds is surface the next round reviews';
+
+/**
  * Print one blocker with everything the controller needs to apply it without
  * reopening the sink: the anchor (`file:line`), the filing lane, the message,
  * and the reviewer's own `suggestion` when it left one.
@@ -176,6 +184,7 @@ async function runPlan(cwd: string, a: Args): Promise<never> {
   console.log(`round: ${roundLabel(r.round)}`);
   if (agg.unresolved.length > 0) console.log(`in-flight lanes: ${agg.unresolved.join(', ')}`);
   for (const s of agg.stale) console.log(describeStale(s));
+  if (r.mechanical.length + r.design.length > 0) console.log(`fix-rule: ${FIX_RULE}`);
   console.log(`mechanical: ${r.mechanical.length}`);
   r.mechanical.forEach((b, i) => printBlocker(`M${i + 1}`, b));
   console.log(`design: ${r.design.length}`);

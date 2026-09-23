@@ -1,7 +1,10 @@
 import { CODEX_BIN } from '../core/agent-runner/runners/codex.js';
 import { CUT_MARKER_GUIDE } from '../core/structural-context-contract.js';
 import { describeCodexFailure, probeCodexVersion } from './codex-failure.js';
+import { BLOCKING_DEFINITION, SPEC_BLOCKING_DEFINITION } from './blocking-definition.js';
 import { extractJsonObject } from './extract-json.js';
+import type { PriorReview } from './lane-types.js';
+import { laneFailureFile, renderPriorSection } from './re-round.js';
 import { CrRecordSchema, type CrRecord } from './sidecar.js';
 
 // Homed in codex-adapter.ts beside the registry-backed implementation; re-exported here so
@@ -14,6 +17,8 @@ export interface CodeReviewCtx {
   diff: string;
   featureMd: string;
   rules: string;
+  /** The prior round's blockers on a re-round (Q-0260); absent on a first round. */
+  prior?: PriorReview;
 }
 
 export interface ArtifactReviewCtx {
@@ -21,6 +26,8 @@ export interface ArtifactReviewCtx {
   artifact: string;
   featureMd: string;
   rules: string;
+  /** The prior round's blockers on a re-round (Q-0260); absent on a first round. */
+  prior?: PriorReview;
 }
 
 export type ReviewCtx = CodeReviewCtx | ArtifactReviewCtx;
@@ -103,6 +110,11 @@ const JSON_ONLY_DIRECTIVE =
  * carrying a ladder dimension. A conditional gate needs a condition to read, and
  * codex has neither a review profile nor a dimension list.
  */
+/** How codex sorts its findings: into `blockers` only under the shared definition (Q-0250). */
+const CODEX_BLOCKING = `Put a finding in \`blockers\` only when it blocks under this definition; every other finding goes in \`suggestions\`.\n\n${BLOCKING_DEFINITION}`;
+/** The spec-stage counterpart (Q-0263): a spec blocker also names its basis. */
+const CODEX_SPEC_BLOCKING = `Put a finding in \`blockers\` only when it blocks under this definition, and set its "basis" to the reason it blocks; every other finding goes in \`suggestions\` with "basis": null.\n\n${SPEC_BLOCKING_DEFINITION}`;
+
 function formatPrompt(ctx: ReviewCtx): string {
   const body = 'artifact' in ctx ? formatArtifactPrompt(ctx) : formatCodePrompt(ctx);
   return `${body}\n${CUT_MARKER_GUIDE}`;
@@ -111,6 +123,9 @@ function formatPrompt(ctx: ReviewCtx): string {
 function formatCodePrompt(ctx: CodeReviewCtx): string {
   return [
     JSON_ONLY_DIRECTIVE,
+    '',
+    CODEX_BLOCKING,
+    ...priorLines(ctx.prior),
     '',
     '## Engineering rules',
     ctx.rules,
@@ -123,9 +138,16 @@ function formatCodePrompt(ctx: CodeReviewCtx): string {
   ].join('\n');
 }
 
+/**
+ * At kind `spec` the prompt carries the spec definition, scopes the placeholder bullet to the
+ * spec's own text and labels the FD context as the summary it is — the FD's other sections are
+ * stubs written after the spec on purpose (Q-0263). Plan prompts render exactly as before.
+ */
 function formatArtifactPrompt(ctx: ArtifactReviewCtx): string {
   const noun = ctx.kind === 'plan' ? 'plan' : 'spec';
   const Noun = ctx.kind === 'plan' ? 'Plan' : 'Spec';
+  const spec = ctx.kind === 'spec';
+  const lineNull = 'For document-level findings with no specific line, set "line": null.';
   return [
     JSON_ONLY_DIRECTIVE,
     '',
@@ -133,14 +155,21 @@ function formatArtifactPrompt(ctx: ArtifactReviewCtx): string {
     '- missing or unconsidered edge cases',
     '- unclear, unmeasurable, or absent acceptance criteria',
     '- inconsistent or ambiguous function/type signatures',
-    '- placeholder / TODO / unfilled content that must be resolved before implementation',
+    spec
+      ? '- placeholder / TODO / unfilled content in the spec itself'
+      : '- placeholder / TODO / unfilled content that must be resolved before implementation',
     '- internal contradictions or unstated assumptions',
-    `Report gaps that must be fixed before the ${noun} is implementable as blockers; softer improvements as suggestions. For document-level findings with no specific line, set "line": null.`,
+    spec
+      ? lineNull
+      : `A finding about the ${noun} blocks only when implementing it as written would ship one of the defects below. ${lineNull}`,
+    '',
+    spec ? CODEX_SPEC_BLOCKING : CODEX_BLOCKING,
+    ...priorLines(ctx.prior),
     '',
     '## Engineering rules',
     ctx.rules,
     '',
-    '## Feature MD',
+    spec ? '## Feature summary' : '## Feature MD',
     ctx.featureMd,
     '',
     `## ${Noun} to review`,
@@ -148,10 +177,25 @@ function formatArtifactPrompt(ctx: ArtifactReviewCtx): string {
   ].join('\n');
 }
 
+/** Right after the blocking definition, so the prior section's reference to it reads in order. */
+function priorLines(prior: PriorReview | undefined): string[] {
+  return prior === undefined ? [] : [renderPriorSection(prior)];
+}
+
 function synthBlocker(message: string): CrRecord {
   return {
-    blockers: [{ file: '<codex>', message, severity: 'high', line: null, suggestion: null }],
+    blockers: [
+      {
+        file: laneFailureFile('codex'),
+        message,
+        severity: 'high',
+        line: null,
+        suggestion: null,
+        basis: null,
+      },
+    ],
     suggestions: [],
     summary: message,
+    prior: [],
   };
 }

@@ -1,11 +1,23 @@
-import { spawnAgent } from '../../core/agent-runner/registry.js';
-import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../core/config.js';
+import { z } from 'zod';
+import { BLOCKING_DEFINITION, SPEC_BLOCKING_DEFINITION } from '../blocking-definition.js';
+import { FINDING_CLASSES, SPEC_BLOCKING_BASES } from '../finding-class.js';
+import type { ArtifactKind } from '../findings-schema.js';
+import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
+import { createAnswerSeam } from '../lane-spawn.js';
+import { renderPriorSection } from '../re-round.js';
+import { repairEvidence } from './prompt-parts.js';
 import { DEFAULT_REVIEW_PROFILES } from '../../core/review-profile.js';
 import type { ReviewDimension, ReviewEffort, ReviewProfile } from '../../core/review-profile.js';
 import type { PriorReview } from '../lane-types.js';
 
 export interface DispatchInput {
   artifact: string;
+  /**
+   * The artifact kind under review. `spec` selects the spec-stage blocking definition and the
+   * answer contract that carries a basis (Q-0263); every other kind, and an absent one, renders
+   * the plan/code prompt byte-for-byte.
+   */
+  kind?: ArtifactKind;
   fdSummary: string;
   baseSha: string;
   headSha: string;
@@ -86,56 +98,15 @@ const CUT_MARKER_DIMENSIONS: ReadonlySet<ReviewDimension> = new Set([
 import { CUT_MARKER_GUIDE } from '../../core/structural-context-contract.js';
 export { CUT_MARKER_TOKEN } from '../../core/structural-context-contract.js';
 
-/** Most prior blockers a prompt renders; the rest collapse to a count line. */
-const PRIOR_BLOCKER_CAP = 20;
-/** Per-message bound in `fixes-in-diff` mode, where nothing asks for verbatim re-raise. */
-const PRIOR_MESSAGE_MAX_CHARS = 300;
-
-// `reexamine` must NOT truncate: its clause asks for identical re-raise, so the
-// renderer cannot mangle what it asks to be preserved. Bounded in practice by
-// the single-line reviewer-sink messages (line-based parser) and the cap above.
-const PRIOR_MODE_CLAUSE: Record<PriorReview['mode'], string> = {
-  'fixes-in-diff':
-    'The diff under review contains the fixes. Do not re-raise a blocker the diff resolves. ' +
-    'Before flagging anything that overlaps these, verify against the current content — never ' +
-    'propose a change the content already implements or falsifies. Adjudicated decisions are ' +
-    'settled unless the diff regresses them; regressions and genuinely new issues remain fully in scope.',
-  reexamine:
-    'Do not assume any of these blockers were addressed. Re-examine each against the current ' +
-    'content: re-raise every one that still stands, keeping its message text identical to the ' +
-    "listing above so the finding's identity stays stable across rounds; drop only those the " +
-    'content genuinely resolves; new findings remain fully in scope.',
-};
-
-function renderPriorReview(prior: PriorReview): string {
-  const capped = prior.blockers.slice(0, PRIOR_BLOCKER_CAP);
-  const bullets = capped
-    .map((b) => {
-      const oneLine = b.message.replace(/\s*\n\s*/g, ' ');
-      const msg =
-        prior.mode === 'fixes-in-diff' ? oneLine.slice(0, PRIOR_MESSAGE_MAX_CHARS) : oneLine;
-      return `- [${b.severity}]${b.class ? `[${b.class}]` : ''} ${msg}`;
-    })
-    .join('\n');
-  const overflow = prior.blockers.length - capped.length;
-  const overflowLine = overflow > 0 ? `\n…and ${overflow} more prior blockers` : '';
-  return (
-    `\nPrior review round — the previous reviewer pass over this artifact raised the blockers below.\n` +
-    `${bullets}${overflowLine}\n\n${PRIOR_MODE_CLAUSE[prior.mode]}\n`
-  );
-}
-
 /**
- * Default impl: spawns a headless reviewer-role agent via the agent-runner
- * registry (claude unless the consumer's agents config remaps the role).
- * Works from any agent harness (gate skill, bare CLI, CI runner). The skill
- * layer may inject a Task-tool-based dispatcher via `setDispatcher()` for
- * finer control, but the default is self-sufficient.
+ * The reviewer child is spawned by the answer seam below through the agent-runner registry
+ * (claude unless the consumer's agents config remaps the role), so it works from any agent
+ * harness (gate skill, bare CLI, CI runner).
  *
- * The prompt instructs the agent to act as a senior code reviewer against
- * the artifact path; output must match the Strengths/Issues/Assessment
- * markdown contract parsed by `parseSubagentMarkdown` in `subagent.ts` —
- * prose-grade output, so every runner qualifies.
+ * The prompt instructs the agent to act as a senior code reviewer against the artifact path.
+ * Its answer is one JSON object in the lane's answer file ({@link REVIEWER_ANSWER}), with a
+ * per-finding `blocking` flag under {@link BLOCKING_DEFINITION}. Every runner qualifies:
+ * agent-writes runners write the file, codex's CLI writes its final message there.
  */
 export function buildPrompt(input: DispatchInput): string {
   const profile = input.reviewProfile ?? DEFAULT_REVIEW_PROFILES.default;
@@ -151,7 +122,11 @@ export function buildPrompt(input: DispatchInput): string {
       ? ''
       : `\nBinding rules for the files under review — a violation of any of these is a finding, ` +
         `reported under the dimension it belongs to (they are repo policy, not preference):\n\n${input.rulesBrief}\n`;
-  const priorSection = input.priorReview === undefined ? '' : renderPriorReview(input.priorReview);
+  const priorSection = input.priorReview === undefined ? '' : renderPriorSection(input.priorReview);
+  const spec = input.kind === 'spec';
+  const basisGuide = spec
+    ? `\n\nName the basis of every blocking finding in "basis": ${SPEC_BLOCKING_BASES.map((b) => `"${b}"`).join(', ')}, as the definition above describes. A blocking finding without one is filed as a suggestion.`
+    : '';
   return `You are a Senior Code Reviewer. Review the markdown artifact at \`${input.artifact}\` (description: ${input.description}).
 
 FD summary context:
@@ -164,57 +139,102 @@ ${dimensionLines}
 ${cutMarkerGuide}
 Effort: ${profile.effort}. ${EFFORT_GUIDE[profile.effort]}
 
-Verify-before-flag protocol: before flagging a Critical issue that claims a command, validator, or test will fail (e.g. \`pnpm validate:features\`, \`pnpm typecheck\`, \`pnpm test\`), run that exact command first and quote its actual error output in the bullet. If the command passes, or you cannot run it, do not flag the claim as Critical — file it under Important prefixed with \`unverified:\` instead.
+Verify-before-flag protocol: before flagging a critical finding that claims a command, validator, or test will fail (e.g. \`pnpm validate:features\`, \`pnpm typecheck\`, \`pnpm test\`), run that exact command first and quote its actual error output in the message. If the command passes, or you cannot run it, prefix the message \`unverified:\` — an unverified finding never blocks.
 
-Classify every Critical and Important bullet by prefixing it with exactly one tag:
-- \`[mechanical]\` — the fix is determined by the finding itself: a missing required section, an unanswered open question, a lint-class defect, a stated contract not met. Someone applying your bullet needs no judgment call beyond what you wrote.
-- \`[design]\` — the fix requires a judgment call you are NOT making for them: disagreement about an approach, a default, a trade-off, or anything where two reasonable fixes exist and picking between them is the author's call.
+${spec ? SPEC_BLOCKING_DEFINITION : BLOCKING_DEFINITION}
 
-Tag by what the FIX needs, not by how severe the finding is. When in doubt, tag \`[design]\` — an untagged or design-tagged blocker is routed to a human, which is always safe. Minor bullets need no tag.
+Classify every blocking finding with "class":
+- "mechanical" — the fix is determined by the finding itself: a missing required section, an unanswered open question, a lint-class defect, a stated contract not met. Someone applying your finding needs no judgment call beyond what you wrote.
+- "design" — the fix requires a judgment call you are NOT making for them: disagreement about an approach, a default, a trade-off, or anything where two reasonable fixes exist and picking between them is the author's call.
 
-In every Critical and Important bullet, name the file and line the finding is about, as \`path/to/file.ts:123\` (or \`path/to/file.ts:123-130\` for a range). Repo-relative paths are preferred; a bare filename is accepted when it is unambiguous. Write it inline in the sentence — there is no separate field, and the surrounding prose is unchanged. Omit it only when the finding genuinely has no single location.
+Classify by what the FIX needs, not by how severe the finding is. When in doubt, use "design" — a design-classed blocker is routed to a human, which is always safe.${basisGuide}
 
-Emit your review in this exact format, no preamble:
+In every critical and important finding, name the file and line the finding is about, as \`path/to/file.ts:123\` (or \`path/to/file.ts:123-130\` for a range), inline in the message. Repo-relative paths are preferred; a bare filename is accepted when it is unambiguous. Omit it only when the finding genuinely has no single location.
 
-Strengths: <one-line summary of what is well-done>
-
-Issues:
-  Critical:
-    - [mechanical|design] <bullet>
-  Important:
-    - [mechanical|design] <bullet>
-  Minor:
-    - <bullet>
-
-Assessment: <one-line verdict: approve | blockers found | needs changes>
-
-Leave a bucket's bullet list empty (no bullets) when there are no items at that severity.`;
+Your answer has one field per part of the review:
+- "assessment": your one-line verdict. Approve only when no finding blocks.
+- "strengths": one line on what is well done.
+- "findings": one entry per issue, each with "severity" ("critical" | "important" | "minor"), "blocking" (true | false, per the definition above — a "minor" finding never blocks), "class" (on blocking findings) and "message". With nothing to report, "findings" is [] — never write a placeholder finding such as "(none)".`;
 }
 
-type Dispatcher = (input: DispatchInput) => Promise<string>;
+/** One reviewer finding. `blocking` is the reviewer's own call under BLOCKING_DEFINITION. */
+export const reviewerFindingSchema = z.object({
+  severity: z.enum(['critical', 'important', 'minor']),
+  blocking: z.boolean(),
+  class: z.enum(FINDING_CLASSES).nullish(),
+  // Any string, not the enum (Q-0263): one unknown value must demote its own finding at kind
+  // spec (`isEffectivelyBlocking`) rather than fail the whole answer into a repair round.
+  basis: z.string().nullish(),
+  message: z.string().min(1),
+});
+export type ReviewerFinding = z.infer<typeof reviewerFindingSchema>;
 
-let dispatcher: Dispatcher = async (input) => {
-  const r = await spawnAgent(buildPrompt(input), {
-    role: 'reviewer',
-    timeoutMs: input.timeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS,
-    site: 'cr.subagent-dispatch',
-  });
-  if (r.timedOut || r.exitCode !== 0) {
-    throw new Error(
-      `subagent dispatch failed: exit ${r.exitCode}${r.timedOut ? ' (timeout)' : ''}`,
-    );
-  }
-  return r.stdout;
-};
+export const reviewerAnswerSchema = z.object({
+  assessment: z.string().min(1),
+  strengths: z.string().default(''),
+  findings: z.array(reviewerFindingSchema).default([]),
+  // Answers about the prior blockers on a re-round (Q-0260). Entries stay unvalidated here so one
+  // malformed entry cannot sink the whole review: `applyPriorAnswers` checks each and carries the
+  // prior when its answer is unusable. A first round has no priors and no entries.
+  prior: z.array(z.unknown()).default([]),
+});
+export type ReviewerAnswer = z.infer<typeof reviewerAnswerSchema>;
+
+// `prior` sits in the closing shape, not only in the re-round section: the child is held to
+// "exactly ONE JSON object with this shape", so a key the shape omits is a key it drops. A first
+// round's `prior` entries are ignored — only a re-round's answers are applied. One builder for
+// both kinds, so the spec shape can differ from the plan/code one by its basis field alone.
+const reviewerShape = (basisField: string): string =>
+  `{"assessment": "...", "strengths": "...", "findings": [{"severity": "critical" | "important" | "minor", "blocking": true | false, "class": "mechanical" | "design", ${basisField}"message": "... path/to/file.ts:123 ..."}], "prior": [{"n": 1, "resolved": true | false, "why": "..."}]}`;
 
 /**
- * Skill-layer injection point. Gate skill calls this once at Step 2.5 entry
- * to swap in a Task-tool-based dispatcher. Tests use this to inject mocks.
+ * The repair round's prompt: restate the review as a valid answer. It reviews nothing,
+ * reads no file, drops no finding, and never softens a blocking one — which at kind spec
+ * means carrying each finding's basis, since a blocker that loses it is filed as a suggestion.
  */
-export function setDispatcher(impl: Dispatcher): void {
-  dispatcher = impl;
+export function buildReviewerRepairPrompt(ctx: RepairContext, withBasis = false): string {
+  return `A previous Senior Code Reviewer finished its review, but its answer was rejected: ${ctx.error}. Your ONLY job is to restate that review as a valid answer — do not review anything yourself, do not read any file.
+
+${repairEvidence(ctx)}
+
+Transcription rules:
+1. Carry over every finding the review states, with its severity, whether it blocks, its class${withBasis ? ', its basis' : ''} and its message. Invent no finding and drop none.
+2. Never turn a finding the review marked blocking into a non-blocking one, and never write an approving assessment the review did not give.
+3. Carry over any answers the review gave about prior blockers, as a "prior" list of {"n", "resolved", "why"}. Never mark a prior blocker resolved that the review did not.
+4. If nothing above states a review at all, write no answer.`;
 }
 
-export function dispatchSubagent(input: DispatchInput): Promise<string> {
-  return dispatcher(input);
-}
+/** What the reviewer child hands back, and how the seam reads it. */
+export const REVIEWER_ANSWER: LaneAnswerContract<ReviewerAnswer> = {
+  lane: 'reviewer',
+  shape: reviewerShape(''),
+  schema: reviewerAnswerSchema,
+  placeholderFields: [{ list: 'findings', text: 'message' }],
+  repairPrompt: buildReviewerRepairPrompt,
+};
+
+/** The spec-kind contract (Q-0263): the same answer, with a basis on each finding. */
+const REVIEWER_SPEC_ANSWER: LaneAnswerContract<ReviewerAnswer> = {
+  ...REVIEWER_ANSWER,
+  shape: reviewerShape(`"basis": ${SPEC_BLOCKING_BASES.map((b) => `"${b}"`).join(' | ')}, `),
+  repairPrompt: (ctx) => buildReviewerRepairPrompt(ctx, true),
+};
+
+// A seam fixes its contract when it is created, so the spec kind gets a seam of its own.
+const seam = createAnswerSeam<DispatchInput, ReviewerAnswer>(buildPrompt, {
+  site: 'cr.subagent-dispatch',
+  contract: REVIEWER_ANSWER,
+});
+const specSeam = createAnswerSeam<DispatchInput, ReviewerAnswer>(buildPrompt, {
+  site: 'cr.subagent-dispatch',
+  contract: REVIEWER_SPEC_ANSWER,
+});
+
+/** Test injection point: swaps the reviewer child of both seams (see `createAnswerSeam`). */
+export const setDispatcher: typeof seam.setDispatcher = (impl) => {
+  seam.setDispatcher(impl);
+  specSeam.setDispatcher(impl);
+};
+/** Dispatches the reviewer child under the answer contract its kind needs. */
+export const dispatchSubagent: typeof seam.dispatch = (input, at) =>
+  (input.kind === 'spec' ? specSeam : seam).dispatch(input, at);

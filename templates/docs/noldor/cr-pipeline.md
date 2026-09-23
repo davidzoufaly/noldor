@@ -56,7 +56,19 @@ The orchestrator's `--kind` flag accepts `spec`, `plan`, or `code` (see `src/cr/
 | `full-new`          | 1× `--kind spec`, then 1× `--kind plan` |
 | `full-attach`       | 1× `--kind spec`, then 1× `--kind plan` |
 
-`kind=spec` and `kind=plan` route to the same lane implementations today; the kind value lands in the `LaneFindings.kind` field for audit trail only. Lane prompts may diverge in the future (e.g. `--kind spec` could pull in different review heuristics).
+`kind=spec` and `kind=plan` route to the same lane implementations, and the kind value lands in the `LaneFindings.kind` field. The prompts differ at `kind=spec`: the reviewer and codex both render the spec-stage blocking definition there (next section), and codex reads the FD's Summary instead of the whole FD.
+
+### Spec-stage blocking
+
+A spec is a document an implementer acts on, so the code-stage definition (`BLOCKING_DEFINITION`) and its "false statement into docs" clause would let almost any inaccuracy in a spec block. At `--kind spec` the `reviewer` and `codex` lanes render `SPEC_BLOCKING_DEFINITION` instead (`src/cr/blocking-definition.ts`, Q-0263). A spec finding blocks only when it names one of three bases, and each basis has a way to settle it that does not require agreeing with the lane:
+
+- `requirement`: something the feature has to do is missing, or two parts of the spec (or the spec and the FD Summary) contradict each other. Add the requirement, move it to Non-goals, or fix one side of the contradiction.
+- `feasibility`: the design cannot be built as written against the real code. Change the design, or answer the claim under Open questions (resolved) with the reason it can be built. A claim the lane still upholds is carried to the round cap's arbitration.
+- `risk`: building the spec as written would ship a defect, and the spec neither prevents it nor accepts it. Prevent it, or accept it under Risks / trade-offs.
+
+Wording, formatting, cross-references, section structure, detail an implementer can decide, a preference between workable designs, a choice the spec already records, and the FD's scaffold stubs never block a spec. Code enforces the structural half: a spec-kind finding marked blocking with no valid `basis` is filed as a suggestion (`isEffectivelyBlocking` in `src/cr/lanes/subagent.ts`, `toFindings` in `src/cr/review-with-codex.ts`). A blocker a lane files about its own failure, against `<reviewer>` or `<codex>`, is never demoted, so a failed review still reds its round. A prior carried from a sink written before the rule names no basis, so a spec re-round carries it as a suggestion rather than a blocker (`splitCarriedByBasis` in `src/cr/re-round.ts`); a round whose lane failed keeps it a blocker for the next round to judge. The basis rides the sink finding and shows in the re-round prior list and the `cr aggregate` blocker line (`[high][risk] …`).
+
+Settle a spec blocker you reject in two places, neither of them chat: write the ruling into the spec itself, so the next round's lanes read it, and dispose the blocker, so no later round carries it (see [Rulings before the cap](#rulings-before-the-cap), `docs/adr/0004-operator-rulings-on-cr-findings-hold-for-the-session.md`). Codex reads only the FD's Summary at this kind because the FD's Diagram, User Story and Usage sections are stubs filled after the spec.
 
 ## Step 4 collapse
 
@@ -178,6 +190,36 @@ covered every lane, a red round cleared itself on the next no-op re-run
 (`blockers: []`, exit 0), which is the one failure mode a review gate must
 not have.
 
+### Re-round contract
+
+A re-round is a dispatch whose lane inherits blockers from its own prior sink. Two lanes
+inherit them, `reviewer` and `codex`, and both render one contract from `src/cr/re-round.ts`
+(Q-0260):
+
+- The prompt lists every prior blocker as `P1…Pn` and asks the lane to answer each one in a
+  `prior` list of `{"n", "resolved", "why"}`. The lane never re-types a prior. Code re-files
+  every prior not answered `resolved: true` as the prior finding, unchanged, so its fingerprint
+  survives the round — and with it R1, the no-progress stop and any arbitration disposition
+  (`docs/adr/0002-code-refiles-standing-cr-blockers.md`). An unanswered, malformed or
+  contradictory answer carries the prior. The sink's `notes` record every answer.
+- A new finding blocks only as a regression the fix caused, or under the blocking definition.
+  Everything else about the fix's own content is a suggestion.
+- A lane that fails keeps the priors it was handed, behind its own failure blocker filed against
+  `<reviewer>` or `<codex>`. No round ever carries a `<lane>` blocker forward.
+- A prior sink that exists but cannot be read, does not parse, or fails `laneFindingsSchema`
+  refuses the round with exit 4, before anything is dispatched or recorded. Repair the file, or
+  remove it to start that lane's series over.
+- Both lanes are also shown the series' decided findings, from every lane, as `S1…Sm` (Q-0261):
+  each prior a lane answered resolved (`fixed`, recorded from the sink's `resolved` list) and each
+  blocker the operator ruled on, with its note. A fixed finding blocks again only as a regression.
+  A ruling holds while the lines it cites are unchanged: its finding is not handed to any lane as
+  a prior, and a new finding with the same `fingerprintBlocker` id is filed as a suggestion.
+  Identity is exact, so a reworded restatement still blocks. See
+  [Rulings before the cap](#rulings-before-the-cap).
+
+Whoever writes the fix works to the rule `cr autofix plan` prints as its `fix-rule:` line: make
+the smallest change that resolves the blocker, and prefer deleting a claim to adding one.
+
 ## Escalation
 
 When aggregate surfaces a blocker, control passes to
@@ -203,15 +245,28 @@ Codex must return:
 ```json
 {
   "blockers": [
-    { "file": "src/x.ts", "line": 42, "severity": "high", "message": "...", "suggestion": "..." }
+    {
+      "file": "src/x.ts",
+      "line": 42,
+      "severity": "high",
+      "message": "...",
+      "suggestion": "...",
+      "basis": null
+    }
   ],
-  "suggestions": [{ "file": "src/x.ts", "line": 42, "message": "...", "suggestion": "..." }],
-  "summary": "one-line verdict"
+  "suggestions": [
+    { "file": "src/x.ts", "line": 42, "message": "...", "suggestion": "...", "basis": null }
+  ],
+  "summary": "one-line verdict",
+  "prior": [{ "n": 1, "resolved": true, "why": "..." }]
 }
 ```
 
-Anything else (non-JSON, schema mismatch, non-zero exit) becomes a
-synthetic blocker and the script exits 1.
+`basis` is a spec blocker's basis (`requirement`, `feasibility` or `risk`, see "Spec-stage
+blocking") and `null` everywhere else; a spec-kind blocker whose basis is `null` is filed as a
+suggestion. `prior` answers the prior blockers a re-round lists (see "Re-round contract"); a first round
+returns `[]`. Anything else (non-JSON, schema mismatch, non-zero exit) becomes a synthetic
+blocker filed against `<codex>` and the script exits 1.
 
 ## Override
 
@@ -303,20 +358,20 @@ never blocks. Spawn failure, timeout, or malformed verifier output is one
 "no trustworthy verdict" class: fail-closed blocker in blocking mode,
 `cannot-verify` note in advisory.
 
-Malformed output gets two chances before it is read as that class. A child that
-answered but emitted no parseable verdict has already run the verification —
-only the serialization broke — so the lane makes ONE repair re-request that hands
-the prose back and asks for the schema. That round is a transcription, never a
-second verification: it boots nothing and may not upgrade a hedged report into
-`pass`. A verdict it recovers is stamped with a `repair round` note. When the
-repair fails too, prose that plainly reports success and says nothing
-failure-shaped degrades to `cannot-verify` — which never blocks — instead of a
-fail-closed blocker, because a green verification must not be blocked by a
-formatting failure. It is still not a `pass`: nothing parsed. Every unrecovered
-round stamps `reason` (`malformed-output`, or `dispatch-failed` when the spawn
-itself failed) and keeps the child's raw payload verbatim in `notes` (bounded at
-20k chars) — that payload is the only evidence that separates a real failure
-from a serialization one.
+The verdict travels in an answer file, never in the child's printed output (Q-0250). Each
+dispatch gets its own path, `.noldor/cr/answers/<slug>-<kind>-<lane>-<dispatchId>.json`, and the
+child writes one JSON object there. For a codex-mapped role the codex CLI writes the child's
+final message there instead (`--output-last-message`), so its read-only sandbox never needs write
+access. Fences, quoted code and prose around the answer therefore cannot break it. A missing file,
+invalid JSON or a schema mismatch gets ONE repair round: the seam re-dispatches with the rejected
+answer, the reason and the child's output, and asks only for a valid answer. A child that produced
+nothing at all gets no repair round, because there is nothing to transcribe. That round is a
+transcription, never a second verification: it boots nothing and may not upgrade a hedged report
+into `pass`. A verdict it recovers is stamped with a `repair round` note. When the repair fails
+too, the round is the "no trustworthy verdict" class above. There is no prose fallback. It stamps
+`reason` (`malformed-output`, or `dispatch-failed` when the spawn itself failed) and keeps the
+rejected answer and the child's output verbatim in `notes` (bounded at 20k chars). Each lane's
+latest raw answer stays at `.noldor/cr/answers/<slug>-<kind>-<lane>.json` for debugging.
 
 Opt in via `crLanes.code: ["reviewer", "verifier"]`; drain and watch inherit it
 from config. The noldor repo itself runs `verifyMode: "blocking"` (flipped
@@ -519,35 +574,20 @@ persisted diff image before arguing with the ratio.
   aggregate still reports `ok=true` — fast-track carries no FD, so the lane
   degrades silently and the reviewer lane is the whole review. (2026-08-20
   XS drain)
-- **The verify lane cannot report on a change whose evidence contains fenced
-  code, because its own payload is a fence.** Shipping Q-0239 the verifier ran
-  the full acceptance set twice and emitted `{"verdict":"pass"}` both times;
-  `parseVerifyPayload` recovered neither, because the evidence strings quote the
-  ` ```bash ` blocks the change is *about* and the inner backticks close the outer
-  fence early. The repair round failed identically, and the `proseReportsSuccess`
-  valve (`src/cr/lanes/verify.ts`) missed too — the prose opened "Done. Everything
-  the change promised works when I actually ran it", no `verifi*` stem, so
-  `PROSE_SUCCESS_RE` never matched and the round fell to the fail-closed `high`
-  blocker. This is **systematic, not flaky**: any change touching fence handling,
-  markdown parsing, or skill bodies reproduces it, and re-rounding cannot fix it.
-  Read the raw child payload the lane keeps verbatim in `notes` — if it carries
-  `"verdict":"pass"`, the verification is green and the only exit is
-  `Noldor-Path-Override`. Pairs with Q-0137, which built the repair round for this
-  class and is now shown to under-reach.
-- **A reviewer lane that writes `- (none)` under an empty severity bucket reds
-  the round with phantom blockers.** Shipping Q-0246 the code-stage reviewer
-  returned `summary: "approve"` with a single Strengths note, yet its sink carried
-  `[high]` and `[med]` blockers plus a `[low]` suggestion whose `message` was the
-  literal string `(none)`. `cr aggregate` read `ok=false` and exited 1, no
-  `Noldor-Reviewed-Subagent` receipt was minted, and `cr autofix plan` declined
-  `no-mechanical` and routed both to the operator as `D1`/`D2` — there is nothing
-  to apply, the messages are empty. The lane prompt
-  (`src/cr/lanes/subagent-dispatch.ts`) does say to leave a bucket's bullet list
-  empty, so this is a model formatting slip the parser has no guard against. It is
-  **non-deterministic**: an identical re-dispatch over the same tree came back
-  with `blockers: []` and went green. Re-dispatch before you override. Same class
-  as the verify-lane fence bullet above — a lane's serialization defect blocking a
-  ship its own content approved.
+- **Resolved (Q-0250): the verify lane could not report on a change whose evidence contained
+  fenced code.** Its verdict used to travel as a fenced JSON block, and evidence that quoted a
+  ` ```bash ` block closed that fence early. Shipping Q-0239 lost two `pass` verdicts that way
+  and ended on `Noldor-Path-Override`. The verdict now travels in an answer file, where a quoted
+  fence is just characters inside a JSON string. If a verify round still reds with
+  `reason: malformed-output`, read the rejected answer the sink keeps verbatim in `notes` before
+  blaming the transport.
+- **Resolved (Q-0250): a reviewer that wrote `- (none)` under an empty severity bucket
+  red the round with phantom blockers.** Shipping Q-0246, the reviewer approved and its sink
+  still carried blockers whose message was the literal `(none)`. The reviewer now answers with
+  one JSON object in its answer file. An empty list is `[]`, and placeholder entries such as
+  `(none)` or `N/A` are dropped before validation. A finding blocks only when the reviewer marks
+  it `blocking`, and never when it is `minor` or marked `maybe:` or `unverified:`. The sink
+  `summary` is derived from those flags, so it can no longer read `approve` over a red round.
 
 More sink/receipt traps:
 
@@ -763,6 +803,34 @@ settled, and the close itself happens at `--kind code`.
 Both commands existed only as functions before Q-0228, which made the one exit
 past a capped round also the one surface that asked for a hand-edited,
 schema-validated JSON file — against a disposition vocabulary nothing printed.
+
+### Rulings before the cap
+
+`cr arbitration dispose` works at any round, not only at the cap (Q-0261,
+`docs/adr/0004-operator-rulings-on-cr-findings-hold-for-the-session.md`). With no
+arbitration record standing for the current tree, it records a ruling on a
+standing reviewer or codex blocker in the series' decision store,
+`.noldor/cr/decisions/<slug>-<kind>.json`:
+
+```
+pnpm noldor cr arbitration dispose --slug <slug> --kind <kind> \
+  --blocker <id> --disposition rejected --note "<why>"
+```
+
+`--note` is required here, because it is the reason every later lane is shown.
+Run the command without `--blocker` to list the standing blockers and their ids.
+The ruling cites the lines its finding points at, read through git at the head
+the round reviewed, and it holds while those lines are unchanged. A finding with
+no citable line holds for the rest of the series. Disposing the same id again
+changes the ruling. At the cap, `dispose` fills the arbitration record as before
+and records the same ruling, so a closing round does not carry it either.
+
+A ruling is the operator's. A drain child (`NOLDOR_DRAIN=1`) records none, and
+neither does a run with no session marker: the store is scoped to the gate
+session like the round ledger, and the empty key would be shared by every
+sessionless run. When a code round then goes green, its receipt amend writes one
+`Noldor-CR-Settled: <kind> <disposition> <id> — <note>` trailer per ruling of
+the session, so a receipt earned after a ruling says so in git.
 
 Sink-file mechanics (stale sink after amend, archive-to-subdir, headless
 overwrite crash) live in [`gotchas.md`](gotchas.md#cr-sinks).

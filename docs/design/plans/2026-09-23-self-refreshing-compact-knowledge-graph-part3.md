@@ -4,7 +4,7 @@
 
 **Goal:** Regenerating the committed graph stops being a human's job and stops appearing in a feature PR's diff. A merged `feat`/`fix`/`refactor` PR rebuilds `graphify-out/` on CI and lands it through a graph PR of its own.
 
-**Architecture:** A new scaffold-only template, `templates/.github/workflows/update-knowledge-graph.yml`, picked up by `templateFiles()`'s directory walk with no registry edit. It opens a PR rather than pushing to the default branch, because noldor's pre-push hook refuses a direct push to the default ref and honours no CI escape ([ADR 0002](../../adr/0002-shipped-ci-templates-route-through-pr.md)). The workflow is **two jobs**: `build` runs the merged tree's own code with read-only permissions and no credentials on disk, and `publish` holds the write token but installs no dependencies — so lefthook is never installed there rather than installed and bypassed. noldor installs the same file into its own `.github/workflows/`, kept byte-identical by a test, so the shipped template is the one actually exercised.
+**Architecture:** A new scaffold-only template, `templates/.github/workflows/update-knowledge-graph.yml`, picked up by `templateFiles()`'s directory walk with no registry edit. It opens a PR rather than pushing to the default branch, because noldor's pre-push hook refuses a direct push to the default ref and honours no CI escape ([ADR 0005](../../adr/0005-shipped-ci-templates-route-through-pr.md)). The workflow is **two jobs**: `build` runs the merged tree's own code with read-only permissions and no credentials on disk, and `publish` holds the write token but installs no dependencies — so lefthook is never installed there rather than installed and bypassed. noldor installs the same file into its own `.github/workflows/`, kept byte-identical by a test, so the shipped template is the one actually exercised.
 
 **Tech Stack:** GitHub Actions, `graphifyy==0.7.8`, TypeScript (ESM, Node >= 24), vitest, `yaml`.
 
@@ -206,7 +206,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
   # push to the default ref and honours no CI escape hatch, so pushing straight
   # would mean shipping a hook-bypass flag to every consumer — teaching them to
   # skip the gate the framework exists to enforce. See
-  # docs/adr/0002-shipped-ci-templates-route-through-pr.md.
+  # docs/adr/0005-shipped-ci-templates-route-through-pr.md.
   #
   # Two jobs, and the split is the point. `build` runs code from the merged tree
   # and holds no credentials. `publish` holds the write token and installs no

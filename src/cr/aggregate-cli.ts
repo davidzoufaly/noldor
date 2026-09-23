@@ -84,7 +84,9 @@ async function main() {
       }
       if (r.unresolved.length) console.log(`  unresolved: ${r.unresolved.join(', ')}`);
       for (const b of r.blockers) {
-        console.log(`  [${b.severity}] ${b.lane} ${b.file}: ${b.message}`);
+        console.log(
+          `  [${b.severity}]${b.basis ? `[${b.basis}]` : ''} ${b.lane} ${b.file}: ${b.message}`,
+        );
       }
       // Printed AFTER the findings it qualifies: the whole point is that the
       // lines above are not about the current tree, and a caveat ahead of the

@@ -3,78 +3,24 @@ import { discoverChangedFiles } from '../../core/branch-added.js';
 import { renderBrief, unionResults } from '../../rules/brief.js';
 import { runResolve } from '../../rules/cli-cores.js';
 import { writeJsonAtomic } from '../atomic-write.js';
-import type { Finding, LaneFindings } from '../findings-schema.js';
+import type { ArtifactKind, Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
+import {
+  applyPriorAnswers,
+  laneFailureFile,
+  splitCarriedByBasis,
+  splitSettled,
+} from '../re-round.js';
 import { readFdSummary } from '../read-fd-summary.js';
 import { splitClassTag } from '../finding-class.js';
 import { extractLocations } from '../locations.js';
-import { dispatchSubagent } from './subagent-dispatch.js';
-
-interface ParsedMarkdown {
-  strengths: string;
-  critical: string[];
-  important: string[];
-  minor: string[];
-  assessment: string;
-}
-
-/**
- * Tolerates leading `**`, `###`, `- ` decorations on the heading labels.
- * Subagents in practice deviate from a strict plain-text format; the parser
- * normalizes by stripping common markdown decorations from BOTH sides
- * (label and value) of each heading line before matching.
- */
-function stripDecorations(s: string): string {
-  return s.replace(/^[#\-*\s]+/, '').replace(/[*\s]+$/, '');
-}
-
-export function parseSubagentMarkdown(md: string): ParsedMarkdown | null {
-  const normalized = md
-    .split('\n')
-    .map((line) => {
-      const m = line.match(
-        /^[#\-*\s]*(Strengths|Issues|Critical|Important|Minor|Assessment):\*?\*?\s*(.*)$/,
-      );
-      if (!m) return line;
-      const label = stripDecorations(m[1]);
-      const value = stripDecorations(m[2]);
-      return `${label}:${value ? ' ' + value : ''}`;
-    })
-    .join('\n');
-
-  const sMatch = normalized.match(/^Strengths:\s*(.+)$/im);
-  const iMatch = normalized.match(/^Issues:\s*\n([\s\S]*?)(?=^Assessment:|$(?![\s\S]))/im);
-  const aMatch = normalized.match(/^Assessment:\s*(.+)$/im);
-  if (!sMatch || !iMatch || !aMatch) return null;
-
-  const bucket = (label: string): string[] => {
-    // Two shapes seen in real subagent output: a same-line item
-    // (`Critical: - foo`, whose bullet dash normalization has already stripped
-    // into the value) and/or `- foo` bullets on the following lines.
-    const re = new RegExp(`^${label}:[^\\S\\n]*(.*)\\n?((?:\\s*-\\s+.+\\n?)*)`, 'im');
-    const m = iMatch[1].match(re);
-    if (!m) return [];
-    const items: string[] = [];
-    if (m[1]?.trim()) items.push(m[1].trim());
-    if (m[2]) {
-      items.push(
-        ...m[2]
-          .split(/\n/)
-          .map((l) => l.replace(/^\s*-\s+/, '').trim())
-          .filter(Boolean),
-      );
-    }
-    return items;
-  };
-
-  return {
-    strengths: sMatch[1].trim(),
-    critical: bucket('Critical'),
-    important: bucket('Important'),
-    minor: bucket('Minor'),
-    assessment: aMatch[1].trim(),
-  };
-}
+import { isNeverBlockingMessage, isSpecBlockingBasis } from '../blocking-definition.js';
+import type { LaneAnswer } from '../lane-answer.js';
+import {
+  dispatchSubagent,
+  type ReviewerAnswer,
+  type ReviewerFinding,
+} from './subagent-dispatch.js';
 
 /**
  * The files the round's range changed — the confinement boundary and basename
@@ -142,25 +88,55 @@ function resolveBindingRules(input: LaneInput, baseSha: string): string | undefi
 }
 
 /**
- * Bullet text -> {@link Finding}, curried on severity, the artifact label and
- * the round's changed files. Exported so the location and class parsing is
- * testable without a dispatch.
- *
- * `file` keeps its existing meaning — the artifact LABEL, not a location.
- * Rewriting it to the first resolved location would change what every existing
- * sink reader sees, and `fingerprintBlockers` hashes it, so the change would
- * silently invalidate every digest already in a ledger.
+ * The finding with a leftover `[mechanical]` / `[design]` message prefix lifted into `class`.
+ * A model trained on the old bucket format may still tag the message; the tag is moved into
+ * the field instead of staying in the text, and an explicit `class` field wins.
  */
-export const mkFindingFor =
-  (severity: 'high' | 'med' | 'low', artifact: string, changedFiles: readonly string[]) =>
-  (bullet: string): Finding => {
-    const { class: cls, message } = splitClassTag(bullet);
-    const locations = extractLocations(message, changedFiles);
+export function normalizeFinding(f: ReviewerFinding): ReviewerFinding {
+  const tagged = splitClassTag(f.message);
+  const cls = f.class ?? tagged.class;
+  return { ...f, message: tagged.message, ...(cls ? { class: cls } : {}) };
+}
+
+/**
+ * Whether a reviewer finding actually blocks: the reviewer said so, it is not `minor`, and it
+ * is not marked `maybe:` or `unverified:`. The never-blocks classes are enforced here, not only
+ * requested in the prompt, so a model that flags an unverified claim blocking cannot red the
+ * round on it (Q-0250). At kind `spec` it must also name a basis (Q-0263).
+ */
+export function isEffectivelyBlocking(f: ReviewerFinding, kind: ArtifactKind): boolean {
+  return (
+    f.blocking &&
+    f.severity !== 'minor' &&
+    !isNeverBlockingMessage(f.message) &&
+    (kind !== 'spec' || isSpecBlockingBasis(f.basis))
+  );
+}
+
+/**
+ * Reviewer finding → sink {@link Finding}, curried on the artifact label, the round's
+ * changed files and the kind. A blocker maps critical→high and important→med; a suggestion
+ * maps critical or important→med and minor→low. `file` keeps its meaning — the artifact LABEL,
+ * not a location — because `fingerprintBlockers` hashes it. A basis is recorded at kind `spec`
+ * only, and only a valid one, so the sink never holds a value its schema rejects.
+ */
+export const toSinkFinding =
+  (artifact: string, changedFiles: readonly string[], kind: ArtifactKind) =>
+  (f: ReviewerFinding): Finding => {
+    const severity: Finding['severity'] = isEffectivelyBlocking(f, kind)
+      ? f.severity === 'critical'
+        ? 'high'
+        : 'med'
+      : f.severity === 'minor'
+        ? 'low'
+        : 'med';
+    const locations = extractLocations(f.message, changedFiles);
     return {
       file: artifact,
       severity,
-      message,
-      ...(cls ? { class: cls } : {}),
+      message: f.message,
+      ...(f.class ? { class: f.class } : {}),
+      ...(kind === 'spec' && isSpecBlockingBasis(f.basis) ? { basis: f.basis } : {}),
       ...(locations.length > 0 ? { locations } : {}),
     };
   };
@@ -190,7 +166,11 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
     head: input.artifactSha,
   });
 
-  let markdown: string;
+  // A failed dispatch still owes the next round the blockers it was handed (Q-0260): its sink
+  // keeps them behind its own `<reviewer>` failure blocker, which the next round never carries.
+  const priorsKept = input.priorReview?.blockers ?? [];
+
+  let answer: LaneAnswer<ReviewerAnswer>;
   try {
     // Fast-track ships no FD, so a missing FD file is a legitimate state
     // (drain-mode code review), not an error — review the diff without the
@@ -201,17 +181,21 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       throw err;
     });
     const rulesBrief = resolveBindingRules(input, rulesBaseSha);
-    markdown = await dispatchSubagent({
-      artifact: input.artifact,
-      fdSummary,
-      baseSha: promptBaseSha,
-      headSha: input.artifactSha,
-      description: `${input.kind} for FD ${input.slug}`,
-      ...(input.reviewProfile ? { reviewProfile: input.reviewProfile } : {}),
-      ...(rulesBrief !== undefined ? { rulesBrief } : {}),
-      ...(input.priorReview !== undefined ? { priorReview: input.priorReview } : {}),
-      ...(input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {}),
-    });
+    answer = await dispatchSubagent(
+      {
+        artifact: input.artifact,
+        kind: input.kind,
+        fdSummary,
+        baseSha: promptBaseSha,
+        headSha: input.artifactSha,
+        description: `${input.kind} for FD ${input.slug}`,
+        ...(input.reviewProfile ? { reviewProfile: input.reviewProfile } : {}),
+        ...(rulesBrief !== undefined ? { rulesBrief } : {}),
+        ...(input.priorReview !== undefined ? { priorReview: input.priorReview } : {}),
+        ...(input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {}),
+      },
+      input,
+    );
   } catch (err) {
     const errMsg = (err as NodeJS.ErrnoException).message ?? String(err);
     const payload: LaneFindings = {
@@ -222,9 +206,10 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       blockers: [
         {
           severity: 'high',
-          file: input.artifact,
+          file: laneFailureFile('reviewer'),
           message: `subagent lane errored: ${errMsg}`,
         },
+        ...priorsKept,
       ],
       suggestions: [],
       summary: 'subagent error',
@@ -235,8 +220,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
     return { lane: 'reviewer', sinkPath, ok: false };
   }
 
-  const parsed = parseSubagentMarkdown(markdown);
-  if (!parsed) {
+  if (!answer.ok) {
     const payload: LaneFindings = {
       lane: 'reviewer',
       artifact: input.artifact,
@@ -245,12 +229,14 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       blockers: [
         {
           severity: 'high',
-          file: input.artifact,
-          message: `subagent returned malformed markdown: ${markdown.slice(0, 80)}…`,
+          file: laneFailureFile('reviewer'),
+          message: `reviewer returned no trustworthy answer: ${answer.detail}`,
         },
+        ...priorsKept,
       ],
       suggestions: [],
       summary: 'subagent parse error',
+      notes: answer.notes,
       startedAt,
       finishedAt: new Date().toISOString(),
     };
@@ -258,17 +244,30 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
     return { lane: 'reviewer', sinkPath, ok: false };
   }
 
-  // Each bullet may carry a leading `[mechanical]` / `[design]` tag (see
-  // buildPrompt). `splitClassTag` strips it into `class`; an untagged bullet
-  // yields no `class` key, which `cr autofix` reads as `design`.
-  const mkFinding = (severity: 'high' | 'med' | 'low') =>
-    mkFindingFor(severity, input.artifact, changedFiles);
-
-  const blockers = [
-    ...parsed.critical.map(mkFinding('high')),
-    ...parsed.important.map(mkFinding('med')),
+  // Blocking is the reviewer's per-finding call, with the never-blocks classes enforced by
+  // `isEffectivelyBlocking`. The summary is derived from the same value `ok` reads, so the
+  // sink can no longer say "approve" over a red round (Q-0250).
+  const findings = answer.answer.findings.map(normalizeFinding);
+  const toSink = toSinkFinding(input.artifact, changedFiles, input.kind);
+  const blocks = (f: ReviewerFinding): boolean => isEffectivelyBlocking(f, input.kind);
+  // On a re-round the priors the lane did not answer resolved come first, unchanged, so each
+  // keeps its fingerprint across the round (docs/adr/0002).
+  const prior =
+    input.priorReview === undefined
+      ? { carried: [], resolved: [], notes: [] }
+      : applyPriorAnswers(input.priorReview.blockers, answer.answer.prior);
+  const carried = splitCarriedByBasis(input.priorReview?.blockers ?? [], prior.carried, input.kind);
+  // A new blocker that restates a ruling still holding is filed as a suggestion (Q-0261).
+  const settled = splitSettled(
+    findings.filter(blocks).map(toSink),
+    input.priorReview?.decided ?? [],
+  );
+  const blockers = [...carried.blocking, ...settled.blocking];
+  const suggestions = [
+    ...carried.demoted,
+    ...settled.demoted,
+    ...findings.filter((f) => !blocks(f)).map(toSink),
   ];
-  const suggestions = parsed.minor.map(mkFinding('low'));
   const payload: LaneFindings = {
     lane: 'reviewer',
     artifact: input.artifact,
@@ -276,8 +275,16 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
     slug: input.slug,
     blockers,
     suggestions,
-    summary: parsed.assessment,
-    notes: [`Strengths: ${parsed.strengths}`],
+    summary: blockers.length === 0 ? 'approve' : `blockers found (${blockers.length})`,
+    notes: [
+      `Assessment: ${answer.answer.assessment}`,
+      `Strengths: ${answer.answer.strengths}`,
+      ...prior.notes,
+      ...carried.notes,
+      ...settled.notes,
+      ...answer.notes,
+    ],
+    ...(prior.resolved.length > 0 ? { resolved: prior.resolved } : {}),
     startedAt,
     finishedAt: new Date().toISOString(),
     ...(input.baseSha ? { baseSha: input.baseSha } : {}),

@@ -16,17 +16,19 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### CR Lane Verdicts Blocked by Serialization, Not Substance
+### Refutation Judge Pass Before a Blocker Can Red a Round
 
-- id: Q-0250
+- id: Q-0262
 - area: tooling
 - type: fix
-- since: 2026-09-22
+- since: 2026-09-23
 - size: M
-- impact: critical
+- impact: med
 - confidence: med
+- split-from: Q-0250
+- recovered: 2026-09-23
 
-Getting a green CR check is unreliable for reasons that have nothing to do with the code under review: a lane can approve a change and still red the round on how it wrote the answer down. Two confirmed mechanisms, both observed blocking a ship. **(1) The verify lane cannot report on a change whose evidence contains fenced code, because its own payload is a fence.** Shipping Q-0239 the verifier ran the full acceptance set twice and emitted `{"verdict":"pass"}` both times; `parseVerifyPayload` recovered neither, because the evidence quotes the ` ```bash ` blocks the change is about and the inner backticks close the outer fence early. The repair round failed identically, and `proseReportsSuccess` (`src/cr/lanes/verify.ts`) missed too — `PROSE_SUCCESS_RE` wants a `verifi*` stem or "all checks pass", which a verifier writing plainly never produces, while `PROSE_FAILURE_RE` vetoes on `\bmissing\b` / `\bwrong\b` / `\bcannot\b`, words that appear constantly in an honest description of what was tested. So the rescue valve is biased hard toward veto in exactly the rounds it exists to rescue, and the only exit was `Noldor-Path-Override`. **(2) A reviewer lane that writes `- (none)` under an empty severity bucket reds the round with phantom blockers.** Shipping Q-0246 the code-stage reviewer returned `summary: "approve"` yet its sink carried `[high]`/`[med]` blockers whose `message` was the literal string `(none)`; `cr aggregate` read `ok=false`, no receipt was minted, and `cr autofix plan` declined `no-mechanical` with nothing to apply. Candidate fixes: make the lane prompt demand a one-line machine verdict outside any fence (`NOLDOR-VERDICT: pass`) instead of pattern-matching free prose; have the extractor take the last balanced fence, or length-prefix the payload; drop a bullet whose text is empty or `(none)` (case-insensitive, parens optional); and stop `cr aggregate`'s `ok` from silently disagreeing with a lane's own `approve` summary. Deletion test: a change whose evidence contains fenced code, and a reviewer sink carrying `(none)` bullets, both produce the lane's real verdict. (found 2026-09-20 shipping Q-0239 / Q-0246)
+Some blockers are simply wrong, and today nothing checks a claim before it turns a round red. In Charuy, 51 blockers (2.2%) contradicted the code they cited. 92% of them came from codex, and several were repeated across rounds: "announces its runId" kept coming back after a rebuttal (#179), and "upgrades unrelated dependencies" was filed although the base lockfile already had those versions (#126). In Noldor, codex's "placeholder classification can never succeed" was false five rounds in a row (#405). The panther claude-reviewer (gooddata/gdc-mastercard-panther `.github/claude-reviewer`) handles this with a judge: a cheap second model reads the diff plus the emitted findings and tries to refute each one with concrete contrary evidence. It drops only refuted findings and fails open, keeping everything when the result is inconclusive or the judge errors. Add the same pass after the lanes finish and before aggregate. A refuted blocker is demoted to a note that carries the judge's evidence, never silently dropped. Context leaks cause part of this class and may deserve their own fix. A framework-only rule vendored into a consumer's `.claude/engineering-rules.md` produced 27 Charuy blockers demanding a `templates/` twin in a repo that has none. Stale-base two-dot diffs caused others (#214, #109). Deletion test: a blocker whose cited line contradicts its claim is demoted, with the judge's evidence attached.
 
 ### Path Pick Cannot See the Shared-File Block
 

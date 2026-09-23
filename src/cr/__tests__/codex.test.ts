@@ -20,11 +20,14 @@ function makeRepo(): string {
   return cwd;
 }
 
-const passing = JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' });
+const passing = JSON.stringify({ blockers: [], suggestions: [], summary: 'ok', prior: [] });
 const blocker = JSON.stringify({
-  blockers: [{ file: 'a.ts', message: 'bug', line: null, severity: null, suggestion: null }],
+  blockers: [
+    { file: 'a.ts', message: 'bug', line: null, severity: null, suggestion: null, basis: null },
+  ],
   suggestions: [],
   summary: 'no',
+  prior: [],
 });
 
 describe('runCli', () => {
@@ -200,6 +203,7 @@ describe('runCli — plan/spec review mode', () => {
         line: 4,
         severity: null,
         suggestion: null,
+        basis: null,
       },
     ],
     suggestions: [
@@ -209,9 +213,11 @@ describe('runCli — plan/spec review mode', () => {
         line: null,
         severity: 'medium',
         suggestion: 'add a scope bullet',
+        basis: null,
       },
     ],
     summary: 'plan needs work',
+    prior: [],
   });
 
   it('--plan prints {summary, findings} to stdout and exits 0 even with blockers', async () => {
@@ -355,10 +361,18 @@ describe('runCli — plan/spec review mode', () => {
     writeFileSync(join(cwd, 'plan.md'), '# Plan');
     const emptyFile = JSON.stringify({
       blockers: [
-        { file: '', message: 'doc-level gap', line: null, severity: null, suggestion: null },
+        {
+          file: '',
+          message: 'doc-level gap',
+          line: null,
+          severity: null,
+          suggestion: null,
+          basis: null,
+        },
       ],
       suggestions: [],
       summary: 's',
+      prior: [],
     });
     const cap = captureStdout();
     try {
@@ -380,9 +394,12 @@ describe('runCli — plan/spec review mode', () => {
     const cwd = makeRepo();
     writeFileSync(join(cwd, 'plan.md'), '# Plan');
     const emptyText = JSON.stringify({
-      blockers: [{ file: 'plan.md', message: '', line: null, severity: null, suggestion: null }],
+      blockers: [
+        { file: 'plan.md', message: '', line: null, severity: null, suggestion: null, basis: null },
+      ],
       suggestions: [],
       summary: '',
+      prior: [],
     });
     const cap = captureStdout();
     try {

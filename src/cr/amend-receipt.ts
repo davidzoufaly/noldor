@@ -8,8 +8,14 @@ import { replaceReceiptTrailer } from './receipt-trailer.js';
  * receipt is replaced rather than appended and each commit ends up with exactly
  * one. The pre-push hook accepts this trailer in lieu of legacy
  * `Noldor-Reviewed`.
+ *
+ * `also` rides the same amend: orchestrate passes the session's
+ * `Noldor-CR-Settled:` lines (Q-0261), so this stays a leaf that reads no CR state.
  */
-export function amendSubagentReceipt(opts: { cwd: string }): { amended: boolean; tree: string } {
+export function amendSubagentReceipt(opts: {
+  cwd: string;
+  also?: { key: string; values: readonly string[] };
+}): { amended: boolean; tree: string } {
   const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], {
     cwd: opts.cwd,
     encoding: 'utf8',
@@ -19,6 +25,7 @@ export function amendSubagentReceipt(opts: { cwd: string }): { amended: boolean;
     cwd: opts.cwd,
     key: 'Noldor-Reviewed-Subagent',
     value: tree,
+    ...(opts.also !== undefined ? { also: opts.also } : {}),
   });
   return { amended, tree };
 }

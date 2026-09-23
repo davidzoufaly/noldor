@@ -1,18 +1,38 @@
-// @tests: ui-design-review-lane
+// @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance
 // Prompt fragments shared by the lanes whose child returns a structured verdict.
-// The fenced-json instruction is the counterpart of `parseLastJsonFence`: the
-// text telling the agent what to emit and the parser reading it must agree, so
-// they are worth keeping within one edit of each other.
+// `answerInstruction` is the counterpart of `readLaneAnswer` (src/cr/lane-answer.ts):
+// the text telling the child where its answer goes and the reader of that file must
+// agree, so they are worth keeping within one edit of each other.
+
+import type { RunnerCapabilities } from '../../core/agent-runner/types.js';
+import type { RepairContext } from '../lane-answer.js';
 
 /**
- * The closing instruction for a lane whose child must return exactly one JSON
- * object. `shape` is the schema sketch shown to the agent, rendered inside the
- * fence.
+ * The closing instruction for a lane whose child hands back one JSON object (Q-0250).
+ * `agent-writes` children write the file themselves; for a `cli-writes` runner (codex) the CLI
+ * writes the child's final message to the file, so the child only makes that message the
+ * object. Either way nothing the child prints is read.
  */
-export function fencedJsonInstruction(shape: string): string {
-  return `When done, emit EXACTLY ONE fenced json block as the last thing in your output:
+export function answerInstruction(
+  channel: RunnerCapabilities['answerFile'],
+  path: string,
+  shape: string,
+): string {
+  if (channel === 'cli-writes') {
+    return `When done, make your FINAL message exactly ONE JSON object with this shape, and nothing else — no code fence, no prose before or after it:\n\n${shape}`;
+  }
+  return `When done, write your answer to the file \`${path}\` as exactly ONE JSON object with this shape, and nothing else in that file — no code fence, no prose:\n\n${shape}\n\nUse your file-writing tool. Only that file is read: an answer you print instead is ignored.`;
+}
 
-\`\`\`json
-${shape}
-\`\`\``;
+/**
+ * The evidence block every lane's repair prompt hands its transcriber: the answer the seam
+ * rejected and the first child's output. One copy, so the four repair prompts cannot drift
+ * on what they show.
+ */
+export function repairEvidence(ctx: RepairContext): string {
+  return `Its rejected answer:
+${ctx.rejected ?? '(it wrote no answer file)'}
+
+Its output:
+${ctx.stdout.trim() === '' ? '(none captured)' : ctx.stdout}`;
 }

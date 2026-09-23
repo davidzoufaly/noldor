@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { artifactKindSchema, laneSchema } from '../core/lanes.js';
-import { FINDING_CLASSES } from './finding-class.js';
+import { FINDING_CLASSES, SPEC_BLOCKING_BASES } from './finding-class.js';
 
 export { artifactKindSchema, laneSchema };
 export type { ArtifactKind, Lane } from '../core/lanes.js';
@@ -38,6 +38,9 @@ export const findingSchema = z.object({
   // do not classify (codex, manual, verifier) need no migration — an absent
   // `class` reads as `design` at the decision site, never as auto-fixable.
   class: findingClassSchema.optional(),
+  // Which of the three spec-stage bases a spec blocker named (Q-0263). Optional for the
+  // same reason as `class`: lanes write it at kind `spec` only, and only a valid one.
+  basis: z.enum(SPEC_BLOCKING_BASES).optional(),
   // Where the finding actually points, resolved from the bullet text against
   // the round's changed-file set. Optional so every sink written before it
   // existed still parses and no other lane needs migration — the same additive
@@ -138,6 +141,10 @@ export const laneFindingsSchema = z.object({
   suggestions: z.array(findingSchema).default([]),
   summary: z.string().min(1),
   notes: z.array(z.string()).optional(),
+  // The priors a prior-aware lane answered resolved, with its why (Q-0261). Orchestrate records
+  // each one as a `fixed` decision for later rounds. Optional, like every field added after the
+  // first sinks were written, so they still parse; absent when nothing was resolved.
+  resolved: z.array(z.object({ finding: findingSchema, why: z.string() })).optional(),
   baseSha: z.string().optional(),
   fullReview: z.boolean().optional(),
   // Lane verdict payload (absent on the lanes that carry none). A union of the two

@@ -1,4 +1,4 @@
-// @tests: specs-cr-gate-multi-reviewer
+// @tests: specs-cr-gate-multi-reviewer, cr-re-round-cap-enforcement-and-oscillation-detector
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,11 +12,16 @@ vi.mock('../lanes/manual.js', () => ({
 vi.mock('../lanes/subagent.js', () => ({
   runSubagent: vi.fn(async () => ({ lane: 'reviewer', sinkPath: 's', ok: true })),
 }));
+vi.mock('../lanes/codex.js', () => ({
+  runCodex: vi.fn(async () => ({ lane: 'codex', sinkPath: 'c', ok: true })),
+}));
+import { runCodex } from '../lanes/codex.js';
 import { runManual } from '../lanes/manual.js';
 import { runSubagent } from '../lanes/subagent.js';
-import { run } from '../orchestrate.js';
+import { EXIT_PRIOR_UNUSABLE, run } from '../orchestrate.js';
 
 const reviewerInput = (): LaneInput => vi.mocked(runSubagent).mock.calls.at(-1)![0] as LaneInput;
+const codexInput = (): LaneInput => vi.mocked(runCodex).mock.calls.at(-1)![0] as LaneInput;
 
 let root: string;
 beforeEach(async () => {
@@ -24,6 +29,7 @@ beforeEach(async () => {
   await mkdir(join(root, '.noldor', 'cr'), { recursive: true });
   vi.mocked(runSubagent).mockClear();
   vi.mocked(runManual).mockClear();
+  vi.mocked(runCodex).mockClear();
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
@@ -95,20 +101,41 @@ describe('prior-review context attachment', () => {
     expect('priorReview' in reviewerInput()).toBe(false);
   });
 
-  it('malformed prior sink → no context, not green (lane re-runs on empty delta)', async () => {
+  it('an unparseable reviewer prior sink refuses the round before any lane runs', async () => {
     await writeSink('x-spec-reviewer.json', '{not json');
-    await run({ args: args({ baseSha: 'b' }), cwd: root, isEmptyDiff: async () => true });
-    // not green → no synthetic OK → the lane ran for real, with no context
-    expect(runSubagent).toHaveBeenCalledTimes(1);
-    expect('priorReview' in reviewerInput()).toBe(false);
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const r = await run({ args: args({ baseSha: 'b' }), cwd: root, isEmptyDiff: async () => true });
+    expect(r.exitCode).toBe(EXIT_PRIOR_UNUSABLE);
+    expect(r.lanesRun).toEqual([]);
+    expect(runSubagent).not.toHaveBeenCalled();
+    expect(err.mock.calls.flat().join('\n')).toContain('x-spec-reviewer.json');
+    err.mockRestore();
   });
 
-  it('zod-rejected prior sink (schema mismatch) → no context, not green', async () => {
-    await writeSink('x-spec-reviewer.json', JSON.stringify({ lane: 'reviewer' }));
-    const r = await run({ args: args({ baseSha: 'b' }), cwd: root, isEmptyDiff: async () => true });
-    expect(r.syntheticOks).toEqual([]);
-    expect(runSubagent).toHaveBeenCalledTimes(1);
-    expect('priorReview' in reviewerInput()).toBe(false);
+  it('a schema-rejected codex prior sink refuses the round too', async () => {
+    await writeSink('x-spec-codex.json', JSON.stringify({ lane: 'codex' }));
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const r = await run({
+      args: args({ lanes: ['reviewer', 'codex'], baseSha: 'b' }),
+      cwd: root,
+      isEmptyDiff: async () => false,
+    });
+    expect(r.exitCode).toBe(EXIT_PRIOR_UNUSABLE);
+    expect(runSubagent).not.toHaveBeenCalled();
+    expect(runCodex).not.toHaveBeenCalled();
+    expect(err.mock.calls.flat().join('\n')).toContain('x-spec-codex.json');
+    err.mockRestore();
+  });
+
+  it('an unparseable prior sink on a lane that carries no priors still just re-runs', async () => {
+    await writeSink('x-code-manual.json', '{not json');
+    const r = await run({
+      args: args({ kind: 'code', lanes: ['manual'], baseSha: 'b' }),
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
+    expect(r.exitCode).not.toBe(EXIT_PRIOR_UNUSABLE);
+    expect(runManual).toHaveBeenCalledTimes(1);
   });
 
   it('legacy-named prior sink (pre-0.7.0 `subagent`) is found and attached', async () => {
@@ -118,7 +145,7 @@ describe('prior-review context attachment', () => {
   });
 
   it('reads the reviewer sink exactly once per run, and not at all when reviewer is absent', async () => {
-    const readPriorSink = vi.fn(async () => null);
+    const readPriorSink = vi.fn(async () => ({ kind: 'absent' as const }));
     await run({
       args: args({ baseSha: 'b' }),
       cwd: root,
@@ -150,5 +177,70 @@ describe('prior-review context attachment', () => {
     const manualIn = vi.mocked(runManual).mock.calls.at(-1)![0] as LaneInput;
     expect('priorReview' in manualIn).toBe(false);
     expect(reviewerInput().priorReview).toBeDefined();
+  });
+
+  it('codex receives its own prior blockers, in the round mode', async () => {
+    await writeSink('x-spec-reviewer.json', sink());
+    await writeSink(
+      'x-spec-codex.json',
+      sink({
+        lane: 'codex',
+        blockers: [{ file: 'docs/x.md', severity: 'high', message: 'codex said so' }],
+      }),
+    );
+    await run({
+      args: args({ lanes: ['reviewer', 'codex'], baseSha: 'b' }),
+      cwd: root,
+      isEmptyDiff: async () => false,
+    });
+    expect(codexInput().priorReview).toEqual({
+      mode: 'fixes-in-diff',
+      blockers: [{ file: 'docs/x.md', severity: 'high', message: 'codex said so' }],
+    });
+    expect(reviewerInput().priorReview?.blockers[0]?.message).toBe('unaddressed');
+  });
+
+  it('reads each prior-aware sink once', async () => {
+    const readPriorSink = vi.fn(async () => ({ kind: 'absent' as const }));
+    await run({
+      args: args({ lanes: ['reviewer', 'codex'], baseSha: 'b' }),
+      cwd: root,
+      isEmptyDiff: async () => true,
+      readPriorSink,
+    });
+    for (const lane of ['reviewer', 'codex']) {
+      expect(readPriorSink.mock.calls.filter((c: unknown[]) => c[3] === lane)).toHaveLength(1);
+    }
+  });
+
+  it('never carries a lane failure blocker, and still carries the priors beside it', async () => {
+    await writeSink(
+      'x-spec-reviewer.json',
+      sink({
+        blockers: [
+          { file: '<reviewer>', severity: 'high', message: 'subagent lane errored: boom' },
+          { file: 'docs/x.md', severity: 'high', message: 'unaddressed', class: 'design' },
+        ],
+        summary: 'subagent error',
+      }),
+    );
+    await run({ args: args({ baseSha: 'b' }), cwd: root, isEmptyDiff: async () => false });
+    expect(reviewerInput().priorReview?.blockers).toEqual([
+      { file: 'docs/x.md', severity: 'high', message: 'unaddressed', class: 'design' },
+    ]);
+  });
+
+  it('a sink holding only a lane failure attaches no priors', async () => {
+    await writeSink(
+      'x-spec-reviewer.json',
+      sink({
+        blockers: [
+          { file: '<reviewer>', severity: 'high', message: 'subagent lane errored: boom' },
+        ],
+        summary: 'subagent error',
+      }),
+    );
+    await run({ args: args({ baseSha: 'b' }), cwd: root, isEmptyDiff: async () => false });
+    expect('priorReview' in reviewerInput()).toBe(false);
   });
 });

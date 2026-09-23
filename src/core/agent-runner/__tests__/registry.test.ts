@@ -1,4 +1,4 @@
-// @tests: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, parallel-agent-dispatch-for-research-jobs
+// @tests: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, parallel-agent-dispatch-for-research-jobs, cr-lane-verdicts-blocked-by-serialization-not-substance
 import { describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -207,6 +207,47 @@ describe('spawnAgent', () => {
     const p = spawnAgent('x', { role: 'implementer', cwd: dir }, { spawnImpl: f.impl as never });
     f.child().emit('error', new Error('ENOENT'));
     await expect(p).rejects.toThrow(/spawn-failed: ENOENT/);
+  });
+
+  it('a pinned model rides the pin instead of being dropped (Q-0250)', async () => {
+    const dir = tmpConfig();
+    const f = fakeSpawn();
+    const p = spawnAgent(
+      'p',
+      { role: 'reviewer', runner: 'claude', model: 'opus', cwd: dir },
+      { spawnImpl: f.impl as never },
+    );
+    f.child().emit('close', 0);
+    await p;
+    expect(f.calls[0]!.argv.slice(-2)).toEqual(['--model', 'opus']);
+  });
+
+  it('lastMessagePath reaches a pinned codex as --output-last-message, read-only', async () => {
+    const dir = tmpConfig();
+    const f = fakeSpawn();
+    const p = spawnAgent(
+      'p',
+      { role: 'reviewer', runner: 'codex', lastMessagePath: '/tmp/a.json', cwd: dir },
+      { spawnImpl: f.impl as never },
+    );
+    f.child().emit('close', 0);
+    await p;
+    expect(f.calls[0]!.argv).toEqual(
+      expect.arrayContaining(['read-only', '--output-last-message', '/tmp/a.json']),
+    );
+  });
+
+  it('capability mismatch: lastMessagePath on an agent-writes runner rejects before spawning', async () => {
+    const dir = tmpConfig();
+    const f = fakeSpawn();
+    await expect(
+      spawnAgent(
+        'x',
+        { role: 'reviewer', lastMessagePath: '/tmp/a.json', cwd: dir },
+        { spawnImpl: f.impl as never },
+      ),
+    ).rejects.toThrow(/capability-mismatch.*claude/);
+    expect(f.impl).not.toHaveBeenCalled();
   });
 
   it('opencode role with model builds --model argv', async () => {

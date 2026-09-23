@@ -14,11 +14,29 @@ links:
     - src/core/structural-context-contract.ts
     - src/cr/findings-schema.ts
     - src/cr/lanes/subagent.ts
+    - src/cr/re-round.ts
+    - src/cr/review-with-codex.ts
+    - src/cr/lanes/codex.ts
+    - src/cr/decisions.ts
+    - src/cr/fingerprint.ts
+    - src/cr/arbitration-cli.ts
+    - src/cr/arbitration.ts
+    - src/cr/receipt-trailer.ts
   tests:
-    - src/cr/__tests__/autofix-ledger.test.ts
+    - src/cr/__tests__/amend-receipt.test.ts
+    - src/cr/__tests__/arbitration-cli.test.ts
     - src/cr/__tests__/autofix-cli.test.ts
+    - src/cr/__tests__/autofix-ledger.test.ts
+    - src/cr/__tests__/decisions.test.ts
+    - src/cr/__tests__/lanes/codex.test.ts
+    - src/cr/__tests__/lanes/subagent-dispatch.test.ts
+    - src/cr/__tests__/lanes/subagent.test.ts
+    - src/cr/__tests__/orchestrate-decisions.test.ts
     - src/cr/__tests__/orchestrate.test.ts
+    - src/cr/__tests__/prior-review.test.ts
+    - src/cr/__tests__/re-round.test.ts
     - src/cr/__tests__/run-codex.test.ts
+    - src/cr/__tests__/settled-findings.integration.test.ts
 name: CR Re-Round Cap Enforcement and Oscillation Detector
 packages:
   - scripts
@@ -59,7 +77,7 @@ As an agent or operator running code review through `/noldor-gate`, I want the r
 
 ## Usage
 
-Nothing new to invoke. `cr orchestrate` is called exactly as before and behaves identically while the round budget lasts.
+Nothing new to invoke. `cr orchestrate` is called exactly as before.
 
 ```
 pnpm noldor cr orchestrate --slug <slug> --artifact . --kind code --base-sha origin/main
@@ -92,6 +110,54 @@ Arbitration is the only close.
 ```
 
 Both banners name the `cr-arbitration <digest>` trailer form, not a bare `Noldor-Path-Override: <why>` — past the cap with the last round red, `decideArbitration` rejects the bare form outright, so advertising it sends the operator into a refused push.
+
+On a re-round, `cr orchestrate` hands the `reviewer` and `codex` lanes their own prior blockers. The prompt lists them as `P1…Pn`, the lane answers each one in a `prior` list, and every prior not answered resolved comes back into the sink unchanged, so it keeps its fingerprint. A new finding blocks only as a regression the fix caused or under the blocking definition. The sink's `notes` record what happened to each prior:
+
+```
+prior P1 resolved: the check is gone
+prior P2 still stands: still reads the old key
+prior P3 unanswered — carried
+```
+
+If a reviewer or codex prior sink exists but cannot be read, does not parse, or fails the sink schema, the call refuses before dispatching anything and exits 4:
+
+```
+prior sink unusable — refusing the round, so no re-round runs without the blockers it held:
+  <repo>/.noldor/cr/<slug>-<kind>-reviewer.json: <why>
+Repair the file, or remove it to start that lane's series over (it then runs as a first round).
+```
+
+`pnpm noldor cr autofix plan --slug <slug> --kind <kind>` prints the rule for whoever writes the fix, above the blockers it lists:
+
+```
+fix-rule: make the smallest change that resolves the blocker, and prefer deleting a claim to adding one — a sentence, case or distinction the fix adds is surface the next round reviews
+```
+
+To rule on a blocker you are not fixing, at any round, record why:
+
+```
+pnpm noldor cr arbitration dispose --slug <slug> --kind <kind> \
+  --blocker <id> --disposition rejected --note "<why>"
+```
+
+Run it without `--blocker` to list the standing reviewer and codex blockers and their ids. Before the round cap `--note` is required, and the command records nothing and exits 2 under `NOLDOR_DRAIN=1`, with no session marker, or when git cannot read the round's reviewed head. Later rounds of the session stop handing that finding to any lane as a prior while the lines it cites are unchanged. Both prior-aware lanes see every decided finding after their own priors:
+
+```
+S1 [fixed r2][high] the check is missing — added the check
+S2 [rejected r1][med] rename the flag — the name is the public API
+```
+
+A lane that files a ruled finding again word for word gets it filed as a suggestion, with a note in its sink:
+
+```
+finding filed as a suggestion: it restates settled S2 (rejected), whose cited content is unchanged
+```
+
+When a code round then goes green, its receipt commit names each ruling of the session:
+
+```
+Noldor-CR-Settled: code rejected 1a2b3c4d5e6f — the fallback is intentional; see the cut marker
+```
 
 ## PRs
 

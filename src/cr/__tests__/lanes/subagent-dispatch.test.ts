@@ -1,15 +1,15 @@
-// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, rules-cascade-v1
-import { readFileSync } from 'node:fs';
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, rules-cascade-v1, cr-lane-verdicts-blocked-by-serialization-not-substance, cr-re-round-cap-enforcement-and-oscillation-detector, spec-stage-cr-stopping-rule
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
-
-vi.mock('../../../core/agent-runner/registry.js', () => ({
-  spawnAgent: vi.fn(async () => ({ stdout: 'reviewed', exitCode: 0, timedOut: false })),
-}));
-
-import { buildPrompt, CUT_MARKER_TOKEN, dispatchSubagent } from '../../lanes/subagent-dispatch.js';
+import { afterEach, describe, expect, it } from 'vitest';
+import type { AgentResult, SpawnAgentOpts } from '../../../core/agent-runner/types.js';
 import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../../core/config.js';
 import { ALL_DIMENSIONS, DEFAULT_REVIEW_PROFILES } from '../../../core/review-profile.js';
+import type { Slug } from '../../../core/slug.js';
+import { BLOCKING_DEFINITION, SPEC_BLOCKING_DEFINITION } from '../../blocking-definition.js';
+import { setLaneSpawn } from '../../lane-spawn.js';
+import { buildPrompt, CUT_MARKER_TOKEN, dispatchSubagent } from '../../lanes/subagent-dispatch.js';
 
 const base = {
   artifact: 'x.ts',
@@ -125,33 +125,57 @@ describe('buildPrompt review profile', () => {
     }
   });
 
-  it('keeps the unchanged output contract and defaults to the default profile', () => {
+  it('asks for the JSON answer with a blocking flag, under the shared definition', () => {
     const p = buildPrompt(base);
-    expect(p).toContain('Strengths: <one-line summary');
-    expect(p).toContain('Issues:');
-    expect(p).toContain('Assessment: <one-line verdict');
+    expect(p).toContain(BLOCKING_DEFINITION);
+    expect(p).toContain('"blocking" (true | false');
+    expect(p).toContain('a "minor" finding never blocks');
+    expect(p).toContain('never write a placeholder finding such as "(none)"');
+    expect(p).toContain('Approve only when no finding blocks.');
   });
 
-  it('instructs the reviewer to classify blockers [mechanical] / [design]', () => {
+  it('files a claim it could not verify as unverified, never as a blocker', () => {
+    expect(buildPrompt(base)).toContain('an unverified finding never blocks');
+  });
+
+  it('instructs the reviewer to classify blocking findings mechanical / design', () => {
     const p = buildPrompt(base);
-    expect(p).toContain('[mechanical]');
-    expect(p).toContain('[design]');
+    expect(p).toContain('"mechanical"');
+    expect(p).toContain('"design"');
     // Both definitions must be present, or the reviewer is guessing at the axis.
     expect(p).toContain('the fix is determined by the finding itself');
     expect(p).toContain('requires a judgment call you are NOT making for them');
-    // The tie-break must point at the safe side: an untagged/design blocker goes
-    // to a human, which is what `cr autofix`'s fail-safe read relies on.
-    expect(p).toContain('When in doubt, tag `[design]`');
-    // Tag by what the fix needs, not by severity — the two axes are orthogonal.
-    expect(p).toContain('Tag by what the FIX needs, not by how severe');
-    expect(p).toContain('- [mechanical|design] <bullet>');
+    // The tie-break points at the safe side: a design-classed blocker goes to a human,
+    // which is what `cr autofix`'s fail-safe read relies on.
+    expect(p).toContain('When in doubt, use "design"');
+    // Classify by what the fix needs, not by severity — the two axes are orthogonal.
+    expect(p).toContain('Classify by what the FIX needs, not by how severe');
   });
 
   it('carries the classification instruction under every profile', () => {
     for (const name of Object.keys(DEFAULT_REVIEW_PROFILES)) {
       const p = buildPrompt({ ...base, reviewProfile: DEFAULT_REVIEW_PROFILES[name]! });
-      expect(p, `profile ${name}`).toContain('[mechanical]');
+      expect(p, `profile ${name}`).toContain('"mechanical"');
     }
+  });
+});
+
+describe('buildPrompt spec-stage blocking (Q-0263)', () => {
+  it('renders the spec definition in place of the code one at kind spec, and asks for a basis', () => {
+    const p = buildPrompt({ ...base, kind: 'spec' });
+    expect(p).toContain(SPEC_BLOCKING_DEFINITION);
+    expect(p).not.toContain(BLOCKING_DEFINITION);
+    expect(p).toContain('"basis"');
+    for (const basis of ['"requirement"', '"feasibility"', '"risk"']) expect(p).toContain(basis);
+  });
+
+  it('keeps plan and code prompts on the code definition, byte-identical to a prompt with no kind', () => {
+    const none = buildPrompt(base);
+    expect(buildPrompt({ ...base, kind: 'code' })).toBe(none);
+    expect(buildPrompt({ ...base, kind: 'plan' })).toBe(none);
+    expect(none).toContain(BLOCKING_DEFINITION);
+    expect(none).not.toContain(SPEC_BLOCKING_DEFINITION);
+    expect(none).not.toContain('"basis"');
   });
 });
 
@@ -163,7 +187,7 @@ describe('buildPrompt prior review section', () => {
     ...over,
   });
 
-  it('renders blockers as [severity][class] bullets between rules and range line', () => {
+  it('renders the numbered prior section between the rules and the range line', () => {
     const p = buildPrompt({
       ...base,
       rulesBrief: 'RULE TEXT',
@@ -176,60 +200,19 @@ describe('buildPrompt prior review section', () => {
       },
     });
     expect(p).toContain('Prior review round');
-    expect(p).toContain('- [high][mechanical] unaddressed blocker');
-    expect(p).toContain('- [med] no class here'); // class bracket omitted when absent
+    expect(p).toContain('P1 [high][mechanical] unaddressed blocker');
+    expect(p).toContain('P2 [med] no class here');
     expect(p.indexOf('RULE TEXT')).toBeLessThan(p.indexOf('Prior review round'));
     expect(p.indexOf('Prior review round')).toBeLessThan(p.indexOf('Range under review:'));
   });
 
-  it('renders the fixes-in-diff clause for that mode only', () => {
+  it('no longer keeps the fix in scope as new work', () => {
     const p = buildPrompt({
       ...base,
       priorReview: { mode: 'fixes-in-diff', blockers: [finding()] },
     });
-    expect(p).toContain('The diff under review contains the fixes.');
-    expect(p).toContain('regressions and genuinely new issues remain fully in scope');
-    expect(p).not.toContain('Do not assume any of these blockers were addressed.');
-  });
-
-  it('renders the reexamine clause without asserting the artifact is unchanged', () => {
-    const p = buildPrompt({
-      ...base,
-      priorReview: { mode: 'reexamine', blockers: [finding()] },
-    });
-    expect(p).toContain('Do not assume any of these blockers were addressed.');
-    expect(p).toContain('keeping its message text identical to the listing above');
-    expect(p).not.toMatch(/UNCHANGED/);
-    expect(p).not.toContain('The diff under review contains the fixes.');
-  });
-
-  it('caps at 20 blockers and reports the overflow count', () => {
-    const blockers = Array.from({ length: 23 }, (_, i) => finding({ message: `blocker ${i}` }));
-    const p = buildPrompt({ ...base, priorReview: { mode: 'fixes-in-diff', blockers } });
-    expect(p).toContain('blocker 19');
-    expect(p).not.toContain('blocker 20');
-    expect(p).toContain('…and 3 more prior blockers');
-  });
-
-  it('truncates to 300 chars in fixes-in-diff but never in reexamine; collapses newlines in both', () => {
-    const long = 'x'.repeat(400);
-    const fixP = buildPrompt({
-      ...base,
-      priorReview: { mode: 'fixes-in-diff', blockers: [finding({ message: long })] },
-    });
-    expect(fixP).toContain('x'.repeat(300));
-    expect(fixP).not.toContain('x'.repeat(301));
-    const reP = buildPrompt({
-      ...base,
-      priorReview: { mode: 'reexamine', blockers: [finding({ message: long })] },
-    });
-    expect(reP).toContain('x'.repeat(400));
-
-    const multiline = buildPrompt({
-      ...base,
-      priorReview: { mode: 'reexamine', blockers: [finding({ message: 'line one\n  line two' })] },
-    });
-    expect(multiline).toContain('- [high] line one line two');
+    expect(p).toContain('regression the fix caused');
+    expect(p).not.toContain('genuinely new issues remain fully in scope');
   });
 
   it('omitted field → no section, prompt identical to the pre-context output', () => {
@@ -240,28 +223,93 @@ describe('buildPrompt prior review section', () => {
   });
 });
 
-describe('default dispatcher timeout', () => {
-  const spawnCalls = async (): Promise<ReturnType<typeof vi.fn>> => {
-    const { spawnAgent } = await import('../../../core/agent-runner/registry.js');
-    return spawnAgent as unknown as ReturnType<typeof vi.fn>;
+describe('default dispatcher', () => {
+  const at = (): { repoRoot: string; slug: Slug; kind: 'code' } => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'noldor-subagent-dispatch-'));
+    mkdirSync(join(repoRoot, '.noldor'), { recursive: true });
+    writeFileSync(join(repoRoot, '.noldor', 'config.json'), '{}');
+    return { repoRoot, slug: 'feat-x' as Slug, kind: 'code' };
   };
+  const calls: SpawnAgentOpts[] = [];
+  const clean = (): void =>
+    setLaneSpawn(async (prompt, opts): Promise<AgentResult> => {
+      calls.push(opts);
+      const path = /write your answer to the file `([^`]+)`/.exec(prompt)?.[1];
+      if (path) writeFileSync(path, '{"assessment":"approve","strengths":"s","findings":[]}');
+      return { exitCode: 0, stdout: '', stderr: '', stderrBytes: 0, timedOut: false };
+    });
+  afterEach(() => {
+    calls.length = 0;
+    setLaneSpawn(undefined);
+  });
 
   it('applies DEFAULT_DISPATCH_TIMEOUT_MS when the caller omits timeoutMs', async () => {
-    const spawnAgent = await spawnCalls();
-    spawnAgent.mockClear();
-    await dispatchSubagent(base);
-    expect(spawnAgent.mock.calls[0][1].timeoutMs).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
+    clean();
+    await dispatchSubagent(base, at());
+    expect(calls[0]!.timeoutMs).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
   });
 
   it('honors an explicit timeoutMs from the lane', async () => {
-    const spawnAgent = await spawnCalls();
-    spawnAgent.mockClear();
-    await dispatchSubagent({ ...base, timeoutMs: 42_000 });
-    expect(spawnAgent.mock.calls[0][1].timeoutMs).toBe(42_000);
+    clean();
+    await dispatchSubagent({ ...base, timeoutMs: 42_000 }, at());
+    expect(calls[0]!.timeoutMs).toBe(42_000);
+  });
+
+  it('names the prior list in the closing answer shape the child is held to', async () => {
+    let seen = '';
+    setLaneSpawn(async (prompt): Promise<AgentResult> => {
+      seen = prompt;
+      const path = /write your answer to the file `([^`]+)`/.exec(prompt)?.[1];
+      if (path) writeFileSync(path, '{"assessment":"approve","strengths":"s","findings":[]}');
+      return { exitCode: 0, stdout: '', stderr: '', stderrBytes: 0, timedOut: false };
+    });
+    await dispatchSubagent(base, at());
+    const closing = seen.slice(seen.indexOf('write your answer to the file'));
+    expect(closing).toContain('"prior"');
+  });
+
+  /** Every prompt the child sees, answered by `answers` in turn (the last one repeats). */
+  const recording = (answers: string[]): string[] => {
+    const seen: string[] = [];
+    setLaneSpawn(async (prompt): Promise<AgentResult> => {
+      seen.push(prompt);
+      const path = /write your answer to the file `([^`]+)`/.exec(prompt)?.[1];
+      if (path) writeFileSync(path, answers[Math.min(seen.length, answers.length) - 1]!);
+      return { exitCode: 0, stdout: '', stderr: '', stderrBytes: 0, timedOut: false };
+    });
+    return seen;
+  };
+  const closingShape = (prompt: string): string =>
+    prompt.slice(prompt.indexOf('write your answer to the file'));
+  const APPROVE = '{"assessment":"approve","strengths":"s","findings":[]}';
+
+  it('names the basis in the closing answer shape at kind spec only (Q-0263)', async () => {
+    const seen = recording([APPROVE]);
+    await dispatchSubagent({ ...base, kind: 'spec' }, at());
+    await dispatchSubagent({ ...base, kind: 'code' }, at());
+    await dispatchSubagent({ ...base, kind: 'plan' }, at());
+    expect(closingShape(seen[0]!)).toContain('"basis"');
+    expect(closingShape(seen[1]!)).not.toContain('"basis"');
+    expect(closingShape(seen[2]!)).not.toContain('"basis"');
+  });
+
+  it("asks a spec-kind repair round to carry every finding's basis (Q-0263)", async () => {
+    const seen = recording(['not json at all', APPROVE]);
+    await dispatchSubagent({ ...base, kind: 'spec' }, at());
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).toMatch(/Carry over every finding[^\n]*its basis/);
+  });
+
+  it('leaves the plan- and code-kind repair prompt without a basis (Q-0263)', async () => {
+    const seen = recording(['not json at all', APPROVE]);
+    await dispatchSubagent({ ...base, kind: 'code' }, at());
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).toMatch(/Carry over every finding/);
+    expect(seen[1]).not.toMatch(/basis/);
   });
 });
 
-it('asks every Critical and Important bullet to name a file and line', () => {
+it('asks every critical and important finding to name a file and line', () => {
   const prompt = buildPrompt({
     artifact: 'a.md',
     fdSummary: 'summary',

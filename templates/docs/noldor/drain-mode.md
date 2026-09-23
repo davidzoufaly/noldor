@@ -141,7 +141,9 @@ dependency, so the prompt stays a thin pointer.
   `pr-flow` then pushes + opens the PR and returns at PR-open — the
   supervisor's serialized merge coordinator does the merging.
 - On CR-red, run `pnpm noldor cr autofix plan --slug <slug> --kind code` FIRST.
-  On exit 0 (`next: reround`), apply the listed `M<n>` mechanical blockers, commit,
+  On exit 0 (`next: reround`), apply the listed `M<n>` mechanical blockers — each with the
+  smallest change that resolves it, preferring to delete a claim over adding one (the
+  `fix-rule:` line `plan` prints) — commit,
   `pnpm noldor cr autofix record --slug <slug> --kind code --applied <n> --deferred <n> --since <the printed base-sha>`,
   re-run the code-stage orchestrate with the printed `base-sha`, and re-aggregate.
   (`--since` keeps the ledger's `diffStat` over the whole fix; without it round 1

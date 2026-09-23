@@ -36,9 +36,20 @@
           },
           "suggestion": {
             "type": ["string", "null"]
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["requirement", "feasibility", "risk"]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": ["file", "line", "severity", "message", "suggestion"],
+        "required": ["file", "line", "severity", "message", "suggestion", "basis"],
         "additionalProperties": false
       }
     },
@@ -77,17 +88,48 @@
           },
           "suggestion": {
             "type": ["string", "null"]
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["requirement", "feasibility", "risk"]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": ["file", "line", "severity", "message", "suggestion"],
+        "required": ["file", "line", "severity", "message", "suggestion", "basis"],
         "additionalProperties": false
       }
     },
     "summary": {
       "type": "string"
+    },
+    "prior": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "n": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "resolved": {
+            "type": "boolean"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": ["n", "resolved", "why"],
+        "additionalProperties": false
+      }
     }
   },
-  "required": ["blockers", "suggestions", "summary"],
+  "required": ["blockers", "suggestions", "summary", "prior"],
   "additionalProperties": false,
   "$schema": "http://json-schema.org/draft-07/schema#"
 }

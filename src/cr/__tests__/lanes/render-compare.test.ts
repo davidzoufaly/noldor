@@ -1,4 +1,4 @@
-// @tests: ui-design-review-lane
+// @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance
 // Lane tests for `render-compare`: real git fixture repos (the resolution half
 // is shared with ui-reviewer and tested through the same production loaders),
 // with the exporter dispatch, boot, capture, fetch, and port seams injected.
@@ -158,8 +158,8 @@ function sink(cwd: string): Record<string, unknown> {
   ) as Record<string, unknown>;
 }
 
-const report = (payload: unknown): string =>
-  `prose\n\`\`\`json\n${JSON.stringify(payload)}\n\`\`\`\n`;
+/** What the exporter writes to its answer file: the report and nothing else. */
+const report = (payload: unknown): string => JSON.stringify(payload);
 
 /** Exporter mock: writes `bytes` at every requested outPath, reports `exported`. */
 function exporterWriting(bytes: Buffer | ((surface: string) => Buffer)): {
@@ -344,6 +344,17 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
     const s = sink(cwd);
     expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'export-failed' });
     expect(String(s.notes)).toContain('no trustworthy FINAL: page enumeration');
+  });
+
+  it('reads an exporter report that arrives inside one whole-file fence', async () => {
+    seams(DESIGN_PNG);
+    setRenderExportDispatcher(async (input: RenderExportInput) => {
+      for (const r of input.requests) writeFileSync(r.outPath, DESIGN_PNG);
+      return `\`\`\`json\n${report({ surfaces: input.requests.map((r) => ({ surface: r.surface, candidates: ['default'] })) })}\n\`\`\``;
+    });
+    const { cwd, input } = repo({ uiBoot: DEFAULT_BOOT });
+    await runRenderCompare(input);
+    expect(String(sink(cwd).notes)).not.toContain('no trustworthy FINAL: page enumeration');
   });
 
   it('Node re-derives the page selection from the reported candidates (child cannot mis-select)', async () => {
