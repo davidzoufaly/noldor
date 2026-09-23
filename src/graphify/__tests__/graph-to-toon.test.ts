@@ -455,4 +455,39 @@ describe('graph-to-toon', () => {
       expect(text.endsWith('\n\n')).toBe(false);
     }
   });
+
+  it('derives the same community label whatever order the nodes arrive in', () => {
+    // This is the production path: noldor's graph.json carries no
+    // `community_labels`, so every heading in the file comes from here.
+    const mk = (order: string[]): GraphData => ({
+      directed: false,
+      links: [],
+      nodes: order.map((id) => ({
+        community: 1,
+        id,
+        label: id,
+        source_file: `packages/${id}/src/${id}.ts`,
+      })),
+    });
+    const heading = (g: GraphData): string =>
+      renderBrainstormToon(buildContext(g))
+        .split('\n')
+        .find((l) => l.startsWith('## c1 ')) ?? '';
+    expect(heading(mk(['beta', 'alpha']))).toBe(heading(mk(['alpha', 'beta'])));
+    expect(heading(mk(['alpha', 'beta']))).toBe('## c1 (2) alpha');
+  });
+
+  it('renders a hyperedge that carries no label', () => {
+    // `label` is required on the type but graph.json is external data.
+    const text = renderBrainstormToon(
+      buildContext({
+        directed: false,
+        hyperedges: [{ nodes: ['a'], relation: 'flow' } as unknown as { label: string }],
+        links: [],
+        nodes: [{ community: 1, id: 'a', label: 'A', source_file: 'src/a.ts' }],
+      }),
+    );
+    expect(text).toContain('## hyperedges');
+    expect(text).not.toContain('undefined');
+  });
 });

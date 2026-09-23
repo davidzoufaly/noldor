@@ -48,6 +48,12 @@ export interface Hyperedge {
   readonly confidence?: string;
 }
 
+/** A hyperedge's display label. `label` is required on the type, but the graph is
+ *  external data and an absent one used to throw inside `sanitizeLine`. */
+function hyperedgeLabel(he: Hyperedge): string {
+  return sanitizeLine(he.label ?? he.id ?? 'hyperedge');
+}
+
 function hyperedgeMembers(he: Hyperedge): readonly string[] {
   return he.nodes ?? he.members ?? [];
 }
@@ -357,24 +363,29 @@ function deriveCommunityLabel(nodes: GraphNode[]): string {
         }
       }
     }
-    if (labelSamples.length < 3) {
-      labelSamples.push(n.label);
-    }
+    labelSamples.push(n.label);
   }
 
-  const topPkg = [...pkgCounts.entries()].toSorted((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+  // Ties break on the name. Without it, equal counts keep Map insertion order,
+  // which is graphify's node order — and this is the path production uses, since
+  // noldor's graph.json carries no `community_labels`. Two nodes under
+  // `packages/alpha` and `packages/beta` labelled the community after whichever
+  // arrived first.
+  const topPkg =
+    [...pkgCounts.entries()].toSorted((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))[0]?.[0] ??
+    '';
   const topSegs = [...segCounts.entries()]
-    .toSorted((a, b) => b[1] - a[1])
+    .toSorted((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))
     .slice(0, 2)
-    .map(([s]) => s);
+    .map(([seg]) => seg);
 
   const parts = [topPkg, ...topSegs].filter(Boolean);
   if (parts.length > 0) {
     return parts.join(' / ');
   }
 
-  // Fallback: top node labels
-  return labelSamples.slice(0, 3).join(' · ') || `unlabeled`;
+  // Fallback: node labels, sorted rather than "the first three that arrived".
+  return labelSamples.toSorted(byCodeUnit).slice(0, 3).join(' · ') || `unlabeled`;
 }
 
 function deriveCommunityLabels(communityGroups: Map<number, GraphNode[]>): Record<string, string> {
@@ -431,6 +442,11 @@ function classifyEdges(
  * collapsed, exactly as the `e` rows and `## cross` rows collapse them. Both
  * headers read this, so they cannot disagree about the same graph.
  */
+/** The identity two links share when the format collapses them into one row. */
+function edgeKey(l: GraphLink): string {
+  return `${l.relation ?? ''}\u0000${l.source}\u0000${l.target}`;
+}
+
 function encodedEdges(nodes: readonly GraphNode[], links: readonly GraphLink[]): number {
   const nodeCommunityMap = buildNodeCommunityMap(nodes);
   const { intra, cross } = classifyEdges(links, nodeCommunityMap);
@@ -438,7 +454,7 @@ function encodedEdges(nodes: readonly GraphNode[], links: readonly GraphLink[]):
   for (const group of [...intra.values(), cross]) {
     for (const l of group) {
       if (REL_OMIT.has(l.relation ?? '')) continue;
-      seen.add(`${l.relation ?? ''}\u0000${l.source}\u0000${l.target}`);
+      seen.add(edgeKey(l));
     }
   }
   return seen.size;
@@ -455,7 +471,7 @@ function crossRows(
   return cross
     .filter((l) => {
       if (REL_OMIT.has(l.relation ?? '')) return false;
-      const key = `${l.relation ?? ''}\u0000${l.source}\u0000${l.target}`;
+      const key = edgeKey(l);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -488,7 +504,7 @@ function hyperedgeRows(hyperedges: readonly Hyperedge[], idToLabel: Map<string, 
     const members = hyperedgeMembers(he)
       .map((nid) => sanitizeLine(idToLabel.get(nid) ?? nid))
       .join(', ');
-    return `  ${sanitizeLine(he.label)} [${sanitizeLine(he.relation ?? 'related')}]: ${members}`;
+    return `  ${hyperedgeLabel(he)} [${sanitizeLine(he.relation ?? 'related')}]: ${members}`;
   });
 }
 
@@ -722,7 +738,7 @@ export function renderBrainstormSummary(ctx: GraphContext): string {
   if (packages.length > 0) {
     lines.push('', '## packages');
     for (const [pkg, count] of packages) {
-      lines.push(`  ${pkg} (${count} nodes)`);
+      lines.push(`  ${sanitizeLine(pkg)} (${count} nodes)`);
     }
   }
 
@@ -732,8 +748,8 @@ export function renderBrainstormSummary(ctx: GraphContext): string {
     for (const { name, nodeCount, subfolders } of features) {
       lines.push(
         subfolders
-          ? `  ${name}: ${nodeCount} nodes — ${subfolders}`
-          : `  ${name}: ${nodeCount} nodes`,
+          ? `  ${sanitizeLine(name)}: ${nodeCount} nodes — ${sanitizeLine(subfolders)}`
+          : `  ${sanitizeLine(name)}: ${nodeCount} nodes`,
       );
     }
   }
@@ -750,7 +766,7 @@ export function renderBrainstormSummary(ctx: GraphContext): string {
 
   const hyperLines = hyperedges.map(
     (he) =>
-      `  ${sanitizeLine(he.label)} (${hyperedgeMembers(he).length} nodes, ${sanitizeLine(he.relation ?? 'related')})`,
+      `  ${hyperedgeLabel(he)} (${hyperedgeMembers(he).length} nodes, ${sanitizeLine(he.relation ?? 'related')})`,
   );
   if (hyperLines.length > 0) {
     lines.push('', '## hyperedges', ...hyperLines);
