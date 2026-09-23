@@ -38,7 +38,7 @@ As an operator (human or agent) driving `/noldor-gate`:
 `/noldor-gate` (interactive):
 
 1. **Priority pickup (Step 0)** — gate runs `pnpm next-priority --suggestions --json` and surfaces a two-stage `AskUserQuestion`:
-   - Stage 1 picks a bucket: `In-progress` / `Top priority` / `Quick win` / `Milestone-aligned` / `Other / Cancel` (max 4 options shown; lowest-priority non-empty bucket folds into Other when count exceeds 4).
+   - Stage 1 picks a bucket: `In-progress` / `Top priority` / `Quick win` / `Bugfix` / `Milestone-aligned` / `Path picker` (max 4 options: `Path picker` always shows, and the first 3 non-empty buckets in that rank fill the rest — the path picker's description names any bucket the cap hid). `Bugfix` offers the `type: fix` entries no other bucket surfaced, highest impact first.
    - Stage 2 (when the chosen bucket has multiple entries) picks the specific entry.
 2. **Path picker (Step 1)** — operator picks one of `micro-chore | fast-track | specs-only-new | specs-only-attach | full-new | full-attach`.
 3. **Scaffold (Step 2)** — for `specs-only-new` / `full-new`: worktree created _first_, session marker written, then `/noldor-promote` runs inside the worktree. Attach paths and `fast-track` already follow worktree-first ordering.

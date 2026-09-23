@@ -607,3 +607,69 @@ Body.
     expect(s.blocked).toEqual([]);
   });
 });
+
+describe('getSuggestions bugfixes bucket', () => {
+  const input = { inProgressFds: [], milestoneGate: '' };
+  const entry = (name: string, type: string, impact: string): string => `### ${name}
+
+- area: tooling
+- type: ${type}
+- since: 2026-09-01
+- size: M
+- impact: ${impact}
+
+Body of ${name}.
+`;
+  // Three filler feats occupy topPriority, so every fix below is bucket-eligible.
+  const fillers = ['Filler A', 'Filler B', 'Filler C'].map((n) => entry(n, 'feat', 'low'));
+
+  it('offers the type: fix entries ordered by impact, highest first', () => {
+    const raw = [
+      ...fillers,
+      entry('Fix Low', 'fix', 'low'),
+      entry('Feat High', 'feat', 'high'),
+      entry('Fix Critical', 'fix', 'critical'),
+      entry('Fix Med', 'fix', 'med'),
+    ].join('\n');
+    expect(getSuggestions(raw, input).bugfixes.map((e) => e.name)).toEqual([
+      'Fix Critical',
+      'Fix Med',
+      'Fix Low',
+    ]);
+  });
+
+  it('keeps file order among fixes of equal impact and caps the bucket at 3', () => {
+    const raw = [
+      ...fillers,
+      entry('Fix One', 'fix', 'high'),
+      entry('Fix Two', 'fix', 'high'),
+      entry('Fix Three', 'fix', 'high'),
+      entry('Fix Four', 'fix', 'high'),
+    ].join('\n');
+    expect(getSuggestions(raw, input).bugfixes.map((e) => e.name)).toEqual([
+      'Fix One',
+      'Fix Two',
+      'Fix Three',
+    ]);
+  });
+
+  it('leaves out a fix already offered as a top priority', () => {
+    const raw = [entry('Top Fix', 'fix', 'high'), ...fillers, entry('Low Fix', 'fix', 'low')].join(
+      '\n',
+    );
+    const s = getSuggestions(raw, input);
+    expect(s.topPriority.map((e) => e.name)).toContain('Top Fix');
+    expect(s.bugfixes.map((e) => e.name)).toEqual(['Low Fix']);
+  });
+
+  it('stamps each bugfix entry with its suggestedPath', () => {
+    const raw = [...fillers, entry('Fix Med', 'fix', 'med')].join('\n');
+    expect(getSuggestions(raw, input).bugfixes.map((e) => e.suggestedPath)).toEqual([
+      'specs-only-new',
+    ]);
+  });
+
+  it('is empty when the queue holds no type: fix entry', () => {
+    expect(getSuggestions(fillers.join('\n'), input).bugfixes).toEqual([]);
+  });
+});
