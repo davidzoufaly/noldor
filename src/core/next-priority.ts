@@ -190,6 +190,8 @@ export interface Suggestions {
   topPriority: ReadonlyArray<SuggestedEntry>;
   smallHighImpact: ReadonlyArray<SuggestedEntry>;
   milestoneAligned: SuggestedEntry | null;
+  /** Up to 3 `type: fix` entries not surfaced by any bucket above, highest `impact` first. */
+  bugfixes: ReadonlyArray<SuggestedEntry>;
   /**
    * Entries left out of every bucket because a `blocked-by` ref still names a
    * queued entry (see {@link findBlocked}). Empty when nothing is blocked, and
@@ -216,10 +218,14 @@ export interface Suggestions {
  *   milestone's `## Gate` paragraph. Returns null when neither branch
  *   qualifies. See {@link findMilestoneMatch} for why the declared branch skips
  *   the guards the overlap branch keeps.
+ * - `bugfixes` — up to 3 `type: fix` entries, excluding anything in the three
+ *   buckets above, sorted by `impact` (critical → high → med → low → unset),
+ *   file order breaking ties. Computed last so it never steals an entry from
+ *   an existing bucket.
  *
  * @param roadmapRaw - Raw contents of `docs/roadmap.md`.
  * @param input - In-progress FDs (caller-discovered) + the active milestone's slug and gate paragraph.
- * @returns 3 top + 2 small×high-impact (disjoint from top) + 1 milestone-aligned (disjoint) + inProgress (passed through verbatim). Each surfaced entry is stamped with a `suggestedPath` per the size→path policy ({@link sizeToPath}).
+ * @returns 3 top + 2 small×high-impact (disjoint from top) + 1 milestone-aligned (disjoint) + 3 bugfixes (disjoint) + inProgress (passed through verbatim). Each surfaced entry is stamped with a `suggestedPath` per the size→path policy ({@link sizeToPath}).
  */
 export function getSuggestions(
   roadmapRaw: string,
@@ -261,11 +267,23 @@ export function getSuggestions(
           activeMilestone,
         );
 
+  const offered = new Set([...topSlugs, ...smallSlugs, milestoneAligned?.slug]);
+  const IMPACT_ORDER = ['critical', 'high', 'med', 'low'];
+  const impactRank = (e: BacklogEntry): number => {
+    const i = IMPACT_ORDER.indexOf(e.impact ?? '');
+    return i === -1 ? IMPACT_ORDER.length : i;
+  };
+  const bugfixes = sorted
+    .filter((e) => e.type === 'fix' && !offered.has(e.slug))
+    .toSorted((a, b) => impactRank(a) - impactRank(b))
+    .slice(0, 3);
+
   return {
     inProgress: input.inProgressFds,
     topPriority: topPriority.map(withRouting),
     smallHighImpact: smallHighImpact.map(withRouting),
     milestoneAligned: milestoneAligned === null ? null : withRouting(milestoneAligned),
+    bugfixes: bugfixes.map(withRouting),
     blocked: held,
   };
 }
