@@ -24,10 +24,11 @@ links:
     - src/cr/__tests__/lanes/subagent.test.ts
     - src/cr/__tests__/re-round.test.ts
     - src/cr/__tests__/run-codex.test.ts
+  spec: docs/design/specs/archive/2026-09-23-spec-stage-cr-stopping-rule-design.md
 name: Spec-Stage CR Stopping Rule
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-09-23T00:00:00.000Z
 noldor-tier: specs-only
 ---
@@ -37,17 +38,33 @@ Spec-stage review almost never ends green. In Charuy, spec stages ended green in
 
 ## Diagram
 
-<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
-     two beside it for readers that do not render mermaid. No shape worth drawing?
-     Replace this comment with: noldor:cut <reason> -->
+```mermaid
+flowchart LR
+  O["cr orchestrate --kind spec"] --> R[reviewer lane]
+  O --> C[codex lane]
+  D["SPEC_BLOCKING_DEFINITION<br/>requirement · feasibility · risk"] --> R
+  D --> C
+  FD["FD Summary only"] --> C
+  R --> B{"blocking finding<br/>names a basis?"}
+  C --> B
+  B -- "yes, or a lane failure" --> K[blocker in the sink]
+  B -- no --> S[suggestion in the sink]
+```
+
+At kind spec both review lanes render the same three-basis definition, and codex reads only the FD's Summary. Each lane files a blocking finding as a blocker only when it names a basis. Anything else, apart from a lane's own failure, lands in the suggestions, so a round of wording or stub findings goes green.
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an operator or agent taking a spec through the CR gate, I want a spec finding to block only when it names a missing or contradictory requirement, a design that cannot be built, or a risk the spec has not accepted, so that a spec whose remaining findings are wording, formatting or feature-MD stubs goes green instead of looping to the round cap.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**Agent/Programmatic API**
+
+- `pnpm noldor cr orchestrate --slug <slug> --artifact <spec> --kind spec` — the reviewer and codex lanes both render the spec-stage blocking definition. Each spec blocker carries a `basis` (`requirement`, `feasibility` or `risk`); a spec finding marked blocking without one is filed as a suggestion. A lane's own failure blocker (`<reviewer>`, `<codex>`) still blocks. At this kind codex reads only the FD's Summary.
+- `pnpm noldor cr aggregate --slug <slug> --kind spec` — prints a spec blocker's basis beside its severity, e.g. `[high][risk] reviewer docs/design/specs/…: …`. Re-round prompts list priors the same way (`P1 [high][design][risk] …`).
+- To settle a spec blocker without applying it, record the ruling in the spec: move the requirement to Non-goals, accept the risk under Risks / trade-offs, or answer the question under Open questions (resolved). The next round's lanes read it there.
+- Codex's output schema (`src/cr/cr-record.schema.json`) requires `basis` on every finding: one of the three values, or `null` outside spec reviews.
 
 ## PRs
 
