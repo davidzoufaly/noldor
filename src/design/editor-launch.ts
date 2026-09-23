@@ -145,10 +145,23 @@ export function listVsCodeExtensions(cwd: string): readonly string[] | undefined
 
 /** What the process table says about running VS Code windows and a pencil socket. */
 export interface VsCodeWindows {
-  /** Renderer processes carrying `vscode-window-config` — one per open window. */
+  /** Distinct `--vscode-window-config` ids across renderer processes — one per open window. */
   readonly windows: number;
   /** Distinct pids with `socketPath` open, ascending. */
   readonly socketPids: readonly number[];
+}
+
+/**
+ * Open windows in `pgrep -lf vscode-window-config` output: the distinct
+ * `--vscode-window-config` ids, not the matching lines.
+ *
+ * Ids, not processes: one window owns several renderers (webviews and
+ * out-of-process iframes inherit its id), and the pen.dev canvas is itself a
+ * webview — so a process count reds a one-window machine with a `.pen` open.
+ */
+export function countVsCodeWindows(pgrepOutput: string): number {
+  const ids = pgrepOutput.matchAll(/--vscode-window-config=(vscode:[\w-]+)/g);
+  return new Set([...ids].map((m) => m[1])).size;
 }
 
 /**
@@ -161,12 +174,13 @@ export interface VsCodeWindows {
  * else, or a spawn error, is unanswered.
  */
 export function probeVsCodeWindows(socketPath: string): VsCodeWindows | undefined {
-  const pgrep = spawnSync('pgrep', ['-f', 'vscode-window-config'], {
+  // `-l -f` prints each match's full argv, which the id is read from.
+  const pgrep = spawnSync('pgrep', ['-lf', 'vscode-window-config'], {
     encoding: 'utf8',
     timeout: EDITOR_TIMEOUT_MS,
   });
   if (pgrep.error !== undefined || (pgrep.status !== 0 && pgrep.status !== 1)) return undefined;
-  const windows = (pgrep.stdout ?? '').split('\n').filter((l) => l.trim().length > 0).length;
+  const windows = countVsCodeWindows(pgrep.stdout ?? '');
   // No socket file means no window has activated the extension: nobody owns it.
   // lsof would report that as a stat error, indistinguishable from a real one.
   if (!existsSync(socketPath)) return { windows, socketPids: [] };
