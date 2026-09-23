@@ -236,6 +236,15 @@ The `prepare-commit-msg` hook (`src/hooks/noldor-inject-trailers.ts`) reads `.no
   exact shape that hid it. One caveat: the CLI router treats a bare `--help` /
   `-h` in any argument slot as a help request, so `noldor commit -m -h` prints
   usage instead of committing.
+- **Pass a long message body with `-F`, never `-m`.** A host endpoint agent can
+  SIGKILL any `node <script>` whose argv carries one long argument — observed at
+  935+ characters on a SentinelOne/Kandji-managed macOS (Node 22/23/25 alike;
+  `node -e`, Python and git are untouched). `pnpm` and `noldor` are both Node, so
+  `pnpm noldor commit -m "<multi-paragraph body>"` exits 137 with no output before
+  a single line of noldor runs — it reads exactly like a hook failure, and no
+  in-process guard can name the cause. Write the message to a file and run
+  `pnpm noldor commit -F <file>`, or pipe it: `pnpm noldor commit -F - <<'EOF'`.
+  Both forward to git unchanged; a 13 KB body commits either way.
 - **The pre-commit fmt step auto-fixes and re-stages** (`pnpm noldor fmt
   {staged_files}` + `stage_fixed: true`), so a freshly written file that exceeds
   the print width — or a hand-written multi-line `import { ... }` oxfmt wants on
