@@ -356,6 +356,10 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
     expect(text).not.toContain('git add --force');
   });
 
+  it('is byte-identical to the self-host copy noldor own CI runs', () => {
+    expect(readFileSync(join(TEMPLATES_ROOT, '..', rel), 'utf8')).toBe(raw());
+  });
+
   it('is excluded from the template-sync drift set', () => {
     // `check-template-sync` and `doctor` both filter on this set — membership is
     // what makes a consumer's edited runner labels not read as drift.
