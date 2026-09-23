@@ -237,4 +237,25 @@ describe('graph-to-toon', () => {
     // `## features` block naming it would be wrong, so there must be no block.
     expect(renderBrainstormSummary(buildContext(graph))).not.toContain('## features');
   });
+
+  it('renders a byte-identical summary twice, ties included', () => {
+    const graph: GraphData = {
+      directed: true,
+      links: [],
+      nodes: [
+        { community: 1, id: 'a', label: 'a', source_file: 'packages/beta/src/a.ts' },
+        { community: 1, id: 'b', label: 'b', source_file: 'packages/alpha/src/b.ts' },
+        { community: 2, id: 'c', label: 'c', source_file: 'src/features/zeta/c.ts' },
+        { community: 3, id: 'd', label: 'd', source_file: 'src/features/gamma/d.ts' },
+      ],
+    };
+    const first = renderBrainstormSummary(buildContext(graph));
+    expect(renderBrainstormSummary(buildContext(graph))).toBe(first);
+
+    // One node each: the counts tie, so only the code-unit tie-break decides.
+    expect(first.indexOf('  alpha (1 nodes)')).toBeLessThan(first.indexOf('  beta (1 nodes)'));
+    expect(first.indexOf('  gamma: 1 nodes')).toBeLessThan(first.indexOf('  zeta: 1 nodes'));
+    // Equal-size communities fall back to ascending id.
+    expect(first.indexOf('  c2 (1): ')).toBeLessThan(first.indexOf('  c3 (1): '));
+  });
 });

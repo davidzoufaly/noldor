@@ -292,7 +292,7 @@ The summary gains panther's `## features` block and the shared compact cross-edg
 
 Part 1 proved the brainstorm file is reproducible. The summary needs the same guarantee for its own orderings — the count-ranked blocks are where an unpinned tie shows up, and a tie is invisible until two runs disagree.
 
-- [ ] **Step 1: Write the failing test.**
+- [x] **Step 1: Write the failing test.**
 
   Append inside the existing `describe`:
 
@@ -319,7 +319,7 @@ Part 1 proved the brainstorm file is reproducible. The summary needs the same gu
   });
   ```
 
-- [ ] **Step 2: Run the test and verify it PASSES, then prove it pins something.**
+- [x] **Step 2: Run the test and verify it PASSES, then prove it pins something.**
 
   ```bash
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
@@ -327,7 +327,7 @@ Part 1 proved the brainstorm file is reproducible. The summary needs the same gu
 
   Expected output: `Tests  18 passed (18)`. It passes on the first run because Task 1 added the tie-breaks — so make it fail on purpose: drop the `|| byCodeUnit(a[0], b[0])` from `extractPackages` and re-run. Expected: the package ordering assertion goes red, reporting `beta` before `alpha`. Restore the tie-break.
 
-- [ ] **Step 3: Run the whole suite.**
+- [x] **Step 3: Run the whole suite.**
 
   ```bash
   pnpm verify
@@ -335,7 +335,7 @@ Part 1 proved the brainstorm file is reproducible. The summary needs the same gu
 
   Expected output: lint, typecheck and the full vitest run all green, ending in the summary line with no failures.
 
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
 
   ```bash
   cat > /tmp/msg-part2-task2.txt <<'EOF'
