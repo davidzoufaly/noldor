@@ -386,6 +386,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'graphify/enrich-doc-nodes.ts',
         desc: 'Add FD/plan/spec doc nodes + plan-of/spec-of edges to graph.json',
       },
+      'refactor-precondition': {
+        src: 'graphify/refactor-precondition.ts',
+        desc: 'Should the release sweep run its refactor pass? exit 10 = god nodes + cohesion unchanged since the last tag',
+      },
     },
   },
   dashboard: {

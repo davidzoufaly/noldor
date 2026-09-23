@@ -44,7 +44,9 @@ scanning replicates.
 ## Pre-release sweep
 
 The pre-release sweep — `/graphify` → `/noldor-refactor` against the new
-`GRAPH_REPORT.md` → verify README → `/graphify` again — is encoded in
+`GRAPH_REPORT.md` (skipped by `pnpm noldor graphify refactor-precondition`
+when god nodes and cohesion are unchanged since the last tag) → verify README
+→ `/graphify` again — is encoded in
 the [`/noldor-release-sweep`](../../.claude/skills/noldor-release-sweep/SKILL.md) skill and
 required before any minor or major `pnpm release`. See
 [`versioning.md`](versioning.md) "Pre-release sweep" for the release-flow
