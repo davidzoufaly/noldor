@@ -60,7 +60,8 @@ Roles: `implementer` (drain gate runs, prep fanout), `reviewer` (CR subagent
 lane), `second-opinion` (codex CR lane — pinned to the codex runner by name;
 role config cannot re-route it — plus FD-attribution classification), `polish`
 (release-notes summary), `researcher` ([research fanout](research-fanout.md) —
-read-only, stdout-return). `targets` selects which driver shim sets
+read-only, stdout-return), `judge` ([CR refutation judge](cr-pipeline.md#refutation-judge) —
+tries to refute a round's reviewer and codex blockers; pin it here to a cheaper model). `targets` selects which driver shim sets
 `noldor init --agents` writes, which template subtrees `noldor doctor` and the
 template-sync check verify, and joins the runner presence/floor check set
 (a targeted runner is checked even when no role references it).
