@@ -328,6 +328,10 @@ describe('judgeRound — one pass over the round sinks (Q-0262)', () => {
     expect(r.refuted).toEqual([]);
     expect(r.ok).toEqual({});
     expect(r.line.startsWith('failed')).toBe(true);
+    // Every line the judge adds says it is the judge's, so none reads as the lane's own.
+    const added = readSink('reviewer').notes ?? [];
+    expect(added.length).toBeGreaterThan(0);
+    expect(added.filter((n) => !n.startsWith('judge: '))).toEqual([]);
   });
 
   it('dispatches nothing when every blocker is a lane failure', async () => {
@@ -367,21 +371,26 @@ describe('judgeRound — one pass over the round sinks (Q-0262)', () => {
     expect(prompt.indexOf('J2')).toBeLessThan(prompt.indexOf(B.message));
   });
 
-  it('names a sink it could not write on the failure line instead of dropping the error', async () => {
-    writeSink('reviewer', [A]);
-    writeSink('codex', []);
-    setJudgeDispatcher(async () => 'not an answer');
-    const dir = join(root, '.noldor', 'cr');
-    chmodSync(dir, 0o555);
-    try {
-      const r = await round();
-      expect(r.line.startsWith('failed')).toBe(true);
-      expect(r.line).toMatch(/reviewer sink/);
-    } finally {
-      chmodSync(dir, 0o755);
-    }
-    expect(readSink('reviewer').blockers).toEqual([A]);
-  });
+  // Root ignores directory permissions, so the unwritable sink directory this test relies on
+  // cannot be made there.
+  it.skipIf(process.getuid?.() === 0)(
+    'names a sink it could not write on the failure line instead of dropping the error',
+    async () => {
+      writeSink('reviewer', [A]);
+      writeSink('codex', []);
+      setJudgeDispatcher(async () => 'not an answer');
+      const dir = join(root, '.noldor', 'cr');
+      chmodSync(dir, 0o555);
+      try {
+        const r = await round();
+        expect(r.line.startsWith('failed')).toBe(true);
+        expect(r.line).toMatch(/reviewer sink/);
+      } finally {
+        chmodSync(dir, 0o755);
+      }
+      expect(readSink('reviewer').blockers).toEqual([A]);
+    },
+  );
 
   it('records a recovered answer on the sink even when every verdict is `stands`', async () => {
     writeSink('reviewer', [A]);

@@ -347,7 +347,9 @@ export async function judgeRound(input: {
     const note = `judge: no trustworthy answer — every blocker stands (${answer.detail})`;
     const problems: string[] = [];
     for (const s of new Set(slots.map((x) => x.sink))) {
-      const problem = await rewrite(s, { notes: [...(s.sink.notes ?? []), note, ...answer.notes] });
+      const problem = await rewrite(s, {
+        notes: [...(s.sink.notes ?? []), note, ...answer.notes.map((n) => `judge: ${n}`)],
+      });
       if (problem !== null) problems.push(problem);
     }
     return {
