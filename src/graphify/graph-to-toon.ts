@@ -607,10 +607,12 @@ export function renderBrainstormToon(ctx: GraphContext): string {
   }
   header.push('');
 
-  // Trailing blanks depend on which block came last, so normalise: exactly one
-  // newline ends the file either way.
-  while (body.at(-1) === '') body.pop();
-  const lines = [...header, ...body, ''];
+  // Trailing blanks depend on which block came last — and on an EMPTY graph the
+  // last blank belongs to the header, not the body, so normalise the joined
+  // array rather than the body alone. Exactly one newline ends the file.
+  const lines = [...header, ...body];
+  while (lines.at(-1) === '') lines.pop();
+  lines.push('');
   validateToc(lines, shifted);
   return lines.join('\n');
 }

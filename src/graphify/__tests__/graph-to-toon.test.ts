@@ -450,7 +450,10 @@ describe('graph-to-toon', () => {
         nodes: [{ community: 1, id: 'a', label: 'a', source_file: 'src/a.ts' }],
       }),
     );
-    for (const text of [withCross, noCross]) {
+    // The empty graph is the sharp case: its only trailing blank comes from the
+    // header, so a body-only normalisation misses it.
+    const empty = renderBrainstormToon(buildContext({ directed: false, links: [], nodes: [] }));
+    for (const text of [withCross, noCross, empty]) {
       expect(text.endsWith('\n')).toBe(true);
       expect(text.endsWith('\n\n')).toBe(false);
     }
