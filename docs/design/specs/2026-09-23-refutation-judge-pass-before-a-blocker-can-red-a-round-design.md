@@ -28,6 +28,7 @@ A wrong blocker costs more than a wasted read. It turns the round red, and red r
 - Judging a lane's own failure blocker (`<reviewer>` / `<codex>`, `isLaneFailureBlocker` in `src/cr/re-round.ts`) or an integrity blocker (synthesized by `aggregate`, never written to a sink).
 - A second opinion. The judge does not decide whether a true claim deserves to block, does not re-grade severity, and does not judge the suggested fix. A real defect with a bad suggestion stays a blocker.
 - Remembering a refutation across rounds. If a lane files a refuted claim again, that round's judge checks it again. A repeat costs one dispatch, not a red round, and a wrong refutation is never locked in for the rest of the session.
+- Refuting a claim about what the change did to its base, such as #126's "upgrades unrelated dependencies". Evidence is read at head only (Unit 3), so such a claim stands.
 - The two context leaks the entry names. The framework-only rule leak is Q-0264, and the stale-base two-dot diff is Q-0265.
 - Operator rulings. A refutation is not a ruling and never enters the decision store (`docs/adr/0004-operator-rulings-on-cr-findings-hold-for-the-session.md`).
 - The `/noldor-gate` skill prose. `.claude/skills/**` cannot be committed from a feature worktree, so the pass has to explain itself in its own output.
@@ -47,11 +48,11 @@ The candidate set was empty: the entry declares no `Touches:` and the FD's `link
 
 ### Unit 1 — Where the pass runs
 
-`run()` awaits `Promise.allSettled(promises)`, computes the exit code from each `LaneResult.ok`, amends the receipt when the exit code is 0, and then calls `aggregate()` to record the round. The pass goes between the settle and the exit code. `judgeRound()` in a new `src/cr/judge.ts` takes the fulfilled results of the `reviewer` and `codex` lanes. It reads each sink, dispatches once, rewrites the sinks it demotes from, and returns the updated `ok` for each lane. `cr aggregate`, `cr autofix plan` and `buildSkeleton` all read sinks, so they respect a demotion with no change of their own. The pass does not run when `crReview.judge` is `false`, when neither lane ran this round, or when no judgeable blocker exists. A lane whose promise rejected wrote no sink this round, so it is not judged.
+`run()` awaits `Promise.allSettled(promises)`, computes the exit code from each `LaneResult.ok`, amends the receipt when the exit code is 0, and then calls `aggregate()` to record the round. The pass goes between the settle and the exit code. `judgeRound()` in a new `src/cr/judge.ts` takes the fulfilled results of the `reviewer` and `codex` lanes. It reads each sink, dispatches once, rewrites the sinks it demotes from, and returns the updated `ok` for each lane. `cr aggregate`, `cr autofix plan` and `buildSkeleton` all read sinks, so they respect a demotion with no change of their own. The pass does not run when `crReview.judge` is `false`, when neither lane ran this round, when no judgeable blocker exists, or when `run()` could not resolve `HEAD`. In that last case `headSha` is empty, and `git show :<file>` would read the index rather than a commit. A lane whose promise rejected wrote no sink this round, so it is not judged.
 
 ### Unit 2 — The judge dispatch
 
-One dispatch per round covers every judgeable blocker from both lanes, numbered J1…Jn. It runs as a new agent role, `judge`, added to `AGENT_ROLES` (`src/core/agent-runner/types.ts`). It goes through `createAnswerSeam` (`src/cr/lane-spawn.ts`), the answer-file seam every structured lane uses, including its one repair round. `resolveRunner('judge', …)` therefore reads `agents.roles.judge` for the runner and model. Absent that, the judge runs on the consumer's default runner with that runner's default model, because the framework names no model anywhere. The dispatch is capped at the smaller of 300 s and `resolveDispatchTimeoutMs(cfg)`. A timeout costs only the judge's verdict, so the judge gets a tighter cap than the lanes' 900 s default. A consumer who lowered the lane cap lowers the judge's too.
+One dispatch per round covers every judgeable blocker from both lanes, numbered J1…Jn. It runs as a new agent role, `judge`, added to `AGENT_ROLES` (`src/core/agent-runner/types.ts`). It goes through `createAnswerSeam` (`src/cr/lane-spawn.ts`), the answer-file seam every structured lane uses, including its one repair round. `resolveRunner('judge', …)` therefore reads `agents.roles.judge` for the runner and model. Absent that, the judge runs on the consumer's default runner with that runner's default model, because the framework names no model anywhere. The dispatch is capped at the smaller of 300 s and `resolveDispatchTimeoutMs(cfg)`. A timeout costs only the judge's verdict, so the judge gets a tighter cap than the lanes' 900 s default. A consumer who lowered the lane cap lowers the judge's too. The cap applies to each child the seam spawns, so a judge that needs its repair round runs for at most twice that.
 
 The prompt (`buildJudgePrompt` in `src/cr/judge.ts`) carries:
 - the artifact and its kind;
@@ -79,7 +80,7 @@ Code applies a `refuted` verdict only when all of these hold:
 - every entry names a repo-relative `file`, a `line` and a `quote` of at least 10 non-whitespace characters;
 - every `quote` matches its file starting within 3 lines of its `line`. The quote may span several lines, and each is compared after trimming and collapsing runs of whitespace.
 
-The file is read as `git show <head>:<file>`, where head is the commit the round reviewed. When the quote is not there and the round was given a `--base-sha`, it is read as `git show <fork>:<file>` instead. `<fork>` is `git merge-base <base> <head>`, the commit the branch started from, so a base that has moved on since cannot supply evidence the branch never had. That base-side read is how "the base lockfile already had those versions" (#126) gets refuted.
+The file is read as `git show <head>:<file>`, where head is the commit the round reviewed, and nowhere else. Text that exists only before the change is exactly what a regression blocker names, as in "this deletes the guard at line 40". Evidence read from the base could therefore demote the very blocker it confirms.
 
 Otherwise the blocker stands, and the sink notes which check failed. A duplicate `n` stands even when both answers agree. That is the opposite of panther, where any `refuted` line for an id wins. The line window catches a judge that has the right text in the wrong place, which is a sign it is confused. A quote with nothing but a closing brace cannot verify. Verification reads committed blobs, never the working tree, so a judge that edits a file cannot forge its own evidence.
 
@@ -107,14 +108,13 @@ Lanes write their sinks, and `judgeRound` reads the judged ones. It sends one di
 Every failure falls back to the lanes' own verdict:
 - a spawn error, a timeout, no answer, or an answer still malformed after the repair round demotes nothing;
 - so does evidence that does not verify, including a `git show` that cannot resolve the file at that commit;
-- a `git merge-base` that fails skips the base-side read, so only head evidence can verify;
 - a sink that cannot be re-read or rewritten keeps its written verdict.
 
 An exception inside `judgeRound` is logged and leaves the round exactly as the lanes wrote it. The judge never adds a finding, promotes one, or edits a finding's content.
 
 ### Testing
 
-- Unit tests cover verification as a pure function over an injected `show(rev, file)`: a present quote, a missing quote, base-only evidence and whitespace differences.
+- Unit tests cover verification as a pure function over an injected `show(rev, file)`: a present quote, a missing quote, a quote present only in the base version (which must not verify), and whitespace differences.
 - Unit tests cover applying the answers: a missing `n`, a duplicate, an out-of-range value, a `stands` verdict and an empty `why`.
 - A unit test covers the sink rewrite.
 - `orchestrate` tests use the seam's `setDispatcher`:
@@ -148,7 +148,7 @@ An exception inside `judgeRound` is logged and leaves the round exactly as the l
 ## Acceptance criteria
 
 1. In a round whose only blocker is a reviewer or codex blocker refuted with a quote present in the cited file at head, the sink's `blockers` list is empty and `refuted` holds the finding with its reason and evidence. `cr orchestrate` exits 0, and the round is recorded green.
-2. A `refuted` verdict whose quote does not match the file within 3 lines of its cited line, at head or at base, leaves the blocker in `blockers` and adds a note to the sink. A quote under 10 non-whitespace characters has the same result. Either way the round stays red.
+2. A `refuted` verdict whose quote does not match the file at head within 3 lines of its cited line leaves the blocker in `blockers` and adds a note to the sink. That includes a quote found only in the base version. A quote under 10 non-whitespace characters has the same result. Either way the round stays red.
 3. When the judge dispatch fails, times out, or answers malformed after its repair round, every blocker stays, and the round's exit code equals the exit code without the judge.
 4. A blocker with no verdict, a duplicated `n` or a `stands` verdict stays a blocker.
 5. The judge prompt never contains a suggestion, a lane-failure blocker, or a blocker from the `manual`, `verifier`, `ui-reviewer` or `render-compare` lanes.
@@ -183,10 +183,11 @@ As an operator, or the drain, shipping through the gate, I want a blocker that c
 
 1. *Which lanes' blockers does the judge see?* → `reviewer` and `codex` only. (D1) They make claims about code, while the other lanes report observations or are the operator.
 2. *Where does a demoted blocker go: suggestions, notes, or a new field?* → A new `refuted` field. (D2) It keeps the finding and its evidence intact, keeps the lane's own suggestions list clean, and follows the `resolved` precedent.
-3. *How strict is the evidence check?* → Each quote must be at least 10 non-whitespace characters and must match the cited file, at head or at base, starting within 3 lines of the line the judge names. (D3) A refutation turns a red round green, so a judge with the right text in the wrong place has to fail closed. A false `stands` costs no more than today's behaviour.
+3. *How strict is the evidence check?* → Each quote must be at least 10 non-whitespace characters and must match the cited file at head, starting within 3 lines of the line the judge names. (D3) A refutation turns a red round green, so a judge with the right text in the wrong place has to fail closed. A false `stands` costs no more than today's behaviour.
 4. *Which model runs the judge?* → Whatever the `judge` role resolves to, with no model named in code. (D4) Noldor never names a model. Accuracy matters more than price here, and a consumer can pin a cheaper one.
 5. *Which kinds are judged?* → Spec, plan and code. (D5) Spec feasibility claims cite code, and requirement claims cite the spec, which a quote can refute as well.
 6. *Should the judge remember refutations across rounds?* → No. Each round's judge checks whatever its lanes filed. (D6) A repeat costs one dispatch, not a red round, and a fresh check each round means a wrong refutation never holds for the session. Memory would also need the decision store, whose rulings ADR 0004 reserves for the operator.
 7. *Does git record a refutation, and where does the record come from?* → A `Noldor-CR-Refuted` trailer on the code receipt, fed by the round ledger. (D7) Sinks are gitignored, so otherwise a judge-flipped round reads as a clean review. The ledger already gets one write per round from orchestrate, is scoped to the session, and is cleaned up by the gate only after the receipt is minted.
 8. *Does the judge need a per-run `--no-judge` flag?* → No. (D8) An operator who doubts a refutation can fix the finding anyway, since the next round reviews the change. `crReview.judge: false` covers standing distrust.
-9. *How long may the judge run?* → The smaller of 300 s and `resolveDispatchTimeoutMs(cfg)`. (D9) A timeout costs only the judge's own verdict, so its cap is tighter than the lanes' 900 s. A consumer who lowered the lane cap gets a lower judge cap too.
+9. *How long may the judge run?* → The smaller of 300 s and `resolveDispatchTimeoutMs(cfg)` for each child, so at most twice that with the repair round. (D9) A timeout costs only the judge's own verdict, so its cap is tighter than the lanes' 900 s. A consumer who lowered the lane cap gets a lower judge cap too.
+10. *Does evidence found only in the base version count?* → No. Only head evidence counts. (D10) Text the change removed or moved is what a regression blocker cites, so base evidence would let a judge that misread the diff demote a true blocker. The cost is that claims about the base, such as #126's, stand. That is today's behaviour.
