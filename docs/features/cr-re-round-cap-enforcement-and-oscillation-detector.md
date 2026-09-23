@@ -28,7 +28,7 @@ links:
 name: CR Re-Round Cap Enforcement and Oscillation Detector
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.9.0
@@ -65,7 +65,7 @@ As an agent or operator running code review through `/noldor-gate`, I want the r
 
 ## Usage
 
-Nothing new to invoke. `cr orchestrate` is called exactly as before and behaves identically while the round budget lasts.
+Nothing new to invoke. `cr orchestrate` is called exactly as before.
 
 ```
 pnpm noldor cr orchestrate --slug <slug> --artifact . --kind code --base-sha origin/main
@@ -98,6 +98,28 @@ Arbitration is the only close.
 ```
 
 Both banners name the `cr-arbitration <digest>` trailer form, not a bare `Noldor-Path-Override: <why>` — past the cap with the last round red, `decideArbitration` rejects the bare form outright, so advertising it sends the operator into a refused push.
+
+On a re-round, `cr orchestrate` hands the `reviewer` and `codex` lanes their own prior blockers. The prompt lists them as `P1…Pn`, the lane answers each one in a `prior` list, and every prior not answered resolved comes back into the sink unchanged, so it keeps its fingerprint. A new finding blocks only as a regression the fix caused or under the blocking definition. The sink's `notes` record what happened to each prior:
+
+```
+prior P1 resolved: the check is gone
+prior P2 still stands: still reads the old key
+prior P3 unanswered — carried
+```
+
+If a reviewer or codex prior sink exists but cannot be read, does not parse, or fails the sink schema, the call refuses before dispatching anything and exits 4:
+
+```
+prior sink unusable — refusing the round, so no re-round runs without the blockers it held:
+  <repo>/.noldor/cr/<slug>-<kind>-reviewer.json: <why>
+Repair the file, or remove it to start that lane's series over (it then runs as a first round).
+```
+
+`pnpm noldor cr autofix plan --slug <slug> --kind <kind>` prints the rule for whoever writes the fix, above the blockers it lists:
+
+```
+fix-rule: make the smallest change that resolves the blocker, and prefer deleting a claim to adding one — a sentence, case or distinction the fix adds is surface the next round reviews
+```
 
 ## PRs
 
