@@ -17,20 +17,30 @@ links:
     - src/cr/re-round.ts
     - src/cr/review-with-codex.ts
     - src/cr/lanes/codex.ts
+    - src/cr/decisions.ts
+    - src/cr/fingerprint.ts
+    - src/cr/arbitration-cli.ts
+    - src/cr/arbitration.ts
+    - src/cr/receipt-trailer.ts
   tests:
+    - src/cr/__tests__/amend-receipt.test.ts
+    - src/cr/__tests__/arbitration-cli.test.ts
     - src/cr/__tests__/autofix-cli.test.ts
     - src/cr/__tests__/autofix-ledger.test.ts
+    - src/cr/__tests__/decisions.test.ts
     - src/cr/__tests__/lanes/codex.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
+    - src/cr/__tests__/orchestrate-decisions.test.ts
     - src/cr/__tests__/orchestrate.test.ts
     - src/cr/__tests__/prior-review.test.ts
     - src/cr/__tests__/re-round.test.ts
     - src/cr/__tests__/run-codex.test.ts
+    - src/cr/__tests__/settled-findings.integration.test.ts
 name: CR Re-Round Cap Enforcement and Oscillation Detector
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.9.0
@@ -121,6 +131,32 @@ Repair the file, or remove it to start that lane's series over (it then runs as 
 
 ```
 fix-rule: make the smallest change that resolves the blocker, and prefer deleting a claim to adding one — a sentence, case or distinction the fix adds is surface the next round reviews
+```
+
+To rule on a blocker you are not fixing, at any round, record why:
+
+```
+pnpm noldor cr arbitration dispose --slug <slug> --kind <kind> \
+  --blocker <id> --disposition rejected --note "<why>"
+```
+
+Run it without `--blocker` to list the standing reviewer and codex blockers and their ids. Before the round cap `--note` is required, and the command records nothing and exits 2 under `NOLDOR_DRAIN=1`, with no session marker, or when git cannot read the round's reviewed head. Later rounds of the session stop handing that finding to any lane as a prior while the lines it cites are unchanged. Both prior-aware lanes see every decided finding after their own priors:
+
+```
+S1 [fixed r2][high] the check is missing — added the check
+S2 [rejected r1][med] rename the flag — the name is the public API
+```
+
+A lane that files a ruled finding again word for word gets it filed as a suggestion, with a note in its sink:
+
+```
+finding filed as a suggestion: it restates settled S2 (rejected), whose cited content is unchanged
+```
+
+When a code round then goes green, its receipt commit names each ruling of the session:
+
+```
+Noldor-CR-Settled: code rejected 1a2b3c4d5e6f — the fallback is intentional; see the cut marker
 ```
 
 ## PRs
