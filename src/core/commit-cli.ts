@@ -10,6 +10,10 @@
  * in any slot as a help request and prints usage instead of dispatching
  * (`src/cli/index.ts`), so `noldor commit -m -h` is a no-op.
  *
+ * A long body must ride `-F <file>` / `-F -`, not `-m`: an endpoint agent can
+ * SIGKILL a `node` process carrying one 935+ char argument before this module
+ * loads, so nothing here can report it. See `docs/noldor/gotchas.md`.
+ *
  * The verdict placement is the point: `noldor commit -m '…' | tail` still loses
  * `$?` to the pipe, but the tail now ends in `noldor commit: FAILED …` instead
  * of looking clean. See `docs/noldor/git-and-commits.md` → "Piped commits mask

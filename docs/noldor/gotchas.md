@@ -158,6 +158,14 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 
 ## Shell & tooling traps
 
+- **`pnpm noldor <cmd>` exits 137 with zero output when one argument is long.**
+  An endpoint agent (seen on SentinelOne/Kandji macOS) SIGKILLs any
+  `node <script>` given a single argument of 935+ characters, before any JS
+  runs — so a multi-paragraph `pnpm noldor commit -m "<body>"` dies silently and
+  looks like a hook failure. Pass long text through a file or stdin instead
+  (`pnpm noldor commit -F <file>` / `-F -`). Reproduce:
+  `node <any>.mjs "$(printf 'x%.0s' {1..935})"; echo $?`. See
+  [git-and-commits.md](git-and-commits.md#piped-commits-mask-hook-failures).
 - **zsh eats a bare `===` / `====`** inside a compound command (parses as the
   `==` command → "=== not found"). Quote separator strings: `echo "==="`.
 - **`tsx -e` cannot top-level await** ("not supported with cjs output"). Write
