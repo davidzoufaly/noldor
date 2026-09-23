@@ -47,6 +47,8 @@ Behaviour-preserving. Today `main()` runs at module scope and every path ends in
         { id: 'c', label: 'gamma', community: 1, source_file: 'src/core/alpha.ts' },
         { id: 'd', label: 'delta', community: 2, source_file: 'src/web/delta.ts' },
         { id: 'e', label: 'Charlie', community: 2, source_file: 'src/web/charlie.ts' },
+        { id: 'f', label: 'dup', community: 2, source_file: 'src/web/f.ts' },
+        { id: 'g', label: 'dup', community: 2, source_file: 'src/web/g.ts' },
       ],
       links: [
         { source: 'a', target: 'b', relation: 'imports' },
@@ -57,6 +59,22 @@ Behaviour-preserving. Today `main()` runs at module scope and every path ends in
       ],
       hyperedges: [{ label: 'boot path', relation: 'flow', nodes: ['a', 'd'] }],
     };
+  }
+
+  /**
+   * One section, from its `## <key>` header to the blank line that closes it.
+   * Every later task reads blocks through this rather than splitting the file on
+   * blank runs — the number of blank lines around a section changes three times
+   * across this plan, and a test keyed on that shape breaks on each change for a
+   * reason that has nothing to do with what it is asserting.
+   */
+  export function blockOf(text: string, key: string): string {
+    const lines = text.split('\n');
+    const start = lines.findIndex((l) => l === `## ${key}` || l.startsWith(`## ${key} `));
+    if (start < 0) return '';
+    const rest = lines.slice(start + 1);
+    const stop = rest.findIndex((l) => l === '' || l.startsWith('## '));
+    return [lines[start], ...(stop < 0 ? rest : rest.slice(0, stop))].join('\n');
   }
 
   describe('graph-to-toon', () => {
@@ -126,11 +144,10 @@ Behaviour-preserving. Today `main()` runs at module scope and every path ends in
     }
   }
 
-  const invokedDirect = /[\\/]graph-to-toon\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-  if (invokedDirect) main();
+  if (isEntrypoint(import.meta.url)) main();
   ```
 
-  The guard is what lets the test import the module: without it `main()` runs at import time, reads `process.argv[2]` (a vitest path), and exits 1.
+  Add `import { isEntrypoint } from '../core/cli-entry.js';` to the imports at the top of the file. This is the repo's canonical guard — 44 modules use it, and the Q-0126 sweep moved them off hand-rolled stem regexes precisely because a stem match fires for any file with the same basename. The guard is what lets the test import the module: without it `main()` runs at import time, reads `process.argv[2]` (a vitest path), and exits 1.
 
 - [ ] **Step 6: Run the test and verify it PASSES.**
 
@@ -142,13 +159,22 @@ Behaviour-preserving. Today `main()` runs at module scope and every path ends in
 
 - [ ] **Step 7: Verify the CLI still produces the same bytes.**
 
+  Render the pre-refactor emitter and the refactored one against the **same**
+  `graph.json`, on the same machine, into a scratch directory. The committed
+  `.toon` is not a valid baseline: it may have been generated from an older
+  `graph.json`, or on a machine whose locale ordered v2's `localeCompare`
+  differently — either would show a diff this task did not cause.
+
   ```bash
-  cp graphify-out/graph.brainstorm.toon /tmp/before.toon
-  pnpm toon
-  diff -q /tmp/before.toon graphify-out/graph.brainstorm.toon && echo IDENTICAL
+  mkdir -p /tmp/toon-parity && cp graphify-out/graph.json /tmp/toon-parity/
+  git show HEAD:src/graphify/graph-to-toon.ts > /tmp/toon-parity/v2.ts
+  npx tsx /tmp/toon-parity/v2.ts /tmp/toon-parity/graph.json
+  mv /tmp/toon-parity/graph.brainstorm.toon /tmp/toon-parity/v2.brainstorm.toon
+  npx tsx src/graphify/graph-to-toon.ts /tmp/toon-parity/graph.json
+  diff -q /tmp/toon-parity/v2.brainstorm.toon /tmp/toon-parity/graph.brainstorm.toon && echo IDENTICAL
   ```
 
-  Expected output: `IDENTICAL`. This task is a refactor; any diff here means a behaviour change slipped in. Restore the file afterwards with `git checkout -- graphify-out/`.
+  Expected output: `IDENTICAL`. This task is a refactor; any diff means a behaviour change slipped in. Nothing under `graphify-out/` is touched.
 
 - [ ] **Step 8: Commit.**
 
@@ -195,7 +221,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
   ```ts
   it('emits a community block with local indices and a prefix-factored path table', () => {
     const text = renderBrainstormToon(buildContext(fixture()));
-    const block = text.split('\n\n').find((b) => b.startsWith('## c1 ')) ?? '';
+    const block = blockOf(text, 'c1');
 
     // Nodes sort by code-unit label: alpha(), beta, gamma.
     expect(block).toContain('n\n  0 alpha! @');
@@ -209,7 +235,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
 
   it('collapses edges to adjacency lists and drops derivable relations', () => {
     const text = renderBrainstormToon(buildContext(fixture()));
-    const block = text.split('\n\n').find((b) => b.startsWith('## c1 ')) ?? '';
+    const block = blockOf(text, 'c1');
 
     // imports: alpha(0)->beta(1), beta(1)->gamma(2); calls: alpha(0)->gamma(2).
     expect(block).toContain('\n  f 0>2');
@@ -221,7 +247,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
 
   it('names top hubs with fan-in/fan-out', () => {
     const text = renderBrainstormToon(buildContext(fixture()));
-    const block = text.split('\n\n').find((b) => b.startsWith('## c1 ')) ?? '';
+    const block = blockOf(text, 'c1');
     expect(block).toContain('sig hubs=');
     expect(block).toMatch(/sig hubs=alpha!\(0\/2\)/);
   });
@@ -234,13 +260,29 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
     expect(text).toMatch(/^## c1 \(3\) \S/m);
   });
 
+  it('breaks equal labels by node id, so indices cannot drift', () => {
+    // The real graph.json has 72 groups of same-labelled nodes inside one
+    // community. Sorted by label alone their order is whatever graphify emitted,
+    // so every edge row pointing at them shifts when that order changes.
+    const text = renderBrainstormToon(buildContext(fixture()));
+    const block = blockOf(text, 'c2');
+    expect(block).toContain('  2 dup @');
+    expect(block).toContain('  3 dup @');
+
+    const base = fixture();
+    const nodes = [...base.nodes];
+    const i = nodes.findIndex((n) => n.id === 'f');
+    const j = nodes.findIndex((n) => n.id === 'g');
+    [nodes[i], nodes[j]] = [nodes[j], nodes[i]];
+    expect(blockOf(renderBrainstormToon(buildContext({ ...base, nodes })), 'c2')).toBe(block);
+  });
+
   it('keeps indices community-local', () => {
     // Index 0 means a different node in each block — the reason `## cross` has
     // to carry labels instead of indices.
     const text = renderBrainstormToon(buildContext(fixture()));
-    const blocks = text.split('\n\n');
-    const c1 = blocks.find((b) => b.startsWith('## c1 ')) ?? '';
-    const c2 = blocks.find((b) => b.startsWith('## c2 ')) ?? '';
+    const c1 = blockOf(text, 'c1');
+    const c2 = blockOf(text, 'c2');
     expect(c1).toContain('  0 alpha! @');
     expect(c2).toContain('  0 Charlie @');
   });
@@ -251,9 +293,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
       links: [],
       nodes: [{ community: 9, id: 'x', label: 'solo', source_file: 'src/x.ts' }],
     };
-    const block = renderBrainstormToon(buildContext(tiny))
-      .split('\n\n')
-      .find((b) => b.startsWith('## c9 ')) ?? '';
+    const block = blockOf(renderBrainstormToon(buildContext(tiny)), 'c9');
     expect(block).not.toContain('sig hubs=');   // under SIG_MIN_NODES, no edges
     expect(block).toContain('p[1]');
     expect(block).not.toContain('prefix=');      // a single path factors nothing
@@ -267,7 +307,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: `Tests  6 failed | 1 passed (7)`, the failures reporting that the received block still carries the v2 `nodes:` / `edges:` shape.
+  Expected output: `Tests  7 failed | 1 passed (8)`, the failures reporting that the received block still carries the v2 `nodes:` / `edges:` shape.
 
 - [ ] **Step 3: Add the comparator, the relation tables and the line helpers.**
 
@@ -395,16 +435,27 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
   Part 2 is what retires it. Then add:
 
   ```ts
-  /** Push one community's v3 block onto `lines`. Indices are community-local and 0-based. */
+  /**
+   * Push one community's v3 block onto `lines` and return the number of edge rows
+   * it emitted. Indices are community-local and 0-based. The return value is what
+   * the header's edge count is built from: adjacency collapses parallel links
+   * between the same pair under one relation into a single entry, so counting the
+   * input links instead would print a total the file does not encode.
+   */
   function emitCommunity(
     lines: string[],
     commId: number,
     commNodes: readonly GraphNode[],
     commEdges: readonly GraphLink[],
     communityLabels: Record<string, string>,
-  ): void {
+  ): number {
     const label = communityLabels[String(commId)] ?? `Community ${commId}`;
-    const sortedNodes = [...commNodes].toSorted((a, b) => byCodeUnit(a.label, b.label));
+    // Label, then id. Labels are not unique inside a community, and a tie left
+    // to the input order makes every index in the block a function of how
+    // graphify happened to emit its nodes.
+    const sortedNodes = [...commNodes].toSorted(
+      (a, b) => byCodeUnit(a.label, b.label) || byCodeUnit(a.id, b.id),
+    );
     const localIdx = new Map<string, number>(sortedNodes.map((n, i) => [n.id, i]));
 
     const uniquePaths = [
@@ -438,7 +489,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
     }
 
     if (commEdges.length === 0) {
-      return;
+      return 0;
     }
 
     const byRel = new Map<string, Map<number, Set<number>>>();
@@ -454,13 +505,16 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
     }
 
     lines.push('e');
+    let emitted = 0;
     for (const r of [...byRel.keys()].toSorted(byCodeUnit)) {
       const bySrc = byRel.get(r)!;
       for (const s of [...bySrc.keys()].toSorted((a, b) => a - b)) {
-        const ts = [...bySrc.get(s)!].toSorted((a, b) => a - b).join(',');
-        lines.push(`  ${r} ${s}>${ts}`);
+        const targets = [...bySrc.get(s)!].toSorted((a, b) => a - b);
+        lines.push(`  ${r} ${s}>${targets.join(',')}`);
+        emitted += targets.length;
       }
     }
+    return emitted;
   }
   ```
 
@@ -484,7 +538,7 @@ Replaces the per-community body: `sig hubs=`, a prefix-factored path table, node
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: `Tests  7 passed (7)`.
+  Expected output: `Tests  8 passed (8)`.
 
 - [ ] **Step 8: Commit.**
 
@@ -558,7 +612,7 @@ The TOC is the feature: without it a reader has no way to fetch less than the wh
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: `Tests  2 failed | 7 passed (9)` — `expect(tocStart).toBeGreaterThan(0)` receives `-1`, and the header assertion receives the v2 first line.
+  Expected output: `Tests  2 failed | 8 passed (10)` — `expect(tocStart).toBeGreaterThan(0)` receives `-1`, and the header assertion receives the v2 first line.
 
 - [ ] **Step 3: Add the TOC entry type and `validateToc`.**
 
@@ -610,8 +664,7 @@ The TOC is the feature: without it a reader has no way to fetch less than the wh
       const startLine = body.length + 1;
       const commNodes = communityGroups.get(commId)!;
       const commEdges = (intra.get(commId) ?? []).filter((l) => !REL_OMIT.has(l.relation ?? ''));
-      totalEdges += commEdges.length;
-      emitCommunity(body, commId, commNodes, commEdges, communityLabels);
+      totalEdges += emitCommunity(body, commId, commNodes, commEdges, communityLabels);
       entries.push({ endLine: body.length, key: `c${commId}`, startLine });
       body.push('');
     }
@@ -656,7 +709,7 @@ The TOC is the feature: without it a reader has no way to fetch less than the wh
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: `Tests  9 passed (9)`.
+  Expected output: `Tests  10 passed (10)`.
 
 - [ ] **Step 6: Commit.**
 
@@ -738,7 +791,7 @@ Both blocks span communities, so local indices do not apply and both carry full 
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: `Tests  3 failed | 9 passed (12)` — `lines.indexOf('## cross')` returns `-1` because Task 3's renderer drops the block entirely.
+  Expected output: `Tests  3 failed | 10 passed (13)` — `lines.indexOf('## cross')` returns `-1` because Task 3's renderer drops the block entirely.
 
 - [ ] **Step 3: Add the two row builders.**
 
@@ -814,7 +867,7 @@ Both blocks span communities, so local indices do not apply and both carry full 
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: `Tests  12 passed (12)`.
+  Expected output: `Tests  13 passed (13)`.
 
 - [ ] **Step 6: Commit.**
 
@@ -864,7 +917,7 @@ The two properties the whole feature rests on: the same graph renders to the sam
     // under cs_CZ and before it under en_US. Code-unit ordering is uppercase-first
     // and locale-independent, so `Charlie` precedes `delta` either way.
     const text = renderBrainstormToon(buildContext(fixture()));
-    const block = text.split('\n\n').find((b) => b.startsWith('## c2 ')) ?? '';
+    const block = blockOf(text, 'c2');
     expect(block).toContain('  0 Charlie @');
     expect(block).toContain('  1 delta @');
     expect('Charlie'.localeCompare('delta', 'cs')).toBeGreaterThan(0);
@@ -885,7 +938,7 @@ The two properties the whole feature rests on: the same graph renders to the sam
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: `Tests  14 passed (14)`.
+  Expected output: `Tests  15 passed (15)`.
 
 - [ ] **Step 3: Run the whole suite and the type checker.**
 

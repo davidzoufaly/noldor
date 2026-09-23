@@ -28,7 +28,10 @@ The summary gains panther's `## features` block and the shared compact cross-edg
 
 - [ ] **Step 1: Write the failing tests.**
 
-  Append inside the existing `describe`, and extend the import at the top of the file to `import { buildContext, renderBrainstormSummary, renderBrainstormToon, type GraphData } from '../graph-to-toon.js';`:
+  Append inside the existing `describe`, and **add** `renderBrainstormSummary` to
+  the existing import at the top of the file — read the line first and keep every
+  name already on it rather than replacing it with a fixed list, since Part 1's
+  fix rounds may have added others.
 
   ```ts
   it('renders a v3 summary with the community index and shared cross rows', () => {
@@ -41,7 +44,22 @@ The summary gains panther's `## features` block and the shared compact cross-edg
     expect(text).toContain('## hyperedges');
     expect(text).toContain('  boot path (2 nodes, flow)');
   });
+
+  it('does not mistake a test folder for a feature', () => {
+    const graph: GraphData = {
+      directed: true,
+      links: [],
+      nodes: [{ community: 1, id: 'a', label: 'a', source_file: 'src/features/__tests__/a.test.ts' }],
+    };
+    // The only `/features/` match in noldor's own graph is this shape. A
+    // `## features` block naming it would be wrong, so there must be no block.
+    expect(renderBrainstormSummary(buildContext(graph))).not.toContain('## features');
+  });
   ```
+
+  Hyperedge order stays the graph's own order, which U5 pins deliberately: it is a
+  property of `graph.json`, so it is already reproducible, and re-sorting would
+  break the member↔summary correspondence the spec requires of both files.
 
 - [ ] **Step 2: Run the test and verify it FAILS.**
 
@@ -49,7 +67,7 @@ The summary gains panther's `## features` block and the shared compact cross-edg
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: `Tests  1 failed | 9 passed (10)`, the failure showing the v2 summary header `# Domain Knowledge Graph — Summary`.
+  Expected output: `Tests  2 failed | 15 passed (17)`, the first failure showing the v2 summary header `# Domain Knowledge Graph — Summary`.
 
 - [ ] **Step 3: Add feature extraction and pin the existing extractors' ordering.**
 
@@ -75,7 +93,18 @@ The summary gains panther's `## features` block and the shared compact cross-edg
     return [...counts.entries()].toSorted((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]));
   }
 
-  /** Feature folders, read from any `…/features/<name>/…` path segment. */
+  /**
+   * Feature folders, read from any `…/features/<name>/…` path segment.
+   *
+   * `__tests__` is excluded because it is a test location, not a feature. In
+   * noldor's own graph it is the *only* match — `src/features/__tests__/*` — so
+   * without the exclusion the block would read `__tests__: N nodes` and nothing
+   * else, which is worse than no block at all. With it, noldor emits no
+   * `## features` section and a consumer that really has feature folders still
+   * gets one.
+   */
+  const NOT_A_FEATURE: ReadonlySet<string> = new Set(['__tests__', '__mocks__', '__fixtures__']);
+
   function extractFeatures(nodes: readonly GraphNode[]): FeatureInfo[] {
     const counts = new Map<string, number>();
     const subfolders = new Map<string, Map<string, number>>();
@@ -85,12 +114,12 @@ The summary gains panther's `## features` block and the shared compact cross-edg
       if (!sf.includes('/features/')) continue;
       const parts = sf.split('/features/')[1].split('/');
       const name = parts[0];
-      if (name.includes('.')) continue;
+      if (name.includes('.') || NOT_A_FEATURE.has(name)) continue;
       counts.set(name, (counts.get(name) ?? 0) + 1);
       if (parts.length > 1 && !parts[1].includes('.')) {
-        if (!subfolders.has(name)) subfolders.set(name, new Map());
-        const subs = subfolders.get(name)!;
+        const subs = subfolders.get(name) ?? new Map<string, number>();
         subs.set(parts[1], (subs.get(parts[1]) ?? 0) + 1);
+        subfolders.set(name, subs);
       }
     }
 
@@ -222,7 +251,7 @@ The summary gains panther's `## features` block and the shared compact cross-edg
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: `Tests  10 passed (10)`.
+  Expected output: `Tests  17 passed (17)`.
 
 - [ ] **Step 6: Commit.**
 
@@ -290,7 +319,7 @@ Part 1 proved the brainstorm file is reproducible. The summary needs the same gu
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: `Tests  13 passed (13)`. It passes on the first run because Task 1 added the tie-breaks — so make it fail on purpose: drop the `|| byCodeUnit(a[0], b[0])` from `extractPackages` and re-run. Expected: the package ordering assertion goes red, reporting `beta` before `alpha`. Restore the tie-break.
+  Expected output: `Tests  18 passed (18)`. It passes on the first run because Task 1 added the tie-breaks — so make it fail on purpose: drop the `|| byCodeUnit(a[0], b[0])` from `extractPackages` and re-run. Expected: the package ordering assertion goes red, reporting `beta` before `alpha`. Restore the tie-break.
 
 - [ ] **Step 3: Run the whole suite.**
 

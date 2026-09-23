@@ -39,6 +39,20 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
     const rel = '.github/workflows/update-knowledge-graph.yml';
     const raw = (): string => readFileSync(join(TEMPLATES_ROOT, rel), 'utf8');
 
+    /**
+     * The workflow with comment lines stripped. Every `not.toContain` below is an
+     * assertion about what the file *does*, and the file explains each of those
+     * absences in a comment — grepping the raw text makes the explanation fail the
+     * test it explains, which is a trap the first draft of this plan walked into
+     * twice. Both YAML `#` comments and shell `#` comments inside `run:` blocks
+     * start their line, so one filter covers both.
+     */
+    const runnable = (): string =>
+      raw()
+        .split('\n')
+        .filter((l) => !/^\s*#/.test(l))
+        .join('\n');
+
     it('ships in the template manifest', () => {
       expect(templateFiles()).toContain(rel);
     });
@@ -56,13 +70,16 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
       // `on` is the YAML 1.1 boolean `true`, which is why this reads both keys.
       const wf = parseYaml(raw()) as Record<string, unknown>;
       const on = (wf.on ?? wf[true as unknown as string]) as {
-        pull_request: { types: string[]; branches: string[] };
+        pull_request: { types: string[]; branches?: string[] };
       };
       expect(on.pull_request.types).toEqual(['closed']);
-      expect(on.pull_request.branches).toEqual(['main']);
+      // No hardcoded branch name: `branches:` takes no expression, so the
+      // default-branch check lives in the job's `if` instead.
+      expect(on.pull_request.branches).toBeUndefined();
 
       const job = (wf.jobs as Record<string, { if: string; concurrency: unknown }>).refresh;
       expect(job.if).toContain('github.event.pull_request.merged == true');
+      expect(job.if).toContain('github.event.repository.default_branch');
       for (const prefix of ['feat', 'fix', 'refactor']) {
         expect(job.if).toContain(`'${prefix}'`);
       }
@@ -77,12 +94,30 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
     });
 
     it('never reaches the default branch except through a PR', () => {
-      const text = raw();
+      const text = runnable();
       expect(text).not.toContain('--no-verify');
       expect(text).not.toContain('LEFTHOOK=0');
-      expect(text).not.toMatch(/push\s+\S*\s*origin\s+HEAD:main/);
       expect(text).not.toContain('refs/heads/main');
+      expect(text).not.toMatch(/HEAD:main\b/);
       expect(text).toContain('gh pr create');
+    });
+
+    it('calls the framework CLI, not noldor-only package scripts', () => {
+      // Those scripts exist only in noldor's own package.json — a consumer would
+      // fail on a missing script.
+      const text = runnable();
+      expect(text).not.toMatch(/pnpm\s+toon\b/);
+      expect(text).not.toMatch(/pnpm\s+graphify:/);
+      expect(text).toContain('graphify graph-to-toon');
+    });
+
+    it('keeps no checkout credentials and stages only tracked graph outputs', () => {
+      const text = runnable();
+      expect(text).toContain('persist-credentials: false');
+      expect(text).not.toMatch(/git add --force graphify-out\/$/m);
+      expect(text).toContain('graphify-out/graph.brainstorm.toon');
+      // The no-session pre-commit wall is released the sanctioned way.
+      expect(text).toContain('NOLDOR_PATH_OVERRIDE');
     });
 
     it('pins graphify and titles its own PR with a prefix the filter skips', () => {
@@ -116,7 +151,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
   pnpm vitest run src/templates/__tests__/templates.test.ts
   ```
 
-  Expected output: nine failures, the first reporting that `templateFiles()` does not contain `.github/workflows/update-knowledge-graph.yml` and the rest an `ENOENT` reading it.
+  Expected output: seven failures, the first reporting that `templateFiles()` does not contain `.github/workflows/update-knowledge-graph.yml` and the rest an `ENOENT` reading it.
 
 - [ ] **Step 3: Write the workflow.**
 
@@ -126,10 +161,10 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
   # Regenerates the committed knowledge graph after a code-change merge and lands
   # it through a pull request.
   #
-  # It never pushes to the default branch. noldor's pre-push hook blocks
-  # refs/heads/main and honours no CI escape hatch, and `postinstall` installs
-  # lefthook, so a direct push would mean shipping --no-verify or LEFTHOOK=0 to
-  # every consumer — teaching them to bypass the gate the framework exists to
+  # It never pushes to the default branch. noldor's pre-push hook refuses a direct
+  # push to the default ref and honours no CI escape hatch, and `postinstall`
+  # installs lefthook, so pushing straight would mean shipping a hook-bypass flag
+  # to every consumer — teaching them to skip the gate the framework exists to
   # enforce. See docs/adr/0002-shipped-ci-templates-route-through-pr.md.
   #
   # Yours to edit after `noldor init` writes it: runner labels, the Python and
@@ -139,10 +174,13 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
   # so required checks on the graph PR need a PAT or an app token.
   name: update-knowledge-graph
 
+  # No `branches:` filter — it cannot take an expression, so hardcoding `main`
+  # would silently never fire in a consumer whose default branch is named
+  # anything else. The base-ref check moves into the job's `if`, where an
+  # expression is allowed.
   on:
     pull_request:
       types: [closed]
-      branches: [main]
 
   permissions:
     contents: write
@@ -162,6 +200,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
         cancel-in-progress: true
       if: >-
         github.event.pull_request.merged == true &&
+        github.event.pull_request.base.ref == github.event.repository.default_branch &&
         (startsWith(github.event.pull_request.title, 'feat') ||
         startsWith(github.event.pull_request.title, 'fix') ||
         startsWith(github.event.pull_request.title, 'refactor'))
@@ -176,6 +215,12 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
             # filter is self-healing.
             ref: ${{ github.event.pull_request.merge_commit_sha }}
             fetch-depth: 0
+            # The steps below run code from the merged tree — `pnpm install`
+            # lifecycle scripts included. Leaving the job's write token in
+            # .git/config for that code to read is an exfiltration path, so the
+            # checkout keeps no credentials and the push step is handed one
+            # explicitly instead.
+            persist-credentials: false
 
         - uses: actions/setup-python@v5
           with:
@@ -202,8 +247,20 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
             # the staleness this workflow exists to remove. The verify step below
             # is what catches a genuinely broken extraction.
             graphify update . --force
-            pnpm graphify:enrich-docs
-            pnpm toon
+
+            # Reach the framework through its own CLI, never through a
+            # package.json script: `pnpm toon` and `pnpm graphify:enrich-docs`
+            # exist only in noldor's own package.json, so a consumer would fail
+            # here on a missing script. A consumer gets the bin linked under
+            # node_modules/.bin; noldor itself does not link its own bin, so it
+            # falls back to the checked-out entry point.
+            if [ -x node_modules/.bin/noldor ]; then
+              NOLDOR="node_modules/.bin/noldor"
+            else
+              NOLDOR="node bin/noldor.mjs"
+            fi
+            $NOLDOR graphify enrich-docs graphify-out/graph.json
+            $NOLDOR graphify graph-to-toon graphify-out/graph.json
 
         - name: Verify the outputs
           run: |
@@ -222,6 +279,14 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
           env:
             GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             PR_NUMBER: ${{ github.event.pull_request.number }}
+            DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+            # The runner has no .noldor/session.json — it never ran the gate — and
+            # `postinstall` installed lefthook, so the pre-commit hook would refuse
+            # this commit outright. NOLDOR_PATH_OVERRIDE is the framework's own
+            # release for exactly that wall (src/hooks/noldor-pre-commit.ts), the
+            # env twin of the Noldor-Path-Override trailer below. Hooks still run;
+            # nothing here disables them.
+            NOLDOR_PATH_OVERRIDE: ci-graph-refresh
           run: |
             set -euo pipefail
             git config user.name "noldor-graph-bot"
@@ -230,7 +295,16 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
             # One fixed branch, force-updated in place, so an unmerged queue is
             # bounded at one PR rather than growing per merge.
             git checkout -B "$GRAPH_BRANCH"
-            git add --force graphify-out/
+            # Named files, not the directory: `graphify update` also writes
+            # graph.html, cost.json, cache/ and .graphify_python, every one of them
+            # gitignored and machine-local, and `--force` would carry them onto the
+            # default branch. These five are what the repo actually tracks.
+            git add --force \
+              graphify-out/graph.json \
+              graphify-out/graph.brainstorm.toon \
+              graphify-out/graph.brainstorm-summary.toon \
+              graphify-out/GRAPH_REPORT.md \
+              graphify-out/manifest.json
             if git diff --cached --quiet; then
               echo "graph unchanged — nothing to open"
               exit 0
@@ -251,7 +325,11 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
             } > ../graph-commit-msg.txt
             git commit -F ../graph-commit-msg.txt
 
-            git push --force origin "HEAD:$GRAPH_BRANCH"
+            # The checkout kept no credentials, so the remote is named with the
+            # token here rather than left configured for every step in between.
+            git push --force \
+              "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+              "HEAD:$GRAPH_BRANCH"
 
             # Create-or-reuse, not create: `gh pr create` fails outright when one is
             # already open, and a previously auto-merged PR leaves none. Both happen.
@@ -259,7 +337,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
             if [ -z "$OPEN" ]; then
               gh pr create \
                 --head "$GRAPH_BRANCH" \
-                --base main \
+                --base "$DEFAULT_BRANCH" \
                 --title "chore(graph): refresh the committed knowledge graph" \
                 --body "Regenerated after #${PR_NUMBER}. Merges itself where auto-merge is enabled; where it is not, this PR is waiting for you — it is not review work."
             fi
@@ -289,7 +367,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
   pnpm vitest run src/templates/__tests__/templates.test.ts
   ```
 
-  Expected output: `Tests  N passed (N)` with no failures, N being the file's previous count plus 9.
+  Expected output: `Tests  N passed (N)` with no failures, N being the file's previous count plus 12.
 
 - [ ] **Step 6: Commit.**
 
@@ -310,7 +388,7 @@ This is the first `.github` file noldor has ever shipped — a deliberate postur
   Concurrency is declared on the job so a skipped docs merge cannot cancel a
   qualifying run, and the graph PR's own chore(graph) title is one the filter skips.
 
-  What — One new template file, one SCAFFOLD_ONLY_TEMPLATES entry, and nine tests
+  What — One new template file, one SCAFFOLD_ONLY_TEMPLATES entry, and twelve tests
   covering the trigger, the permissions, the absence of every bypass, and the pin.
 
   Noldor-FD: self-refreshing-compact-knowledge-graph
