@@ -15,11 +15,13 @@
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { isEntrypoint } from '../core/cli-entry.js';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface GraphNode {
+export interface GraphNode {
   readonly id: string;
   readonly label: string;
   readonly community?: number;
@@ -27,14 +29,14 @@ interface GraphNode {
   readonly file_type?: string;
 }
 
-interface GraphLink {
+export interface GraphLink {
   readonly source: string;
   readonly target: string;
   readonly relation?: string;
   readonly confidence?: string;
 }
 
-interface Hyperedge {
+export interface Hyperedge {
   readonly id?: string;
   readonly label: string;
   readonly nodes?: readonly string[];
@@ -47,7 +49,7 @@ function hyperedgeMembers(he: Hyperedge): readonly string[] {
   return he.nodes ?? he.members ?? [];
 }
 
-interface GraphData {
+export interface GraphData {
   readonly nodes: GraphNode[];
   readonly links: GraphLink[];
   readonly directed?: boolean;
@@ -56,7 +58,7 @@ interface GraphData {
   readonly graph?: { readonly hyperedges?: Hyperedge[] };
 }
 
-interface GraphContext {
+export interface GraphContext {
   readonly nodes: GraphNode[];
   readonly links: GraphLink[];
   readonly communityLabels: Record<string, string>;
@@ -223,7 +225,7 @@ function formatCrossEdgeLine(
 // Brainstorm TOON (full)
 // ---------------------------------------------------------------------------
 
-function writeBrainstormToon(path: string, ctx: GraphContext): void {
+export function renderBrainstormToon(ctx: GraphContext): string {
   const { nodes, links, communityLabels, idToLabel, directed, hyperedges } = ctx;
   const communityGroups = groupByCommunity(nodes);
   const nodeCommunityMap = buildNodeCommunityMap(nodes);
@@ -282,7 +284,7 @@ function writeBrainstormToon(path: string, ctx: GraphContext): void {
   }
 
   lines.push('');
-  writeAndLog(path, lines.join('\n'));
+  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -331,7 +333,7 @@ function extractConceptsAndRationales(nodes: GraphNode[]): {
   return { concepts, rationales };
 }
 
-function writeBrainstormSummary(path: string, ctx: GraphContext): void {
+export function renderBrainstormSummary(ctx: GraphContext): string {
   const { nodes, links, communityLabels, idToLabel, directed, hyperedges } = ctx;
   const nCommunities = new Set(nodes.map((n) => n.community)).size;
   const communityGroups = groupByCommunity(nodes);
@@ -404,49 +406,46 @@ function writeBrainstormSummary(path: string, ctx: GraphContext): void {
   }
 
   lines.push('');
-  writeAndLog(path, lines.join('\n'));
+  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
+/** Build the shared render context from a parsed graph.json — the only place
+ *  the `community_labels` fallback and the two hyperedge locations are resolved. */
+export function buildContext(data: GraphData): GraphContext {
+  const { nodes, links, directed = false } = data;
+  return {
+    communityLabels: data.community_labels ?? deriveCommunityLabels(groupByCommunity(nodes)),
+    directed,
+    hyperedges: data.hyperedges ?? data.graph?.hyperedges ?? [],
+    idToLabel: buildIdToLabel(nodes),
+    links,
+    nodes,
+  };
+}
+
 function main(): void {
   const args = process.argv.slice(2);
   if (args.length === 0) {
-    console.error(`Usage: npx tsx ${process.argv[1]} <graph.json> [graph.json ...]`);
+    console.error(`Usage: noldor graphify graph-to-toon <graph.json> [graph.json ...]`);
     process.exit(1);
   }
 
   for (const inputPath of args) {
     const data: GraphData = JSON.parse(readFileSync(inputPath, 'utf8'));
-    const { nodes, links, directed = false } = data;
-    const nCommunities = new Set(nodes.map((n) => n.community)).size;
-
+    const nCommunities = new Set(data.nodes.map((n) => n.community)).size;
     console.log(
-      `Loaded ${inputPath}: ${nodes.length} nodes, ${links.length} links, ${nCommunities} communities`,
+      `Loaded ${inputPath}: ${data.nodes.length} nodes, ${data.links.length} links, ${nCommunities} communities`,
     );
 
-    // Derive community labels from node paths (graphify OOTB doesn't embed them)
-    const communityGroups = groupByCommunity(nodes);
-    const communityLabels = data.community_labels ?? deriveCommunityLabels(communityGroups);
-
-    // Collect hyperedges — prefer root, fall back to graph.hyperedges
-    const hyperedges: Hyperedge[] = data.hyperedges ?? data.graph?.hyperedges ?? [];
-
-    const ctx: GraphContext = {
-      communityLabels,
-      directed,
-      hyperedges,
-      idToLabel: buildIdToLabel(nodes),
-      links,
-      nodes,
-    };
-
+    const ctx = buildContext(data);
     const dir = dirname(inputPath);
-    writeBrainstormToon(join(dir, 'graph.brainstorm.toon'), ctx);
-    writeBrainstormSummary(join(dir, 'graph.brainstorm-summary.toon'), ctx);
+    writeAndLog(join(dir, 'graph.brainstorm.toon'), renderBrainstormToon(ctx));
+    writeAndLog(join(dir, 'graph.brainstorm-summary.toon'), renderBrainstormSummary(ctx));
   }
 }
 
-main();
+if (isEntrypoint(import.meta.url)) main();

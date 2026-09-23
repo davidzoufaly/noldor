@@ -26,7 +26,7 @@
 
 Behaviour-preserving. Today `main()` runs at module scope and every path ends in `writeFileSync`, so nothing can be asserted without touching disk. This task changes that and nothing else — the output bytes stay v2.
 
-- [ ] **Step 1: Write the failing test file.**
+- [x] **Step 1: Write the failing test file.**
 
   Create `src/graphify/__tests__/graph-to-toon.test.ts`:
 
@@ -86,19 +86,19 @@ Behaviour-preserving. Today `main()` runs at module scope and every path ends in
   });
   ```
 
-- [ ] **Step 2: Run the test and verify it FAILS.**
+- [x] **Step 2: Run the test and verify it FAILS.**
 
   ```bash
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
   ```
 
-  Expected output: a failure naming the missing exports, e.g. `No "renderBrainstormToon" export is defined on the "../graph-to-toon.js" mock` or `SyntaxError: The requested module '../graph-to-toon.js' does not provide an export named 'buildContext'`.
+  Expected output: `Test Files  1 failed (1)` and `Tests  no tests`, over `Error: process.exit unexpectedly called with "1"`. Not a missing-export error: `main()` still runs at module scope, so importing the module from a test runs it with no `graph.json` argument and it exits before the missing exports are ever reached. Step 5 is what turns that into a normal import.
 
-- [ ] **Step 3: Export the types.**
+- [x] **Step 3: Export the types.**
 
   In `src/graphify/graph-to-toon.ts`, change each of `interface GraphNode`, `interface GraphLink`, `interface Hyperedge`, `interface GraphData` and `interface GraphContext` to `export interface …`. Leave every field as it is.
 
-- [ ] **Step 4: Add `buildContext` and turn the two writers into renderers.**
+- [x] **Step 4: Add `buildContext` and turn the two writers into renderers.**
 
   Replace the body of `writeBrainstormToon` and `writeBrainstormSummary` so each builds `lines` exactly as before but ends with `return lines.join('\n');` instead of `writeAndLog(path, lines.join('\n'))`, rename them to `renderBrainstormToon` / `renderBrainstormSummary`, export both, and drop the `path` parameter. Then add, above `main()`:
 
@@ -118,7 +118,7 @@ Behaviour-preserving. Today `main()` runs at module scope and every path ends in
   }
   ```
 
-- [ ] **Step 5: Make `main()` the only code that touches disk, and stop it running on import.**
+- [x] **Step 5: Make `main()` the only code that touches disk, and stop it running on import.**
 
   Replace `main()` and the bare `main();` call at the bottom of the file with:
 
@@ -149,7 +149,7 @@ Behaviour-preserving. Today `main()` runs at module scope and every path ends in
 
   Add `import { isEntrypoint } from '../core/cli-entry.js';` to the imports at the top of the file. This is the repo's canonical guard — 44 modules use it, and the Q-0126 sweep moved them off hand-rolled stem regexes precisely because a stem match fires for any file with the same basename. The guard is what lets the test import the module: without it `main()` runs at import time, reads `process.argv[2]` (a vitest path), and exits 1.
 
-- [ ] **Step 6: Run the test and verify it PASSES.**
+- [x] **Step 6: Run the test and verify it PASSES.**
 
   ```bash
   pnpm vitest run src/graphify/__tests__/graph-to-toon.test.ts
@@ -157,7 +157,7 @@ Behaviour-preserving. Today `main()` runs at module scope and every path ends in
 
   Expected output: `Test Files  1 passed (1)` and `Tests  1 passed (1)`.
 
-- [ ] **Step 7: Verify the CLI still produces the same bytes.**
+- [x] **Step 7: Verify the CLI still produces the same bytes.**
 
   Render the pre-refactor emitter and the refactored one against the **same**
   `graph.json`, on the same machine, into a scratch directory. The committed
@@ -176,7 +176,7 @@ Behaviour-preserving. Today `main()` runs at module scope and every path ends in
 
   Expected output: `IDENTICAL`. This task is a refactor; any diff means a behaviour change slipped in. Nothing under `graphify-out/` is touched.
 
-- [ ] **Step 8: Commit.**
+- [x] **Step 8: Commit.**
 
   ```bash
   cat > /tmp/msg-task1.txt <<'EOF'
