@@ -1,4 +1,4 @@
-// @tests: make-noldor-agent-agnostic, portable-gate-entrypoint-for-non-claude-runners
+// @tests: make-noldor-agent-agnostic, portable-gate-entrypoint-for-non-claude-runners, cr-lane-verdicts-blocked-by-serialization-not-substance
 import { describe, expect, it } from 'vitest';
 import { CAPABILITIES } from '../capabilities.js';
 import { CLAUDE_BIN, buildClaudeArgv } from '../runners/claude.js';
@@ -23,6 +23,13 @@ describe('capability matrix', () => {
     // work against today's prompt shapes — keeping stub on the claude shape
     // leaves those fixtures byte-identical (spec D5).
     expect(CAPABILITIES.stub.promptDispatch).toBe('slash-command');
+  });
+
+  it('declares which side writes a CR lane answer file (Q-0250)', () => {
+    expect(CAPABILITIES.claude.answerFile).toBe('agent-writes');
+    expect(CAPABILITIES.opencode.answerFile).toBe('agent-writes');
+    expect(CAPABILITIES.stub.answerFile).toBe('agent-writes');
+    expect(CAPABILITIES.codex.answerFile).toBe('cli-writes');
   });
 });
 
@@ -62,6 +69,17 @@ describe('codex argv (extracted from run-codex.ts)', () => {
       '--sandbox',
       'workspace-write',
       '--skip-git-repo-check',
+      '-',
+    ]);
+  });
+  it('writes its final message to lastMessagePath and stays read-only', () => {
+    expect(buildCodexArgv({ lastMessagePath: '/a.json' })).toEqual([
+      'exec',
+      '--sandbox',
+      'read-only',
+      '--skip-git-repo-check',
+      '--output-last-message',
+      '/a.json',
       '-',
     ]);
   });

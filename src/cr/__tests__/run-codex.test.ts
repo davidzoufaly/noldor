@@ -1,9 +1,10 @@
-// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor, cr-lane-verdicts-blocked-by-serialization-not-substance
 import { describe, expect, it, vi } from 'vitest';
 import { runCodex, type Spawn } from '../run-codex.js';
-import { reviewWithCodex } from '../review-with-codex.js';
+import { reviewWithCodex, toFindings } from '../review-with-codex.js';
 import { REV_RE } from '../cli-args.js';
 import { CUT_MARKER_TOKEN } from '../../core/structural-context-contract.js';
+import { BLOCKING_DEFINITION } from '../blocking-definition.js';
 
 const ctx = { diff: 'D', featureMd: 'F', rules: 'R' };
 
@@ -207,6 +208,18 @@ describe('cut-marker contract in the codex prompt (Q-0170)', () => {
     expect(stdin()).toContain(CUT_MARKER_TOKEN);
   });
 
+  it('renders the shared blocking definition on code and spec reviews (Q-0250)', async () => {
+    const code = capturingSpawn();
+    await runCodex({ ctx, spawn: code.spawn });
+    expect(code.stdin()).toContain(BLOCKING_DEFINITION);
+    const spec = capturingSpawn();
+    await runCodex({
+      ctx: { artifact: 'A', kind: 'spec', featureMd: 'F', rules: 'R' },
+      spawn: spec.spawn,
+    });
+    expect(spec.stdin()).toContain(BLOCKING_DEFINITION);
+  });
+
   it('never lets a marker waive a defect, a race or an accessibility regression', async () => {
     const { spawn, stdin } = capturingSpawn();
     await runCodex({ ctx, spawn });
@@ -240,5 +253,38 @@ describe('base-sha argv-injection guard', () => {
   it('accepts an ordinary sha', () => {
     expect(REV_RE.test('0f2549ac331daa43a0291a4cb18ecbc8b16238c4')).toBe(true);
     expect(REV_RE.test('origin/main')).toBe(true);
+  });
+});
+
+describe('toFindings never-blocks demotion (Q-0250)', () => {
+  it('moves a codex blocker marked maybe: or unverified: to the suggestions', () => {
+    const record = {
+      summary: 's',
+      blockers: [
+        {
+          file: 'a.ts',
+          line: 1,
+          severity: 'high' as const,
+          message: 'real defect',
+          suggestion: null,
+        },
+        {
+          file: 'a.ts',
+          line: 2,
+          severity: 'high' as const,
+          message: 'maybe: a race',
+          suggestion: null,
+        },
+        {
+          file: 'a.ts',
+          line: 3,
+          severity: null,
+          message: 'Unverified: typecheck may fail',
+          suggestion: null,
+        },
+      ],
+      suggestions: [],
+    };
+    expect(toFindings(record, 'x').map((f) => f.severity)).toEqual(['high', 'med', 'med']);
   });
 });

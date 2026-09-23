@@ -28,6 +28,12 @@ export interface RunnerCapabilities {
   /** How framework entry prompts are dispatched: 'slash-command' expands a
    *  vendored skill/command; 'prose' must be self-contained instructions. */
   promptDispatch: 'slash-command' | 'prose';
+  /**
+   * Who writes a CR lane's answer file (Q-0250). `agent-writes`: the child writes it with its
+   * own tools. `cli-writes`: the CLI writes the child's final message there itself (codex
+   * `--output-last-message`), so a read-only sandbox never needs write access.
+   */
+  answerFile: 'agent-writes' | 'cli-writes';
 }
 
 export const roleConfigSchema = z
@@ -58,6 +64,8 @@ export interface SpawnAgentOpts {
   role: AgentRole;
   /** Pin a runner, bypassing role resolution (e.g. the codex CR lane is codex by name). */
   runner?: RunnerName;
+  /** Model for a pinned {@link SpawnAgentOpts.runner}; ignored without a pin, where role resolution supplies it. */
+  model?: string;
   cwd?: string;
   env?: Record<string, string>;
   timeoutMs?: number;
@@ -96,6 +104,8 @@ export interface SpawnAgentOpts {
   foreground?: boolean;
   /** Requires a schema-grade runner (codex); enforced at resolve time. */
   schemaPath?: string;
+  /** Requires a `cli-writes` runner (codex): its CLI writes the child's final message to this path. */
+  lastMessagePath?: string;
   /** Drives codex sandbox mode (workspace-write vs read-only). */
   needsWrite?: boolean;
   /** Caller tag for agent-events, e.g. 'drain.spawnGate'. */

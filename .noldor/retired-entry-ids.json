@@ -441,5 +441,9 @@
   "Q-0240": {
     "slug": "mtime-graph-freshness-is-poisoned-by-test-artifacts",
     "retiredAt": "2026-09-22"
+  },
+  "Q-0250": {
+    "slug": "cr-lane-verdicts-blocked-by-serialization-not-substance",
+    "retiredAt": "2026-09-22"
   }
 }

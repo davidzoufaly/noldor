@@ -21,6 +21,35 @@ export function laneSinkPath(
 }
 
 /**
+ * Where one dispatch's answer file goes: `<root>/.noldor/cr/answers/<slug>-<kind>-<lane>-<dispatchId>.json`.
+ *
+ * A subdirectory, never `.noldor/cr/` itself: `aggregate` reads every top-level `.json` there
+ * as a sink. The per-dispatch id means the file cannot exist before the child writes it, so a
+ * dispatch never reads an earlier round's answer or a concurrent dispatch's (Q-0250).
+ */
+export function laneAnswerPath(
+  root: string,
+  slug: Slug,
+  kind: ArtifactKind,
+  lane: string,
+  dispatchId: string,
+): { ok: true; path: string } | { ok: false; error: PathError } {
+  return slugPath(root, ['.noldor', 'cr', 'answers'], slug, {
+    suffix: `-${kind}-${lane}-${dispatchId}.json`,
+  });
+}
+
+/** The latest raw answer kept per lane for debugging: `answers/<slug>-<kind>-<lane>.json`. */
+export function laneAnswerDebugPath(
+  root: string,
+  slug: Slug,
+  kind: ArtifactKind,
+  lane: string,
+): { ok: true; path: string } | { ok: false; error: PathError } {
+  return slugPath(root, ['.noldor', 'cr', 'answers'], slug, { suffix: `-${kind}-${lane}.json` });
+}
+
+/**
  * Open a lane run: where its sink goes and when it started.
  *
  * Every lane began with these same two statements, which is both duplication and an easy

@@ -1,6 +1,7 @@
 import { CODEX_BIN } from '../core/agent-runner/runners/codex.js';
 import { CUT_MARKER_GUIDE } from '../core/structural-context-contract.js';
 import { describeCodexFailure, probeCodexVersion } from './codex-failure.js';
+import { BLOCKING_DEFINITION } from './blocking-definition.js';
 import { extractJsonObject } from './extract-json.js';
 import { CrRecordSchema, type CrRecord } from './sidecar.js';
 
@@ -103,6 +104,9 @@ const JSON_ONLY_DIRECTIVE =
  * carrying a ladder dimension. A conditional gate needs a condition to read, and
  * codex has neither a review profile nor a dimension list.
  */
+/** How codex sorts its findings: into `blockers` only under the shared definition (Q-0250). */
+const CODEX_BLOCKING = `Put a finding in \`blockers\` only when it blocks under this definition; every other finding goes in \`suggestions\`.\n\n${BLOCKING_DEFINITION}`;
+
 function formatPrompt(ctx: ReviewCtx): string {
   const body = 'artifact' in ctx ? formatArtifactPrompt(ctx) : formatCodePrompt(ctx);
   return `${body}\n${CUT_MARKER_GUIDE}`;
@@ -111,6 +115,8 @@ function formatPrompt(ctx: ReviewCtx): string {
 function formatCodePrompt(ctx: CodeReviewCtx): string {
   return [
     JSON_ONLY_DIRECTIVE,
+    '',
+    CODEX_BLOCKING,
     '',
     '## Engineering rules',
     ctx.rules,
@@ -135,7 +141,9 @@ function formatArtifactPrompt(ctx: ArtifactReviewCtx): string {
     '- inconsistent or ambiguous function/type signatures',
     '- placeholder / TODO / unfilled content that must be resolved before implementation',
     '- internal contradictions or unstated assumptions',
-    `Report gaps that must be fixed before the ${noun} is implementable as blockers; softer improvements as suggestions. For document-level findings with no specific line, set "line": null.`,
+    `A finding about the ${noun} blocks only when implementing it as written would ship one of the defects below. For document-level findings with no specific line, set "line": null.`,
+    '',
+    CODEX_BLOCKING,
     '',
     '## Engineering rules',
     ctx.rules,

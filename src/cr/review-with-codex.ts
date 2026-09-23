@@ -6,6 +6,7 @@ import type { Spawn } from './codex-adapter.js';
 import { buildContext } from './context.js';
 import { runCodex, type ReviewCtx } from './run-codex.js';
 import type { CrRecord } from './sidecar.js';
+import { isNeverBlockingMessage } from './blocking-definition.js';
 
 export interface OutFinding {
   file: string;
@@ -111,7 +112,9 @@ export function toFindings(record: CrRecord, fallbackFile: string): OutFinding[]
     return o;
   };
   return [
-    ...record.blockers.map((b) => map(b, 'high')),
+    // A codex blocker marked `maybe:` or `unverified:` never blocks (Q-0250): demote it to a
+    // suggestion rather than trusting the prompt alone to keep it out of `blockers`.
+    ...record.blockers.map((b) => map(b, isNeverBlockingMessage(b.message) ? 'med' : 'high')),
     ...record.suggestions.map((s) => map(s, s.severity == null ? 'low' : 'med')),
   ];
 }

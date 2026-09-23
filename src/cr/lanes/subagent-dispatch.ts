@@ -1,5 +1,9 @@
-import { spawnAgent } from '../../core/agent-runner/registry.js';
-import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../core/config.js';
+import { z } from 'zod';
+import { BLOCKING_DEFINITION } from '../blocking-definition.js';
+import { FINDING_CLASSES } from '../finding-class.js';
+import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
+import { createAnswerSeam } from '../lane-spawn.js';
+import { repairEvidence } from './prompt-parts.js';
 import { DEFAULT_REVIEW_PROFILES } from '../../core/review-profile.js';
 import type { ReviewDimension, ReviewEffort, ReviewProfile } from '../../core/review-profile.js';
 import type { PriorReview } from '../lane-types.js';
@@ -126,16 +130,14 @@ function renderPriorReview(prior: PriorReview): string {
 }
 
 /**
- * Default impl: spawns a headless reviewer-role agent via the agent-runner
- * registry (claude unless the consumer's agents config remaps the role).
- * Works from any agent harness (gate skill, bare CLI, CI runner). The skill
- * layer may inject a Task-tool-based dispatcher via `setDispatcher()` for
- * finer control, but the default is self-sufficient.
+ * The reviewer child is spawned by the answer seam below through the agent-runner registry
+ * (claude unless the consumer's agents config remaps the role), so it works from any agent
+ * harness (gate skill, bare CLI, CI runner).
  *
- * The prompt instructs the agent to act as a senior code reviewer against
- * the artifact path; output must match the Strengths/Issues/Assessment
- * markdown contract parsed by `parseSubagentMarkdown` in `subagent.ts` —
- * prose-grade output, so every runner qualifies.
+ * The prompt instructs the agent to act as a senior code reviewer against the artifact path.
+ * Its answer is one JSON object in the lane's answer file ({@link REVIEWER_ANSWER}), with a
+ * per-finding `blocking` flag under {@link BLOCKING_DEFINITION}. Every runner qualifies:
+ * agent-writes runners write the file, codex's CLI writes its final message there.
  */
 export function buildPrompt(input: DispatchInput): string {
   const profile = input.reviewProfile ?? DEFAULT_REVIEW_PROFILES.default;
@@ -164,57 +166,72 @@ ${dimensionLines}
 ${cutMarkerGuide}
 Effort: ${profile.effort}. ${EFFORT_GUIDE[profile.effort]}
 
-Verify-before-flag protocol: before flagging a Critical issue that claims a command, validator, or test will fail (e.g. \`pnpm validate:features\`, \`pnpm typecheck\`, \`pnpm test\`), run that exact command first and quote its actual error output in the bullet. If the command passes, or you cannot run it, do not flag the claim as Critical — file it under Important prefixed with \`unverified:\` instead.
+Verify-before-flag protocol: before flagging a critical finding that claims a command, validator, or test will fail (e.g. \`pnpm validate:features\`, \`pnpm typecheck\`, \`pnpm test\`), run that exact command first and quote its actual error output in the message. If the command passes, or you cannot run it, prefix the message \`unverified:\` — an unverified finding never blocks.
 
-Classify every Critical and Important bullet by prefixing it with exactly one tag:
-- \`[mechanical]\` — the fix is determined by the finding itself: a missing required section, an unanswered open question, a lint-class defect, a stated contract not met. Someone applying your bullet needs no judgment call beyond what you wrote.
-- \`[design]\` — the fix requires a judgment call you are NOT making for them: disagreement about an approach, a default, a trade-off, or anything where two reasonable fixes exist and picking between them is the author's call.
+${BLOCKING_DEFINITION}
 
-Tag by what the FIX needs, not by how severe the finding is. When in doubt, tag \`[design]\` — an untagged or design-tagged blocker is routed to a human, which is always safe. Minor bullets need no tag.
+Classify every blocking finding with "class":
+- "mechanical" — the fix is determined by the finding itself: a missing required section, an unanswered open question, a lint-class defect, a stated contract not met. Someone applying your finding needs no judgment call beyond what you wrote.
+- "design" — the fix requires a judgment call you are NOT making for them: disagreement about an approach, a default, a trade-off, or anything where two reasonable fixes exist and picking between them is the author's call.
 
-In every Critical and Important bullet, name the file and line the finding is about, as \`path/to/file.ts:123\` (or \`path/to/file.ts:123-130\` for a range). Repo-relative paths are preferred; a bare filename is accepted when it is unambiguous. Write it inline in the sentence — there is no separate field, and the surrounding prose is unchanged. Omit it only when the finding genuinely has no single location.
+Classify by what the FIX needs, not by how severe the finding is. When in doubt, use "design" — a design-classed blocker is routed to a human, which is always safe.
 
-Emit your review in this exact format, no preamble:
+In every critical and important finding, name the file and line the finding is about, as \`path/to/file.ts:123\` (or \`path/to/file.ts:123-130\` for a range), inline in the message. Repo-relative paths are preferred; a bare filename is accepted when it is unambiguous. Omit it only when the finding genuinely has no single location.
 
-Strengths: <one-line summary of what is well-done>
-
-Issues:
-  Critical:
-    - [mechanical|design] <bullet>
-  Important:
-    - [mechanical|design] <bullet>
-  Minor:
-    - <bullet>
-
-Assessment: <one-line verdict: approve | blockers found | needs changes>
-
-Leave a bucket's bullet list empty (no bullets) when there are no items at that severity.`;
+Your answer has one field per part of the review:
+- "assessment": your one-line verdict. Approve only when no finding blocks.
+- "strengths": one line on what is well done.
+- "findings": one entry per issue, each with "severity" ("critical" | "important" | "minor"), "blocking" (true | false, per the definition above — a "minor" finding never blocks), "class" (on blocking findings) and "message". With nothing to report, "findings" is [] — never write a placeholder finding such as "(none)".`;
 }
 
-type Dispatcher = (input: DispatchInput) => Promise<string>;
+/** One reviewer finding. `blocking` is the reviewer's own call under BLOCKING_DEFINITION. */
+export const reviewerFindingSchema = z.object({
+  severity: z.enum(['critical', 'important', 'minor']),
+  blocking: z.boolean(),
+  class: z.enum(FINDING_CLASSES).nullish(),
+  message: z.string().min(1),
+});
+export type ReviewerFinding = z.infer<typeof reviewerFindingSchema>;
 
-let dispatcher: Dispatcher = async (input) => {
-  const r = await spawnAgent(buildPrompt(input), {
-    role: 'reviewer',
-    timeoutMs: input.timeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS,
-    site: 'cr.subagent-dispatch',
-  });
-  if (r.timedOut || r.exitCode !== 0) {
-    throw new Error(
-      `subagent dispatch failed: exit ${r.exitCode}${r.timedOut ? ' (timeout)' : ''}`,
-    );
-  }
-  return r.stdout;
-};
+export const reviewerAnswerSchema = z.object({
+  assessment: z.string().min(1),
+  strengths: z.string().default(''),
+  findings: z.array(reviewerFindingSchema).default([]),
+});
+export type ReviewerAnswer = z.infer<typeof reviewerAnswerSchema>;
+
+const REVIEWER_SHAPE =
+  '{"assessment": "...", "strengths": "...", "findings": [{"severity": "critical" | "important" | "minor", "blocking": true | false, "class": "mechanical" | "design", "message": "... path/to/file.ts:123 ..."}]}';
 
 /**
- * Skill-layer injection point. Gate skill calls this once at Step 2.5 entry
- * to swap in a Task-tool-based dispatcher. Tests use this to inject mocks.
+ * The repair round's prompt: restate the review as a valid answer. It reviews nothing,
+ * reads no file, drops no finding, and never softens a blocking one.
  */
-export function setDispatcher(impl: Dispatcher): void {
-  dispatcher = impl;
+export function buildReviewerRepairPrompt(ctx: RepairContext): string {
+  return `A previous Senior Code Reviewer finished its review, but its answer was rejected: ${ctx.error}. Your ONLY job is to restate that review as a valid answer — do not review anything yourself, do not read any file.
+
+${repairEvidence(ctx)}
+
+Transcription rules:
+1. Carry over every finding the review states, with its severity, whether it blocks, its class and its message. Invent no finding and drop none.
+2. Never turn a finding the review marked blocking into a non-blocking one, and never write an approving assessment the review did not give.
+3. If nothing above states a review at all, write no answer.`;
 }
 
-export function dispatchSubagent(input: DispatchInput): Promise<string> {
-  return dispatcher(input);
-}
+/** What the reviewer child hands back, and how the seam reads it. */
+export const REVIEWER_ANSWER: LaneAnswerContract<ReviewerAnswer> = {
+  lane: 'reviewer',
+  shape: REVIEWER_SHAPE,
+  schema: reviewerAnswerSchema,
+  placeholderFields: [{ list: 'findings', text: 'message' }],
+  repairPrompt: buildReviewerRepairPrompt,
+};
+
+const seam = createAnswerSeam<DispatchInput, ReviewerAnswer>(buildPrompt, {
+  site: 'cr.subagent-dispatch',
+  contract: REVIEWER_ANSWER,
+});
+
+/** Test injection point: swaps the reviewer child (see `createAnswerSeam`). */
+export const setDispatcher = seam.setDispatcher;
+export const dispatchSubagent = seam.dispatch;

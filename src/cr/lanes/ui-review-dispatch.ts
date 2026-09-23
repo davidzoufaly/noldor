@@ -7,9 +7,9 @@
 import { z } from 'zod';
 
 import { penBridgeRecipe } from '../../design/pen-bridge.js';
-import { parseFencedJson } from '../extract-json.js';
-import { createDispatcherSeam } from '../lane-spawn.js';
-import { fencedJsonInstruction } from './prompt-parts.js';
+import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
+import { createAnswerSeam } from '../lane-spawn.js';
+import { repairEvidence } from './prompt-parts.js';
 
 /**
  * One finding from the child. `designPage` + `designElement` are REQUIRED: a
@@ -113,20 +113,36 @@ Report in exactly one of three shapes, with NO other keys:
 - fail: \`verdict\` "fail" and a non-empty \`findings\` array, each entry carrying \`file\`, \`severity\` ("high" | "med" | "low"), \`message\`, \`designPage\`, \`designElement\`, and optionally \`line\`.
 - cannot-review: \`verdict\` "cannot-review", an empty \`findings\` array, and \`reason\` ("pen-unreadable" | "no-final-pages").
 
-Emit no key beyond the ones your shape lists — not \`reason\` on a pass, not a \`summary\` or \`notes\` field. The shapes are validated strictly, so one extra key makes the whole report unreadable.
-
-${fencedJsonInstruction(
-  `{"verdict": "fail", "findings": [{"file": "src/ui/Panel.tsx", "line": 42, "severity": "high", "message": "...", "designPage": "FINAL:app: default", "designElement": "Submit"}]}`,
-)}`;
+Emit no key beyond the ones your shape lists — not \`reason\` on a pass, not a \`summary\` or \`notes\` field. The shapes are validated strictly, so one extra key makes the whole report unreadable.`;
 }
 
+/** The example the answer instruction shows the child — valid JSON, so an echo still parses. */
+export const UI_REVIEW_SHAPE =
+  '{"verdict": "fail", "findings": [{"file": "src/ui/Panel.tsx", "line": 42, "severity": "high", "message": "...", "designPage": "FINAL:app: default", "designElement": "Submit"}]}';
+
 /**
- * Last fenced ```json block wins; null on absence, bad JSON, or schema mismatch.
- * All three are one class for the caller (`malformed-output`) — the distinction
- * changes nothing it can do.
+ * The repair round's prompt: restate the reviewer's report as a valid answer. It opens no
+ * design, reads no code, and never upgrades a hedged report into `pass`.
  */
-export const parseUiReviewReport = (md: string): UiReviewReport | null =>
-  parseFencedJson(md, uiReviewReportSchema);
+export function buildUiReviewRepairPrompt(ctx: RepairContext): string {
+  return `A previous UI-Design Reviewer finished its review, but its answer was rejected: ${ctx.error}. Your ONLY job is to restate that reviewer's conclusion as a valid answer — do not open the design, do not read the code, do not review anything yourself.
+
+${repairEvidence(ctx)}
+
+Transcription rules:
+1. Use exactly one of the three shapes: pass with an empty findings array; fail with at least one finding naming its file, severity, message, designPage and designElement; or cannot-review with reason pen-unreadable or no-final-pages.
+2. Never upgrade a partial or hedged report into pass, and invent no finding the output does not state.
+3. If nothing above clearly states a verdict, write no answer at all.`;
+}
+
+/** What the ui-reviewer child hands back, and how the seam reads it. */
+export const UI_REVIEW_ANSWER: LaneAnswerContract<UiReviewReport> = {
+  lane: 'ui-reviewer',
+  shape: UI_REVIEW_SHAPE,
+  schema: uiReviewReportSchema,
+  placeholderFields: [{ list: 'findings', text: 'message' }],
+  repairPrompt: buildUiReviewRepairPrompt,
+};
 
 /** Carries which reason code the lane should record, so the sink stays specific. */
 export class UiDispatchError extends Error {
@@ -139,13 +155,15 @@ export class UiDispatchError extends Error {
   }
 }
 
-const seam = createDispatcherSeam<UiDispatchInput>(buildUiReviewPrompt, {
-  role: 'ui-reviewer',
+const seam = createAnswerSeam<UiDispatchInput, UiReviewReport>(buildUiReviewPrompt, {
   site: 'cr.ui-review-dispatch',
+  contract: UI_REVIEW_ANSWER,
   onFailure: (f) => {
     throw new UiDispatchError(
       f.reason,
-      f.timedOut ? 'ui-review dispatch timed out' : `ui-review dispatch failed: exit ${f.exitCode}`,
+      f.timedOut
+        ? 'ui-review dispatch timed out'
+        : `ui-review dispatch failed: ${f.detail ?? `exit ${f.exitCode}`}`,
     );
   },
 });
