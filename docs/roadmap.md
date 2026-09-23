@@ -16,26 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### CR Finding Identity and Settled Decisions Across Rounds and Lanes
-
-- id: Q-0261
-- area: tooling
-- type: fix
-- since: 2026-09-23
-- size: M
-- impact: high
-- confidence: med
-- split-from: Q-0250
-- recovered: 2026-09-23
-
-Findings have no identity across rounds, so nothing stops a settled question from coming back. Codex has no memory between rounds: it reviews the full branch diff with no prior-round context and repeats standing objections word for word. On Charuy #115 it filed `phase: done` 28 times after the author ruled on it in round 1, and a wrong `templates/` parity claim 26 times. On Noldor #405 it repeated a falsified ADR-classification claim five rounds running. Lanes also reverse each other and themselves. On #90, `onclose` moved after `connect()` in r7 and back in r9. On #136 the layout setter went required → defensive → YAGNI → deleted. Late finds on unchanged content are 9–23% of blockers. Borrow the carry-forward from the panther claude-reviewer (gooddata/gdc-mastercard-panther `.github/claude-reviewer`):
-- every blocker gets a stable fingerprint;
-- the next round's prompt, for every lane including codex, lists the prior findings with their disposition (fixed, rejected with a reason, arbitrated);
-- a lane re-claims a finding that still stands by its id instead of describing it again;
-- a rejected or arbitrated finding cannot be raised again unless the content it cites has changed.
-
-Deletion test: a finding rejected in round N is not filed again in round N+1 by any lane while the lines it cites are unchanged.
-
 ### Refutation Judge Pass Before a Blocker Can Red a Round
 
 - id: Q-0262

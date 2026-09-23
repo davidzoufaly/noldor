@@ -30,7 +30,7 @@ links:
 name: CR Re-Round Cap Enforcement and Oscillation Detector
 packages:
   - scripts
-phase: done
+phase: in-progress
 since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.9.0
