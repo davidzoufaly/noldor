@@ -539,5 +539,9 @@
   "Q-0266": {
     "slug": "pnpm-flattens-cli-exit-codes-the-skills-branch-on",
     "retiredAt": "2026-09-24"
+  },
+  "Q-0267": {
+    "slug": "spec-stage-adr-commit-breaks-the-cr-range-and-the-pr-summary",
+    "retiredAt": "2026-09-24"
   }
 }

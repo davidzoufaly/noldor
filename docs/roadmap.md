@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Spec-Stage ADR Commit Breaks the CR Range and the PR Summary
-
-- id: Q-0267
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: S
-- impact: high
-- confidence: med
-
-`noldor-spec` step 6.5 commits the decision record as its own `docs(adr)` commit, and two seams downstream misread it. (1) Gate Step 2.5's first-round `cr orchestrate --kind spec` passes no `--base-sha`, so the reviewer lane reviews `HEAD~1..HEAD` (`input.baseSha ?? artifactSha~1` in `src/cr/lanes/subagent.ts`); on Q-0263 (PR #494) the ADR commit landed after the spec, so that range held only the ADR and the lane would have reviewed no spec at all. (2) `pickSummarySha` skips only `BOOKKEEPING_GLOBS`, which lacks `docs/adr/**`, so on Q-0260 (PR #493) the ADR commit became pr-flow's summary commit and the PR was refused ("missing Why, How, What") after a green code review; rewording it by rebase fails on the attach trailer check, and only a non-interactive reorder (`GIT_SEQUENCE_EDITOR=<script> git rebase -i`) got it out. Wanted: `docs/adr/**` in `BOOKKEEPING_GLOBS` (or Step 4's Why/How/What check names the commit `pickSummarySha` picks), and Step 2.5's first round passes `--base-sha origin/main`. Deletion test: a spec session with an ADR commit reviews the spec in round 1 and opens its PR without a reorder. (absorbed 2026-09-24 from two lessons)
-
 ### Spec Structural Read Leaves a Regenerated Graph on the Branch
 
 - id: Q-0268
