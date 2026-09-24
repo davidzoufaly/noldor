@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Full-Suite Flake: route-sweep and sdd-report Still Unexplained
-
-- id: Q-0238
-- area: testing
-- type: fix
-- since: 2026-09-15
-- size: M
-- impact: med
-- confidence: low
-- split-from: Q-0171
-
-Q-0171 removed one sufficient cause of the shifting full-suite failures — unbounded `gh`/`npm` I/O in `preflight.test.ts` — but explains neither of the other two observed red files, and it is honest about that rather than claiming the flake fixed. `src/dashboard/__tests__/route-sweep.test.ts` (8 of the 10 reds on 2026-08-20) performs no external I/O at all: it binds an ephemeral port and renders live-repo pages in-process at 949–1472 ms per route against a 10s bound, so nothing in Q-0171 makes it faster or more deterministic. `src/garden/__tests__/sdd-report.test.ts` shells `tsx src/garden/sdd-report.ts` against the live repo four times (`cwd: process.cwd()`, plus a `pnpm fmt:check`), 17.4s for the file. Both sit in the measured slow tail under a 10s per-test bound, which is the surviving hypothesis, but neither has been reproduced on demand — two full-suite runs on 2026-09-15, one under six busy-loop CPU hogs, were green. Wanted first: a way to reproduce, or per-file evidence of what a red run actually reported (timeout vs assertion). Only then a remedy. Deletion test: a documented reproduction, or a retired hypothesis. (found 2026-09-15 shipping Q-0171)
-
 ### Co-Tag Detector: Degraded-Mode Honesty + Mechanical Seeding
 
 - id: Q-0172
