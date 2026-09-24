@@ -383,6 +383,17 @@ describe('pickSummarySha', () => {
     expect(sha).toBe('impl3');
   });
 
+  // `noldor-spec` step 6.5 commits the spec's ADR on its own; on Q-0260 that
+  // commit became the summary and the PR was refused for missing Why/How/What.
+  it('skips the spec-stage ADR commit', () => {
+    const sha = pickSummarySha([
+      { sha: 'spec1', files: ['docs/design/specs/2026-08-13-x-design.md'] },
+      { sha: 'adr2', files: ['docs/adr/0004-x.md'] },
+      { sha: 'impl3', files: ['src/core/x.ts'] },
+    ]);
+    expect(sha).toBe('impl3');
+  });
+
   // `git log --name-only` prints no paths for a merge, and isBookkeepingOnly([])
   // is false — without the length guard the merge wins and the PR is titled
   // `Merge branch 'main'` with an empty body.

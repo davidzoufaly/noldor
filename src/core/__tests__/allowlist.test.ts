@@ -219,6 +219,7 @@ describe('isBookkeepingOnly', () => {
     expect(isBookkeepingOnly(['docs/features/some-feature.md'])).toBe(true);
     expect(isBookkeepingOnly(['docs/design/specs/2026-08-13-x-design.md'])).toBe(true);
     expect(isBookkeepingOnly(['docs/milestones/poc.md'])).toBe(true);
+    expect(isBookkeepingOnly(['docs/adr/0004-some-decision.md'])).toBe(true);
     expect(isBookkeepingOnly(['ideas.md'])).toBe(true);
     expect(isBookkeepingOnly(['.noldor/retired-entry-ids.json'])).toBe(true);
     expect(isBookkeepingOnly(['.noldor/id-counter.json'])).toBe(true);

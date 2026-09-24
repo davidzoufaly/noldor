@@ -81,6 +81,11 @@ export const BOOKKEEPING_GLOBS = [
   'docs/features/**/*.md',
   'docs/design/**/*.md',
   'docs/milestones/**/*.md',
+  // Decision records. `noldor-spec` step 6.5 commits the spec's ADR as its own
+  // `docs(adr)` commit, so on a spec session it can be the first non-spec commit
+  // on the branch — and `pickSummarySha` then composed the PR Summary from an
+  // ADR body with no Why/How/What, refusing the PR after a green review (Q-0267).
+  'docs/adr/**',
   'ideas.md',
   '.noldor/retired-entry-ids.json',
   '.noldor/id-counter.json',

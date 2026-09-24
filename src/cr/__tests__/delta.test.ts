@@ -135,3 +135,52 @@ describe('stale base (Q-0265)', () => {
     expect(vi.mocked(runManual).mock.calls[0]?.[0].baseSha).toBe(forkPoint);
   });
 });
+
+describe('implicit branch base (Q-0267)', () => {
+  // `noldor-spec` commits the spec's ADR after the spec, so a first spec round that fell back
+  // to `<head>~1..<head>` reviewed the ADR and no spec. With no `--base-sha`, a spec/plan
+  // round starts at the branch's fork point instead.
+  const runWith = async (
+    kind: 'spec' | 'code',
+    fullReview: boolean,
+    emptyDiffCalls: string[],
+    branchBaseCalls: string[],
+  ) => {
+    vi.mocked(runManual).mockClear();
+    await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind,
+        lanes: ['manual'],
+        fullReview,
+        autonomous: true,
+      },
+      cwd: root,
+      isEmptyDiff: async (_r, base) => {
+        emptyDiffCalls.push(base);
+        return true;
+      },
+      resolveBranchBase: async (_r, head) => {
+        branchBaseCalls.push(head);
+        return 'fork';
+      },
+    });
+    return vi.mocked(runManual).mock.calls[0]?.[0];
+  };
+
+  it('reviews a spec from the fork point, without the delta short-circuit', async () => {
+    const emptyDiffCalls: string[] = [];
+    const input = await runWith('spec', false, emptyDiffCalls, []);
+    expect(input?.baseSha).toBe('fork');
+    // A fork point is not a fix: no synthetic OK, no `fixes-in-diff` claim.
+    expect(emptyDiffCalls).toEqual([]);
+  });
+
+  it('leaves code rounds and --full-review on their own range', async () => {
+    const branchBaseCalls: string[] = [];
+    expect((await runWith('code', false, [], branchBaseCalls))?.baseSha).toBeUndefined();
+    expect((await runWith('spec', true, [], branchBaseCalls))?.baseSha).toBeUndefined();
+    expect(branchBaseCalls).toEqual([]);
+  });
+});

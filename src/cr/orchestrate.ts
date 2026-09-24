@@ -181,6 +181,26 @@ async function resolveMergeBaseDefault(
   }
 }
 
+/**
+ * Where a spec/plan round starts when the caller passed no `--base-sha`: the fork point of the
+ * branch from `origin/main`. The lanes' own fallback, `<head>~1..<head>`, is the last commit
+ * only — and `noldor-spec` commits the spec's ADR after the spec, so on Q-0263 a first round
+ * would have reviewed the ADR and no spec at all (Q-0267). `undefined` when git cannot answer
+ * (no `origin/main`, no repo), which keeps that old fallback.
+ */
+async function resolveBranchBaseDefault(
+  repoRoot: string,
+  headSha: string,
+): Promise<string | undefined> {
+  if (headSha === '') return undefined;
+  try {
+    const r = await execAsync('git', ['merge-base', 'origin/main', headSha], { cwd: repoRoot });
+    return r.stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function writeSyntheticOk(input: LaneInput, lane: Lane): Promise<LaneResult> {
   const sinkPath = join(
     input.repoRoot,
@@ -376,6 +396,7 @@ export interface RunOpts {
   /** Injection seam for the prior-sink read (tests assert read counts through it). */
   readPriorSink?: ReadPriorSink;
   resolveMergeBase?: (repoRoot: string, baseSha: string, headSha: string) => Promise<string>;
+  resolveBranchBase?: (repoRoot: string, headSha: string) => Promise<string | undefined>;
 }
 
 export interface RunResult {
@@ -968,9 +989,14 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     await writeExpectedLanes(cwd, opts.args.slug, opts.args.kind, requested, headSha);
   }
 
+  // Without `--base-sha`, a spec/plan round still reviews the whole branch rather than its last
+  // commit. That base only widens the range: the delta short-circuit and the `fixes-in-diff`
+  // prior mode below stay keyed on an explicit `--base-sha`, since a fork point is not a fix.
   const baseSha = opts.args.baseSha
     ? await (opts.resolveMergeBase ?? resolveMergeBaseDefault)(cwd, opts.args.baseSha, headSha)
-    : undefined;
+    : opts.args.kind !== 'code' && !opts.args.fullReview
+      ? await (opts.resolveBranchBase ?? resolveBranchBaseDefault)(cwd, headSha)
+      : undefined;
   const input: LaneInput = {
     slug: opts.args.slug,
     artifact: opts.args.artifact,
@@ -1009,7 +1035,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // keeps `reexamine`, which asserts nothing about whether the artifact changed
   // (the safe direction is re-confirmation, never suppression).
   let priorMode: PriorReview['mode'] = 'reexamine';
-  if (input.baseSha && !input.fullReview) {
+  if (opts.args.baseSha && input.baseSha && !input.fullReview) {
     const empty = await isEmptyDiff(cwd, input.baseSha, input.artifactSha, input.artifact);
     if (empty) {
       const stillToRun: Lane[] = [];
