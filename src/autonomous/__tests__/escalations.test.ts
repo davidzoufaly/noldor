@@ -167,7 +167,9 @@ describe('mapCycle', () => {
       input({
         result: result({
           skipped: ['a'],
-          skipReasons: { a: 'not a fast-track XS/S entry (roadmap source ships fast-track only)' },
+          skipReasons: {
+            a: 'routes to full-new, not fast-track (roadmap source ships fast-track only)',
+          },
         }),
         queueUniverse: ['a'],
       }),

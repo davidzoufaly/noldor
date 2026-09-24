@@ -284,11 +284,12 @@ export function roadmapSource(cwd: string, selection?: SelectionFilter): DrainSo
       const narrowed = selectionReason(top, selection);
       const eligible = narrowed === undefined && fastTrack && drainOk && !depsBlocked;
       // Distinguish the ineligibility causes (the operator's own narrowing, a non-fast-track
-      // size, an unmet dep, or a Touches/multi-scope residue) so the skip log is accurate.
+      // route, an unmet dep, or a Touches/multi-scope residue) so the skip log is accurate.
+      // The route is named rather than blamed on size: an XS entry can route to micro-chore.
       const reason =
         narrowed ??
         (!fastTrack
-          ? 'not a fast-track XS/S entry (roadmap source ships fast-track only)'
+          ? `routes to ${top.suggestedPath}, not fast-track (roadmap source ships fast-track only)`
           : depsBlocked
             ? `blocked by unshipped dep(s) still in queue: ${unmetDeps.join(', ')}`
             : !drainOk

@@ -10,13 +10,17 @@
  *
  * Policy:
  * - **XS / S** → no FD, no spec. Route to `fast-track` (code) — or `micro-chore`
- *   when the diff is pure-doc (an operator judgment the size alone can't make).
+ *   when the entry's `Touches:` clause keeps the whole diff on that lane (see
+ *   {@link entryToPath}). Without a clause the size alone can't tell docs from
+ *   code, so the downgrade stays the operator's call.
  * - **M** → `specs-only` (spec, no plan).
  * - **L / XL** → `full` (spec + plan).
  *
  * Missing or unrecognized sizes default to the spec-bearing `specs-only` tier:
  * the policy never *silently* drops review for an entry whose size it can't read.
  */
+
+import { isMicroChoreAllowed } from './allowlist.js';
 
 export type GateTier = 'specs-only' | 'full';
 
@@ -57,14 +61,40 @@ export function sizeToTier(size: string | undefined): GateTier {
  * the tier from {@link sizeToTier} picks `specs-only-*` / `full-*`, and
  * `hasParent` selects the `-attach` vs `-new` variant.
  *
- * `fast-track` is the default no-FD path; the operator downgrades to
- * `micro-chore` at gate time when the diff is pure-doc. This helper never
- * returns `micro-chore` because size alone can't tell docs from code.
+ * `fast-track` is the default no-FD path. This helper never returns
+ * `micro-chore` because size alone can't tell docs from code; {@link entryToPath}
+ * can, from the paths the entry declares.
  */
 export function sizeToPath(size: string | undefined, hasParent: boolean): GatePath {
   if (sizeSkipsSpec(size)) return 'fast-track';
   if (sizeToTier(size) === 'full') return hasParent ? 'full-attach' : 'full-new';
   return hasParent ? 'specs-only-attach' : 'specs-only-new';
+}
+
+/**
+ * Suggested gate path for an entry, from its size and the paths its `Touches:`
+ * clause declares: {@link sizeToPath}, except that an XS/S entry whose every
+ * declared path is on the micro-chore lane ({@link isMicroChoreAllowed}) routes
+ * to `micro-chore`.
+ *
+ * That lane is where a skill edit has to go. `checks shared-files` refuses
+ * `.claude/skills/**` from a `.worktrees/` checkout, so a fast-track session
+ * builds its worktree, retires the roadmap block, and only then has the real
+ * commit refused. A pure-doc entry lands on the same lane because the policy
+ * already sends pure docs there.
+ *
+ * An empty `touches` routes by size: an entry that declares nothing gives the
+ * router no evidence, and guessing paths from the prose would misroute every
+ * entry that merely mentions a skill. Spec-bearing sizes keep their path
+ * whatever they touch: a lane rule may not drop an M entry's spec review.
+ */
+export function entryToPath(
+  size: string | undefined,
+  hasParent: boolean,
+  touches: string[],
+): GatePath {
+  const bySize = sizeToPath(size, hasParent);
+  return bySize === 'fast-track' && isMicroChoreAllowed(touches) ? 'micro-chore' : bySize;
 }
 
 /**

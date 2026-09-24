@@ -555,5 +555,9 @@
   "Q-0270": {
     "slug": "code-stage-command-skips-the-configured-verifier",
     "retiredAt": "2026-09-24"
+  },
+  "Q-0244": {
+    "slug": "path-pick-cannot-see-the-shared-file-block",
+    "retiredAt": "2026-09-24"
   }
 }

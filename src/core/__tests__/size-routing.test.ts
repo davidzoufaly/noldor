@@ -1,7 +1,13 @@
 // @tests: noldor
 import { describe, expect, it } from 'vitest';
 
-import { sizeSkipsSpec, sizeToPath, sizeToTier, sizeToTimeoutMs } from '../size-routing.js';
+import {
+  entryToPath,
+  sizeSkipsSpec,
+  sizeToPath,
+  sizeToTier,
+  sizeToTimeoutMs,
+} from '../size-routing.js';
 
 describe(sizeSkipsSpec, () => {
   it('returns true for the no-spec sizes XS and S', () => {
@@ -62,6 +68,42 @@ describe(sizeToPath, () => {
     expect(sizeToPath(undefined, false)).toBe('specs-only-new');
     expect(sizeToPath(undefined, true)).toBe('specs-only-attach');
     expect(sizeToPath('Huge', false)).toBe('specs-only-new');
+  });
+});
+
+describe(entryToPath, () => {
+  it.each([
+    ['skill prose', ['.claude/skills/noldor-gate/SKILL.md']],
+    [
+      'a skill and its template twin',
+      ['.claude/skills/noldor-gate/SKILL.md', 'templates/.claude/skills/noldor-gate/SKILL.md'],
+    ],
+    ['a slash command', ['.claude/commands/ship.md']],
+    ['a framework doc page', ['docs/noldor/workflow.md']],
+    ['a root markdown file', ['CLAUDE.md']],
+  ])('routes an XS/S entry that only touches %s to micro-chore', (_shape, touches) => {
+    expect(entryToPath('XS', false, touches)).toBe('micro-chore');
+    expect(entryToPath('S', true, touches)).toBe('micro-chore');
+  });
+
+  it.each([
+    ['no declared paths', []],
+    ['code only', ['src/core/size-routing.ts']],
+    [
+      'code beside skill prose',
+      ['src/core/size-routing.ts', '.claude/skills/noldor-gate/SKILL.md'],
+    ],
+    ['a shared root the micro-chore lane cannot carry', ['package.json', 'pnpm-lock.yaml']],
+  ])('keeps an XS/S entry that touches %s on fast-track', (_shape, touches) => {
+    expect(entryToPath('XS', false, touches)).toBe('fast-track');
+    expect(entryToPath('S', true, touches)).toBe('fast-track');
+  });
+
+  it('never trades a spec-bearing size for micro-chore, whatever it touches', () => {
+    const skillOnly = ['.claude/skills/noldor-gate/SKILL.md'];
+    expect(entryToPath('M', false, skillOnly)).toBe('specs-only-new');
+    expect(entryToPath('L', true, skillOnly)).toBe('full-attach');
+    expect(entryToPath(undefined, false, skillOnly)).toBe('specs-only-new');
   });
 });
 

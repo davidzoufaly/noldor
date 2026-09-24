@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Path Pick Cannot See the Shared-File Block
-
-- id: Q-0244
-- area: tooling
-- type: fix
-- since: 2026-09-16
-- size: S
-- impact: med
-- confidence: high
-
-An XS entry whose whole diff is `.claude/skills/**` routes to `fast-track`, and the worktree then refuses the commit. `sizeToPath()` keys on size alone, so `/noldor-gate` Step 0 stamps `suggestedPath: fast-track` on a pure-prose skill edit; `checks shared-files` blocks `^\.claude/skills/[^/]+` from a feature worktree, so the whole fast-track scaffold is wasted — worktree created, roadmap block retired and committed on the branch, then the real commit is refused. Shipping Q-0222 that cost a full worktree teardown and redo on `main`. The evidence that micro-chore is the intended lane is already in `MICRO_CHORE_GLOBS`, which lists `.claude/**` *and* `templates/.claude/**` with the comment "template-sync forces editing both, so the twin must share the micro-chore lane". The gate's own Step 0 prose says "downgrade to `micro-chore` only when the diff is pure-doc", but nothing computes that: the operator is asked to predict the diff before writing it. Wanted: make the shared-files block list and the micro-chore allowlist reachable from the path pick — either `split-check --entry` warns when an entry's `Touches:` is entirely inside `MICRO_CHORE_GLOBS`, or `worktrees create` refuses up front for a slug whose expected paths are all shared-root. Deletion test: picking `fast-track` for an entry that only touches `.claude/skills/**` surfaces the conflict before the worktree is built. (found 2026-09-15 shipping Q-0222)
-
 ### Scaffold One Agent-Rules File, Not Two
 
 - id: Q-0252
