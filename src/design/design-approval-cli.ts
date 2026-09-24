@@ -467,27 +467,42 @@ function scratchDir(): { path: string } & Disposable {
   return { path, [Symbol.dispose]: () => rmSync(path, { recursive: true, force: true }) };
 }
 
+const GIT_TIMEOUT_MS = 30_000;
+
 /**
- * The approval-time spec against the one on disk, as a unified diff, or `null`
- * when the old text is not in this clone's object store. Diffed as two copies
- * in a scratch dir so `--check` writes nothing into the repository — not even
- * a git object for the current text.
+ * The approval-time spec against the one on disk, as a unified diff — or
+ * `missing` when the old text is not in this clone's object store, kept apart
+ * from a diff that failed, because only one of them means "compare by hand".
+ * Diffed as two copies in a scratch dir so `--check` writes nothing into the
+ * repository — not even a git object for the current text.
  */
-function specDiff(cwd: string, oldBlob: string, currentAbs: string, name: string): string | null {
-  const old = spawnSync('git', ['cat-file', 'blob', oldBlob], { cwd });
-  if (old.status !== 0) return null;
+function specDiff(
+  cwd: string,
+  oldBlob: string,
+  currentAbs: string,
+  name: string,
+): { kind: 'diff'; text: string } | { kind: 'missing' } | { kind: 'failed'; error: string } {
+  const old = spawnSync('git', ['cat-file', 'blob', oldBlob], { cwd, timeout: GIT_TIMEOUT_MS });
+  if (old.error !== undefined) return { kind: 'failed', error: errMessage(old.error) };
+  if (old.status !== 0) return { kind: 'missing' };
   using scratch = scratchDir();
-  mkdirSync(join(scratch.path, 'approved'));
-  mkdirSync(join(scratch.path, 'current'));
-  writeFileSync(join(scratch.path, 'approved', name), old.stdout);
-  copyFileSync(currentAbs, join(scratch.path, 'current', name));
+  try {
+    mkdirSync(join(scratch.path, 'approved'));
+    mkdirSync(join(scratch.path, 'current'));
+    writeFileSync(join(scratch.path, 'approved', name), old.stdout);
+    copyFileSync(currentAbs, join(scratch.path, 'current', name));
+  } catch (err) {
+    return { kind: 'failed', error: errMessage(err) };
+  }
   const diff = spawnSync(
     'git',
     ['diff', '--no-index', '--no-color', `approved/${name}`, `current/${name}`],
-    { cwd: scratch.path, encoding: 'utf8' },
+    { cwd: scratch.path, encoding: 'utf8', timeout: GIT_TIMEOUT_MS },
   );
+  if (diff.error !== undefined) return { kind: 'failed', error: errMessage(diff.error) };
   // `git diff --no-index` exits 1 when the files differ — the expected case.
-  return diff.status === 0 || diff.status === 1 ? diff.stdout : null;
+  if (diff.status === 0 || diff.status === 1) return { kind: 'diff', text: diff.stdout };
+  return { kind: 'failed', error: `git diff exited ${diff.status}: ${diff.stderr.trim()}` };
 }
 
 /** The working-tree record and the spec it binds, located — or why no verb can act on it. */
@@ -499,7 +514,9 @@ function loadApproval(ctx: VerdictCtx):
       record: ApprovedRecord;
       spec: { name: string; blob: string; rel: string; abs: string };
     } {
-  const record = readApproval(ctx.cwd, ctx.pen.base);
+  const read = readApproval(ctx.cwd, ctx.pen.base);
+  if (!read.ok) return { kind: 'refused', code: fail(`cannot read the record: ${read.error}`, 2) };
+  const { record } = read;
   if (record === null) {
     const code = fail(`no usable design-approval record for ${ctx.pen.rel} — take the verdict`, 2);
     return { kind: 'refused', code };
@@ -528,10 +545,12 @@ function check(ctx: VerdictCtx): number {
     `drifted: ${spec.rel} changed after ${ctx.pen.rel} was approved (${spec.blob.slice(0, 12)} → ${current.slice(0, 12)})`,
   );
   const diff = specDiff(ctx.cwd, spec.blob, spec.abs, spec.name);
-  console.log(
-    diff ??
+  if (diff.kind === 'diff') console.log(diff.text);
+  else if (diff.kind === 'missing') {
+    console.log(
       `the approval-time text (${spec.blob.slice(0, 12)}) is not in this clone's object store — compare by hand`,
-  );
+    );
+  } else console.log(`could not diff the spec: ${diff.error}`);
   console.log(
     `if the design still depicts the spec: design verdict --pen ${ctx.pen.rel} --reconfirm; ` +
       'otherwise revise the design and take the verdict again',

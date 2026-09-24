@@ -19,6 +19,7 @@ import { z } from 'zod';
 
 import { parseReceiptWith } from '../core/blob-id.js';
 import { specSlugFromFilename } from '../core/design-artifact-names.js';
+import { errMessage } from '../core/err-message.js';
 import { writeReceiptFile } from '../core/receipt-store.js';
 
 /** Directory holding the per-design records, relative to the repo root. */
@@ -94,18 +95,23 @@ export function parseApprovalBytes(bytes: Buffer | string): DesignApprovalRecord
 }
 
 /**
- * The record as the working tree holds it, or `null` when absent or unusable.
- * Only `design verdict --check` / `--reconfirm` read here: they act on the
- * record the CLI wrote, before any commit holds it. The guard and the lane
- * read git bytes instead.
+ * The record as the working tree holds it — `record: null` when absent or
+ * unusable — or the read error, kept apart because its remedy is the disk, not
+ * a new verdict. Only `design verdict --check` / `--reconfirm` read here: they
+ * act on the record the CLI wrote, before any commit holds it. The guard and
+ * the lane read git bytes instead.
  */
-export function readApproval(repoRoot: string, penBasename: string): DesignApprovalRecord | null {
-  const path = join(repoRoot, approvalRelPath(penBasename));
-  if (!existsSync(path)) return null;
+export function readApproval(
+  repoRoot: string,
+  penBasename: string,
+): { ok: true; record: DesignApprovalRecord | null } | { ok: false; error: string } {
+  const rel = approvalRelPath(penBasename);
+  const path = join(repoRoot, rel);
+  if (!existsSync(path)) return { ok: true, record: null };
   try {
-    return parseApprovalBytes(readFileSync(path));
-  } catch {
-    return null;
+    return { ok: true, record: parseApprovalBytes(readFileSync(path)) };
+  } catch (err) {
+    return { ok: false, error: `${rel}: ${errMessage(err)}` };
   }
 }
 

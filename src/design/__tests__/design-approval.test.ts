@@ -562,6 +562,42 @@ describe('design verdict CLI / --check', () => {
     expect(out).not.toContain('@@');
   });
 
+  it('names a failed diff as a failed diff, not as missing text', async () => {
+    const cwd = gitRepo();
+    await run(cwd, approveArgv());
+    appendFileSync(join(cwd, specRel), 'A change.\n');
+    // A `git` on PATH that fails only `git diff`, passing everything else to
+    // the real binary — the subprocess edge, faked at the edge.
+    const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    const bin = join(tempRepo(), 'bin');
+    mkdirSync(bin);
+    writeFileSync(
+      join(bin, 'git'),
+      `#!/bin/sh\nif [ "$1" = diff ]; then echo diff-broke >&2; exit 2; fi\nexec "${realGit}" "$@"\n`,
+      { mode: 0o755 },
+    );
+    const savedPath = process.env.PATH;
+    process.env.PATH = `${bin}:${savedPath ?? ''}`;
+    try {
+      const { code, out } = await run(cwd, check);
+      expect(code).toBe(1);
+      expect(out).toContain('diff-broke');
+      expect(out).not.toContain('object store');
+    } finally {
+      process.env.PATH = savedPath;
+    }
+  });
+
+  it('reports a record it cannot read as a read failure, not as no record', async () => {
+    const cwd = gitRepo();
+    mkdirSync(join(cwd, '.noldor', 'design-approval', '2026-08-30-my-feature.json'), {
+      recursive: true,
+    });
+    const { code, err } = await run(cwd, check);
+    expect(code).toBe(2);
+    expect(err).toContain('EISDIR');
+  });
+
   it.each([
     ['there is no record', (_cwd: string) => {}],
     ['the record predates spec binding', (cwd: string) => writeApproval(cwd, PEN, APPROVED)],
