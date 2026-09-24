@@ -29,6 +29,7 @@ import { commitOnlyTouchesReport, matchesExpectedOverride } from './detectors/ov
 import type { ExpectedOverrideRule } from './detectors/override-audit.js';
 import { loadConfigSync } from '../core/config.js';
 import {
+  TEST_FILE_RE,
   actualPackageNames,
   scanRoots as resolveScanRoots,
   walkCodeFiles,
@@ -260,8 +261,7 @@ const CODE_IGNORE_PATTERNS = [
   /^scripts\/fixtures\//,
   /^packages\/test-fixtures\/src\/scenes\//,
   /^docs\/user\/reference\/api\//,
-  /\.test\.tsx?$/,
-  /\.spec\.tsx?$/,
+  TEST_FILE_RE,
 ];
 
 /**
