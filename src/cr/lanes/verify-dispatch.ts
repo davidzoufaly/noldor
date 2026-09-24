@@ -71,7 +71,7 @@ ${surfaceLines}
 Hard rules:
 1. Exercise the SPECIFIC new behavior through the real interface — CLI invocation, HTTP request, file output. Never conclude from reading source code; reading code to find the interface is fine, judging from it is not.
 2. Quote real observed output in evidence. Every evidence entry is a command you actually ran plus what it printed.
-3. Kill every process you start.
+3. Kill every process you start, and remove every git worktree and temp directory you create — \`git worktree remove --force <path>\` (if it refuses, unlink the \`node_modules\` symlink inside it and retry). When you finish, \`git worktree list\` must show exactly what it showed before you began.
 4. \`cannot-verify\` is an honest outcome when no boot path reaches the behavior — use it with a reason instead of guessing.`;
 }
 

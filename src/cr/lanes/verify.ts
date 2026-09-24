@@ -11,6 +11,7 @@ import { runSmoke } from '../../verify/smoke.js';
 import type { SmokeReport } from '../../verify/smoke.js';
 import type { LaneAnswer } from '../lane-answer.js';
 import { dispatchVerify, type VerifyVerdict } from './verify-dispatch.js';
+import { parseWorktreeList, type WorktreeRecord } from '../../worktrees/worktree-status.js';
 
 type SmokeRunner = (cwd: string, port: number) => Promise<SmokeReport>;
 let smokeRunner: SmokeRunner = (cwd, port) => runSmoke(cwd, port);
@@ -54,15 +55,72 @@ export function reapPort(port: number): Promise<void> {
   });
 }
 
-function commitProse(repoRoot: string, baseSha: string, headSha: string): Promise<string> {
+function git(cwd: string, args: string[]): Promise<{ ok: boolean; out: string }> {
   return new Promise((resolve) => {
-    execFile(
-      'git',
-      ['log', `${baseSha}..${headSha}`, '--format=%s%n%b'],
-      { cwd: repoRoot },
-      (err, stdout) => resolve(err ? '' : String(stdout).trim()),
+    execFile('git', args, { cwd, timeout: 30_000 }, (err, stdout, stderr) =>
+      resolve(
+        err
+          ? { ok: false, out: String(stderr || err.message).trim() }
+          : { ok: true, out: String(stdout) },
+      ),
     );
   });
+}
+
+async function commitProse(repoRoot: string, baseSha: string, headSha: string): Promise<string> {
+  const r = await git(repoRoot, ['log', `${baseSha}..${headSha}`, '--format=%s%n%b']);
+  return r.ok ? r.out.trim() : '';
+}
+
+/**
+ * Registered worktrees as git prints them, or `null` when git could not answer.
+ * A `null` before-snapshot disables the audit: diffing against an empty list
+ * would read every worktree, the main checkout included, as leaked.
+ */
+async function listWorktrees(repoRoot: string): Promise<WorktreeRecord[] | null> {
+  const r = await git(repoRoot, ['worktree', 'list', '--porcelain']);
+  return r.ok ? parseWorktreeList(r.out) : null;
+}
+
+/**
+ * Untracked files count (`-unormal`): `worktree remove --force` bypasses git's own
+ * refusal to delete a checkout carrying them, and an untracked file has never entered
+ * the object store, so nothing recovers it. An unanswerable probe reads as not clean.
+ */
+async function isCleanCheckout(path: string): Promise<boolean> {
+  const r = await git(path, ['status', '--porcelain', '-unormal']);
+  return r.ok && r.out.trim() === '';
+}
+
+/**
+ * Programmatic backstop for the worktree half of prompt rule 3, as {@link reapPort}
+ * is for its process half. Nothing ties a worktree registered during the dispatch to
+ * the child — a human or a sibling session can register one in the same window — so
+ * only a worktree with provably nothing to lose is removed: detached (the shape of a
+ * scratch test bed, never of a checkout someone is committing on) and clean including
+ * untracked files. Anything else that appeared is named in a note and left alone.
+ */
+async function pruneLeakedWorktrees(repoRoot: string, before: WorktreeRecord[]): Promise<string[]> {
+  const after = await listWorktrees(repoRoot);
+  if (after === null) return ['worktree audit skipped: git worktree list failed after dispatch'];
+  const known = new Set(before.map((w) => w.path));
+  const notes: string[] = [];
+  for (const wt of after) {
+    if (known.has(wt.path)) continue;
+    if (!wt.detached || !(await isCleanCheckout(wt.path))) {
+      notes.push(
+        `worktree ${wt.path} appeared during the verify dispatch and was left in place (not a clean detached checkout)`,
+      );
+      continue;
+    }
+    const r = await git(repoRoot, ['worktree', 'remove', '--force', wt.path]);
+    notes.push(
+      r.ok
+        ? `removed leaked worktree ${wt.path}`
+        : `leaked worktree ${wt.path} could not be removed: ${r.out}`,
+    );
+  }
+  return notes;
 }
 
 export async function runVerify(input: LaneInput): Promise<LaneResult> {
@@ -128,6 +186,8 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   }));
   let answer: LaneAnswer<VerifyVerdict> | null = null;
   let dispatchErr = '';
+  let leakNotes: string[] = [];
+  const worktreesBefore = await listWorktrees(input.repoRoot);
   // Pre-dispatch reap: smoke SIGKILLs its boots but teardown is async — make
   // sure the port is actually free before the agent boots the same surface.
   await reapPort(port);
@@ -149,9 +209,13 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
     // Covers the repair round too: its prompt forbids booting anything, but prompt
     // text is not enforcement.
     await reapPort(port);
+    leakNotes =
+      worktreesBefore === null
+        ? ['worktree audit skipped: git worktree list failed before dispatch']
+        : await pruneLeakedWorktrees(input.repoRoot, worktreesBefore);
   }
   const parsed = answer?.ok === true ? answer.answer : null;
-  const answerNotes = answer?.notes ?? [];
+  const answerNotes = [...(answer?.notes ?? []), ...leakNotes];
 
   /** Carry the seam's notes (a recovery, the kept raw answer) onto the sink. */
   const withNotes = (payload: SinkPayload): SinkPayload =>

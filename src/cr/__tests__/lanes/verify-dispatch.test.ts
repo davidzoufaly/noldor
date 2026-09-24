@@ -38,6 +38,19 @@ describe('buildVerifyPrompt', () => {
     expect(p).toMatch(/never conclude from reading source/i);
   });
 
+  it('requires the child to remove every worktree and temp directory it creates', () => {
+    const p = buildVerifyPrompt({
+      acceptance: 'x',
+      baseSha: 'a',
+      headSha: 'b',
+      surfaces: [],
+      port: 4000,
+    });
+    expect(p).toMatch(/remove every git worktree and temp directory you create/i);
+    expect(p).toContain('git worktree remove --force');
+    expect(p).toMatch(/git worktree list.*must show exactly what it showed before/i);
+  });
+
   it('tells the agent to emit cannot-verify when no surfaces are configured', () => {
     const p = buildVerifyPrompt({
       acceptance: 'x',

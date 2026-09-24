@@ -1,8 +1,18 @@
 // @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer, cr-lane-verdicts-blocked-by-serialization-not-substance
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setVerifyDispatcher } from '../../lanes/verify-dispatch.js';
 import { reapPort, runVerify, setSmokeRunner } from '../../lanes/verify.js';
 import type { LaneInput } from '../../lane-types.js';
@@ -252,6 +262,102 @@ describe('runVerify', () => {
     expect(JSON.stringify(sink.notes)).toContain('THE-TAIL-THAT-MATTERS');
     expect(JSON.stringify(sink.notes)).toContain('repair round');
     expect(sink.reason).toBe('malformed-output');
+  });
+});
+
+describe('runVerify worktree backstop', () => {
+  const PASS = '```json\n{"verdict":"pass","evidence":[],"mismatches":[]}\n```';
+  const scratch: string[] = [];
+  afterEach(() => {
+    for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+  /** A non-existent sibling path outside the repo — where a verifier's `/tmp` test bed lands. */
+  function scratchPath(tag: string): string {
+    const dir = mkdtempSync(join(tmpdir(), `noldor-verify-${tag}-`));
+    scratch.push(dir);
+    return join(dir, 'wt');
+  }
+  function gitRepo(): { cwd: string; input: LaneInput; git: (...args: string[]) => string } {
+    const { cwd, input } = repo('blocking');
+    const git = (...args: string[]): string =>
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+        cwd,
+        stdio: 'pipe',
+      }).toString();
+    git('init', '-q');
+    writeFileSync(join(cwd, '.gitignore'), 'node_modules\n');
+    git('add', '.gitignore');
+    git('commit', '-q', '-m', 'init');
+    return { cwd, input, git };
+  }
+
+  it('removes a detached worktree the child registered and left behind (Q-0250 replay)', async () => {
+    const { cwd, input, git } = gitRepo();
+    const before = git('worktree', 'list', '--porcelain');
+    const leak = scratchPath('leak');
+    mkdirSync(join(cwd, 'node_modules', 'pkg'), { recursive: true });
+    setVerifyDispatcher(async () => {
+      git('worktree', 'add', '-q', '--detach', leak, 'HEAD');
+      symlinkSync(join(cwd, 'node_modules'), join(leak, 'node_modules'));
+      return PASS;
+    });
+    expect((await runVerify(input)).ok).toBe(true);
+    expect(git('worktree', 'list', '--porcelain')).toBe(before);
+    expect(existsSync(leak)).toBe(false);
+    expect(existsSync(join(cwd, 'node_modules', 'pkg'))).toBe(true);
+    const notes = JSON.stringify(readSink(cwd).notes);
+    expect(notes).toContain('removed leaked worktree');
+    expect(notes).toContain(realpathSync(join(leak, '..')));
+  });
+
+  it('leaves a worktree that existed before the round alone', async () => {
+    const { cwd, input, git } = gitRepo();
+    const pre = scratchPath('pre');
+    git('worktree', 'add', '-q', '--detach', pre, 'HEAD');
+    const before = git('worktree', 'list', '--porcelain');
+    setVerifyDispatcher(async () => PASS);
+    await runVerify(input);
+    expect(git('worktree', 'list', '--porcelain')).toBe(before);
+    expect(existsSync(pre)).toBe(true);
+    expect(JSON.stringify(readSink(cwd).notes ?? [])).not.toContain('worktree');
+  });
+
+  it('leaves a worktree on a branch alone when it appears mid-dispatch, and names it', async () => {
+    const { cwd, input, git } = gitRepo();
+    const onBranch = scratchPath('branch');
+    setVerifyDispatcher(async () => {
+      git('worktree', 'add', '-q', '-b', 'scratch', onBranch, 'HEAD');
+      return PASS;
+    });
+    await runVerify(input);
+    expect(existsSync(onBranch)).toBe(true);
+    expect(git('worktree', 'list', '--porcelain')).toContain(realpathSync(onBranch));
+    const notes = JSON.stringify(readSink(cwd).notes);
+    expect(notes).toContain('left in place');
+    expect(notes).toContain(realpathSync(onBranch));
+    expect(notes).not.toContain('removed leaked worktree');
+  });
+
+  it('leaves a detached worktree carrying an untracked file alone, and names it', async () => {
+    const { cwd, input, git } = gitRepo();
+    const dirty = scratchPath('dirty');
+    setVerifyDispatcher(async () => {
+      git('worktree', 'add', '-q', '--detach', dirty, 'HEAD');
+      writeFileSync(join(dirty, 'scratch.txt'), 'unsaved work\n');
+      return PASS;
+    });
+    await runVerify(input);
+    expect(readFileSync(join(dirty, 'scratch.txt'), 'utf8')).toBe('unsaved work\n');
+    expect(git('worktree', 'list', '--porcelain')).toContain(realpathSync(dirty));
+    const notes = JSON.stringify(readSink(cwd).notes);
+    expect(notes).toContain('left in place');
+    expect(notes).not.toContain('removed leaked worktree');
+  });
+
+  it('records that the audit was skipped when the root is not a git repo', async () => {
+    const { cwd, input } = repo('blocking');
+    await runVerify(input);
+    expect(JSON.stringify(readSink(cwd).notes)).toContain('worktree audit skipped');
   });
 });
 
