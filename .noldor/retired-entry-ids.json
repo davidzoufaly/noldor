@@ -574,5 +574,9 @@
     "slug": "co-tag-detector-degraded-mode-honesty-mechanical-seeding",
     "retiredInto": "sdd-co-tag-detector",
     "retiredAt": "2026-09-24"
+  },
+  "Q-0274": {
+    "slug": "fd-resources-hook-skips-flat-feature-docs",
+    "retiredAt": "2026-09-24"
   }
 }

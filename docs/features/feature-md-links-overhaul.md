@@ -18,6 +18,7 @@ links:
     - src/sync/sync-test-links.ts
   tests:
     - src/checks/__tests__/check-feature-slug-scope.test.ts
+    - src/checks/__tests__/lefthook-flat-globs.test.ts
     - src/core/__tests__/doc-roots.test.ts
     - src/core/__tests__/extract-touches.test.ts
     - src/core/__tests__/feature-schema-since.test.ts
@@ -122,6 +123,7 @@ nothing rather than silently widening back to the whole repo.
   - [`src/sync/sync-test-links.ts`](../../src/sync/sync-test-links.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-feature-slug-scope.test.ts`](../../src/checks/__tests__/check-feature-slug-scope.test.ts)
+  - [`src/checks/__tests__/lefthook-flat-globs.test.ts`](../../src/checks/__tests__/lefthook-flat-globs.test.ts)
   - [`src/core/__tests__/doc-roots.test.ts`](../../src/core/__tests__/doc-roots.test.ts)
   - [`src/core/__tests__/extract-touches.test.ts`](../../src/core/__tests__/extract-touches.test.ts)
   - [`src/core/__tests__/feature-schema-since.test.ts`](../../src/core/__tests__/feature-schema-since.test.ts)
