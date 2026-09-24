@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { loadLaneMode } from '../lane-mode.js';
 import { openLaneSink, type SinkPayload } from '../lane-sink.js';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, sep } from 'node:path';
 import { loadVerifyCommands } from '../../core/consumer-config.js';
 import type { Finding } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
@@ -54,15 +54,60 @@ export function reapPort(port: number): Promise<void> {
   });
 }
 
-function commitProse(repoRoot: string, baseSha: string, headSha: string): Promise<string> {
+function git(repoRoot: string, args: string[]): Promise<{ ok: boolean; out: string }> {
   return new Promise((resolve) => {
-    execFile(
-      'git',
-      ['log', `${baseSha}..${headSha}`, '--format=%s%n%b'],
-      { cwd: repoRoot },
-      (err, stdout) => resolve(err ? '' : String(stdout).trim()),
+    execFile('git', args, { cwd: repoRoot, timeout: 30_000 }, (err, stdout, stderr) =>
+      resolve(
+        err
+          ? { ok: false, out: String(stderr || err.message).trim() }
+          : { ok: true, out: String(stdout) },
+      ),
     );
   });
+}
+
+async function commitProse(repoRoot: string, baseSha: string, headSha: string): Promise<string> {
+  const r = await git(repoRoot, ['log', `${baseSha}..${headSha}`, '--format=%s%n%b']);
+  return r.ok ? r.out.trim() : '';
+}
+
+/**
+ * Registered worktree paths as git prints them, or `null` when git could not
+ * answer. A `null` before-snapshot disables the audit: diffing against an empty
+ * list would read every worktree, the main checkout included, as leaked.
+ */
+async function listWorktrees(repoRoot: string): Promise<string[] | null> {
+  const r = await git(repoRoot, ['worktree', 'list', '--porcelain']);
+  if (!r.ok) return null;
+  return r.out
+    .split('\n')
+    .filter((line) => line.startsWith('worktree '))
+    .map((line) => line.slice('worktree '.length));
+}
+
+/**
+ * Programmatic backstop for the worktree half of prompt rule 3, as {@link reapPort}
+ * is for its process half: a worktree registered during the dispatch that the child
+ * did not remove is removed here. Checkouts under the main clone's `.worktrees/` are
+ * exempt — a parallel drain child registers its session there while this lane runs,
+ * and that is live work, not a leak. Git lists the main worktree first.
+ */
+async function pruneLeakedWorktrees(repoRoot: string, before: string[]): Promise<string[]> {
+  const after = await listWorktrees(repoRoot);
+  if (after === null) return ['worktree audit skipped: git worktree list failed after dispatch'];
+  const sessionHome = join(before[0] ?? repoRoot, '.worktrees') + sep;
+  const known = new Set(before);
+  const notes: string[] = [];
+  for (const path of after) {
+    if (known.has(path) || path.startsWith(sessionHome)) continue;
+    const r = await git(repoRoot, ['worktree', 'remove', '--force', path]);
+    notes.push(
+      r.ok
+        ? `removed leaked worktree ${path}`
+        : `leaked worktree ${path} could not be removed: ${r.out}`,
+    );
+  }
+  return notes;
 }
 
 export async function runVerify(input: LaneInput): Promise<LaneResult> {
@@ -128,6 +173,8 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   }));
   let answer: LaneAnswer<VerifyVerdict> | null = null;
   let dispatchErr = '';
+  let leakNotes: string[] = [];
+  const worktreesBefore = await listWorktrees(input.repoRoot);
   // Pre-dispatch reap: smoke SIGKILLs its boots but teardown is async — make
   // sure the port is actually free before the agent boots the same surface.
   await reapPort(port);
@@ -149,9 +196,13 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
     // Covers the repair round too: its prompt forbids booting anything, but prompt
     // text is not enforcement.
     await reapPort(port);
+    leakNotes =
+      worktreesBefore === null
+        ? ['worktree audit skipped: git worktree list failed before dispatch']
+        : await pruneLeakedWorktrees(input.repoRoot, worktreesBefore);
   }
   const parsed = answer?.ok === true ? answer.answer : null;
-  const answerNotes = answer?.notes ?? [];
+  const answerNotes = [...(answer?.notes ?? []), ...leakNotes];
 
   /** Carry the seam's notes (a recovery, the kept raw answer) onto the sink. */
   const withNotes = (payload: SinkPayload): SinkPayload =>
