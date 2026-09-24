@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### pnpm Flattens CLI Exit Codes the Skills Branch On
-
-- id: Q-0266
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: S
-- impact: high
-- confidence: med
-
-`pnpm` reports every failing script as exit 1, so any `pnpm noldor …` command whose contract is a meaningful non-zero code reads the same through the wrapper. `split-check` and `lint-plan-snippets` document 0 = clean, 2 = signals, 1 = infra error, and `/noldor-gate` Step 0/2.5 and `/noldor-promote` step 1.7 branch on that code: an oversized entry returned 1 through pnpm and 2 through `node bin/noldor.mjs noldor split-check --entry <slug>` (Q-0250 promote, 2026-09-22), so a controller following the prose reads "signals present" as "checker infra error, continue" and skips the split prompt the step exists for. The same flattening hits `cr autofix plan` (0 / 10 / 11 — `next: apply-then-stop` exited 1 through pnpm, 11 direct, Q-0261) and `cr orchestrate`'s 3 (round cap) and 4 (unusable prior sink). `refactor-precondition` already works around it with a stdout `verdict:` line. Wanted: every exit-code-bearing command either prints a verdict line the skills read instead, or the skills call `node bin/noldor.mjs` for them. Deletion test: an oversized entry run exactly as `/noldor-promote` step 1.7 prints it reaches the split prompt. (absorbed 2026-09-24 from two lessons)
-
 ### Spec-Stage ADR Commit Breaks the CR Range and the PR Summary
 
 - id: Q-0267

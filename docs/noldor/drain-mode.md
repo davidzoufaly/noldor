@@ -25,8 +25,9 @@ dependency, so the prompt stays a thin pointer.
 - Honor `NOLDOR_DRAIN_SKIP` (comma-separated slugs the supervisor already
   skipped): never pick a listed entry.
 - **Oversize guard:** before scaffolding anything, run
-  `pnpm noldor noldor split-check --entry <slug>` and capture stdout + exit
-  code. On exit 2, exit non-zero without scaffolding and echo the signal
+  `pnpm noldor noldor split-check --entry <slug>` and capture stdout, stderr
+  and the exit code. `pnpm` reports every failure as 1, so take the code from
+  the `noldor: exit code <n>` stderr line when one prints. On exit 2, exit non-zero without scaffolding and echo the signal
   lines to stderr — an entry whose *label* routes to fast-track but whose
   *body* trips the oversize heuristics needs a human re-size or split, never
   a headless ship. On exit 1 (checker infra error), continue — never block a

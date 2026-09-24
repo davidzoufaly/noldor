@@ -1,3 +1,4 @@
+import { writeSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { MANIFEST } from './manifest.js';
@@ -69,7 +70,31 @@ async function failUnknown(what: string): Promise<never> {
   process.exit(1);
 }
 
+/**
+ * Restate a meaningful exit code on stderr when a package script wraps this run.
+ *
+ * `pnpm noldor …` reports every failing script as exit 1, so a skill branching on
+ * a command's 2 / 3 / 4 / 10 / 11 reads "infra error" instead — an oversized
+ * entry's split signal (2) was skipped as a checker failure this way. The line is
+ * the channel that survives the wrapper; stderr keeps `--json` stdout parseable.
+ * Scoped to a script that runs noldor, so a direct run (whose exit code already
+ * says it) and a CLI spawned under `pnpm test` stay quiet. The variable is
+ * dropped once read, so a noldor child spawned from here cannot restate its own
+ * code and be mistaken for this run's.
+ */
+function restateExitCodeUnderWrapper(): void {
+  const script = process.env.npm_lifecycle_script;
+  delete process.env.npm_lifecycle_script;
+  if (script === undefined || !script.includes('noldor')) return;
+  process.on('exit', (code) => {
+    // A synchronous write: stderr to a pipe is async on macOS, and the process is
+    // already exiting.
+    if (code >= 2) writeSync(2, `noldor: exit code ${code}\n`);
+  });
+}
+
 async function main(): Promise<void> {
+  restateExitCodeUnderWrapper();
   const [, , group, sub, ...rest] = process.argv;
 
   if (group === '--version') {

@@ -165,6 +165,13 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 
 ## Shell & tooling traps
 
+- **`pnpm noldor <cmd>` reports every failure as exit 1.** pnpm flattens a
+  script's non-zero exit, so `split-check`'s 2 (signals), `cr autofix plan`'s
+  10 / 11 and `cr orchestrate`'s 3 / 4 all read as 1 — the "infra error"
+  branch. The CLI restates any code of 2 or higher on stderr as
+  `noldor: exit code <n>` when a package script runs it; branch on that line.
+  Running `node bin/noldor.mjs …` directly keeps the real status (self-host
+  only — a consumer's install has no `bin/` at the root).
 - **`pnpm noldor <cmd>` exits 137 with zero output when one argument is long.**
   An endpoint agent (seen on SentinelOne/Kandji macOS) SIGKILLs any
   `node <script>` given a single argument of 935+ characters, before any JS
