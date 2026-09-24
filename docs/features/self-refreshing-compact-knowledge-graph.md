@@ -20,6 +20,7 @@ packages:
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 The committed knowledge graph refreshes itself: a merged `feat`, `fix` or
@@ -93,3 +94,19 @@ Reading one community means taking its line range from the `toc` block at the to
 <!-- @prs-since-last-release: self-refreshing-compact-knowledge-graph -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/design/specs/archive/2026-09-22-self-refreshing-compact-knowledge-graph-design.md`](../../docs/design/specs/archive/2026-09-22-self-refreshing-compact-knowledge-graph-design.md)
+- **Code:**
+  - [`.github/workflows/update-knowledge-graph.yml`](../../.github/workflows/update-knowledge-graph.yml)
+  - [`src/graphify/graph-to-toon.ts`](../../src/graphify/graph-to-toon.ts)
+  - [`src/templates/manifest.ts`](../../src/templates/manifest.ts)
+  - [`templates/.github/workflows/update-knowledge-graph.yml`](../../templates/.github/workflows/update-knowledge-graph.yml)
+- **Tests:**
+  - [`src/graphify/__tests__/graph-to-toon.test.ts`](../../src/graphify/__tests__/graph-to-toon.test.ts)
+  - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)
+
+<!-- /generated: resources -->

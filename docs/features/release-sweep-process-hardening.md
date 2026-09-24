@@ -30,6 +30,7 @@ links:
     - src/core/__tests__/session.test.ts
     - src/core/rules/__tests__/session-injected.test.ts
     - src/garden/__tests__/garden-detect.test.ts
+    - src/graphify/__tests__/refactor-precondition.test.ts
     - src/hooks/__tests__/noldor-enforce-review-receipt.test.ts
     - src/hooks/__tests__/noldor-inject-trailers.test.ts
     - src/release/__tests__/preflight-probes.test.ts
@@ -119,6 +120,7 @@ As an operator preparing a release, I want `/noldor-release-sweep` to run end-to
   - [`src/core/__tests__/session.test.ts`](../../src/core/__tests__/session.test.ts)
   - [`src/core/rules/__tests__/session-injected.test.ts`](../../src/core/rules/__tests__/session-injected.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/graphify/__tests__/refactor-precondition.test.ts`](../../src/graphify/__tests__/refactor-precondition.test.ts)
   - [`src/hooks/__tests__/noldor-enforce-review-receipt.test.ts`](../../src/hooks/__tests__/noldor-enforce-review-receipt.test.ts)
   - [`src/hooks/__tests__/noldor-inject-trailers.test.ts`](../../src/hooks/__tests__/noldor-inject-trailers.test.ts)
   - [`src/release/__tests__/preflight-probes.test.ts`](../../src/release/__tests__/preflight-probes.test.ts)

@@ -21,6 +21,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
+
 ## Summary
 
 The noldor-scope validator (`src/core/validate-noldor-scope.ts`) can force one logically-coherent change (feat in code, tests, sibling doc syncs in `docs/noldor/<page>.md` and `docs/features/<slug>.md`) to split into separate commits per scope. Mechanically correct, but the same logical change becomes 3 entries in `git log` and 3× the gate dance (session, hook, trailer). 2026-05-12 roadmap-priority follow-up hit this. Proposal: introduce a `Noldor-Sibling-Scope: <scope-list>` trailer that lets the validator accept files mapping to listed sibling scopes, keeping the work as one atomic commit. Alternative: validator auto-detects "doc-sync-for-this-feat" patterns and waives the split heuristically. **Re-verify pain before spec'ing** (2026-07-02 note): the validator moved to `src/core/` and appears laxer than this entry claims — multi-page edits pass under a plain `noldor` scope; confirm the forced-split still bites on current code before spending an M on it.
@@ -76,5 +77,6 @@ On failure, the validator error itself prints the exact trailer line to add.
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)
   - [`src/core/__tests__/validate-noldor-scope.test.ts`](../../src/core/__tests__/validate-noldor-scope.test.ts)
   - [`src/hooks/__tests__/noldor-validate-trailer.test.ts`](../../src/hooks/__tests__/noldor-validate-trailer.test.ts)
+  - [`src/rules/__tests__/sibling-scope-trailer.test.ts`](../../src/rules/__tests__/sibling-scope-trailer.test.ts)
 
 <!-- /generated: resources -->
