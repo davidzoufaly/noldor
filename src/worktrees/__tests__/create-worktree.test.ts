@@ -120,6 +120,63 @@ describe('createWorktree', () => {
     ).rejects.toThrow(/pnpm install failed/);
   });
 
+  describe('base commit', () => {
+    let origin: string;
+    let other: string;
+
+    /** Wire `root` to a bare `origin`, then land `count` commits on origin/main
+     *  from a second clone — the state a merged PR leaves behind. */
+    async function originAhead(count: number): Promise<string> {
+      origin = await mkdtemp(join(tmpdir(), 'cwt-origin-'));
+      git(['init', '--bare', '-b', 'main'], origin);
+      git(['remote', 'add', 'origin', origin], root);
+      git(['push', '-q', 'origin', 'main'], root);
+      other = await mkdtemp(join(tmpdir(), 'cwt-other-'));
+      git(['clone', '-q', origin, other], other);
+      git(['config', 'user.email', 't@t'], other);
+      git(['config', 'user.name', 't'], other);
+      for (let i = 0; i < count; i++) git(['commit', '--allow-empty', '-m', `merged ${i}`], other);
+      git(['push', '-q', 'origin', 'main'], other);
+      return git(['rev-parse', 'HEAD'], other).trim();
+    }
+
+    afterEach(async () => {
+      if (origin) await rm(origin, { recursive: true, force: true });
+      if (other) await rm(other, { recursive: true, force: true });
+    });
+
+    it('fetches and branches from origin/main when local main is behind', async () => {
+      const merged = await originAhead(2);
+      const res = unwrap(
+        await createWorktree({ slug: 'fresh', cwd: root, installRunner: okInstall }),
+      );
+      expect(git(['rev-parse', 'HEAD'], res.path).trim()).toBe(merged);
+    });
+
+    it('keeps local HEAD when it carries commits origin/main lacks', async () => {
+      await originAhead(1);
+      git(['commit', '--allow-empty', '-m', 'local only'], root);
+      const local = git(['rev-parse', 'HEAD'], root).trim();
+      const log = vi.fn();
+      const res = unwrap(
+        await createWorktree({ slug: 'ahead', cwd: root, installRunner: okInstall, log }),
+      );
+      expect(git(['rev-parse', 'HEAD'], res.path).trim()).toBe(local);
+      expect(log).toHaveBeenCalledWith(expect.stringMatching(/not on origin\/main/));
+    });
+
+    it('falls back to local HEAD when the fetch fails', async () => {
+      git(['remote', 'add', 'origin', join(root, 'no-such-remote')], root);
+      const local = git(['rev-parse', 'HEAD'], root).trim();
+      const log = vi.fn();
+      const res = unwrap(
+        await createWorktree({ slug: 'offline', cwd: root, installRunner: okInstall, log }),
+      );
+      expect(git(['rev-parse', 'HEAD'], res.path).trim()).toBe(local);
+      expect(log).toHaveBeenCalledWith(expect.stringMatching(/could not fetch origin main/));
+    });
+  });
+
   it('skips install when install: false', async () => {
     const spy = vi.fn(okInstall);
     const res = unwrap(
