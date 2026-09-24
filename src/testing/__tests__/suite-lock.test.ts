@@ -2,7 +2,16 @@
 import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  linkSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -83,6 +92,16 @@ describe('tryAcquire', () => {
     writeFileSync(lockIn(dir), payload);
     expect(tryAcquire(lockIn(dir), self)).toEqual({ kind: 'acquired' });
     expect(readJson(lockIn(dir))).toEqual(self);
+  });
+
+  it('leaves a dead lock alone while another suite holds the claim on it', () => {
+    writeFileSync(lockIn(dir), JSON.stringify({ ...other, pid: exitedPid() }));
+    const claim = `${lockIn(dir)}.reclaim.${statSync(lockIn(dir), { bigint: true }).ino}`;
+    linkSync(lockIn(dir), claim);
+    expect(tryAcquire(lockIn(dir), self)).toEqual({ kind: 'held' });
+    expect(readJson(lockIn(dir))).toMatchObject({ worktree: '/work/other' });
+    rmSync(claim);
+    expect(tryAcquire(lockIn(dir), self)).toEqual({ kind: 'acquired' });
   });
 
   it('keeps a live holder whose payload lacks the display fields', () => {
@@ -291,20 +310,33 @@ function firstLine(child: ChildProcessWithoutNullStreams): Promise<string> {
 }
 
 describe('across processes', () => {
-  it('leaves exactly one holder when several suites start at the same instant', async () => {
-    const body = [
-      'await new Promise((r) => setTimeout(r, Math.max(0, Number(process.env.START) - Date.now())));',
-      "const r = tryAcquire(process.env.LOCK!, { pid: process.pid, startedAt: new Date().toISOString(), worktree: 'child' });",
-      "process.stdout.write(r.kind + '\\n');",
-      "if (r.kind === 'acquired') setInterval(() => {}, 1000);",
-    ].join('\n');
-    const env = { LOCK: lockIn(dir), START: String(Date.now() + 1000) };
-    using a = lockChild(body, env);
-    using b = lockChild(body, env);
-    using c = lockChild(body, env);
-    const kinds = await Promise.all([a, b, c].map(({ child }) => firstLine(child)));
-    expect(kinds.toSorted()).toEqual(['acquired', 'held', 'held']);
-  });
+  it.each([
+    ['a free lock', false],
+    ["a dead holder's lock", true],
+  ])(
+    'leaves exactly one holder when several suites start at the same instant on %s',
+    async (_lock, deadHolder) => {
+      if (deadHolder) writeFileSync(lockIn(dir), JSON.stringify({ ...other, pid: exitedPid() }));
+      const body = [
+        'await new Promise((r) => setTimeout(r, Math.max(0, Number(process.env.START) - Date.now())));',
+        "const r = tryAcquire(process.env.LOCK!, { pid: process.pid, startedAt: new Date().toISOString(), worktree: 'child' });",
+        "process.stdout.write(r.kind + '\\n');",
+        "if (r.kind === 'acquired') setInterval(() => {}, 1000);",
+      ].join('\n');
+      const env = { LOCK: lockIn(dir), START: String(Date.now() + 1000) };
+      using a = lockChild(body, env);
+      using b = lockChild(body, env);
+      using c = lockChild(body, env);
+      const kinds = await Promise.all([a, b, c].map(({ child }) => firstLine(child)));
+      expect(kinds.toSorted()).toEqual(['acquired', 'held', 'held']);
+      const winner = [a, b, c][kinds.indexOf('acquired')]!;
+      expect(readJson(lockIn(dir))).toEqual({
+        pid: winner.child.pid,
+        startedAt: expect.any(String),
+        worktree: 'child',
+      });
+    },
+  );
 
   it('removes its lock when the process exits without a teardown', async () => {
     const repo = gitRepo(dir);

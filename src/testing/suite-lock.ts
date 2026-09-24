@@ -7,7 +7,7 @@
 // reproduction recipe in the feature doc relies on.
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { linkSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { linkSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -67,32 +67,39 @@ function publish(lockPath: string, staged: string, self: SuiteLockHolder): TryAc
     if (seen.pid === self.pid) return { kind: 'own' };
     if (isAlive(seen.pid)) return { kind: 'held', holder: seen };
   }
-  if (!reclaimStale(lockPath, seen, self.pid)) return { kind: 'held' };
-  return linkIfAbsent(staged, lockPath) ? { kind: 'acquired' } : { kind: 'held' };
+  return replaceDead(lockPath, staged) ? { kind: 'acquired' } : { kind: 'held' };
 }
 
 /**
- * Move a dead holder's lock out of the way. Renaming aside rather than unlinking
- * lets only one of several reclaimers win. The moved file is read again because a
- * live suite may have published its own lock between our read and our rename; that
- * lock is linked back and the reclaim gives up.
+ * Replace a dead holder's lock with the staged one. Moving the dead lock aside and
+ * checking what moved does not work: until a wrong move is undone the path is free,
+ * and another suite can take it while a live lock sits aside. Instead the lock is
+ * hard-linked to a claim named after its inode — a name only one suite can hold at a
+ * time, and a link that keeps the inode from being reused — and its holder is judged
+ * again through the claim. A dead holder cannot release and no other suite can claim
+ * that inode, so once the lock is confirmed still in place it stays there until the
+ * rename swaps ours in, and the path is never free.
  */
-function reclaimStale(
-  lockPath: string,
-  judged: SuiteLockHolder | 'unreadable',
-  pid: number,
-): boolean {
-  const asidePath = `${lockPath}.reclaim.${pid}`;
+function replaceDead(lockPath: string, staged: string): boolean {
+  const ino = inodeOf(lockPath);
+  if (ino === undefined) return false;
+  const claimPath = `${lockPath}.reclaim.${ino}`;
+  // noldor:cut a claim is never broken, so a suite killed between the claim and the
+  // rename strands it and later suites wait out the 15-minute bound — upgrade to a
+  // kernel-released lock (flock through a helper process) if that is ever seen.
   try {
-    renameSync(lockPath, asidePath);
+    linkSync(lockPath, claimPath);
   } catch (err) {
-    if (errno(err) === 'ENOENT') return false;
+    if (errno(err) === 'EEXIST' || errno(err) === 'ENOENT') return false;
     throw err;
   }
-  using aside = removedOnDispose(asidePath);
-  if (sameHolder(readHolder(aside.path), judged)) return true;
-  linkIfAbsent(aside.path, lockPath);
-  return false;
+  using claim = removedOnDispose(claimPath);
+  if (inodeOf(claim.path) !== ino) return false;
+  const holder = readHolder(claim.path);
+  if (typeof holder === 'object' && isAlive(holder.pid)) return false;
+  if (inodeOf(lockPath) !== ino) return false;
+  renameSync(staged, lockPath);
+  return true;
 }
 
 /** Remove the lock only while its payload is still `self` — never another suite's lock. */
@@ -276,9 +283,14 @@ function parseHolder(raw: string): SuiteLockHolder | undefined {
   };
 }
 
-function sameHolder(seen: SeenHolder, expected: SuiteLockHolder | 'unreadable'): boolean {
-  if (typeof seen === 'string' || typeof expected === 'string') return seen === expected;
-  return seen.pid === expected.pid && seen.startedAt === expected.startedAt;
+function sameHolder(seen: SeenHolder, expected: SuiteLockHolder): boolean {
+  return (
+    typeof seen === 'object' && seen.pid === expected.pid && seen.startedAt === expected.startedAt
+  );
+}
+
+function inodeOf(path: string): bigint | undefined {
+  return statSync(path, { bigint: true, throwIfNoEntry: false })?.ino;
 }
 
 function removedOnDispose(path: string): { path: string } & Disposable {
