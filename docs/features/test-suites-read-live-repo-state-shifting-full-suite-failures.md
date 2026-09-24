@@ -14,7 +14,7 @@ links:
 name: Test Suites Read Live Repo State — Shifting Full-Suite Failures
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.10.0
