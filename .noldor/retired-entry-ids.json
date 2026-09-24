@@ -547,5 +547,9 @@
   "Q-0268": {
     "slug": "spec-structural-read-leaves-a-regenerated-graph-on-the-branch",
     "retiredAt": "2026-09-24"
+  },
+  "Q-0269": {
+    "slug": "verify-lane-leaves-a-registered-worktree-behind",
+    "retiredAt": "2026-09-24"
   }
 }

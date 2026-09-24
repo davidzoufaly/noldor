@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Verify Lane Leaves a Registered Worktree Behind
-
-- id: Q-0269
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: XS
-- impact: med
-- confidence: med
-
-Shipping Q-0250 (PR #492), the code-stage verifier built its test bed with `git worktree add --detach /tmp/q0250-verify <sha>`, symlinked `node_modules` into it and ran `cr orchestrate` there. It killed every process it started, as its prompt requires, but the prompt says nothing about worktrees or temp directories, so the main clone's `git worktree list` kept `/private/tmp/q0250-verify` until it was removed by hand (unlink the `node_modules` symlink first, then `git worktree remove --force`). Wanted: `buildVerifyPrompt`'s hard rules require removing every worktree and temp directory the lane creates, or the lane diffs `git worktree list` before and after its dispatch and prunes the difference. Deletion test: after a verify round, `git worktree list` matches its pre-round output. (absorbed 2026-09-24)
-
 ### Path Pick Cannot See the Shared-File Block
 
 - id: Q-0244
