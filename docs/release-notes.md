@@ -1,5 +1,39 @@
 # Release Notes
 
+## v1.12.0 — 2026-09-24
+
+### Tooling
+
+#### CR Lane Verdicts Blocked by Serialization, Not Substance
+
+This release declares which side writes a CR lane answer file (#492).
+
+[Feature page](/features/cr-lane-verdicts-blocked-by-serialization-not-substance)
+
+#### CR Re-Round Cap Enforcement and Oscillation Detector *(updated)*
+
+An operator's ruling on a CR finding now holds for the rest of the session (#495). Re-rounds now answer each prior blocker and re-file the ones that still stand (#493).
+
+[Feature page](/features/cr-re-round-cap-enforcement-and-oscillation-detector)
+
+#### Refutation Judge Pass Before a Blocker Can Red a Round
+
+A blocker that contradicts the code it cites is now demoted before it can red a round (#497).
+
+[Feature page](/features/refutation-judge-pass-before-a-blocker-can-red-a-round)
+
+#### Self-Refreshing, Compact Knowledge Graph
+
+This release ships a knowledge-graph refresh workflow (#501).
+
+[Feature page](/features/self-refreshing-compact-knowledge-graph)
+
+#### Spec-Stage CR Stopping Rule
+
+A spec finding now blocks only when it names its basis (#494).
+
+[Feature page](/features/spec-stage-cr-stopping-rule)
+
 ## v1.11.0 — 2026-09-22
 
 ### Tooling

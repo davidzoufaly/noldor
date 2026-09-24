@@ -44,8 +44,8 @@ phase: done
 since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.9.0
+updated: 1.12.0
 ---
-
 ## Summary
 
 Q-0130's re-round cap (2) is enforced in one half of the loop and asserted in the other. `AUTOFIX_ROUND_CAP` is a real bound on the auto-fix seam, but only `cr autofix record` writes the ledger it reads — an operator-driven round writes nothing, `cr orchestrate` has no round counter at all, and the combined bound is prose in a skill file. The cost is measurable: of 41 unique `Noldor-Path-Override` trailers in this repo's history, 23 name a CR round or convergence failure. The Q-0146 code CR ran 12 rounds, the reviewer finding one new med per round indefinitely while codex oscillated against its own round-4 demand and re-flagged documented `noldor:cut` sites five times.
@@ -165,6 +165,17 @@ Noldor-CR-Settled: code rejected 1a2b3c4d5e6f — the fallback is intentional; s
 <!-- @prs-since-last-release: cr-re-round-cap-enforcement-and-oscillation-detector -->
 
 ## Changelog
+
+### 1.12.0
+
+#### Summary
+
+An operator's ruling on a CR finding now holds for the rest of the session (#495). Re-rounds now answer each prior blocker and re-file the ones that still stand (#493).
+
+#### PRs
+
+- #495: an operator's ruling on a CR finding holds for the rest of the session ([link](https://github.com/davidzoufaly/noldor/pull/495))
+- #493: re-rounds answer each prior blocker and re-file the standing ones ([link](https://github.com/davidzoufaly/noldor/pull/493))
 
 ### Initial Release (v1.9.0)
 

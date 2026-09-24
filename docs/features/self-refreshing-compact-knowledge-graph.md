@@ -19,8 +19,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: full
+introduced: 1.12.0
 ---
-
 ## Summary
 
 The committed knowledge graph refreshes itself: a merged `feat`, `fix` or
@@ -94,6 +94,16 @@ Reading one community means taking its line range from the `toc` block at the to
 <!-- @prs-since-last-release: self-refreshing-compact-knowledge-graph -->
 
 ## Changelog
+
+### Initial Release (v1.12.0)
+
+#### Summary
+
+This release ships a knowledge-graph refresh workflow (#501).
+
+#### PRs
+
+- #501: ship a knowledge-graph refresh workflow ([link](https://github.com/davidzoufaly/noldor/pull/501))
 
 <!-- generated: resources -->
 

@@ -54,8 +54,8 @@ packages:
 phase: done
 since: 2026-09-22T00:00:00.000Z
 noldor-tier: full
+introduced: 1.12.0
 ---
-
 ## Summary
 
 Getting a green CR check is unreliable for reasons that have nothing to do with the code under review: a lane can approve a change and still red the round on how it wrote the answer down. Two confirmed mechanisms, both observed blocking a ship. **(1) The verify lane cannot report on a change whose evidence contains fenced code, because its own payload is a fence.** Shipping Q-0239 the verifier ran the full acceptance set twice and emitted `{"verdict":"pass"}` both times; `parseVerifyPayload` recovered neither, because the evidence quotes the ` ```bash ` blocks the change is about and the inner backticks close the outer fence early. The repair round failed identically, and `proseReportsSuccess` (`src/cr/lanes/verify.ts`) missed too — `PROSE_SUCCESS_RE` wants a `verifi*` stem or "all checks pass", which a verifier writing plainly never produces, while `PROSE_FAILURE_RE` vetoes on `\bmissing\b` / `\bwrong\b` / `\bcannot\b`, words that appear constantly in an honest description of what was tested. So the rescue valve is biased hard toward veto in exactly the rounds it exists to rescue, and the only exit was `Noldor-Path-Override`. **(2) A reviewer lane that writes `- (none)` under an empty severity bucket reds the round with phantom blockers.** Shipping Q-0246 the code-stage reviewer returned `summary: "approve"` yet its sink carried `[high]`/`[med]` blockers whose `message` was the literal string `(none)`; `cr aggregate` read `ok=false`, no receipt was minted, and `cr autofix plan` declined `no-mechanical` with nothing to apply. The shipped fix replaces the entry's candidates (a machine verdict line outside any fence, a last-balanced-fence extractor, a filter for `(none)` bullets): each lane now writes its answer as one JSON object to a per-dispatch answer file that is parsed and validated, never dug out of printed output, and a reviewer finding blocks only when the reviewer marks it blocking and it is not `minor`, `maybe:` or `unverified:`, with the sink summary derived from those same findings. Deletion test: a change whose evidence contains fenced code, and a reviewer sink carrying `(none)` bullets, both produce the lane's real verdict. (found 2026-09-20 shipping Q-0239 / Q-0246)
@@ -94,6 +94,16 @@ As an operator or agent shipping a change through the CR gate, I want each lane'
 <!-- @prs-since-last-release: cr-lane-verdicts-blocked-by-serialization-not-substance -->
 
 ## Changelog
+
+### Initial Release (v1.12.0)
+
+#### Summary
+
+This release declares which side writes a CR lane answer file (#492).
+
+#### PRs
+
+- #492: declare which side writes a CR lane answer file ([link](https://github.com/davidzoufaly/noldor/pull/492))
 
 <!-- generated: resources -->
 

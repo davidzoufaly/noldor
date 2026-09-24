@@ -1,5 +1,48 @@
 # Changelog
 
+## v1.12.0 — 2026-09-24
+
+### Features
+
+- feat(docs): AGENTS.md carries a generated index of every noldor verb group, so agents see what the framework ships ([9190193](https://github.com/davidzoufaly/noldor/commit/9190193261df7711d56124030eb8dc11f462cc5e)) ([#518](https://github.com/davidzoufaly/noldor/pull/518))
+- feat(milestones): milestones sort by a since date within each status, not by name ([5953eed](https://github.com/davidzoufaly/noldor/commit/5953eed86ce039e5d5ab239f1afff543a3b4803c)) ([#517](https://github.com/davidzoufaly/noldor/pull/517))
+- feat(noldor): the release sweep skips its refactor pass when god nodes and cohesion are unchanged since the last tag ([f4672da](https://github.com/davidzoufaly/noldor/commit/f4672dafe85f3357f84b145fefc798ba46b0335c)) ([#514](https://github.com/davidzoufaly/noldor/pull/514))
+- feat(checks): doctor warns when a queued entry extends a feature no known repo has switched on ([e1cb298](https://github.com/davidzoufaly/noldor/commit/e1cb29809950d4d04edb19945dc27f33b16b0311)) ([#513](https://github.com/davidzoufaly/noldor/pull/513))
+- feat(cr): an autonomous session runs the auto-fix seam unless config pins onBlockers ([968f530](https://github.com/davidzoufaly/noldor/commit/968f5301ffa02ee9c958f938355fc2c9d8b29ccd)) ([#512](https://github.com/davidzoufaly/noldor/pull/512))
+- feat(core): the gate's priority pickup offers a Bugfix bucket of type: fix entries, highest impact first ([a700d0d](https://github.com/davidzoufaly/noldor/commit/a700d0d5e34704bf2e06dd603f85b12c5840da08)) ([#511](https://github.com/davidzoufaly/noldor/pull/511))
+- feat(design): design support-check refuses a spec whose ledger records no prior art ([6dc4eb6](https://github.com/davidzoufaly/noldor/commit/6dc4eb6b1095577a50eb8fb8ed7246216a167b0d)) ([#510](https://github.com/davidzoufaly/noldor/pull/510))
+- feat(templates): ship a knowledge-graph refresh workflow ([e777370](https://github.com/davidzoufaly/noldor/commit/e777370dc5e21e94494728ab826e9370b9631392)) ([#501](https://github.com/davidzoufaly/noldor/pull/501))
+- feat(cr): a blocker that contradicts the code it cites is demoted before it reds a round ([40d6e7b](https://github.com/davidzoufaly/noldor/commit/40d6e7b20d5be93c32c2a8c60058b3b02627e33c)) ([#497](https://github.com/davidzoufaly/noldor/pull/497))
+- feat(cr): an operator's ruling on a CR finding holds for the rest of the session ([9fed91f](https://github.com/davidzoufaly/noldor/commit/9fed91f131932c486c1bc9019ccfb26399d8bae3)) ([#495](https://github.com/davidzoufaly/noldor/pull/495))
+- feat(cr): a spec finding blocks only when it names its basis ([37b73bd](https://github.com/davidzoufaly/noldor/commit/37b73bde334438ebc658c40e8fb6d216cf2cf3b4)) ([#494](https://github.com/davidzoufaly/noldor/pull/494))
+- feat(cr): re-rounds answer each prior blocker and re-file the standing ones ([bfa5851](https://github.com/davidzoufaly/noldor/commit/bfa58517396a9d966fecd9835b05000bf400075d)) ([#493](https://github.com/davidzoufaly/noldor/pull/493))
+- feat(core): declare which side writes a CR lane answer file ([c7b9bde](https://github.com/davidzoufaly/noldor/commit/c7b9bdefe5872540c23a2f792cccccb911700d88)) ([#492](https://github.com/davidzoufaly/noldor/pull/492))
+
+### Fixes
+
+- fix(dashboard): sortEntries orders names the same on every machine, not by host locale ([a6684d5](https://github.com/davidzoufaly/noldor/commit/a6684d56d09b42260aefe030f4b0bd0ad31a5360)) ([#519](https://github.com/davidzoufaly/noldor/pull/519))
+- fix(features): validate features warns when a hand-added links.code row will be dropped by the next sync ([bf0ecfe](https://github.com/davidzoufaly/noldor/commit/bf0ecfe3dc7702029e5264bc099db483f4223c0a)) ([#509](https://github.com/davidzoufaly/noldor/pull/509))
+- fix(checks): checks pen-bridge counts the open VS Code windows and names the single-owner remedy ([9bf18a3](https://github.com/davidzoufaly/noldor/commit/9bf18a3777f264dcd9739f185c62c96709d25b0a)) ([#508](https://github.com/davidzoufaly/noldor/pull/508))
+- fix(cr): a round past the cap is counted and named as the closing round, and every round prints both counts ([e63a6bf](https://github.com/davidzoufaly/noldor/commit/e63a6bf7588b73c103f676d8330fb415ec41eafd)) ([#507](https://github.com/davidzoufaly/noldor/pull/507))
+- fix(features): fill-links-code-gaps finds candidates on a standalone src/ repo, and says so when it finds none ([e0fa8ab](https://github.com/davidzoufaly/noldor/commit/e0fa8ab221ef979bf3e7fc44227aeae81e709aa4)) ([#506](https://github.com/davidzoufaly/noldor/pull/506))
+- fix(triage): a heading's accented letters fold into its slug, and --split-into refuses a slug that resolves to nothing ([1240561](https://github.com/davidzoufaly/noldor/commit/1240561da597ef96c08cf8a4041eb3236ece90d2)) ([#505](https://github.com/davidzoufaly/noldor/pull/505))
+- fix(rules): the sibling-scope trailer is named before a docs/noldor edit, not after the rejection ([a097b0d](https://github.com/davidzoufaly/noldor/commit/a097b0d77456300d5c67e64e3ae52fb51f1b30c2)) ([#504](https://github.com/davidzoufaly/noldor/pull/504))
+- fix(core): a long noldor commit body no longer dies silently at exit 137 ([8750a94](https://github.com/davidzoufaly/noldor/commit/8750a949f00db96830d9be8f4411a3bbb0e7756f)) ([#500](https://github.com/davidzoufaly/noldor/pull/500))
+- fix(cr): a CR lane reviews only the branch's own change when its base is stale ([e204d47](https://github.com/davidzoufaly/noldor/commit/e204d4767b51df3d79cf783eacb4585e96879567)) ([#499](https://github.com/davidzoufaly/noldor/pull/499))
+- fix(templates): the vendored engineering rules no longer name a templates/ twin ([553ad02](https://github.com/davidzoufaly/noldor/commit/553ad02e97b59d50f5c11f0a8e2439f85da40fa7)) ([#498](https://github.com/davidzoufaly/noldor/pull/498))
+- fix(core): leave gitignored files out of the mtime graph-freshness walk ([58a493a](https://github.com/davidzoufaly/noldor/commit/58a493aeb2db6ea1a9a149a222f6cd38cfc52314)) ([#491](https://github.com/davidzoufaly/noldor/pull/491))
+- fix(core): next-priority holds back entries whose blocker is still queued ([5e4b224](https://github.com/davidzoufaly/noldor/commit/5e4b224564cb2a5d7fd05e8ba8c124adee602680)) ([#490](https://github.com/davidzoufaly/noldor/pull/490))
+- fix(dashboard): make the sortEntries name-asc fallback cases provable ([686376b](https://github.com/davidzoufaly/noldor/commit/686376b5aec04807816d6e47e0c541ce56dc4517)) ([#489](https://github.com/davidzoufaly/noldor/pull/489))
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift ([8bf50e7](https://github.com/davidzoufaly/noldor/commit/8bf50e7cf98ace7f9510602e4fc2e1094703ebc2)) ([#520](https://github.com/davidzoufaly/noldor/pull/520))
+- docs(noldor:rules): a rule states a constraint and how to check it, never another module's shape ([d71ea37](https://github.com/davidzoufaly/noldor/commit/d71ea37a1b27668e967088a416d488ec5a899adf)) ([#516](https://github.com/davidzoufaly/noldor/pull/516))
+- docs(rules): code explains itself — a comment ships only for a why the code cannot state ([9404d0d](https://github.com/davidzoufaly/noldor/commit/9404d0d47cf5370c06e41059edd7f7a294820cc0)) ([#515](https://github.com/davidzoufaly/noldor/pull/515))
+- docs(ideas): capture the graph-builder follow-ups from Q-0260 part 3 ([f93f043](https://github.com/davidzoufaly/noldor/commit/f93f043421c75293a89cccdd3d09c5cc44571923)) ([#503](https://github.com/davidzoufaly/noldor/pull/503))
+- docs(adr): shipped CI templates route through a PR ([7279156](https://github.com/davidzoufaly/noldor/commit/72791564fd4287988e8ff8fee452d3ad3a0ba24c)) ([#496](https://github.com/davidzoufaly/noldor/pull/496))
+- chore(triage): absorb 24 lessons and triage 20 ideas ([9e234cf](https://github.com/davidzoufaly/noldor/commit/9e234cf893ead6013d081eca92e948442475d86a)) ([#488](https://github.com/davidzoufaly/noldor/pull/488))
+
 ## v1.11.0 — 2026-09-22
 
 ### Features

@@ -32,8 +32,8 @@ packages:
 phase: done
 since: 2026-09-23T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.12.0
 ---
-
 ## Summary
 
 Spec-stage review almost never ends green. In Charuy, spec stages ended green in 1 of 34 PRs, and no spec was ever green on round 1. In Noldor, 28 of 29 spec series since Aug 20 ended red, and no multi-round series converged. Blocker counts stay flat from round to round (15 → 15 → 14, 8 → 9 → 11) while specs grow (#148 went from 279 to 520 lines), so each round buys more surface for the next. Part of this comes from the prompt. The codex artifact prompt (`src/cr/run-codex.ts:126`) demands that "placeholder / TODO / unfilled content" be resolved, yet it is fed the FD, whose TODO stubs are filled after the spec by design; this produced repeated blockers on #148 and #113. Define what blocks at the spec stage: a missing or contradictory requirement, an infeasible design, or a risk the operator has not accepted. Wording, formatting, cross-references and FD TODO stubs never block, and FD stubs stop being fed as spec content. Consider a hard stop: after the second spec round, a finding can block only if it meets that definition and the operator has not already adjudicated it. Deletion test: a spec whose remaining findings are wording, formatting or FD-stub TODOs is green.
@@ -73,6 +73,16 @@ As an operator or agent taking a spec through the CR gate, I want a spec finding
 <!-- @prs-since-last-release: spec-stage-cr-stopping-rule -->
 
 ## Changelog
+
+### Initial Release (v1.12.0)
+
+#### Summary
+
+A spec finding now blocks only when it names its basis (#494).
+
+#### PRs
+
+- #494: a spec finding blocks only when it names its basis ([link](https://github.com/davidzoufaly/noldor/pull/494))
 
 <!-- generated: resources -->
 

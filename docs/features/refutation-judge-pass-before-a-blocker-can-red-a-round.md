@@ -28,8 +28,8 @@ packages:
 phase: done
 since: 2026-09-23T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.12.0
 ---
-
 ## Summary
 
 Some blockers are simply wrong, and today nothing checks a claim before it turns a round red. In Charuy, 51 blockers (2.2%) contradicted the code they cited. 92% of them came from codex, and several were repeated across rounds: "announces its runId" kept coming back after a rebuttal (#179), and "upgrades unrelated dependencies" was filed although the base lockfile already had those versions (#126). In Noldor, codex's "placeholder classification can never succeed" was false five rounds in a row (#405). The panther claude-reviewer (gooddata/gdc-mastercard-panther `.github/claude-reviewer`) handles this with a judge: a cheap second model reads the diff plus the emitted findings and tries to refute each one with concrete contrary evidence. It drops only refuted findings and fails open, keeping everything when the result is inconclusive or the judge errors. Add the same pass after the lanes finish and before aggregate. A refuted blocker is demoted to a note that carries the judge's evidence, never silently dropped. Context leaks cause part of this class and may deserve their own fix. A framework-only rule vendored into a consumer's `.claude/engineering-rules.md` produced 27 Charuy blockers demanding a `templates/` twin in a repo that has none. Stale-base two-dot diffs caused others (#214, #109). Deletion test: a blocker whose cited line contradicts its claim is demoted, with the judge's evidence attached.
@@ -72,6 +72,16 @@ As an operator or a drain child taking a change through the CR gate, I want a re
 <!-- @prs-since-last-release: refutation-judge-pass-before-a-blocker-can-red-a-round -->
 
 ## Changelog
+
+### Initial Release (v1.12.0)
+
+#### Summary
+
+A blocker that contradicts the code it cites is now demoted before it can red a round (#497).
+
+#### PRs
+
+- #497: a blocker that contradicts the code it cites is demoted before it reds a round ([link](https://github.com/davidzoufaly/noldor/pull/497))
 
 <!-- generated: resources -->
 
