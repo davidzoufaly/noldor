@@ -432,7 +432,7 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 
 | Command                          | Source                                                           | Purpose                                                                                       |
 | -------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `pnpm noldor worktrees create`   | [`src/worktrees/create-worktree.ts`](../../src/worktrees/create-worktree.ts) | Create `.worktrees/<slug>` on `feat/<slug>` (`--branch` overrides), install deps, stamp port. |
+| `pnpm noldor worktrees create`   | [`src/worktrees/create-worktree.ts`](../../src/worktrees/create-worktree.ts) | Create `.worktrees/<slug>` on `feat/<slug>` (`--branch` overrides) cut from a freshly fetched `origin/main` (local HEAD when the fetch fails or HEAD is ahead), install deps, stamp port. |
 | `pnpm noldor worktrees up`       | [`src/worktrees/up-worktree.ts`](../../src/worktrees/up-worktree.ts) | Bootstrap the full dev surface: create + IDE + terminal + dev servers.                        |
 | `pnpm noldor worktrees down`     | [`src/worktrees/down-worktree.ts`](../../src/worktrees/down-worktree.ts) | Reap dev servers for a tree (`--remove` also deletes the worktree).                           |
 

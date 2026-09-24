@@ -1,8 +1,9 @@
 // noldor worktrees create <slug> [--branch <name>] [--no-install]
 //
 // Vendored worktree mechanics from docs/noldor/worktree-discipline.md:
-// .worktrees/<slug> on feat/<slug> (or --branch), pnpm install with the
-// lefthook-postinstall tolerance, port stamped into .env.local.
+// .worktrees/<slug> on feat/<slug> (or --branch) cut from a freshly fetched
+// origin/main, pnpm install with the lefthook-postinstall tolerance, port
+// stamped into .env.local.
 
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -99,7 +100,32 @@ const defaultInstall: InstallRunner = async (cwd) => {
 };
 
 /**
- * Create `.worktrees/<slug>` on a fresh branch from the main workspace's HEAD,
+ * Pick the commit a new worktree branches from: a freshly fetched `origin/main`.
+ *
+ * Local `main` is routinely behind — the graph-refresh PR merges itself after a
+ * session's end-of-flow sync already ran — and a branch cut from it builds on
+ * stale code. Local HEAD still wins in the two cases where `origin/main` is not
+ * a safe substitute: the fetch failed (offline, no remote), or HEAD carries
+ * commits `origin/main` lacks, which branching from origin would silently drop.
+ */
+async function resolveBase(cwd: string, log: (line: string) => void): Promise<string> {
+  try {
+    await execFileP('git', ['fetch', '-q', 'origin', 'main'], { cwd });
+  } catch {
+    log('warning: could not fetch origin main — branching from local HEAD');
+    return 'HEAD';
+  }
+  try {
+    await execFileP('git', ['merge-base', '--is-ancestor', 'HEAD', 'origin/main'], { cwd });
+    return 'origin/main';
+  } catch {
+    log('warning: local HEAD has commits not on origin/main — branching from local HEAD');
+    return 'HEAD';
+  }
+}
+
+/**
+ * Create `.worktrees/<slug>` on a fresh branch from `origin/main` (see {@link resolveBase}),
  * install dependencies (tolerating the known lefthook hooksPath failure), and
  * stamp a dev-server port into the tree's `.env.local`.
  *
@@ -147,8 +173,9 @@ export async function createWorktree(
     return { ok: false, error: { kind: 'branch-exists', branch } };
   }
 
-  await execFileP('git', ['worktree', 'add', path, '-b', branch], { cwd });
-  log(`worktree created: .worktrees/${parsed.slug} on ${branch}`);
+  const base = await resolveBase(cwd, log);
+  await execFileP('git', ['worktree', 'add', path, '-b', branch, base], { cwd });
+  log(`worktree created: .worktrees/${parsed.slug} on ${branch} from ${base}`);
 
   let installWarning: string | null = null;
   if (opts.install !== false) {

@@ -10,7 +10,7 @@ introduced: 0.4.0
 | Trigger                                             | What it does                                                                                                |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `git worktree add .worktrees/<name> -b feat/<name>` | Create a new worktree from main. Run from main.                                                             |
-| `pnpm noldor worktrees create <name>`               | Vendored creation: `.worktrees/<name>` on `feat/<name>` (`--branch` overrides, `--no-install` skips deps), install with lefthook tolerance, port stamped. |
+| `pnpm noldor worktrees create <name>`               | Vendored creation: `.worktrees/<name>` on `feat/<name>` (`--branch` overrides, `--no-install` skips deps) cut from a freshly fetched `origin/main` (local HEAD when the fetch fails or HEAD is ahead), install with lefthook tolerance, port stamped. |
 | `pnpm noldor worktrees status`                      | Print per-tree table (path, branch, port, ahead/behind, dirty, last commit). Warn on cap / drift / overlap. |
 | `pnpm noldor worktrees conflicts`                   | Pre-flight conflict scan across trees: HARD (same-file) ranked above soft (same graphify-community). Exits non-zero on a HARD conflict. |
 | `pnpm noldor worktrees launch`                      | Spawn one iTerm2 window per non-main worktree, each running `claude` with the launch-prompt template.       |
