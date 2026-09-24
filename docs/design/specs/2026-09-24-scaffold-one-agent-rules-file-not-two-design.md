@@ -58,7 +58,7 @@ For a region-managed path, `copyTemplate` (`src/templates/copy.ts`) writes the w
 
 ### Unit 3 — the migration for existing consumers
 
-A new `src/migrations/1.13.0.ts`, registered in `src/migrations/registry.ts`, follows the `0.6.0` pattern: idempotent, existence-guarded, and the same step list in `--dry-run`. Steps 2 and 3 run only when `agents.targets` includes `claude`.
+A new `src/migrations/1.13.0.ts`, registered in `src/migrations/registry.ts`, follows the `0.6.0` pattern: idempotent and existence-guarded. Unlike `0.6.0`, its steps depend on each other, so it computes them on an in-memory view of the files it reads — step 2 sees step 1's removal decision, step 3 sees step 2's rewrite — and apply mode writes that view at the end, so `--dry-run` lists exactly the steps a real run takes. Steps 2 and 3 run only when `agents.targets` includes `claude`.
 
 1. Remove `.claude/noldor.md` when its content matches one of the two versions noldor shipped (a content-hash list in the migration). A modified copy stays and is reported, as `0.6.0` does for a consumer-owned homonym.
 2. When step 1 removed the file, each `@.claude/noldor.md` import in `CLAUDE.md` and then `.claude/CLAUDE.md` becomes `@AGENTS.md` if neither file imports `@AGENTS.md` yet, and is deleted otherwise, so the two files end with exactly one import. A modified copy that step 1 kept keeps its import too.
@@ -71,7 +71,7 @@ A new `src/migrations/1.13.0.ts`, registered in `src/migrations/registry.ts`, fo
 
 ### Unit 5 — doctor and init check that Claude can see AGENTS.md
 
-A new `src/checks/check-agents-md-wiring.ts`, shaped like `check-lefthook-wiring.ts`, looks at the repo root, and runs only when `agents.targets` includes `claude`. Its exported predicate is the one definition of wired, and the migration's steps 2 and 3 call it rather than restating it. An import is a line whose whole content is `@AGENTS.md` or `@./AGENTS.md`, outside a fenced code block. When a `CLAUDE.md` or `.claude/CLAUDE.md` exists and neither carries an import (nor is a symlink to `AGENTS.md`), it reports `unwired`: Claude reads those files only, so the framework rules never reach it. The import has to sit in one of those two project files, because an import in one person's `CLAUDE.local.md` leaves every teammate unwired. `doctor` fails on the row, as it does for unwired hooks. When the only hiding file is `CLAUDE.local.md` and it lacks the import, the row is a warning. `init` prints the finding and edits nothing.
+A new `src/checks/check-agents-md-wiring.ts`, shaped like `check-lefthook-wiring.ts`, looks at the repo root, and runs only when `agents.targets` includes `claude`. Its exported predicate takes file contents rather than reading the disk, is the one definition of wired, and the migration's steps 2 and 3 call it on their in-memory view rather than restating it. An import is a line whose whole content is `@AGENTS.md` or `@./AGENTS.md`, outside a fenced code block. When a `CLAUDE.md` or `.claude/CLAUDE.md` exists and neither carries an import (nor is a symlink to `AGENTS.md`), it reports `unwired`: Claude reads those files only, so the framework rules never reach it. The import has to sit in one of those two project files, because an import in one person's `CLAUDE.local.md` leaves every teammate unwired. `doctor` fails on the row, as it does for unwired hooks. When the only hiding file is `CLAUDE.local.md` and it lacks the import, the row is a warning. `init` prints the finding and edits nothing.
 
 ### Unit 6 — docs
 
@@ -83,7 +83,7 @@ A new `src/checks/check-agents-md-wiring.ts`, shaped like `check-lefthook-wiring
 2. `noldor init` in a repo whose `AGENTS.md` has no region exits 0, appends the region, and leaves every pre-existing byte in place.
 3. When the region differs from the template, `noldor init` exits 1 naming `AGENTS.md`, and `noldor init --update` replaces the region only; content outside it is byte-identical before and after.
 4. `noldor doctor` and `checks template-sync` report `AGENTS.md` only when its region is absent or differs; edits outside the region never produce a row.
-5. `noldor upgrade` on a tree anchored at `1.12.0` with a vendored `.claude/noldor.md` and a `.claude/CLAUDE.md` lacking the import removes the former, adds `@AGENTS.md` to the latter, and leaves `AGENTS.md` carrying the region. `--dry-run` lists the same steps and writes nothing; a second run lists none.
+5. `noldor upgrade` on a tree anchored at `1.12.0` with a vendored `.claude/noldor.md` removes it, leaves a CLAUDE file importing `@AGENTS.md` — whether that file imported `@.claude/noldor.md` or nothing — and leaves `AGENTS.md` carrying the region. `--dry-run` lists exactly the steps the real run takes and writes nothing; a second run lists none.
 6. The migration leaves a modified `.claude/noldor.md` on disk and reports it.
 7. After the vendored `.claude/noldor.md` is removed, its imports leave exactly one `@AGENTS.md` across the two CLAUDE files; a kept modified copy keeps its import.
 8. `noldor upgrade` resolves the chain from any anchor in `1.0.0`–`1.12.x` without a gap error; an anchor below the earliest registered migration's `from` still errors.
