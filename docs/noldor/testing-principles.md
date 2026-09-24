@@ -278,6 +278,13 @@ Determinism practices:
   unit/component; in browser e2e, inject a seeded PRNG at page creation (e.g.
   Playwright `page.addInitScript`).
 
+**Reproduce a load flake by matching the real concurrency, not by burning CPU.**
+Each vitest run sizes its worker pool from the core count, so the load that
+breaks a timing-sensitive test is several suites oversubscribing the machine
+together. On an 18-core machine six busy-loop hogs left the suite green; three
+concurrent `vitest run`s went red 3 of 3 times. Run as many suites at once as the
+failing environment really does.
+
 ## Coverage
 
 No coverage tooling is wired up — there is no `test:coverage` script and no
