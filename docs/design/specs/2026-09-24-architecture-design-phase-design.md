@@ -63,7 +63,7 @@ Code paths live in names, not ids, because a pen id may not contain `/` (`entity
 
 ### Reader
 
-`src/design/arch-pen.ts` holds a pure reader, `readArchPen(bytes) → ArchDoc | error`. It runs `JSON.parse`, picks out the view pages by name (baseline: the bare view id; design file: `BASE:<view>:` / `FINAL:<view>:` / other), and returns each view's nodes, groups and arrows with their endpoints resolved. It never writes a `.pen`. `design verdict` already reads a `.pen` as JSON (`readPenPages`, `src/design/design-approval-cli.ts:284`), so the reader follows that precedent.
+`src/design/arch-pen.ts` holds a pure reader, `readArchPen(bytes) → ArchDoc | error`. It runs `JSON.parse` and picks out the view pages by name. In the baseline, a view page is the bare view id. In a design file, pages are `BASE:<view>: …`, variants `<view>: <name>`, and winners `FINAL:<view>: <name>`, and any other page is ignored. It returns each view's nodes, groups and arrows with their endpoints resolved. Only `FINAL:` pages count for the verdict and for `arch-progress`, and the check reads only the baseline. It never writes a `.pen`. `design verdict` already reads a `.pen` as JSON (`readPenPages`, `src/design/design-approval-cli.ts:284`), so the reader follows that precedent.
 
 ### Code truth
 
@@ -79,7 +79,7 @@ Findings (exit 1):
 - `missing-module` — a module no box covers
 - `unknown-module` — a box naming a path that is not a module
 - `duplicate-module` — two boxes cover one module
-- `phantom-edge` — an arrow with no import behind it, after group expansion: a group arrow is real if any member pair imports
+- `phantom-edge` — an arrow with no import behind it after expansion. An arrow is real if any expanded pair imports, whether its endpoints are groups or multi-module boxes.
 - `dangling-edge` — an endpoint that resolves to no box or group on the page, or to more than one
 - `unreadable` — the file cannot be parsed, or the view is missing
 
@@ -101,7 +101,7 @@ Recorded as [ADR 0007](../../adr/0007-design-kinds-share-one-machinery.md): ever
 - the guard's record-tamper rule, which derives a record's `.pen` from its path, and `stagedAwarePenLookup`, which it resolves through (`check-shared-files.ts:271`, :163)
 - `rankPenCandidates` in `pen-bridge` (:39)
 
-An approval record's path mirrors the `.pen`'s place. UI records stay at `.noldor/design-approval/<stem>.json`. An architecture `.pen` at `docs/design/architecture/[milestones/]<stem>.pen` records at `.noldor/design-approval/architecture/[milestones/]<stem>.json`. Records are keyed by stem only today (`approvalRelPath`, `design-approval.ts:82`), so without this a UI `.pen` and an architecture `.pen` with the same date and key would collide.
+An approval record's path mirrors the `.pen`'s place. UI records stay at `.noldor/design-approval/<stem>.json`. An architecture `.pen` at `docs/design/architecture/[milestones/]<stem>.pen` records at `.noldor/design-approval/architecture/[milestones/]<stem>.json`. Records are keyed by stem only today (`approvalRelPath`, `design-approval.ts:82`), so without this a UI `.pen` and an architecture `.pen` with the same date and key would collide. `archive/` is not part of a record's path. `design archive` moves the `.pen` and leaves its record where it is, as it already does for UI, where the move keeps the stem. The guard's feature-pen set leaves out `ARCH_BASELINE_PATH`, as it leaves out `docs/design/ui/baseline/` (`isFeaturePen`, `check-shared-files.ts:132`). The baseline answers to the `pen-baseline` rule instead, so its first commit is not refused as an unapproved design.
 
 The `FINAL:<surface>:` grammar is reused unchanged: for architecture, a "surface" is a view id, and `--surface` must name one of the four. The FD gains `links.arch`, a `.pen` path beside `links.design` (`src/core/feature-schema.ts:55`). The session marker gains `archVerdict` and `archWaiver` (the schema is `.strict()`, `src/core/session.ts:20`). The `ui-reviewer` lane is untouched. It resolves only under `designUi` (`src/cr/lanes/ui-design-resolve.ts:347`), so an architecture `.pen` can never be mistaken for a UI design.
 
@@ -122,7 +122,7 @@ One more verdict signal: the FD's `milestone:` has a target design, and this fea
 A milestone's target architecture is `docs/design/architecture/milestones/<slug>.pen`. It is undated and keyed by the milestone slug, so `penSlugFromFilename` never matches it and no session's resolve or archive picks it up. It stays in place after the milestone ships, just as the milestone file stays with `status: shipped`.
 
 - **Drawn at draft time.** `/noldor-milestone draft` (and `edit`) gains an optional step when a baseline exists. It uses the same Seed and Iterate mechanics as the spec step: `cp` the baseline, rename the pages `BASE:<view>: as-built`, and mark each target view `FINAL:<view>: <name>`.
-- **Approved against the milestone file.** `design verdict --pen <milestone pen> --approve --surface <view>… --milestone <slug> --editor-page …` binds the record to the blob of `docs/milestones/<slug>.md` instead of a spec. `--milestone` and `--spec` exclude each other, because `--spec` must sit in the specs root (`design-approval-cli.ts:243`). `--milestone <slug>` also requires the `--pen` to be that milestone's own target file, and `docs/milestones/<slug>.md` must exist. The record goes to `.noldor/design-approval/architecture/milestones/<slug>.json`. `--check` reports drift once the milestone file changes.
+- **Approved against the milestone file.** `design verdict --pen <milestone pen> --approve --surface <view>… --milestone <slug> --editor-page …` binds the record to the blob of `docs/milestones/<slug>.md` instead of a spec. The approved record gains an optional `milestone: {slug, blob}` field, exclusive with `spec` (`designApprovalRecordSchema` is `.strict()`, `design-approval.ts:54`). `--milestone` and `--spec` exclude each other, because `--spec` must sit in the specs root (`design-approval-cli.ts:243`). `--milestone <slug>` also requires the `--pen` to be that milestone's own target file, and `docs/milestones/<slug>.md` must exist. The record goes to `.noldor/design-approval/architecture/milestones/<slug>.json`. `--check` reports drift once the milestone file changes.
 - **Linked from the milestone body.** The milestone gains an `## Architecture target` section linking the file. Milestone frontmatter is `.strict()` (`src/milestones/lib.ts:20`), but body sections are not validated, so no schema change is needed.
 - **Committed through micro-chore.** Drafting a milestone is a micro-chore. `MICRO_CHORE_GLOBS` (`src/core/allowlist.ts:3`) gains `docs/design/architecture/milestones/*.pen` and the matching approval-record glob, so the target lands in the same commit as the milestone file. The pre-commit approval rule still applies to it. The file is undated, so the guard keys it by the milestone slug rather than through `penSlugFromFilename`. Revising a target mid-milestone means an edit plus a fresh verdict. The guard's record-tamper rule keeps the two in step.
 - **Progress.** `pnpm noldor design arch-progress --milestone <slug>` compares the target's `FINAL:` pages with the baseline by name: modules by path, arrows by endpoint pair, and other views by box name. It lists `to-build` (in the target, not in the baseline), `to-remove` (in the baseline, gone from a view the target covers) and `done`. It exits 0 with the report, or 1 when a file cannot be read. The spec step shows it for an FD whose milestone has a target, and `/noldor-milestone activate` prints it for the milestone being shipped. A view with no `FINAL:` page in the target means "no change planned", so `arch-progress` reports nothing for it.
@@ -168,7 +168,7 @@ The `AGENTS.md` capability index is regenerated rather than hand-edited. Skill f
 6. Release preflight blocks on a red check when the baseline exists. `RELEASE_SKIP_ARCH_BASELINE=1` forces `skipped` and writes an audit-log entry.
 7. `design verdict --approve` on an architecture design `.pen` binds the record to its spec, or with `--milestone <slug>` to `docs/milestones/<slug>.md`. Records land in per-kind directories and never overwrite a UI record with the same stem. `--check` exits 1 once the bound file changes.
 8. Pre-commit refuses a new architecture design `.pen` with no matching record (`pen-unapproved`). It also refuses `docs/design/architecture/baseline.pen` staged from a `.worktrees/` checkout (`pen-baseline`), unless `NOLDOR_ALLOW_PEN_WRITE=1` is set. And it refuses a commit that drops or degrades an architecture record while its `.pen` stays.
-9. `design archive` moves the session's architecture `.pen` into `docs/design/architecture/archive/` and repoints `links.arch`.
+9. `design archive` moves the session's architecture `.pen` into `docs/design/architecture/archive/` and repoints `links.arch`, and `design verdict --check` on the archived file still finds its record.
 10. `design arch-route` matches each arrow to the same two boxes the check resolves. Its snippet, run against a fixture page (nested frames included) through stub `Get`/`Update`, leaves every arrow's two ends on its two boxes' borders.
 11. The session marker accepts `archVerdict` / `archWaiver`, and the FD schema accepts `links.arch` ending in `.pen`.
 12. This repo's `docs/design/architecture/baseline.pen` exists with the four views, and `checks arch-baseline` is green on it.
@@ -180,8 +180,9 @@ The `AGENTS.md` capability index is regenerated rather than hand-edited. Skill f
 - **Loose arrows.** Re-route fixes them, but only when someone runs it after moving boxes. Until then, the picture can look wrong while the check stays green, because the check reads names, not geometry.
 - **Typos in layer names.** A mistyped path becomes `unknown-module` or `dangling-edge`, so the check catches it. But it's still friction.
 - **Three views without code truth.** `context`, `containers` and `flows` can rot the way mermaid pages rot today. This is accepted and documented.
-- **Group arrows are coarse.** A group arrow counts as real when any member pair imports, so one real import can hide phantom siblings.
+- **Group and multi-module arrows are coarse.** Such an arrow counts as real when any expanded pair imports, so one real import can hide phantom siblings.
 - **Write-back by eye.** Re-applying a delta onto a baseline that moved is judgment work until the semantic diff exists.
+- **Write-back conflicts.** Two PRs that both write back `baseline.pen` conflict inside one JSON file. The second PR resolves it by redoing its write-back through the bridge on the merged baseline. The conflict is loud, not silent.
 - **Bridge availability.** `.pen` work needs terminal Claude Code with the pencil bridge up. The same limit applies to UI.
 - **Large module sets.** One page per view. A consumer with hundreds of modules has to fold them into multi-module boxes or groups. Sub-pages would be a follow-up.
 - **Cruise cost.** Each check run does one dependency-cruiser pass, which takes seconds on this repo. The check runs at gate Step 4 and at release, not on every commit, so a slower consumer pays the cost twice per feature at most.
