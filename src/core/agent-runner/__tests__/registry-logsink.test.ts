@@ -68,8 +68,7 @@ describe('spawnAgent logSink tee', () => {
     expect(r.stdout).toBe(''); // the '' -under-inherit contract holds in tee mode
     expect(outSpy).toHaveBeenCalledWith(Buffer.from('out-line\n'));
     expect(errSpy).toHaveBeenCalledWith(Buffer.from('err-line\n'));
-    // createWriteStream flushes asynchronously — give it a tick
-    await new Promise((res) => setTimeout(res, 50));
+    // no sleep: spawnAgent settles only after the sink has flushed
     const logged = readFileSync(sinkPath, 'utf8');
     expect(logged).toContain('out-line');
     expect(logged).toContain('err-line');
@@ -89,7 +88,6 @@ describe('spawnAgent logSink tee', () => {
     f.child().stdout.emit('data', Buffer.from('new-line\n'));
     f.child().emit('close', 0);
     await p;
-    await new Promise((res) => setTimeout(res, 50));
     const logged = readFileSync(sinkPath, 'utf8');
     expect(logged).toContain('prior-cycle');
     expect(logged).toContain('new-line');

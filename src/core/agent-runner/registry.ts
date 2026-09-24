@@ -289,7 +289,6 @@ export function spawnAgent(
     });
     child.on('close', (code, signal) => {
       if (timer) clearTimeout(timer);
-      sink?.end();
       const exitCode = code ?? -1;
       const usage = USAGE_ADAPTERS[resolved.runner]({ cwd, startedAtMs: started });
       appendAgentEvent(cwd, {
@@ -316,13 +315,18 @@ export function spawnAgent(
           `\n[spawnAgent] child terminated by signal ${signal ?? 'unknown'} (exit reported as -1)\n`,
         );
       }
-      resolve({
+      const result: AgentResult = {
         exitCode,
         stdout: outText,
         stderr: capture ? stderrCapture.value() : '',
         stderrBytes: capture ? stderrCapture.totalBytes() : 0,
         timedOut,
-      });
+      };
+      // Settle only once the sink has flushed, so a caller that reads the log the moment the
+      // child exits sees every line. `end`'s callback also fires on a write error — the error
+      // handler above has already reported it, so the result still resolves.
+      if (sink) sink.end(() => resolve(result));
+      else resolve(result);
     });
   });
 }
