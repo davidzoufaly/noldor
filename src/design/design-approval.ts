@@ -13,10 +13,12 @@
 // sharing one key, and a key-addressed record would let the later verdict
 // silently overwrite the earlier archived design's only record.
 
-import { basename } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { z } from 'zod';
 
 import { parseReceiptWith } from '../core/blob-id.js';
+import { specSlugFromFilename } from '../core/design-artifact-names.js';
 import { writeReceiptFile } from '../core/receipt-store.js';
 
 /** Directory holding the per-design records, relative to the repo root. */
@@ -27,11 +29,26 @@ const gitOid = z.string().regex(/^[0-9a-f]{40}$|^[0-9a-f]{64}$/);
 const nonBlank = z.string().refine((s) => s.trim().length > 0, 'must not be blank');
 
 /**
+ * A spec basename every reader may join onto the specs root. The spec naming
+ * scheme alone is not containment — its slug group matches `/` and `..` — so
+ * separators and dot-dot runs are refused outright.
+ */
+const specBasename = z
+  .string()
+  .refine(
+    (name) => !/[/\\]/.test(name) && !name.includes('..') && specSlugFromFilename(name) !== null,
+    'must be a bare spec basename',
+  );
+
+/**
  * Strict on both members, like `uiCaptureReceiptSchema`: an unknown field
- * means writer and reader disagree about what the record means. `surfaces` is
- * descriptive metadata, not a verified claim — the authoritative set is the
- * `FINAL:` pages inside an encrypted file no check can read — so the schema
- * requires non-empty, non-blank and duplicate-free and nothing more.
+ * means writer and reader disagree about what the record means. `surfaces`
+ * names the approved surfaces; the verdict CLI checks it against the `FINAL:`
+ * pages it reads from the `.pen` before writing.
+ *
+ * `pages` and `spec` are optional because records written before they existed
+ * must keep parsing (state-file-schema-additive); every reader owns the absent
+ * branch. `spec` is one object so a name can never travel without its blob.
  */
 export const designApprovalRecordSchema = z.discriminatedUnion('outcome', [
   z
@@ -44,6 +61,8 @@ export const designApprovalRecordSchema = z.discriminatedUnion('outcome', [
         .nonempty()
         .refine((s) => new Set(s).size === s.length, 'duplicate surfaces'),
       reservation: nonBlank.optional(),
+      pages: z.array(nonBlank).optional(),
+      spec: z.object({ name: specBasename, blob: gitOid }).strict().optional(),
     })
     .strict(),
   z
@@ -65,16 +84,29 @@ export function approvalRelPath(penBasename: string): string {
 
 /**
  * Record bytes → validated record, or `null` for anything unusable. One parse
- * policy for every reader — the guard (staged or HEAD bytes) and the lane
- * (review-head bytes) — so "absent" and "malformed" collapse to the same
- * refusal everywhere instead of drifting per call site.
- *
- * Deliberately no disk-read companion: both production readers take record
- * bytes out of git (the index or a tree), never off the working tree, so a
- * `readApproval(repoRoot, ...)` would be API surface nothing needs.
+ * policy for every reader — the guard (staged or HEAD bytes), the lane
+ * (review-head bytes) and the verdict CLI (working-tree bytes) — so "absent"
+ * and "malformed" collapse to the same refusal everywhere instead of drifting
+ * per call site.
  */
 export function parseApprovalBytes(bytes: Buffer | string): DesignApprovalRecord | null {
   return parseReceiptWith((value) => designApprovalRecordSchema.safeParse(value), bytes);
+}
+
+/**
+ * The record as the working tree holds it, or `null` when absent or unusable.
+ * Only `design verdict --check` / `--reconfirm` read here: they act on the
+ * record the CLI wrote, before any commit holds it. The guard and the lane
+ * read git bytes instead.
+ */
+export function readApproval(repoRoot: string, penBasename: string): DesignApprovalRecord | null {
+  const path = join(repoRoot, approvalRelPath(penBasename));
+  if (!existsSync(path)) return null;
+  try {
+    return parseApprovalBytes(readFileSync(path));
+  } catch {
+    return null;
+  }
 }
 
 /**

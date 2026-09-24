@@ -22,6 +22,9 @@ links:
     - src/design/ui-sync-cli.ts
     - src/design/archive-resolve.ts
     - src/design/archive-cli.ts
+    - src/design/design-approval.ts
+    - src/design/design-approval-cli.ts
+    - src/core/blob-id.ts
     - src/sync/sync-fd-resources.ts
   spec: docs/design/specs/archive/2026-08-19-pendev-ui-design-phase-design.md
   tests:

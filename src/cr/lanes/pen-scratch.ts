@@ -18,11 +18,7 @@ import type { LaneMode } from '../lane-mode.js';
 import { openLaneSink } from '../lane-sink.js';
 import type { LaneSink } from '../lane-sink.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
-import {
-  makeTerminalWriter,
-  resolveUiReviewTarget,
-  unmappedPathNotes,
-} from './ui-design-resolve.js';
+import { designNotes, makeTerminalWriter, resolveUiReviewTarget } from './ui-design-resolve.js';
 import type { ResolvedDesign } from './ui-design-resolve.js';
 
 /** sha256 hex of a file's current bytes. */
@@ -108,15 +104,15 @@ export interface DesignRoundCtx {
   write: LaneSink['write'];
   writeTerminal: ReturnType<typeof makeTerminalWriter>;
   design: ResolvedDesign;
-  /** Config-gap notes to carry on every sink of the round. */
+  /** Config-gap and approval notes to carry on every sink of the round. */
   notes: string[];
   scratch: PenScratch;
 }
 
 /**
  * The opening sequence both design lanes share verbatim: open the sink, read
- * the lane's mode knob, resolve the review target, surface the unmapped-paths
- * note, and stage the scratch copy — writing the terminal sink itself whenever
+ * the lane's mode knob, resolve the review target, surface the design notes,
+ * and stage the scratch copy — writing the terminal sink itself whenever
  * any of that ends the round. `done` carries that already-written result;
  * `ready` hands the lane a live round it must finish (and whose scratch dir it
  * must clean up on every exit path).
@@ -138,7 +134,7 @@ export async function openDesignReviewRound(
     return { kind: 'done', result: await writeTerminal(resolution.at) };
   }
   const { design } = resolution;
-  const notes = unmappedPathNotes(design);
+  const notes = designNotes(design);
 
   const staged = await stagePenScratch(design.absPath, input.slug, scratchPrefix);
   if (staged.scratch === null) {
