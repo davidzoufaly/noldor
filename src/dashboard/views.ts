@@ -191,7 +191,9 @@ const cmpOrdinal =
   (a: string, b: string): number =>
     ordinalOf(a, order) - ordinalOf(b, order);
 
-const cmpString = (a: string, b: string): number => a.localeCompare(b);
+// Pinned locale: host collation varies (cs-CZ sorts "Ch" after "H"), which
+// made the dashboard order — and its tests — depend on the machine.
+const cmpString = (a: string, b: string): number => a.localeCompare(b, 'en');
 
 /**
  * Sort a list of entries by the named sort mode. Pure — returns a new array.
@@ -245,7 +247,7 @@ export function sortEntries<T extends SortableEntry>(
       arr.sort((a, b) => cmpUndefLast(a.type, b.type, 'asc', cmpString));
       break;
     default:
-      arr.sort((a, b) => a.name.localeCompare(b.name));
+      arr.sort((a, b) => cmpString(a.name, b.name));
   }
   return arr;
 }
