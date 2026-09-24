@@ -19,6 +19,7 @@ noldor-tier: specs-only
 introduced: 1.0.0
 updated: 1.6.0
 ---
+
 ## Summary
 
 Deep-audit finding (batch `.noldor/research/2026-07-13-184850`): gated docs stay true, ungated docs rot — `validate skill-catalog` keeps the skill catalog perfectly 1:1, while `docs/noldor/script-catalog.md` (self-declared canonical) is missing ~20 live subcommands and its promised `validate:script-catalog` gate was never implemented (the page falsely claims a backlog entry exists). Ship the `validate:script-catalog` pre-commit gate mirroring the skill-catalog one, do the one-time catch-up of the missing subcommands, fix the template twin, and resolve the detector-count contradiction (script-catalog says 19, garden-and-drift says 20, code has more).
@@ -68,5 +69,6 @@ The catalog diff now joins on the leaf command as well as the source (#379).
   - [`src/cli/validate-script-catalog.ts`](../../src/cli/validate-script-catalog.ts)
 - **Tests:**
   - [`src/cli/__tests__/validate-script-catalog.test.ts`](../../src/cli/__tests__/validate-script-catalog.test.ts)
+  - [`src/docs/__tests__/capability-index.test.ts`](../../src/docs/__tests__/capability-index.test.ts)
 
 <!-- /generated: resources -->

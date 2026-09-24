@@ -49,6 +49,7 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 1.5.0
 ---
+
 ## Summary
 
 The framework's core flows depend on the third-party `superpowers` Claude Code plugin. Four load-bearing uses: `superpowers:brainstorming` produces every spec (gate SKILL.md Steps for all spec paths), `superpowers:writing-plans` produces every plan, `superpowers:using-git-worktrees` does worktree creation, and — worst — `src/prep/draft.ts:18` bakes a "REQUIRED SUB-SKILL: superpowers:subagent-driven-development or superpowers:executing-plans" blockquote **into every generated plan**, so the dependency propagates into consumer repos at plan-execution time. Everything else is path naming (`docs/design/specs|plans`). A consumer without the plugin cannot run the gate's spec/plan paths; an upstream plugin edit can silently change framework behavior. Vendor the flows.
@@ -114,6 +115,7 @@ Draft-first dialogues with a decision-context digest (#362).
   - [`src/design/__tests__/ledger.test.ts`](../../src/design/__tests__/ledger.test.ts)
   - [`src/design/__tests__/render-digest.test.ts`](../../src/design/__tests__/render-digest.test.ts)
   - [`src/design/__tests__/render.test.ts`](../../src/design/__tests__/render.test.ts)
+  - [`src/design/__tests__/support-check.test.ts`](../../src/design/__tests__/support-check.test.ts)
   - [`src/prep/__tests__/formats.test.ts`](../../src/prep/__tests__/formats.test.ts)
   - [`src/prep/__tests__/print-format.test.ts`](../../src/prep/__tests__/print-format.test.ts)
   - [`src/utils/__tests__/markdown-sections.test.ts`](../../src/utils/__tests__/markdown-sections.test.ts)
