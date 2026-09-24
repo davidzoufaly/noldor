@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### FD Resources Hook Skips Flat Feature Docs
-
-- id: Q-0274
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: XS
-- impact: med
-- confidence: high
-
-The pre-commit `fd-resources` and `code-links-auto-high` jobs never run for a feature doc. Both use `glob: 'docs/features/**/*.md'` (`lefthook/noldor.yml`), and lefthook 2.1.9 (no `glob_matcher` set) reported `(skip) no matching staged files` on all three commits of PR #540 that staged `docs/features/pendev-ui-design-phase.md`, while `doc-links` (`docs/**/*.md`) ran on the same commits. The likely cause is the default matcher reading `**/` as at least one directory, so a direct child of `docs/features/` never matches. The FD's generated Resources block stayed stale until a hand-run `pnpm noldor sync fd-resources`. Candidate fix: `glob: 'docs/features/*.md'` (FDs are flat) or `glob_matcher: doublestar`. Deletion test: a commit that stages an FD with a new `links.code` entry carries the regenerated Resources block. (found 2026-09-24 shipping Q-0258, PR #540)
-
 ### Registry Logsink Test Waits for the Flush
 
 - id: Q-0275
