@@ -559,5 +559,10 @@
   "Q-0244": {
     "slug": "path-pick-cannot-see-the-shared-file-block",
     "retiredAt": "2026-09-24"
+  },
+  "Q-0238": {
+    "slug": "full-suite-flake-route-sweep-and-sdd-report-still-unexplained",
+    "retiredInto": "test-suites-read-live-repo-state-shifting-full-suite-failures",
+    "retiredAt": "2026-09-24"
   }
 }
