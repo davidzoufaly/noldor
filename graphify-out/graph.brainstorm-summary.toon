@@ -1,53 +1,58 @@
-# Domain Knowledge Graph — Summary
-# 3578 nodes, 9461 edges, 206 communities
-
-directed: false
+# Domain Knowledge Graph — Summary (v3)
+# version: 3
+# 3827 nodes, 5324 edges (contains/imports_from omitted), 208 communities, directed=false
+# Deep dive: graph.brainstorm.toon (TOC at top — use Read offset/limit per community)
+# Compact format used in brainstorm.toon:
+#   Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of ?=other  (contains/imports_from omitted — derivable)
+#   Node row: <local_id> <label>[!=function] @<path_id>
+#   Edge row: <rel> <src>><t1,t2,...>
+#   Cross-edge row (this file + brainstorm.toon ## cross): <rel> <label>@c<src_comm>><label>@c<tgt_comm>
 
 ## community index (top 20 by size)
-  c0 (73): detectors
-  c1 (70): architecture-schema.ts · pageFilename() · data.ts
-  c2 (68): settle-within.ts · settleWithin() · receipt-trailer.ts
-  c3 (68): detectors
-  c4 (64): views.ts · deriveRepoSlug() · parseMultiParam()
-  c5 (63): copy-runtime-assets.mjs · copyRuntimeAssets() · import-graph.mjs
-  c6 (61): tokenize.ts · isIdentStart() · isIdentPart()
-  c9 (58): detectors
-  c8 (58): detectors
-  c7 (58): detectors
-  c10 (56): collect
-  c11 (55): score.ts · scoreEntry() · resolveIsShipped()
-  c12 (52): detectors
-  c14 (50): rules
-  c13 (50): loadActiveMilestone() · loadArchitecturePages() · loadGaps()
-  c15 (49): detectors / adapters
-  c16 (48): pr-flow.ts · composeTitle() · renderCrTable()
-  c18 (47): ui-sync-cli.ts · renderSurfaceReport() · validateBaselineFile()
-  c19 (47): geometry / agent-runner
-  c17 (47): lanes
+  c0 (114): detectors
+  c1 (90): addWorktree() · appBundleFor() · appFlag()
+  c2 (86): .constructor() · .constructor() · .constructor()
+  c3 (86): detectors
+  c4 (84): commands
+  c5 (84): detectors
+  c6 (82): amend-receipt.test.ts · amend-receipt.ts · amendSubagentReceipt()
+  c7 (79): lanes
+  c8 (70): buildMilestoneGroups() · codePathOwnsFile() · countMatching()
+  c9 (67): arbitrationExit() · blocker() · buildSkeleton()
+  c10 (63): ageBucket() · barTable() · cmpOrdinal()
+  c11 (63): arbitration-cli.test.ts · arbitration-cli.ts · arbitration.test.ts
+  c12 (59): .constructor() · .constructor() · LedgerParseError
+  c13 (56): collect
+  c14 (53): dashboard-doc-surfaces.test.ts · dashboard-skills.test.ts · dashboard-stale-install.test.ts
+  c15 (53): allocatePorts() · bootDevSurfaces() · buildCommunityMap()
+  c16 (51): detectors / adapters
+  c17 (48): detectors
+  c18 (45): buildPrompt() · commit() · commit()
+  c19 (44): commands / agent-runner
 
 ## cross-community edges (top 25)
-  fanout.ts [c38] --imports_from-- registry.ts [c46]
-  fanout.ts [c38] --imports-- spawnAgent() [c61]
-  compute.ts [c10] --imports_from-- routing-accuracy.ts [c122]
-  compute.ts [c10] --imports-- collectRoutingAccuracy() [c122]
-  main() [c34] --imports_from-- compute.ts [c10]
-  loadMetricsReport() [c13] --imports_from-- compute.ts [c10]
-  main() [c34] --calls-- compute() [c10]
-  loadMetricsReport() [c13] --calls-- compute() [c10]
-  types.ts [c10] --imports_from-- agent-events.ts [c115]
-  types.ts [c10] --imports_from-- escalations.ts [c65]
-  types.ts [c10] --imports_from-- drain-state.ts [c110]
-  types.ts [c10] --imports_from-- findings-schema.ts [c21]
-  types.ts [c10] --imports_from-- feature-schema.ts [c25]
-  routing-accuracy.ts [c122] --imports_from-- types.ts [c10]
-  sdd-report.ts [c12] --imports_from-- types.ts [c10]
-  data.ts [c1] --imports_from-- types.ts [c10]
-  views.ts [c4] --imports_from-- types.ts [c10]
-  metrics-view.test.ts [c4] --imports_from-- types.ts [c10]
-  facts.ts [c10] --imports_from-- feature-schema.ts [c25]
-  facts.ts [c10] --imports_from-- findings-schema.ts [c21]
-  facts.ts [c10] --imports_from-- slugify.ts [c7]
-  facts.ts [c10] --imports-- slugify() [c7]
-  facts.ts [c10] --imports_from-- agent-events.ts [c115]
-  facts.ts [c10] --imports_from-- escalations.ts [c65]
-  facts.ts [c10] --imports_from-- drain-state.ts [c110]
+  f activateMilestone!@c28>atomicWriteFileSync!@c0
+  f annotateRound!@c12>writeJsonAtomic!@c24
+  f appendRound!@c12>writeJsonAtomic!@c24
+  f approvalAtHead!@c44>parseApprovalBytes!@c59
+  f assertQueueSourceSyncedAt!@c84>spawnRunner!@c53
+  f assessEntrySplit!@c52>extractTouches!@c79
+  f auditCodexCrOverrides!@c21>tally!@c132
+  f auditOverrides!@c21>commitOnlyTouchesReport!@c17
+  f auditOverrides!@c21>matchesExpectedOverride!@c17
+  f auditOverrides!@c21>parseTrailers!@c47
+  f autoBase!@c109>resolveDefaultBase!@c74
+  f autoOpenEnabled!@c1>loadConfigSync!@c54
+  f autoStampOnCleanDetect!@c95>stamp!@c23
+  f baselineStamp!@c76>blobIdOfWorktreeFile!@c59
+  f bind!@c85>makeReconcileDeps!@c54
+  f bootDevSurfaces!@c15>atomicWriteFile!@c72
+  f branchCarriesCode!@c2>touchesCode!@c32
+  f branchHasUnshippedWorkAt!@c84>spawnRunner!@c53
+  f buildBlockedByGraph!@c114>parseBacklog!@c87
+  f buildGateComplianceSection!@c17>loadConfigSync!@c54
+  f buildMergeCandidates!@c36>loadDocRoots!@c21
+  f buildMergeCandidates!@c36>parseBacklog!@c87
+  f buildMergeCandidates!@c36>readQueueFile!@c28
+  f buildMilestoneGroups!@c8>buildMilestoneGroupBases!@c28
+  f captureSurface!@c76>blobIdOfWorktreeFile!@c59
