@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-09-22 by `pnpm sdd:report`.
+Generated: 2026-09-24 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
@@ -10,29 +10,30 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ## Summary
 
-- Total features: 88
-- Untriaged ideas: 8
-- Backlog entries: 28
+- Total features: 92
+- Untriaged ideas: 0
+- Backlog entries: 29
 - Gap categories with issues: 4 / 15
 
 ## Code clones
 
-- 227 clone group(s), 7.65% duplicated tokens across 425 file(s)
-- src/dashboard/views.ts:750-759 and src/dashboard/views.ts:1015-1024 (252 tokens)
+- 228 clone group(s), 7.27% duplicated tokens across 435 file(s)
+- src/dashboard/views.ts:752-761 and src/dashboard/views.ts:1017-1026 (252 tokens)
 - src/features/phase-flip-done-cli.ts:12-45 and src/features/phase-revert-cli.ts:12-45 (233 tokens)
-- src/cli/manifest.ts:210-265 and src/cli/manifest.ts:342-394 (185 tokens)
-- src/dashboard/views.ts:879-902 and src/dashboard/views.ts:1053-1128 (176 tokens)
-- src/features/validate-features.ts:187-223 and src/features/validate-features.ts:344-380 (171 tokens)
+- src/dashboard/views.ts:881-904 and src/dashboard/views.ts:1055-1130 (176 tokens)
+- src/features/validate-features.ts:195-231 and src/features/validate-features.ts:352-388 (171 tokens)
+- src/core/prefix-skills-codemod.ts:66-96 and src/core/rename-plan-only-tier.ts:84-115 (170 tokens)
 
 ## Gate compliance
 
 ### Tier distribution
 
-- `full` (brainstorm + spec + plan): 40
-- `specs-only` (no brainstorm): 48
+- `full` (brainstorm + spec + plan): 42
+- `specs-only` (no brainstorm): 50
 
 ### Override usage (last 30 days)
 
+- `7279156` — cr-arbitration c48c29a83430 — reviewer lane returned approve with zero blockers; the one codex finding is fixed in this tip
 - `7576ab1` — verify lane malformed-output (Q-0137 class), not a code defect — reviewer lane approved; the verifier ran the acceptance set against a fake consumer and against real charuy (exit 0, zero non-portable rows) and emitted a pass verdict, but its evidence strings embed fenced code blocks (this change is about fenced blocks), which broke the fence parser in both rounds. Receipt withheld only because orchestrate exits non-zero on any red lane.
 - `00aabcd` — cr-arbitration c3e915b25538 — round cap spent after 4 red rounds; the one standing blocker was correct and is fixed in this commit, arbitrated as accepted with the fix unreviewed
 - `683b356` — cr-arbitration f523dc86756e — reviewer approved and verifier verified; both remaining codex blockers were fixed in this commit, not carried, and the round cap is spent
@@ -48,12 +49,10 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 - `f311816` — code-stage CR closed after 7 rounds — verifier green throughout, reviewer approve at round 5, rounds 5-7 self-fed on symlink hardening of an advisory heuristic; all findings reproduced and fixed, sinks in .noldor/cr
 - `366cb50` — cr-non-convergence after 8 rounds; rounds 7/8 mutually contradictory on skipIf(root) and the chmod fixture; all security findings through round 7 fixed and probe-verified; residue recorded in the FD Changelog
 - `5a1b323` — review-loop-converged-on-prose
-- `58e9539` — micro-chore lane omits `.noldor/config.json`, and the CR-gate exemption this release needs can only live there. Diff is README + ideas + one config entry; zero source files.
-- `57134eb` — micro-chore lane rejects `.noldor/id-counter.json` — `MICRO_CHORE_GLOBS` omits the counter that `triage mint-id` bumps, so the framework bookkeeping this commit carries cannot land through its own lane (precedent: #346, #335). Diff is docs + queue bookkeeping only, zero source files.
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 84
+Gated commits missing `Noldor-Reviewed` trailer: 103
 
 ## Metrics
 
@@ -120,8 +119,8 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
 ```json
 {
   "lastRun": {
-    "shipped": 1,
-    "skipped": 0,
+    "shipped": 18,
+    "skipped": 11,
     "retried": 0
   },
   "history": {
@@ -140,7 +139,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "mandatory-codex-review-round": 1,
       "clones-ratchet-and-clone-group-check-disagree-on-attribution": 2
     },
-    "meanDurationMs": 806504
+    "meanDurationMs": 775892
   }
 }
 ```
@@ -202,7 +201,25 @@ blind spots: Only trailer-carrying overrides count; env-var bypasses (the releas
   "oscillation-detector-r3-fires-on-every-greenfield-finding": 35367,
   "clones-check-wont-name-the-files-that-moved-the-token-total": 60566,
   "roadmap-entry-show-more-not-rendered": 193163,
-  "duplicate-pr-id-in-the-changelog": null
+  "duplicate-pr-id-in-the-changelog": null,
+  "framework-only-rules-leak-into-consumer-review-context": 25547,
+  "stale-base-two-dot-diffs-hand-cr-lanes-foreign-changes": 20188,
+  "noldor-commit-sigkilled-on-a-long-message-body": 36854,
+  "gate-prose-should-pre-empt-the-sibling-scope-trailer": 49376,
+  "heading-slugifier-drops-non-ascii-letters": 25993,
+  "fill-links-code-gaps-emits-zero-candidates": 44147,
+  "cr-re-round-cap-overrun": 43017,
+  "pen-bridge-check-does-not-count-editor-windows": 34047,
+  "hand-edited-code-links-drift-against-fd-tags": 32737,
+  "spec-lint-prior-art-requirement": 64975,
+  "bugfix-lane-in-the-priority-suggestions": 25974,
+  "autonomous-address-blockers-without-an-operator-confirm": 40903,
+  "parent-feature-opt-in-check-before-sizing": 53559,
+  "release-sweep-refactor-pass-needs-a-precondition": 48661,
+  "self-explanatory-code-over-comments-rule": 12789,
+  "rules-must-not-snapshot-another-modules-shape": 10306,
+  "milestones-have-no-explicit-order": 19426,
+  "always-read-capability-index-for-agents": 39358
 }
 ```
 
@@ -211,40 +228,39 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ## Gap details
 
-### Untriaged ideas in ideas.md
+### Done features missing introduced
 
-- `ideas.md:51` — claude ran 4 rounds of review when there is limit for 2
-- `ideas.md:52` — update cr by CR tool to make it more reliable -> hard to get green check
-- `ideas.md:53` — claude supports agents.md -> bake it into noldor so no claude.md is created when initating the noldor in project + propagate it to Charuy
-- `ideas.md:54` — screen id's to framework -> UI naming in .pen + elements ID -> hiearchy naming -> each button, label, input has ID
-- `ideas.md:55` — agent didn't know capabilities of the milestones features, there might be more blind sposts -> shouldn't we have some short md file -> read always rule so agent has list of noldor features always in context window?
-- `ideas.md:56` — Sort milestones by chronological order instead of by name (`milestones show`, the `/milestones` dashboard page, `buildMilestoneGroupBases`). Needs a date to sort on: milestone frontmatter has none, and git birth date is not enough — in charuy `public-release` was born 2026-05-13 and the other four all on 2026-07-11, so git order puts milestone 2 first and leaves a four-way tie. Cheapest shape: `/noldor-milestone draft` stamps `since: <YYYY-MM-DD>` (the roadmap block field), `show` sorts by it within each status, and a missing `since` falls back to name. See the `after:` bullet in the lessons section above for the explicit-order alternative; `since` is the zero-thought default, `after` is for when the ladder disagrees with the calendar.
-- `ideas.md:57` — zbavit se claude.md anthropic podporuje agents.md
-- `ideas.md:58` — `sortEntries` in `src/dashboard/views.ts` has two red tests on `main` (`dashboard-views.test.ts` > sortEntries > "defaults to name-asc when sort mode is empty" and "falls back to name-asc for unknown sort key"): the expected 4-element order differs from the actual. Pre-existing since at least PR #480; every dashboard-touching branch inherits the red and has to prove it is not theirs. Either the fallback or the fixture is wrong — decide which and fix. (found 2026-09-19 shipping Q-0231)
+- `cr-lane-verdicts-blocked-by-serialization-not-substance` — CR Lane Verdicts Blocked by Serialization, Not Substance is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `refutation-judge-pass-before-a-blocker-can-red-a-round` — Refutation Judge Pass Before a Blocker Can Red a Round is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `self-refreshing-compact-knowledge-graph` — Self-Refreshing, Compact Knowledge Graph is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `spec-stage-cr-stopping-rule` — Spec-Stage CR Stopping Rule is phase=done but introduced is unset (release script should fill on next pnpm release)
 
 ### Stale backlog entries (>90 days)
 
-- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 102 days since 2026-06-12
+- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 104 days since 2026-06-12
 
 ### Code files not referenced by any feature
 
 - `src/checks/check-install-freshness.ts` — src/checks/check-install-freshness.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, noldor
 - `src/checks/check-oxfmt-ignores.ts` — src/checks/check-oxfmt-ignores.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, noldor
+- `src/checks/check-parent-opt-in.ts` — src/checks/check-parent-opt-in.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, noldor, unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/checks/check-push-gates.ts` — src/checks/check-push-gates.ts is not referenced by any feature MD links.code
 - `src/core/blob-id.ts` — src/core/blob-id.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, pendev-ui-design-phase
-- `src/core/config-waiver-guard.ts` — src/core/config-waiver-guard.ts is not referenced by any feature MD links.code
-- `src/core/init-vscode-settings.ts` — src/core/init-vscode-settings.ts is not referenced by any feature MD links.code — probable owner: abstraction-cost-ratchet, state-file-fail-open-hardening
+- `src/core/config-waiver-guard.ts` — src/core/config-waiver-guard.ts is not referenced by any feature MD links.code — probable owner: noldor, prefix-skills-with-noldor, release-bypass-retirement
+- `src/core/init-vscode-settings.ts` — src/core/init-vscode-settings.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox
 - `src/core/receipt-store.ts` — src/core/receipt-store.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, pendev-ui-design-phase
-- `src/features/attach-milestone-cli.ts` — src/features/attach-milestone-cli.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, dashboard-roadmap-drag-drop, sdd-detector-5-idea-merge-semantic-similarity
-- `src/features/attach-milestone.ts` — src/features/attach-milestone.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, dashboard-roadmap-drag-drop, sdd-detector-5-idea-merge-semantic-similarity
-- `src/graphify/enrich-doc-nodes.ts` — src/graphify/enrich-doc-nodes.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, ui-design-review-lane
-- `src/hooks/noldor-enforce-arbitration.ts` — src/hooks/noldor-enforce-arbitration.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane
-- `src/milestones/show-cli.ts` — src/milestones/show-cli.ts is not referenced by any feature MD links.code — probable owner: decouple-milestones-from-semver, unvalidated-slug-path-traversal-across-cli-entry-points
-- `src/utils/word-count.ts` — src/utils/word-count.ts is not referenced by any feature MD links.code — probable owner: framework-auto-split-suggestion-for-big-features-and-plans, noldor
+- `src/docs/capability-index.ts` — src/docs/capability-index.ts is not referenced by any feature MD links.code
+- `src/features/attach-milestone-cli.ts` — src/features/attach-milestone-cli.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/features/attach-milestone.ts` — src/features/attach-milestone.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/graphify/enrich-doc-nodes.ts` — src/graphify/enrich-doc-nodes.ts is not referenced by any feature MD links.code
+- `src/graphify/refactor-precondition.ts` — src/graphify/refactor-precondition.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, ui-design-review-lane
+- `src/hooks/noldor-enforce-arbitration.ts` — src/hooks/noldor-enforce-arbitration.ts is not referenced by any feature MD links.code — probable owner: architecture-decision-record-surface, framework-pr-flow-agent-auto-merge, noldor
+- `src/milestones/show-cli.ts` — src/milestones/show-cli.ts is not referenced by any feature MD links.code — probable owner: decouple-milestones-from-semver, outcome-telemetry-and-effectiveness-metrics, framework-milestones-support-poc-mvp-100
+- `src/utils/word-count.ts` — src/utils/word-count.ts is not referenced by any feature MD links.code — probable owner: framework-auto-split-suggestion-for-big-features-and-plans
 
 ### Tests with incomplete co-tag
 
-- `src/metrics/__tests__/cr-and-override.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, ui-design-review-lane
+- `src/metrics/__tests__/cr-and-override.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, refutation-judge-pass-before-a-blocker-can-red-a-round, spec-stage-cr-stopping-rule, ui-design-review-lane
 - `src/design/__tests__/ui-capture.test.ts` — imports files owned by FDs missing from @tests: tag — add: de-superpowers-vendor-spec-plan-and-worktree-flows
 - `src/design/__tests__/archive-resolve.test.ts` — imports files owned by FDs missing from @tests: tag — add: autonomous-plan-to-pr-merge, de-superpowers-vendor-spec-plan-and-worktree-flows, pendev-ui-design-phase, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening, rules-cascade-v1
 - `src/design/__tests__/ui-sync.test.ts` — imports files owned by FDs missing from @tests: tag — add: de-superpowers-vendor-spec-plan-and-worktree-flows
@@ -258,6 +274,7 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/design/__tests__/ledger-fields.test.ts` — imports files owned by FDs missing from @tests: tag — add: unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/design/__tests__/open-artifact-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: de-superpowers-vendor-spec-plan-and-worktree-flows
 - `src/design/__tests__/graph-context.test.ts` — imports files owned by FDs missing from @tests: tag — add: de-superpowers-vendor-spec-plan-and-worktree-flows, rules-cascade-v1
+- `src/design/__tests__/support-check.test.ts` — imports files owned by FDs missing from @tests: tag — add: unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/design/__tests__/pen-bridge.test.ts` — imports files owned by FDs missing from @tests: tag — add: de-superpowers-vendor-spec-plan-and-worktree-flows
 - `src/design/__tests__/render.test.ts` — imports files owned by FDs missing from @tests: tag — add: unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/design/__tests__/design-approval.test.ts` — imports files owned by FDs missing from @tests: tag — add: de-superpowers-vendor-spec-plan-and-worktree-flows
@@ -286,15 +303,15 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/core/__tests__/session.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase, rules-cascade-v1
 - `src/core/__tests__/allowlist.test.ts` — imports files owned by FDs missing from @tests: tag — add: prefix-skills-with-noldor
 - `src/core/__tests__/pr-flow-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor, pendev-ui-design-phase, rules-cascade-v1
-- `src/core/__tests__/config.test.ts` — imports files owned by FDs missing from @tests: tag — add: code-clone-detector, code-reviewer-20, registry-distribution-for-the-noldor-package, release-bypass-retirement, ui-design-review-lane
+- `src/core/__tests__/config.test.ts` — imports files owned by FDs missing from @tests: tag — add: code-clone-detector, code-reviewer-20, refutation-judge-pass-before-a-blocker-can-red-a-round, registry-distribution-for-the-noldor-package, release-bypass-retirement, ui-design-review-lane
 - `src/core/__tests__/doc-roots.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-script-test-migration-cleanup, pendev-ui-design-phase, unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/core/__tests__/pr-flow.test.ts` — imports files owned by FDs missing from @tests: tag — add: pr-summary-body-enforcement
 - `src/core/rules/__tests__/session-injected.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase, rules-cascade-v1
-- `src/core/agent-runner/__tests__/types.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, ui-design-review-lane
+- `src/core/agent-runner/__tests__/types.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, cr-lane-verdicts-blocked-by-serialization-not-substance, refutation-judge-pass-before-a-blocker-can-red-a-round, ui-design-review-lane
 - `src/core/agent-runner/__tests__/bounded-capture.test.ts` — imports files owned by FDs missing from @tests: tag — add: make-noldor-agent-agnostic
-- `src/core/agent-runner/__tests__/registry-logsink.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic
-- `src/core/agent-runner/__tests__/doctor-runners.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, ui-design-review-lane
-- `src/core/agent-runner/__tests__/registry.test.ts` — imports files owned by FDs missing from @tests: tag — add: dashboard-broken-pages-audit, ui-design-review-lane
+- `src/core/agent-runner/__tests__/registry-logsink.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, cr-lane-verdicts-blocked-by-serialization-not-substance, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic
+- `src/core/agent-runner/__tests__/doctor-runners.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, cr-lane-verdicts-blocked-by-serialization-not-substance, refutation-judge-pass-before-a-blocker-can-red-a-round, ui-design-review-lane
+- `src/core/agent-runner/__tests__/registry.test.ts` — imports files owned by FDs missing from @tests: tag — add: dashboard-broken-pages-audit, refutation-judge-pass-before-a-blocker-can-red-a-round, ui-design-review-lane
 - `src/garden/__tests__/garden-receipt.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement, release-sweep-process-hardening
 - `src/garden/__tests__/garden-detect.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase, release-bypass-retirement
 - `src/garden/__tests__/graph-fd-lookup.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase, sdd-detector-5-idea-merge-semantic-similarity
@@ -313,36 +330,48 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/checks/__tests__/check-pen-bridge.test.ts` — imports files owned by FDs missing from @tests: tag — add: de-superpowers-vendor-spec-plan-and-worktree-flows
 - `src/checks/__tests__/check-push-gates.test.ts` — imports files owned by FDs missing from @tests: tag — add: rules-cascade-v1
 - `src/checks/__tests__/check-feature-slug-scope.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor
-- `src/cr/__tests__/autofix-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, cr-re-round-cap-enforcement-and-oscillation-detector, ui-design-review-lane
+- `src/checks/__tests__/check-parent-opt-in.test.ts` — imports files owned by FDs missing from @tests: tag — add: bootstrap-immunity-for-self-gating-features, framework-milestones-support-poc-mvp-100, pendev-ui-design-phase
+- `src/cr/__tests__/autofix-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, refutation-judge-pass-before-a-blocker-can-red-a-round, spec-stage-cr-stopping-rule, ui-design-review-lane
 - `src/cr/__tests__/locations.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
-- `src/cr/__tests__/overwrite-guard.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, ui-design-review-lane
-- `src/cr/__tests__/orchestrate.integration.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, ui-design-review-lane
-- `src/cr/__tests__/filename.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/cr/__tests__/re-round.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, refutation-judge-pass-before-a-blocker-can-red-a-round, specs-cr-gate-multi-reviewer, ui-design-review-lane
+- `src/cr/__tests__/overwrite-guard.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, refutation-judge-pass-before-a-blocker-can-red-a-round, ui-design-review-lane
+- `src/cr/__tests__/orchestrate-decisions.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, autonomous-plan-to-pr-merge, cr-lane-verdicts-blocked-by-serialization-not-substance, noldor, refutation-judge-pass-before-a-blocker-can-red-a-round, rules-cascade-v1, spec-stage-cr-stopping-rule, specs-cr-gate-multi-reviewer, ui-design-review-lane, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/cr/__tests__/amend-receipt.test.ts` — imports files owned by FDs missing from @tests: tag — add: refutation-judge-pass-before-a-blocker-can-red-a-round
+- `src/cr/__tests__/orchestrate-judge.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, autonomous-plan-to-pr-merge, cr-re-round-cap-enforcement-and-oscillation-detector, noldor, spec-stage-cr-stopping-rule, specs-cr-gate-multi-reviewer, ui-design-review-lane, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/cr/__tests__/decisions.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, noldor, refutation-judge-pass-before-a-blocker-can-red-a-round, spec-stage-cr-stopping-rule, specs-cr-gate-multi-reviewer, ui-design-review-lane, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/cr/__tests__/orchestrate.integration.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, refutation-judge-pass-before-a-blocker-can-red-a-round, ui-design-review-lane
+- `src/cr/__tests__/filename.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor, ui-design-review-lane, unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/cr/__tests__/cut-scan.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, cr-re-round-cap-enforcement-and-oscillation-detector
-- `src/cr/__tests__/autofix-ledger.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, cr-re-round-cap-enforcement-and-oscillation-detector, ui-design-review-lane
+- `src/cr/__tests__/autofix-ledger.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, refutation-judge-pass-before-a-blocker-can-red-a-round, spec-stage-cr-stopping-rule, ui-design-review-lane
 - `src/cr/__tests__/bootstrap-immunity.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement
-- `src/cr/__tests__/autofix.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, cr-re-round-cap-enforcement-and-oscillation-detector
-- `src/cr/__tests__/delta.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, ui-design-review-lane
-- `src/cr/__tests__/run-codex.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, specs-cr-gate-multi-reviewer
+- `src/cr/__tests__/autofix.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, cr-re-round-cap-enforcement-and-oscillation-detector, refutation-judge-pass-before-a-blocker-can-red-a-round
+- `src/cr/__tests__/delta.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, refutation-judge-pass-before-a-blocker-can-red-a-round, ui-design-review-lane
+- `src/cr/__tests__/settled-findings.integration.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, autonomous-plan-to-pr-merge, cr-lane-verdicts-blocked-by-serialization-not-substance, make-noldor-agent-agnostic, noldor, refutation-judge-pass-before-a-blocker-can-red-a-round, rules-cascade-v1, spec-stage-cr-stopping-rule, specs-cr-gate-multi-reviewer, ui-design-review-lane, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/cr/__tests__/run-codex.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer
+- `src/cr/__tests__/lane-answer.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
 - `src/cr/__tests__/codex-failure.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
+- `src/cr/__tests__/lane-spawn.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, agent-events-phase-tracking-run-ids-and-agents-dashboard-page, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, noldor, parallel-agent-dispatch-for-research-jobs, refutation-judge-pass-before-a-blocker-can-red-a-round, ui-design-review-lane, unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/cr/__tests__/arbitration-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, noldor, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/cr/__tests__/sidecar.test.ts` — imports files owned by FDs missing from @tests: tag — add: spec-stage-cr-stopping-rule
 - `src/cr/__tests__/expected-lanes-guard.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, noldor
-- `src/cr/__tests__/findings-schema.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, ui-design-review-lane
-- `src/cr/__tests__/orchestrate.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, rules-cascade-v1, ui-design-review-lane
-- `src/cr/__tests__/aggregate.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/cr/__tests__/findings-schema.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, refutation-judge-pass-before-a-blocker-can-red-a-round, ui-design-review-lane
+- `src/cr/__tests__/schema-parity.test.ts` — imports files owned by FDs missing from @tests: tag — add: spec-stage-cr-stopping-rule
+- `src/cr/__tests__/judge.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, agent-events-phase-tracking-run-ids-and-agents-dashboard-page, cr-lane-verdicts-blocked-by-serialization-not-substance, cr-re-round-cap-enforcement-and-oscillation-detector, dashboard-broken-pages-audit, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, noldor, parallel-agent-dispatch-for-research-jobs, spec-stage-cr-stopping-rule, specs-cr-gate-multi-reviewer, ui-design-review-lane, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/cr/__tests__/orchestrate.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-lane-verdicts-blocked-by-serialization-not-substance, refutation-judge-pass-before-a-blocker-can-red-a-round, rules-cascade-v1, spec-stage-cr-stopping-rule, ui-design-review-lane
+- `src/cr/__tests__/aggregate.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor, refutation-judge-pass-before-a-blocker-can-red-a-round, unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/cr/__tests__/reflag.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
-- `src/cr/__tests__/arbitration.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, noldor, unvalidated-slug-path-traversal-across-cli-entry-points
-- `src/cr/__tests__/finding-class.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
-- `src/cr/__tests__/prior-review.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, autonomous-plan-to-pr-merge, cr-re-round-cap-enforcement-and-oscillation-detector, rules-cascade-v1, ui-design-review-lane
-- `src/cr/__tests__/codex.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, ui-design-review-lane
+- `src/cr/__tests__/arbitration.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, cr-re-round-cap-enforcement-and-oscillation-detector, noldor, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/cr/__tests__/finding-class.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, spec-stage-cr-stopping-rule
+- `src/cr/__tests__/prior-review.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, autonomous-plan-to-pr-merge, cr-lane-verdicts-blocked-by-serialization-not-substance, refutation-judge-pass-before-a-blocker-can-red-a-round, rules-cascade-v1, spec-stage-cr-stopping-rule, ui-design-review-lane
+- `src/cr/__tests__/codex.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-lane-verdicts-blocked-by-serialization-not-substance, cr-re-round-cap-enforcement-and-oscillation-detector, refutation-judge-pass-before-a-blocker-can-red-a-round, spec-stage-cr-stopping-rule, ui-design-review-lane
 - `src/cr/__tests__/lanes/render-compare-core.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
-- `src/cr/__tests__/lanes/subagent-dispatch.test.ts` — imports files owned by FDs missing from @tests: tag — add: code-clone-detector, code-reviewer-20, continuous-drain-daemon-and-escalation-inbox, cr-re-round-cap-enforcement-and-oscillation-detector, registry-distribution-for-the-noldor-package, release-bypass-retirement, ui-design-review-lane
+- `src/cr/__tests__/lanes/subagent-dispatch.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, code-clone-detector, code-reviewer-20, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, noldor, parallel-agent-dispatch-for-research-jobs, refutation-judge-pass-before-a-blocker-can-red-a-round, registry-distribution-for-the-noldor-package, release-bypass-retirement, ui-design-review-lane, unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/cr/__tests__/lanes/ui-review.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, specs-cr-gate-multi-reviewer
-- `src/cr/__tests__/lanes/verify-dispatch.test.ts` — imports files owned by FDs missing from @tests: tag — add: code-clone-detector, code-reviewer-20, continuous-drain-daemon-and-escalation-inbox, registry-distribution-for-the-noldor-package, release-bypass-retirement, specs-cr-gate-multi-reviewer, ui-design-review-lane
-- `src/cr/__tests__/lanes/subagent.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector, rules-cascade-v1
+- `src/cr/__tests__/lanes/verify-dispatch.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, code-clone-detector, code-reviewer-20, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, noldor, parallel-agent-dispatch-for-research-jobs, refutation-judge-pass-before-a-blocker-can-red-a-round, registry-distribution-for-the-noldor-package, release-bypass-retirement, specs-cr-gate-multi-reviewer, ui-design-review-lane, unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/cr/__tests__/lanes/subagent.test.ts` — imports files owned by FDs missing from @tests: tag — add: rules-cascade-v1
 - `src/cr/__tests__/lanes/render-compare.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, specs-cr-gate-multi-reviewer
 - `src/cr/__tests__/lanes/ui-review-dispatch.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
-- `src/cr/__tests__/lanes/codex.test.ts` — imports files owned by FDs missing from @tests: tag — add: code-clone-detector, code-reviewer-20, continuous-drain-daemon-and-escalation-inbox, registry-distribution-for-the-noldor-package, release-bypass-retirement, ui-design-review-lane
+- `src/cr/__tests__/lanes/codex.test.ts` — imports files owned by FDs missing from @tests: tag — add: code-clone-detector, code-reviewer-20, continuous-drain-daemon-and-escalation-inbox, refutation-judge-pass-before-a-blocker-can-red-a-round, registry-distribution-for-the-noldor-package, release-bypass-retirement, ui-design-review-lane
 - `src/cr/__tests__/geometry/geometry-diff-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
 - `src/cr/__tests__/geometry/geometry-compare-core.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
 - `src/cr/__tests__/geometry/geometry-doc.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
@@ -395,9 +424,9 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/dashboard/__tests__/blocked-by.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, dynamic-fd-changelog, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 - `src/dashboard/__tests__/dashboard-data.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, code-clone-detector, dashboard-blocked-by-graph-view, scan-roots-repo-paths-provider
 - `src/dashboard/__tests__/dashboard-identity.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, dashboard-broken-pages-audit, dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics
-- `src/testing/__tests__/consumer-fixture.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, dashboard-broken-pages-audit, pendev-ui-design-phase, self-boundaries-declaration-and-cycle-break, trailer-scope-alias-map, ui-design-review-lane
+- `src/testing/__tests__/consumer-fixture.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, cr-lane-verdicts-blocked-by-serialization-not-substance, dashboard-broken-pages-audit, pendev-ui-design-phase, self-boundaries-declaration-and-cycle-break, trailer-scope-alias-map, ui-design-review-lane
 - `src/testing/__tests__/drain-e2e.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase, rules-cascade-v1
-- `src/testing/__tests__/stub-runner.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, ui-design-review-lane
+- `src/testing/__tests__/stub-runner.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, cr-lane-verdicts-blocked-by-serialization-not-substance, refutation-judge-pass-before-a-blocker-can-red-a-round, ui-design-review-lane
 - `src/hooks/__tests__/noldor-open-artifact.test.ts` — imports files owned by FDs missing from @tests: tag — add: de-superpowers-vendor-spec-plan-and-worktree-flows, pendev-ui-design-phase
 - `src/hooks/__tests__/noldor-validate-trailer.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-doc-extraction
 - `src/worktrees/__tests__/create-worktree.test.ts` — imports files owned by FDs missing from @tests: tag — add: unvalidated-slug-path-traversal-across-cli-entry-points
@@ -407,6 +436,7 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/worktrees/__tests__/up-worktree.test.ts` — imports files owned by FDs missing from @tests: tag — add: unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/milestones/__tests__/show.test.ts` — imports files owned by FDs missing from @tests: tag — add: unvalidated-slug-path-traversal-across-cli-entry-points
 - `src/milestones/__tests__/lib.test.ts` — imports files owned by FDs missing from @tests: tag — add: unvalidated-slug-path-traversal-across-cli-entry-points
+- `src/rules/__tests__/sibling-scope-trailer.test.ts` — imports files owned by FDs missing from @tests: tag — add: rules-cascade-v1
 - `src/templates/__tests__/templates.test.ts` — imports files owned by FDs missing from @tests: tag — add: make-noldor-agent-agnostic, noldor
 - `src/autonomous/__tests__/drain-reconcile.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
 - `src/autonomous/__tests__/build-pool.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
@@ -428,3 +458,4 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/sync/__tests__/sync-spec-links.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor
 - `src/sync/__tests__/sync-fd-resources.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase
 - `src/sync/__tests__/sync-doc-links.test.ts` — imports files owned by FDs missing from @tests: tag — add: feature-md-links-overhaul
+- `src/graphify/__tests__/graph-to-toon.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor
