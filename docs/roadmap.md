@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Spec Structural Read Leaves a Regenerated Graph on the Branch
-
-- id: Q-0268
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: XS
-- impact: med
-- confidence: med
-
-`noldor-spec` step 1.7 regenerates a stale graph (`/graphify --ast-only`, then `pnpm toon`) and retries, which rewrites the tracked `graphify-out/graph.json`, `GRAPH_REPORT.md`, `manifest.json` and both `.toon` files inside the feature worktree. On 2026-09-22 `graphify update .` turned a 3,578-node graph into 10,562 nodes — a large unrelated diff any later `git add -A` carries into the PR. Wanted: the step writes its regenerated graph somewhere untracked, or restores `graphify-out/` (and removes the untracked `graphify-out/.graphify_root`) after the read. Deletion test: a spec session that regenerated the graph ends with `git status graphify-out/` clean. (absorbed 2026-09-24)
-
 ### Verify Lane Leaves a Registered Worktree Behind
 
 - id: Q-0269
