@@ -279,28 +279,28 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
   Separately, confirm the first substantive commit's body carries `Why — / How — / What —` sections (24+ non-whitespace chars each): `pr-flow` composes the PR Summary from it and `validatePrSummary` refuses delivery without them — cheaper to reword now (rebase/amend) than at PR-open.
 
-- **Code-stage orchestrate.** Run the worktree-code lane (default `reviewer`; config `crLanes.code` can override, e.g. `['reviewer', 'codex']` to opt codex back in — and on `specs-only-*` / `full-*` paths orchestrate forces `codex` into the set regardless, so an M/L/XL feature never ships reviewed by one model family):
+- **Code-stage orchestrate.** Run the code-stage lanes. Pass **no `--lanes`**: at `--kind code` orchestrate reads `crLanes.code` from `.noldor/config.json` in every session, interactive or autonomous (there is no lane picker at this stage to prompt), falling back to `reviewer` alone when the block is absent — and on `specs-only-*` / `full-*` paths it forces `codex` into the set regardless, so an M/L/XL feature never ships reviewed by one model family. An explicit `--lanes` wins over config outright: `--lanes reviewer` in a repo configuring `['reviewer', 'verifier']` runs half its review posture and the aggregate still reads green (Q-0270). Reach for `--lanes` only to narrow one run on purpose, e.g. to leave the verifier out of a change with no runtime surface.
 
   ```
-  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes reviewer --base-sha origin/main
+  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --base-sha origin/main
   ```
 
   `<code-paths>` is a representative changed path used only for labeling; the subagent lane actually reviews the **`BASE_SHA..HEAD` diff range**, so pass `--base-sha origin/main` to cover the whole feature diff — which **includes the refreshed `docs/features/<slug>.md`** from the first bullet. That range membership is what delivers the "refreshed FD is reviewed by the code-stage CR" guarantee. Omitting `--base-sha` defaults the lane to `HEAD~1..HEAD` (last commit only — usually not what you want at end-of-flow). On attach paths pass the **parent** slug for `--slug` (the lane reads `docs/features/<slug>.md` as FD context, and attach has no child FD).
 
-  **Autonomous mode:** add `--autonomous` and omit `--lanes` (orchestrate reads `crLanes.code` from `.noldor/config.json`). The `--autonomous` flag also suppresses the overwrite-guard prompts and the standalone-in-progress prompt, so re-runs over prior sinks don't pause.
+  **Autonomous mode:** add `--autonomous`. Lanes already come from `crLanes.code` at this stage; the flag is what suppresses the overwrite-guard prompts and the standalone-in-progress prompt, so re-runs over prior sinks don't pause.
 
   **Fast-track profile.** When the session marker `path` is `fast-track`, append `--profile fast-track` to the orchestrate command so the CR pass is scoped (low effort, correctness+security+reuse+simplification per `crReview.profiles`). Other paths omit the flag and get the `default` profile (med effort, every dimension). For the fast-track / drain code-stage review the command is:
 
   ```
-  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes reviewer --base-sha origin/main --profile fast-track
+  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --base-sha origin/main --profile fast-track
   ```
 
-  Sink: `.noldor/cr/<slug>-code-reviewer.json`. Trailer amended on tip commit: `Noldor-Reviewed-Subagent: <tree>`.
+  Sinks: `.noldor/cr/<slug>-code-<lane>.json`, one per lane that ran. Trailer amended on tip commit: `Noldor-Reviewed-Subagent: <tree>`.
 
   **Delta re-earn after a post-green mechanical fix.** `--base-sha origin/main` (the full feature range) is mandatory only for the **first** code-stage pass. When a commit lands *after* the reviewer went green — a push-gate fix the preflight bullet didn't catch, a fmt-hook rewrite, a one-line message reword that still changed the tree — the receipt invalidates, but the already-reviewed range hasn't changed. Re-earn with a delta pass over just the fix instead of re-reviewing the whole feature: capture `git rev-parse HEAD` **before** committing the fix (that tip carried the green receipt), then
 
   ```
-  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes reviewer --base-sha <last-green-tip>
+  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --base-sha <last-green-tip>
   ```
 
   (keep `--profile fast-track` when the first pass used it). Orchestrate already supports delta review — this is the same `--base-sha` mechanism the autofix loop uses via its printed `base-sha:` line; the skill just never prescribed it for the push-gate-failure path, which bypasses autofix. The reviewer sees only `<last-green-tip>..HEAD`, so a mechanical fix re-earns the receipt in one cheap dispatch instead of a full-range re-review.

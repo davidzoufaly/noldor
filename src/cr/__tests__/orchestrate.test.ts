@@ -104,6 +104,31 @@ describe('resolveLanes', () => {
   it('interactive + no CLI flag => returns empty (signal: skill prompts)', () => {
     expect(resolveLanes({ slug: 'x', kind: 'spec' }, null)).toEqual([]);
   });
+  it('code kind + no CLI flag reads crLanes.code in an interactive session (no picker exists at code stage)', () => {
+    expect(
+      resolveLanes(
+        { slug: 'x', kind: 'code' },
+        {
+          crLanes: { code: ['reviewer', 'verifier'] },
+          autonomous: { skipLanePicker: false, onFailure: 'prompt', requireHumanPrApproval: false },
+        },
+      ),
+    ).toEqual(['reviewer', 'verifier']);
+  });
+  it('code kind + no CLI flag + no config => built-in default in an interactive session', () => {
+    expect(resolveLanes({ slug: 'x', kind: 'code' }, null)).toEqual(['reviewer']);
+  });
+  it('explicit --lanes on code still narrows below a configured crLanes.code (deliberate per-run exclusion)', () => {
+    expect(
+      resolveLanes(
+        { slug: 'x', kind: 'code', lanes: ['reviewer'] },
+        {
+          crLanes: { code: ['reviewer', 'verifier'] },
+          autonomous: { skipLanePicker: false, onFailure: 'prompt', requireHumanPrApproval: false },
+        },
+      ),
+    ).toEqual(['reviewer']);
+  });
   it('unions codex on spec/code when the session path is spec-bearing (M/L/XL)', () => {
     expect(resolveLanes({ slug: 'x', kind: 'spec', lanes: ['manual'] }, null, 'full-new')).toEqual([
       'manual',
@@ -1099,19 +1124,20 @@ describe('round budget (Q-0170)', () => {
 
   it('records nothing for a run that dispatched no lane', async () => {
     // The empty lane set is the interactive "prompt the operator" sentinel — no
-    // review happened, so no budget may be spent.
+    // review happened, so no budget may be spent. Only spec/plan have a picker
+    // to prompt; code always resolves a lane set.
     const r = await run({
       args: {
         slug: 'x',
         artifact: 'docs/x.md',
-        kind: 'code',
+        kind: 'plan',
         fullReview: false,
         autonomous: false,
       },
       cwd: root,
     });
     expect(r.lanesRun).toEqual([]);
-    await expect(readFile(ledgerPath(root, 'x' as never, 'code'), 'utf8')).rejects.toThrow();
+    await expect(readFile(ledgerPath(root, 'x' as never, 'plan'), 'utf8')).rejects.toThrow();
   });
 
   it('does not record expected lanes for a refused dispatch', async () => {
