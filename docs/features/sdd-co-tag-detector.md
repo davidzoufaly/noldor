@@ -9,9 +9,11 @@ deps: []
 links:
   spec: lost-pre-extraction
   code:
+    - src/features/seed-test-tags.ts
     - src/garden/graph-fd-lookup.ts
   tests:
     - src/features/__tests__/propose-pointers.test.ts
+    - src/features/__tests__/seed-test-tags.test.ts
     - src/garden/__tests__/graph-fd-lookup.test.ts
     - src/garden/__tests__/sdd-report.test.ts
     - src/sync/__tests__/sync-fd-resources.test.ts

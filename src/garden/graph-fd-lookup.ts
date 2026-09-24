@@ -1,3 +1,5 @@
+// @fd: sdd-co-tag-detector
+
 import { existsSync, readFileSync, statSync } from 'node:fs';
 
 import { readTextFiles, walkRepo } from '../core/fd-load.js';
