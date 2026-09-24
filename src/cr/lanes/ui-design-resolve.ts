@@ -5,7 +5,7 @@
 // "what, if anything, do we compare?", the lane answers "what does the sink say?".
 
 import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 import matter from 'gray-matter';
 import { z } from 'zod';
@@ -61,6 +61,8 @@ export interface ResolvedDesign {
   surfaces: string[];
   /** Changed UI paths no declared surface owns — a config gap, reported as a note. */
   unmappedPaths: string[];
+  /** Why the approval record could not vouch for everything it might have, as notes. */
+  approvalNotes: string[];
 }
 
 /**
@@ -111,11 +113,17 @@ export function makeTerminalWriter(
   };
 }
 
-/** The config-gap note both lanes surface for changed UI paths no surface owns. */
-export function unmappedPathNotes(design: ResolvedDesign): string[] {
-  return design.unmappedPaths.length > 0
-    ? [`changed UI paths outside every declared surface: ${design.unmappedPaths.join(', ')}`]
-    : [];
+/**
+ * The notes both lanes carry on every sink of a reviewable round: the config
+ * gap for changed UI paths no surface owns, and what the approval record could
+ * not vouch for.
+ */
+export function designNotes(design: ResolvedDesign): string[] {
+  const unmapped =
+    design.unmappedPaths.length > 0
+      ? [`changed UI paths outside every declared surface: ${design.unmappedPaths.join(', ')}`]
+      : [];
+  return [...unmapped, ...design.approvalNotes];
 }
 
 /**
@@ -383,6 +391,17 @@ export async function resolveUiReviewTarget(input: LaneInput): Promise<Resolutio
   if (approval.record.outcome === 'waived') {
     return terminal('not-applicable', 'waived', `committed waiver: ${approval.record.reason}`);
   }
+  const specsRel = relative(repo, loadDocRoots(repo).specs).split(sep).join('/');
+  const binding = specAtHead(run, input.artifactSha, specsRel, approval.record);
+  if (binding.kind === 'stale') {
+    return terminal(
+      'cannot-review',
+      'design-approval-spec-stale',
+      `${binding.detail} — if the design still depicts the spec, run ` +
+        `\`design verdict --pen ${owned[0]} --reconfirm\` and commit the record; ` +
+        'otherwise revise the design and take the verdict again',
+    );
+  }
 
   return {
     kind: 'review',
@@ -393,7 +412,46 @@ export async function resolveUiReviewTarget(input: LaneInput): Promise<Resolutio
       absPath: join(repo, owned[0]),
       surfaces: verdict.affectedSurfaces,
       unmappedPaths: verdict.unmappedPaths,
+      approvalNotes:
+        binding.kind === 'unbound'
+          ? [
+              `the approval record for ${owned[0]} predates spec binding, so no spec revision was checked — ` +
+                'take the verdict again with --spec to bind one',
+            ]
+          : [],
     },
+  };
+}
+
+/**
+ * The spec an approved record names, read from the review-head tree — the same
+ * tree the `.pen` and the record come from — live first, then archived under
+ * the same name (`design archive` keeps basenames).
+ */
+function specAtHead(
+  run: ReturnType<typeof defaultRunGit>,
+  head: string,
+  specsRel: string,
+  record: Extract<DesignApprovalRecord, { outcome: 'approved' }>,
+): { kind: 'unbound' } | { kind: 'current' } | { kind: 'stale'; detail: string } {
+  const { spec } = record;
+  if (spec === undefined) return { kind: 'unbound' };
+  for (const path of [`${specsRel}/${spec.name}`, `${specsRel}/${ARCHIVE_DIR}/${spec.name}`]) {
+    const oid = run(['rev-parse', `${head}:${path}`]);
+    if (oid.status !== 0) continue;
+    const blob = oid.stdout.trim();
+    return blob === spec.blob
+      ? { kind: 'current' }
+      : {
+          kind: 'stale',
+          detail:
+            `${path} changed after its design was approved: record names ${spec.blob.slice(0, 12)}, ` +
+            `tree holds ${blob.slice(0, 12)}`,
+        };
+  }
+  return {
+    kind: 'stale',
+    detail: `the spec the approval names (${spec.name}) is in neither ${specsRel}/ nor ${specsRel}/${ARCHIVE_DIR}/ at the review head`,
   };
 }
 

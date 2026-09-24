@@ -42,7 +42,15 @@ interface RepoOpts {
    * so only the record-focused tests spell out the divergent states.
    */
   record?: 'approved' | 'waived' | 'stale' | 'none';
+  /**
+   * The spec an approved record binds. Unset writes a record from before spec
+   * binding; `stale` binds a blob the committed spec no longer has, `missing`
+   * names a spec the tree does not hold, `archived` commits it under archive/.
+   */
+  spec?: 'bound' | 'stale' | 'missing' | 'archived';
 }
+
+const SPEC_NAME = `2026-08-20-${SLUG}-design.md`;
 
 function git(cwd: string, args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
@@ -93,6 +101,26 @@ function repo(opts: RepoOpts = {}): { cwd: string; input: LaneInput } {
     mkdirSync(join(cwd, rel, '..'), { recursive: true });
     writeFileSync(join(cwd, rel), body);
   }
+  const specDir =
+    opts.spec === 'archived'
+      ? join(cwd, 'docs', 'design', 'specs', 'archive')
+      : join(cwd, 'docs', 'design', 'specs');
+  if (opts.spec !== undefined && opts.spec !== 'missing') {
+    mkdirSync(specDir, { recursive: true });
+    writeFileSync(join(specDir, SPEC_NAME), '# Spec\n\nThe card is withheld.\n');
+  }
+  const specBinding =
+    opts.spec === undefined
+      ? {}
+      : {
+          spec: {
+            name: SPEC_NAME,
+            blob:
+              opts.spec === 'bound' || opts.spec === 'archived'
+                ? git(cwd, ['hash-object', join(specDir, SPEC_NAME)])
+                : 'e'.repeat(40),
+          },
+        };
   for (const pen of opts.pens ?? []) {
     mkdirSync(join(cwd, 'docs', 'design', 'ui', pen, '..'), { recursive: true });
     writeFileSync(join(cwd, 'docs', 'design', 'ui', pen), 'PEN-BYTES\n');
@@ -110,6 +138,7 @@ function repo(opts: RepoOpts = {}): { cwd: string; input: LaneInput } {
             at: '2026-08-30T00:00:00.000Z',
             penBlob,
             surfaces: ['app'],
+            ...specBinding,
           };
     mkdirSync(join(cwd, '.noldor', 'design-approval'), { recursive: true });
     // Keyed by the BASENAME stem — an archived pen keeps its record path.
@@ -342,6 +371,65 @@ describe('runUiReview — design-approval record (Q-0196)', () => {
     const r = await runUiReview(input);
     expect(r.ok).toBe(true);
     expect(sink(cwd)).toMatchObject({ verdict: 'pass' });
+    expect(seen).toHaveLength(1);
+  });
+});
+
+describe('runUiReview — the spec an approval binds', () => {
+  const pens = [`2026-08-20-${SLUG}.pen`];
+
+  it('reviews when the approval names the spec as the review head holds it', async () => {
+    const { seen } = capture(PASS);
+    const { cwd, input } = repo({ pens, spec: 'bound' });
+    await runUiReview(input);
+    expect(sink(cwd)).toMatchObject({ verdict: 'pass' });
+    expect(seen).toHaveLength(1);
+  });
+
+  it('finds the bound spec in archive/ once gate Step 4 has moved it', async () => {
+    const { seen } = capture(PASS);
+    const { cwd, input } = repo({ pens, spec: 'archived' });
+    await runUiReview(input);
+    expect(sink(cwd)).toMatchObject({ verdict: 'pass' });
+    expect(seen).toHaveLength(1);
+  });
+
+  it('declines to review once the spec changed after the approval, naming the remedy', async () => {
+    const { seen } = capture(PASS);
+    const { cwd, input } = repo({ pens, spec: 'stale' });
+    const r = await runUiReview(input);
+    expect(r.ok).toBe(true);
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'design-approval-spec-stale' });
+    expect((s.notes as string[]).join(' ')).toContain('--reconfirm');
+    expect(seen).toHaveLength(0);
+  });
+
+  it('reds a stale spec binding under blocking', async () => {
+    const { cwd, input } = repo({ pens, spec: 'stale', uiReviewMode: 'blocking' });
+    const r = await runUiReview(input);
+    expect(r.ok).toBe(false);
+    expect((sink(cwd).blockers as unknown[]).length).toBe(1);
+  });
+
+  it('declines when the review head holds no spec by the bound name', async () => {
+    const { seen } = capture(PASS);
+    const { cwd, input } = repo({ pens, spec: 'missing' });
+    await runUiReview(input);
+    expect(sink(cwd)).toMatchObject({
+      verdict: 'cannot-review',
+      reason: 'design-approval-spec-stale',
+    });
+    expect(seen).toHaveLength(0);
+  });
+
+  it('still reviews a record from before spec binding, with a note naming the remedy', async () => {
+    const { seen } = capture(PASS);
+    const { cwd, input } = repo({ pens });
+    await runUiReview(input);
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'pass' });
+    expect((s.notes as string[]).join(' ')).toContain('--spec');
     expect(seen).toHaveLength(1);
   });
 });

@@ -564,5 +564,10 @@
     "slug": "full-suite-flake-route-sweep-and-sdd-report-still-unexplained",
     "retiredInto": "test-suites-read-live-repo-state-shifting-full-suite-failures",
     "retiredAt": "2026-09-24"
+  },
+  "Q-0258": {
+    "slug": "design-approval-certifies-provenance-not-content",
+    "retiredInto": "pendev-ui-design-phase",
+    "retiredAt": "2026-09-24"
   }
 }

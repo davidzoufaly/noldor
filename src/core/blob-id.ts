@@ -12,12 +12,36 @@ import { execFileSync } from 'node:child_process';
  * same attributes the index does. That is the whole point of hashing this way:
  * the comparison at verdict time is against the blob git STORED, and a raw
  * byte hash would diverge permanently under `core.autocrlf`, a `text=auto`
- * attribute, a clean filter, or LFS. `null` when git cannot answer.
+ * attribute, a clean filter, or LFS. `write` also stores the object, so the
+ * text stays retrievable by that id before any commit holds it. `null` when git
+ * cannot answer.
  */
-export function blobIdOfWorktreeFile(repoRoot: string, relPath: string): string | null {
+export function blobIdOfWorktreeFile(
+  repoRoot: string,
+  relPath: string,
+  opts: { write?: boolean } = {},
+): string | null {
+  const write = opts.write === true ? ['-w'] : [];
   try {
-    return execFileSync('git', ['hash-object', '--path', relPath, '--', relPath], {
+    return execFileSync('git', ['hash-object', ...write, '--path', relPath, '--', relPath], {
       cwd: repoRoot,
+      encoding: 'utf8',
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The same attribute-aware id as {@link blobIdOfWorktreeFile}, over bytes the
+ * caller already read — so the id names exactly the content the caller
+ * inspected, not whatever the file holds a moment later.
+ */
+export function blobIdOfBytes(repoRoot: string, relPath: string, bytes: Buffer): string | null {
+  try {
+    return execFileSync('git', ['hash-object', '--stdin', '--path', relPath], {
+      cwd: repoRoot,
+      input: bytes,
       encoding: 'utf8',
     }).trim();
   } catch {

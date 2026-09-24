@@ -93,7 +93,7 @@ export const MANIFEST: Record<string, Group> = {
       },
       verdict: {
         src: 'design/design-approval-cli.ts',
-        desc: "Write a design's approval/waiver record (--approve|--waive), blob-bound to the .pen",
+        desc: "Write, check or reconfirm a design's approval record (--approve|--waive|--check|--reconfirm), bound to the .pen and its spec",
       },
       context: {
         src: 'design/context-cli.ts',
