@@ -1,7 +1,9 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 
+import { readTextFiles, walkRepo } from '../core/fd-load.js';
 import type { FeatureRecord, Gap } from '../core/fd-load.js';
-import { newestMtimeInRoots } from '../core/repo-paths.js';
+import { TEST_FILE_RE, newestMtimeInRoots, scanRoots } from '../core/repo-paths.js';
+import { extractTags } from '../sync/sync-test-links.js';
 
 /**
  * Parsed graphify graph payload. Only the fields this module relies on
@@ -234,6 +236,76 @@ export function getImportOwnersForTest(
     }
   }
   return owners;
+}
+
+/** A test file's content, keyed by its repo-relative path. */
+export interface TestInput {
+  content: string;
+  path: string;
+}
+
+/** The FD slugs one test file's `// @tests:` tag omits. */
+export interface MissingCoTags {
+  path: string;
+  /** Sorted, never empty. */
+  missing: string[];
+}
+
+/**
+ * Every test file under the consumer's scan roots, with its content — the one
+ * file set the co-tag detector reports over and `features seed-test-tags`
+ * writes to.
+ *
+ * @returns Test files as repo-relative paths, read relative to the cwd
+ *
+ * @remarks
+ * Shared rather than walked by each caller: hardcoded roots in the detector
+ * once left standalone `src/` repos with no test inputs at all, so every
+ * graph-known test read as untagged. The filter is core's `TEST_FILE_RE`, the
+ * predicate that also decides which files feed `links.tests`.
+ */
+export async function collectTestInputs(): Promise<TestInput[]> {
+  const paths: string[] = [];
+  for (const root of scanRoots()) await walkRepo(root, paths);
+  return readTextFiles(paths.filter((path) => TEST_FILE_RE.test(path)));
+}
+
+/**
+ * For each test file the graph knows, the FDs that own a file it imports but
+ * are missing from its `// @tests:` tag. The 13th SDD detector renders these as
+ * gaps and `features seed-test-tags` writes them, so the two cannot disagree.
+ *
+ * @param features - Loaded feature records (`links.code` decides ownership)
+ * @param testInputs - Output of {@link collectTestInputs}; a graph test with no
+ *   input reads as declaring no tags
+ * @param graph - A graph the caller has already found fresh
+ * @param e2ePrefix - Tests under this prefix are skipped: they drive the app
+ *   rather than import source
+ * @returns One entry per test with at least one missing slug, in graph order
+ */
+export function computeMissingCoTags(
+  features: FeatureRecord[],
+  testInputs: readonly TestInput[],
+  graph: GraphifyGraph,
+  e2ePrefix: string,
+): MissingCoTags[] {
+  const fileToFds = buildFileToFdsMap(features);
+  const declaredByPath = new Map(
+    testInputs.map(({ content, path }) => [path, extractTags(content)]),
+  );
+  const out: MissingCoTags[] = [];
+  for (const node of graph.nodes) {
+    const sf = node.source_file;
+    if (!sf || !TEST_FILE_RE.test(sf) || sf.startsWith(e2ePrefix)) continue;
+    if (node.source_location !== 'L1') continue; // only file-level node, not inner symbols
+
+    const declared = new Set(declaredByPath.get(sf) ?? []);
+    const missing = [...getImportOwnersForTest(node.id, graph, fileToFds)]
+      .filter((slug) => !declared.has(slug))
+      .toSorted();
+    if (missing.length > 0) out.push({ missing, path: sf });
+  }
+  return out;
 }
 
 /**
