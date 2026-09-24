@@ -11,7 +11,7 @@
 The 13th SDD detector (`detectMissingCoTags`, [`src/garden/sdd-report.ts`](../../../src/garden/sdd-report.ts))
 needs a fresh `graphify-out/graph.json` to name the test files whose `// @tests:`
 tag omits an FD that owns a file they import. When the graph is stale it does not
-weaken the signal — it *replaces* it. [`src/garden/graph-fd-lookup.ts:67`](../../../src/garden/graph-fd-lookup.ts)
+weaken the signal — it *replaces* it. [`src/garden/graph-fd-lookup.ts:70`](../../../src/garden/graph-fd-lookup.ts)
 returns a single meta-gap, and the detector's `if (!loadResult.ok) return [loadResult.gap]`
 hands that one row back in place of the whole scan. A *missing* graph takes the same
 branch, so both failure modes lose the same rows.
@@ -95,8 +95,11 @@ From `pnpm noldor design graph-context` against a freshly regenerated graph
   argument against putting the seeder here.
 - `src/features/migrate-code-tags.ts` is in community **c44**, alongside
   `src/core/fd-load.ts` and `src/features/propose-pointers.ts`, with
-  **no god nodes and no cross-community edges — an interior file**. A sibling seeder
-  placed next to it inherits that interiority, which is why Unit B goes there.
+  **no god nodes and no cross-community edges — an interior file**. The seeder placed
+  next to it does add one cross-community edge, to `graph-fd-lookup.ts` [c4] for Unit C's
+  shared computation — the same edge `src/features/propose-pointers.ts:12` already has,
+  and one no `.noldor/config.json` boundary forbids. That is still cheaper than a new
+  file inside `sdd-report.ts`'s god node, which is why Unit B goes there.
 - `graph-fd-lookup.ts`'s cross-community edges run to `garden-detect.ts` [c31],
   `graph-context.ts` [c25] and `fd-load.ts` [c44]. The c31 edge is the `--ci` consumer
   this design deliberately leaves untouched.
@@ -125,15 +128,15 @@ section whose content is the degraded meta-gap is not a baseline — carrying it
 label a meta-gap as one historical finding and date it to a degraded run. The prior
 section arrives as **markdown bullets, not `Gap` objects**, so the classification is a
 text predicate and deliberately does *not* call `isStaleGraphGap`
-([`src/garden/graph-fd-lookup.ts:115`](../../../src/garden/graph-fd-lookup.ts)): that
-function takes a `Gap`, and it documents at `graph-fd-lookup.ts:104-110` that it
+([`src/garden/graph-fd-lookup.ts:118`](../../../src/garden/graph-fd-lookup.ts)): that
+function takes a `Gap`, and it documents at `graph-fd-lookup.ts:107-113` that it
 deliberately excludes the *missing*-graph gap — so on the missing-graph path it would
 classify a degraded-only section as a baseline. The predicate instead reads the bullets:
 `renderGapBullet` (`sdd-report.ts:877`) renders `itemId` in a code span, and **both**
-degrade branches emit `itemId: graphPath` (`graph-fd-lookup.ts:72` for missing,
-`:85` for stale). So a section holding exactly one bullet whose code-span is the graph
+degrade branches emit `itemId: graphPath` (`graph-fd-lookup.ts:75` for missing,
+`:91` for stale). So a section holding exactly one bullet whose code-span is the graph
 path is degraded-only, on either path. `META_GAP_CATEGORY` is currently unexported at
-`graph-fd-lookup.ts:40` and duplicated as a bare literal at `sdd-report.ts:469`; this
+`graph-fd-lookup.ts:42` and duplicated as a bare literal at `sdd-report.ts:469`; this
 change exports it and both sites use the export, so the heading match is not a third copy.
 
 **The marker is a visible line, not an HTML comment.** An HTML comment renders to nothing,
@@ -154,7 +157,7 @@ from the prior report's `Generated:` line ([`docs/sdd-report.md:5`](../../../doc
 and the count from the counted bullets. On a **re-carry** the existing line's *date* is
 preserved, so it keeps naming the last *fresh* scan rather than the last run.
 
-**Three degenerate baselines, each with a stated outcome.** The verbatim-copy rule above
+**Three degenerate baselines, each with a stated outcome.** The carry rule above
 is not unconditional, because an unconditional copy can preserve false provenance:
 
 - *Prior report present but unreadable or unparseable.* Do **not** write. Refuse with a
@@ -182,7 +185,7 @@ unchanged. Where a tag line exists, the missing slugs are merged into it, sorted
 comma-separated.
 
 Its freshness gate calls `loadFreshGraphOrWarn` with `scanRoots()` from
-[`src/core/repo-paths.ts:34`](../../../src/core/repo-paths.ts) — the same function
+[`src/core/repo-paths.ts:35`](../../../src/core/repo-paths.ts) — the same function
 `sdd-report.ts:1005` calls, where it is imported under the alias `resolveScanRoots`. A
 hardcoded root set would let the seeder call fresh a graph the detector called stale,
 which is exactly the confidently-wrong-tags failure the gate exists to prevent.
@@ -208,9 +211,11 @@ and must not be mistaken for the idempotent no-op.
 exactly that chain, and copying it would make "the seeder writes what the detector
 reports" an assertion rather than a structural fact.
 
-So the chain is extracted as `computeMissingCoTags(features, testInputs, graph)`,
-returning per-test missing-slug sets. `detectMissingCoTags` becomes a thin renderer over
-it, and the seeder consumes the same function. Equality of the two sets is then a
+So the chain is extracted as `computeMissingCoTags(features, testInputs, graph, e2ePrefix)`,
+returning per-test missing-slug sets. `e2ePrefix` is a parameter rather than a
+`loadConsumerConfig()` call inside the helper, so the helper reads no config and each
+caller passes the prefix it already reads. `detectMissingCoTags` becomes a thin renderer
+over it, and the seeder consumes the same function. Equality of the two sets is then a
 property of there being one implementation, and is pinned by a test that runs both over
 the same inputs.
 
@@ -226,26 +231,33 @@ untagged and detector 13 flagged all of them. The duplication is live today —
 a seeder rolling its own walk would be the third.
 
 So `collectTestInputs()` — `resolveScanRoots()` + `walkRepo` + the test-file filter +
-`readTextFiles` — is extracted alongside `computeMissingCoTags`, `TEST_FILE_RE` is
-exported, and `main()`'s inline pair is replaced by the shared call. Detector and seeder
-then read one file set by construction, and the count the report shows is the count the
-seeder will act on.
+`readTextFiles` — is extracted alongside `computeMissingCoTags`, and `main()`'s inline
+pair is replaced by the shared call. `TEST_FILE_RE` moves with them into
+`graph-fd-lookup.ts` and is exported from there: `sdd-report.ts` already imports
+`graph-fd-lookup.ts`, so leaving the constant in `sdd-report.ts` would make the two
+modules import each other. Detector and seeder then read one file set by construction,
+and the count the report shows is the count the seeder will act on. `main()` keeps its
+own walk for the other detectors' `allRepoPaths`, so the scan roots are walked twice —
+the trade `main()`'s clone corpus already makes, one extra sub-second walk for a single
+policy source.
 
 ### Deliverables
 
 - `src/garden/sdd-report.ts` — exported `renderReportMd` with an options-object parameter
   list (it has seven positional parameters today; an eighth would be a review finding),
   the carry-forward splice, and the prior-section read in `main()`.
-- `src/garden/graph-fd-lookup.ts` — exported `META_GAP_CATEGORY`, plus
-  `computeMissingCoTags` and `collectTestInputs`.
-- `src/garden/sdd-report.ts` — exported `TEST_FILE_RE`, and `main()`'s inline
-  `/\.test\.(ts|tsx)$/ || /\.spec\.(ts|tsx)$/` pair (`:1010-1012`) replaced by the shared
-  discovery call, so the repo holds one test-file predicate rather than three.
+- `src/garden/graph-fd-lookup.ts` — exported `META_GAP_CATEGORY` and `TEST_FILE_RE`
+  (moved from `sdd-report.ts:421`), plus `computeMissingCoTags` and `collectTestInputs`.
+- `src/garden/sdd-report.ts` — `main()`'s inline `/\.test\.(ts|tsx)$/ ||
+  /\.spec\.(ts|tsx)$/` pair (`:1010-1012`) replaced by the shared discovery call, so the
+  repo holds one test-file predicate rather than three.
 - `src/features/<seeder>.ts` — the seeder, and its leaf in
   [`src/cli/manifest.ts`](../../../src/cli/manifest.ts).
 - [`docs/noldor/script-catalog.md`](../../../docs/noldor/script-catalog.md) — required:
   `src/cli/validate-script-catalog.ts:29-33,47` blocks when a manifest leaf's `src` path
   and its `pnpm noldor <group> <sub>` token are not cited there.
+- [`docs/features/sdd-co-tag-detector.md`](../../features/sdd-co-tag-detector.md) — the
+  seeder's `links.code` / `links.tests` entries and its Usage lines.
 - Tests beside each.
 
 ## Acceptance criteria
@@ -263,8 +275,9 @@ seeder will act on.
    findings with no parseable `Generated:` date → bullets carried with the date stated as
    unknown; a marker whose row count disagrees with its bullets → recounted total, original
    date kept.
-6. The resolved `--out` path is the only prior report read: an empty target yields the
-   bare meta-gap, and a target holding findings carries them.
+6. The resolved `--out` path is the only prior report read: an empty target, or a prior
+   report with no co-tag section, yields the bare meta-gap, and a target holding findings
+   carries them.
 7. A fresh run's section is computed from the graph and carries no marker.
 8. `detectMissingCoTags` returns exactly one gap on a stale graph and on a missing graph;
    `isStaleGraphGap` still matches the stale one, and `garden detect --ci` still exits 1.
@@ -273,7 +286,7 @@ seeder will act on.
 10. `main()` and the seeder both obtain test files from `collectTestInputs()`, and no
     inline test-file regex remains in `sdd-report.ts`.
 11. `detectMissingCoTags` and the seeder, run over identical inputs, produce equal
-    missing-slug sets.
+    missing-slug sets, including with a non-default `e2ePrefix`.
 12. Against a fresh graph, the seeder adds to a test file's `// @tests:` line exactly the
     slugs `computeMissingCoTags` names for that file.
 13. A test file with no `// @tests:` line is returned unchanged.
@@ -352,12 +365,13 @@ and names the step.
    already owns the report I/O.
 
 2. *Should a degraded-after-degraded run re-date the banner?*
-   -> **No — copy the marker verbatim.** (D2) The date must name the last *fresh* scan,
-   and the marker is what makes that decidable.
+   -> **No — keep the marker's date.** (D2) The date must name the last *fresh* scan,
+   and the marker is what makes that decidable. The count is re-derived from the bullets
+   (Unit A's third degenerate baseline).
 
 3. *`renderReportMd` has seven positional parameters. Add an eighth, or refactor?*
    -> **Refactor to an options object, and export it.** (D3) Eight positional parameters
-   is a guaranteed review finding, and the export is what makes AC10 testable.
+   is a guaranteed review finding, and the export is what makes AC9 testable.
 
 4. *Read the canonical `docs/sdd-report.md`, or the resolved `--out` path?*
    -> **The resolved out path, with no special case for redirection.** (D4) A run carries
@@ -394,9 +408,10 @@ and names the step.
     -> **A text predicate on the bullets, not `isStaleGraphGap`.** (D10) The prior section
     arrives as markdown, and that function both takes a `Gap` and documents that it
     excludes the missing-graph gap — so it would misclassify a degraded-only section as a
-    baseline on exactly the path (D2) just added. Both degrade branches emit
-    `itemId: graphPath`, which `renderGapBullet` puts in a code span, so a lone bullet
-    whose code span is the graph path identifies the degraded-only case on either path.
+    baseline on the missing-graph path, which AC2 holds to the stale path's behaviour.
+    Both degrade branches emit `itemId: graphPath`, which `renderGapBullet` puts in a code
+    span, so a lone bullet whose code span is the graph path identifies the degraded-only
+    case on either path.
 
 11. *What happens when the prior report exists but cannot be read or parsed?*
     -> **Refuse to write, non-zero, naming the path.** (D11) Overwriting a file whose
