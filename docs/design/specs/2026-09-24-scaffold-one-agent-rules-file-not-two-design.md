@@ -61,7 +61,7 @@ For a region-managed path, `copyTemplate` (`src/templates/copy.ts`) writes the w
 A new `src/migrations/1.13.0.ts`, registered in `src/migrations/registry.ts`, follows the `0.6.0` pattern: idempotent and existence-guarded. Unlike `0.6.0`, its steps depend on each other, so it computes them on an in-memory view of the files it reads — step 2 sees step 1's removal decision, step 3 sees step 2's rewrite — and apply mode writes that view at the end, so `--dry-run` lists exactly the steps a real run takes. Steps 2 and 3 run only when `agents.targets` includes `claude`.
 
 1. Remove `.claude/noldor.md` when its content matches one of the two versions noldor shipped (a content-hash list in the migration). A modified copy stays and is reported, as `0.6.0` does for a consumer-owned homonym.
-2. When step 1 removed the file, each `@.claude/noldor.md` import in `CLAUDE.md` and then `.claude/CLAUDE.md` becomes `@AGENTS.md` if neither file imports `@AGENTS.md` yet, and is deleted otherwise, so the two files end with exactly one import. A modified copy that step 1 kept keeps its import too.
+2. When step 1 removed the file, each `@.claude/noldor.md` import in `CLAUDE.md` and then `.claude/CLAUDE.md` becomes `@AGENTS.md` if neither file imports `@AGENTS.md` yet, and is deleted otherwise, so the migration writes at most one import and removes none that was already there. A modified copy that step 1 kept keeps its import too.
 3. When Unit 5's check reports the repo unwired, prepend `@AGENTS.md` to one of the two files (the root file when both exist). This is the mechanism Claude Code documents for a repo that keeps a `CLAUDE.md`, and it never reads `AGENTS.md` twice.
 4. Bring `AGENTS.md` to the current region through Unit 2's rules, with replace semantics the way `0.6.0` syncs framework twins: absent means the whole template, no region means an appended one, a differing region is replaced.
 
@@ -85,7 +85,7 @@ A new `src/checks/check-agents-md-wiring.ts`, shaped like `check-lefthook-wiring
 4. `noldor doctor` and `checks template-sync` report `AGENTS.md` only when its region is absent or differs; edits outside the region never produce a row.
 5. `noldor upgrade` on a tree anchored at `1.12.0` with a vendored `.claude/noldor.md` removes it, leaves a CLAUDE file importing `@AGENTS.md` — whether that file imported `@.claude/noldor.md` or nothing — and leaves `AGENTS.md` carrying the region. `--dry-run` lists exactly the steps the real run takes and writes nothing; a second run lists none.
 6. The migration leaves a modified `.claude/noldor.md` on disk and reports it.
-7. After the vendored `.claude/noldor.md` is removed, its imports leave exactly one `@AGENTS.md` across the two CLAUDE files; a kept modified copy keeps its import.
+7. After the vendored `.claude/noldor.md` is removed, the migration has written at most one `@AGENTS.md` import across the two CLAUDE files and removed none that was already there; a kept modified copy keeps its import.
 8. `noldor upgrade` resolves the chain from any anchor in `1.0.0`–`1.12.x` without a gap error; an anchor below the earliest registered migration's `from` still errors.
 9. In a claude-targeted repo, `noldor doctor` exits 1 when a `CLAUDE.md` or `.claude/CLAUDE.md` exists and neither imports `@AGENTS.md`, and passes that row when one does or when neither exists. A `CLAUDE.local.md`-only case warns without affecting the exit code. `noldor init` prints the finding, exits as it otherwise would, and edits nothing.
 10. In this repo, `.claude/noldor.md` and `templates/.claude/noldor.md` are gone, the two `AGENTS.md` regions are identical, and `pnpm noldor doctor` passes.
@@ -114,9 +114,10 @@ As an adopter (human or agent) setting up Noldor in a repo, I want the framework
 ## Open questions (resolved)
 
 1. *What happens to `.claude/skills/**`?* -> They stay where they are. They are Claude's native surface with no `AGENTS.md` equivalent; `AGENTS.md` names the skill for each flow. (D1)
-2. *Does the migration rewrite an existing `CLAUDE.md` or leave it?* -> It adds one `@AGENTS.md` line and changes nothing else. Leaving it untouched would keep Claude from ever reading `AGENTS.md`; folding it in would move consumer-owned content. (D2)
+2. *Does the migration rewrite an existing `CLAUDE.md` or leave it?* -> It adds one `@AGENTS.md` line, or repoints an `@.claude/noldor.md` import, and changes nothing else. Leaving it untouched would keep Claude from ever reading `AGENTS.md`; folding it in would move consumer-owned content. (D2)
 3. *Import the engineering rules and route table, or point to them?* -> Point to them in prose. Imports cost about 10k tokens per session, codex and opencode cannot follow them, and they never ran. (D3)
 4. *Fix the chain gap here or carve it out?* -> Fix it here. This is the first migration since `1.0.0`, so it is the one that makes the gap reachable. (D4)
 5. *Should a fresh repo get a `CLAUDE.md` stub holding `@AGENTS.md`?* -> No. The entry asks for no `CLAUDE.md`, and Claude Code's own guidance is to remove a `CLAUDE.md` that holds nothing but the import. (D5)
 6. *Where does `init` put the region in an existing `AGENTS.md`?* -> At the end, so the consumer's title and opening stay first. (D6)
-7. *Should the wiring check block?* -> Yes for committed CLAUDE files, since the fix is always harmless; a warning for `CLAUDE.local.md`, which is one person's file. (D7)
+7. *Should the wiring check block?* -> Yes for `CLAUDE.md` and `.claude/CLAUDE.md`, since the fix is always harmless; a warning for `CLAUDE.local.md`, which is one person's file. (D7)
+8. *Should the migration de-duplicate `@AGENTS.md` imports a consumer already has in both CLAUDE files?* -> No. Claude Code never loads an imported `AGENTS.md` twice, so a duplicate is harmless, while deleting lines the migration did not write edits consumer content for no behavioural gain. (D8)
