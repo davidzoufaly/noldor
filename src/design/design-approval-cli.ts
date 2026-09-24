@@ -169,26 +169,38 @@ export function parseVerdictArgs(argv: readonly string[]): VerdictArgs {
   return { ok: true, pen, mode: { verb: verb === '--check' ? 'check' : 'reconfirm' } };
 }
 
+type Refusal = { ok: false; error: string };
+
 /**
- * `arg` resolved to a real file. A symlink is refused outright rather than
- * resolved through: git stages the LINK's path and blob while realpath would
- * hand this CLI the target's name and bytes — a record written for an identity
- * no reader can ever match. Seed and `design archive` only ever produce real
- * files, so a link here is a mistake, not a flow.
+ * `arg` resolved to a real file, beside the realpath of the `root` it must sit
+ * under — both sides of a containment test resolve the same way, or a
+ * symlinked repo path (macOS /tmp) would fail the test for every legitimate
+ * file. A symlinked `arg` is refused outright rather than resolved through:
+ * git stages the LINK's path and blob while realpath would hand this CLI the
+ * target's name and bytes — a record written for an identity no reader can
+ * ever match. Seed and `design archive` only ever produce real files, so a
+ * link here is a mistake, not a flow.
  */
-function resolveRealFile(
+function resolveUnder(
   repoRoot: string,
   flag: string,
   arg: string,
-): { ok: true; abs: string } | { ok: false; error: string } {
+  root: string,
+): { ok: true; abs: string; root: string } | Refusal {
   const candidate = resolve(repoRoot, arg);
+  let abs: string;
   try {
     if (lstatSync(candidate).isSymbolicLink()) {
       return { ok: false, error: `${flag} ${arg}: must not be a symlink` };
     }
-    return { ok: true, abs: realpathSync(candidate) };
+    abs = realpathSync(candidate);
   } catch (err) {
     return { ok: false, error: `${flag} ${arg}: ${errMessage(err)}` };
+  }
+  try {
+    return { ok: true, abs, root: realpathSync(root) };
+  } catch (err) {
+    return { ok: false, error: `${relative(repoRoot, root)} unavailable: ${errMessage(err)}` };
   }
 }
 
@@ -203,18 +215,10 @@ function resolveRealFile(
 export function resolveFeaturePen(
   repoRoot: string,
   penArg: string,
-): { ok: true; abs: string; base: string } | { ok: false; error: string } {
-  const real = resolveRealFile(repoRoot, '--pen', penArg);
-  if (!real.ok) return real;
-  const { abs } = real;
-  let designRoot: string;
-  try {
-    // The root is realpath'd too, or a symlinked repo path (macOS /tmp) would
-    // fail the prefix test for every legitimate file under it.
-    designRoot = realpathSync(join(repoRoot, UI_DESIGN_DIR));
-  } catch (err) {
-    return { ok: false, error: `design root unavailable: ${errMessage(err)}` };
-  }
+): { ok: true; abs: string; base: string } | Refusal {
+  const found = resolveUnder(repoRoot, '--pen', penArg, join(repoRoot, UI_DESIGN_DIR));
+  if (!found.ok) return found;
+  const { abs, root: designRoot } = found;
   const rel = relative(designRoot, abs);
   if (rel.startsWith('..') || rel === '') {
     return { ok: false, error: `--pen must resolve inside ${UI_DESIGN_DIR}/` };
@@ -245,24 +249,18 @@ function resolveFeatureSpec(
   repoRoot: string,
   specArg: string,
   penKey: string,
-): { ok: true; rel: string; name: string } | { ok: false; error: string } {
-  const real = resolveRealFile(repoRoot, '--spec', specArg);
-  if (!real.ok) return real;
-  let specsRoot: string;
-  try {
-    specsRoot = realpathSync(loadDocRoots(repoRoot).specs);
-  } catch (err) {
-    return { ok: false, error: `specs root unavailable: ${errMessage(err)}` };
-  }
-  const dir = dirname(real.abs);
-  if (dir !== specsRoot && dir !== join(specsRoot, ARCHIVE_DIR)) {
-    const shown = relative(repoRoot, specsRoot).split(sep).join('/');
+): { ok: true; rel: string; name: string } | Refusal {
+  const found = resolveUnder(repoRoot, '--spec', specArg, loadDocRoots(repoRoot).specs);
+  if (!found.ok) return found;
+  const dir = dirname(found.abs);
+  if (dir !== found.root && dir !== join(found.root, ARCHIVE_DIR)) {
+    const shown = relative(repoRoot, found.root).split(sep).join('/');
     return {
       ok: false,
       error: `--spec must sit directly in ${shown}/ or ${shown}/${ARCHIVE_DIR}/ — the only places a later check looks`,
     };
   }
-  const name = basename(real.abs);
+  const name = basename(found.abs);
   const key = specSlugFromFilename(name);
   if (key === null) {
     return {
@@ -273,7 +271,7 @@ function resolveFeatureSpec(
   if (key !== penKey) {
     return { ok: false, error: `--spec ${name} is for '${key}', the design is for '${penKey}'` };
   }
-  return { ok: true, rel: relative(repoRoot, real.abs).split(sep).join('/'), name };
+  return { ok: true, rel: relative(repoRoot, found.abs).split(sep).join('/'), name };
 }
 
 /** Top-level children are the pages; nothing else in the document is read. */
@@ -492,17 +490,34 @@ function specDiff(cwd: string, oldBlob: string, currentAbs: string, name: string
   return diff.status === 0 || diff.status === 1 ? diff.stdout : null;
 }
 
-function check(ctx: VerdictCtx): number {
+/** The working-tree record and the spec it binds, located — or why no verb can act on it. */
+function loadApproval(ctx: VerdictCtx):
+  | { kind: 'refused'; code: 1 | 2 }
+  | { kind: 'waived' }
+  | {
+      kind: 'bound';
+      record: ApprovedRecord;
+      spec: { name: string; blob: string; rel: string; abs: string };
+    } {
   const record = readApproval(ctx.cwd, ctx.pen.base);
   if (record === null) {
-    return fail(`no usable design-approval record for ${ctx.pen.rel} — take the verdict`, 2);
+    const code = fail(`no usable design-approval record for ${ctx.pen.rel} — take the verdict`, 2);
+    return { kind: 'refused', code };
   }
-  if (record.outcome === 'waived') {
+  if (record.outcome === 'waived') return { kind: 'waived' };
+  const spec = boundSpec(ctx.cwd, ctx.pen, record);
+  if (!spec.ok) return { kind: 'refused', code: fail(spec.error, 2) };
+  return { kind: 'bound', record, spec };
+}
+
+function check(ctx: VerdictCtx): number {
+  const loaded = loadApproval(ctx);
+  if (loaded.kind === 'refused') return loaded.code;
+  if (loaded.kind === 'waived') {
     console.log(`waived: ${ctx.pen.rel} ratified nothing, so nothing can drift`);
     return 0;
   }
-  const spec = boundSpec(ctx.cwd, ctx.pen, record);
-  if (!spec.ok) return fail(spec.error, 2);
+  const { spec } = loaded;
   const current = blobIdOfWorktreeFile(ctx.cwd, spec.rel);
   if (current === null) return fail(`git could not hash ${spec.rel}`, 2);
   if (current === spec.blob) {
@@ -525,15 +540,12 @@ function check(ctx: VerdictCtx): number {
 }
 
 function reconfirm(ctx: VerdictCtx): number {
-  const record = readApproval(ctx.cwd, ctx.pen.base);
-  if (record === null) {
-    return fail(`no usable design-approval record for ${ctx.pen.rel} — take the verdict`, 2);
-  }
-  if (record.outcome === 'waived') {
+  const loaded = loadApproval(ctx);
+  if (loaded.kind === 'refused') return loaded.code;
+  if (loaded.kind === 'waived') {
     return fail(`${ctx.pen.rel} was waived, not approved — take the verdict`, 2);
   }
-  const spec = boundSpec(ctx.cwd, ctx.pen, record);
-  if (!spec.ok) return fail(spec.error, 2);
+  const { record, spec } = loaded;
   const penBlob = blobIdOfWorktreeFile(ctx.cwd, ctx.pen.rel);
   if (penBlob === null) return fail(`git could not hash ${ctx.pen.rel}`, 2);
   if (penBlob !== record.penBlob) {
