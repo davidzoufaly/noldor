@@ -39,7 +39,7 @@ Pick 1/2/3:
 If the operator picks (1) or (2): execute the attach branch (step 6.alt).
 If (3) or no candidates fired: continue to step 2 (existing scaffold flow).
 
-1.7. **Split suggestion (oversize check).** Run `pnpm noldor noldor split-check --entry <slug>` and capture stdout + exit code. On the attach branch (a parent was picked at step 1.5), additionally run `pnpm noldor noldor split-check --fd <parent-slug> --add <path>...` with one `--add` per path in the source block's `Touches:` clause (run `extractTouches` over the block body now — the same helper step 6.4 uses later). Exit 0 = clean → continue silently. Exit 1 = infra error → mention it and continue; never block on checker infra. Exit 2 = signals present → present ONE AskUserQuestion with every captured signal line verbatim:
+1.7. **Split suggestion (oversize check).** Run `pnpm noldor noldor split-check --entry <slug>` and capture stdout + exit code. On the attach branch (a parent was picked at step 1.5), additionally run `pnpm noldor noldor split-check --fd <parent-slug> --add <path>...` with one `--add` per path in the source block's `Touches:` clause (run `extractTouches` over the block body now — the same helper step 6.4 uses later). Read the exit code from the `noldor: exit code <n>` stderr line when one prints — `pnpm` reports every failure as 1, so the shell status alone cannot tell signals from infra error. Exit 0 = clean → continue silently. Exit 1 = infra error → mention it and continue; never block on checker infra. Exit 2 = signals present → present ONE AskUserQuestion with every captured signal line verbatim:
 
 ```
 Split suggested for "<heading>":

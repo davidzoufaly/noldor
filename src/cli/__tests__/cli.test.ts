@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -228,5 +228,43 @@ describe('noldor CLI', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  // pnpm reports every failing script as exit 1, so a skill that runs
+  // `pnpm noldor …` and branches on 2 / 10 / 11 cannot see the real code. Under a
+  // package-script wrapper the router restates it on stderr; run directly, the
+  // exit code already carries it and the line stays out of the way.
+  describe('exit-code restatement under a package-script wrapper', () => {
+    function runEmptyQueue(env: NodeJS.ProcessEnv): { status: number | null; stderr: string } {
+      const dir = mkdtempSync(join(tmpdir(), 'noldor-exit-'));
+      try {
+        const r = spawnSync('node', [BIN, 'next-priority'], {
+          cwd: dir,
+          encoding: 'utf8',
+          env: { ...process.env, npm_lifecycle_script: undefined, ...env },
+        });
+        return { status: r.status, stderr: r.stderr };
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+
+    it('prints the real exit code when a noldor package script wraps the run', () => {
+      const { status, stderr } = runEmptyQueue({ npm_lifecycle_script: 'node bin/noldor.mjs' });
+      expect(status).toBe(2);
+      expect(stderr).toContain('noldor: exit code 2');
+    });
+
+    it('stays silent when run directly', () => {
+      const { status, stderr } = runEmptyQueue({});
+      expect(status).toBe(2);
+      expect(stderr).not.toContain('noldor: exit code');
+    });
+
+    it('stays silent under a wrapper that runs something else (vitest spawning the CLI)', () => {
+      const { status, stderr } = runEmptyQueue({ npm_lifecycle_script: 'vitest run' });
+      expect(status).toBe(2);
+      expect(stderr).not.toContain('noldor: exit code');
+    });
   });
 });
