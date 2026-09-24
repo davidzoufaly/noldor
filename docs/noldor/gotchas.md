@@ -69,6 +69,13 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   `{ path: 'micro-chore' }` → pre-commit ZodError and a silent commit failure
   (exit 1, no clear message in the lefthook tail). Use
   `{ path: 'micro-chore', startedAt: new Date().toISOString() }`.
+- **Tagging one test with an FD drops that FD's untagged test links.** `sync
+  test-links` keeps an FD's hand-written `links.tests` only while no test file
+  names the FD in its `// @tests:` header. The first tag switches the FD to
+  tag-derived links, and every untagged entry falls off. When a change tags a
+  test with an FD, tag every test that FD already lists. A `sync code-links` in
+  the same session can also rewrite an unrelated FD — `git checkout` any FD the
+  change did not mean to touch. (Q-0260)
 
 ## Worktrees
 
@@ -249,6 +256,29 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   `git commit | tail` trap in
   [`git-and-commits.md`](git-and-commits.md) — that one has a purpose-built
   escape (`pnpm noldor commit`); every other command does not. (Q-0246)
+- **One import added to a hub module moves the indirection ratchet once per
+  importer.** `src/cr/findings-schema.ts` sits in the closure of 31 modules
+  above the threshold, so a single new edge from it to a leaf moved the ratchet
+  983 → 1014. Putting the new enum beside `FINDING_CLASSES` in
+  `src/cr/finding-class.ts`, which the hub already imports, brought it back to
+  +3. Before re-recording a large jump, diff `node bin/noldor.mjs indirection
+  report --json` per module against `main`: a uniform +1 across many modules
+  points at one new edge from a hub. (Q-0263)
+- **A backtick in a `pnpm noldor` argument runs as a shell command.** pnpm hands
+  script arguments to `sh -c` inside double quotes, so backticks are command
+  substitution even when the caller single-quoted them. `pnpm noldor design
+  context --section 'Unit 4 — … in `re-round.ts`'` printed `sh: re-round.ts:
+  command not found` and the CLI then refused the truncated heading. Call `node
+  bin/noldor.mjs …` directly for any argument that carries backticks, or keep
+  backticks out of spec headings. (Q-0261)
+- **A `Co-Authored-By` paragraph after the `Noldor-*` trailers hides them, and
+  the rejection names the wrong cause.** git reads trailers from the message's
+  last paragraph only. A blank line between `Noldor-Phase-Revert: 1` and
+  `Co-Authored-By:` left the phase-revert trailer invisible, and
+  `noldor-validate-trailer` refused with "specs-only-attach requires a spec file
+  at …" — the very check that trailer bypasses. Put every trailer in one final
+  paragraph; `git interpret-trailers --parse < msg` shows what git sees.
+  (Q-0261)
 
 ## Pencil / UI design
 
@@ -381,6 +411,12 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   `Developer: Reload Window`, which then kills Claude Code's pencil MCP link and
   costs a `/mcp` reconnect. Seed to a path the editor has never buffered, or
   close the file first — a fresh path loads from disk correctly. (Q-0275)
+- **Diagnose a failing capture diff from the two PNGs, not from the component
+  tree.** Charuy's Q-0278 was scoped as "glass over the WebGL canvas" and the
+  first fix hid the wrong layer; one look at the live and re-rendered images
+  showed the thing behind the glass was a blurred gallery, and that the glass
+  layer is a child of the dialog root. Whenever a fidelity diff fails, write
+  both PNGs to a scratch dir and look before theorising. (charuy Q-0278)
 
 ## Release & publish
 

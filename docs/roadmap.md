@@ -16,6 +16,54 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### pnpm Flattens CLI Exit Codes the Skills Branch On
+
+- id: Q-0266
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: S
+- impact: high
+- confidence: med
+
+`pnpm` reports every failing script as exit 1, so any `pnpm noldor …` command whose contract is a meaningful non-zero code reads the same through the wrapper. `split-check` and `lint-plan-snippets` document 0 = clean, 2 = signals, 1 = infra error, and `/noldor-gate` Step 0/2.5 and `/noldor-promote` step 1.7 branch on that code: an oversized entry returned 1 through pnpm and 2 through `node bin/noldor.mjs noldor split-check --entry <slug>` (Q-0250 promote, 2026-09-22), so a controller following the prose reads "signals present" as "checker infra error, continue" and skips the split prompt the step exists for. The same flattening hits `cr autofix plan` (0 / 10 / 11 — `next: apply-then-stop` exited 1 through pnpm, 11 direct, Q-0261) and `cr orchestrate`'s 3 (round cap) and 4 (unusable prior sink). `refactor-precondition` already works around it with a stdout `verdict:` line. Wanted: every exit-code-bearing command either prints a verdict line the skills read instead, or the skills call `node bin/noldor.mjs` for them. Deletion test: an oversized entry run exactly as `/noldor-promote` step 1.7 prints it reaches the split prompt. (absorbed 2026-09-24 from two lessons)
+
+### Spec-Stage ADR Commit Breaks the CR Range and the PR Summary
+
+- id: Q-0267
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: S
+- impact: high
+- confidence: med
+
+`noldor-spec` step 6.5 commits the decision record as its own `docs(adr)` commit, and two seams downstream misread it. (1) Gate Step 2.5's first-round `cr orchestrate --kind spec` passes no `--base-sha`, so the reviewer lane reviews `HEAD~1..HEAD` (`input.baseSha ?? artifactSha~1` in `src/cr/lanes/subagent.ts`); on Q-0263 (PR #494) the ADR commit landed after the spec, so that range held only the ADR and the lane would have reviewed no spec at all. (2) `pickSummarySha` skips only `BOOKKEEPING_GLOBS`, which lacks `docs/adr/**`, so on Q-0260 (PR #493) the ADR commit became pr-flow's summary commit and the PR was refused ("missing Why, How, What") after a green code review; rewording it by rebase fails on the attach trailer check, and only a non-interactive reorder (`GIT_SEQUENCE_EDITOR=<script> git rebase -i`) got it out. Wanted: `docs/adr/**` in `BOOKKEEPING_GLOBS` (or Step 4's Why/How/What check names the commit `pickSummarySha` picks), and Step 2.5's first round passes `--base-sha origin/main`. Deletion test: a spec session with an ADR commit reviews the spec in round 1 and opens its PR without a reorder. (absorbed 2026-09-24 from two lessons)
+
+### Spec Structural Read Leaves a Regenerated Graph on the Branch
+
+- id: Q-0268
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: XS
+- impact: med
+- confidence: med
+
+`noldor-spec` step 1.7 regenerates a stale graph (`/graphify --ast-only`, then `pnpm toon`) and retries, which rewrites the tracked `graphify-out/graph.json`, `GRAPH_REPORT.md`, `manifest.json` and both `.toon` files inside the feature worktree. On 2026-09-22 `graphify update .` turned a 3,578-node graph into 10,562 nodes — a large unrelated diff any later `git add -A` carries into the PR. Wanted: the step writes its regenerated graph somewhere untracked, or restores `graphify-out/` (and removes the untracked `graphify-out/.graphify_root`) after the read. Deletion test: a spec session that regenerated the graph ends with `git status graphify-out/` clean. (absorbed 2026-09-24)
+
+### Verify Lane Leaves a Registered Worktree Behind
+
+- id: Q-0269
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: XS
+- impact: med
+- confidence: med
+
+Shipping Q-0250 (PR #492), the code-stage verifier built its test bed with `git worktree add --detach /tmp/q0250-verify <sha>`, symlinked `node_modules` into it and ran `cr orchestrate` there. It killed every process it started, as its prompt requires, but the prompt says nothing about worktrees or temp directories, so the main clone's `git worktree list` kept `/private/tmp/q0250-verify` until it was removed by hand (unlink the `node_modules` symlink first, then `git worktree remove --force`). Wanted: `buildVerifyPrompt`'s hard rules require removing every worktree and temp directory the lane creates, or the lane diffs `git worktree list` before and after its dispatch and prunes the difference. Deletion test: after a verify round, `git worktree list` matches its pre-round output. (absorbed 2026-09-24)
+
 ### Path Pick Cannot See the Shared-File Block
 
 - id: Q-0244
@@ -27,6 +75,18 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 - confidence: high
 
 An XS entry whose whole diff is `.claude/skills/**` routes to `fast-track`, and the worktree then refuses the commit. `sizeToPath()` keys on size alone, so `/noldor-gate` Step 0 stamps `suggestedPath: fast-track` on a pure-prose skill edit; `checks shared-files` blocks `^\.claude/skills/[^/]+` from a feature worktree, so the whole fast-track scaffold is wasted — worktree created, roadmap block retired and committed on the branch, then the real commit is refused. Shipping Q-0222 that cost a full worktree teardown and redo on `main`. The evidence that micro-chore is the intended lane is already in `MICRO_CHORE_GLOBS`, which lists `.claude/**` *and* `templates/.claude/**` with the comment "template-sync forces editing both, so the twin must share the micro-chore lane". The gate's own Step 0 prose says "downgrade to `micro-chore` only when the diff is pure-doc", but nothing computes that: the operator is asked to predict the diff before writing it. Wanted: make the shared-files block list and the micro-chore allowlist reachable from the path pick — either `split-check --entry` warns when an entry's `Touches:` is entirely inside `MICRO_CHORE_GLOBS`, or `worktrees create` refuses up front for a slug whose expected paths are all shared-root. Deletion test: picking `fast-track` for an entry that only touches `.claude/skills/**` surfaces the conflict before the worktree is built. (found 2026-09-15 shipping Q-0222)
+
+### Code-Stage Command Skips the Configured Verifier
+
+- id: Q-0270
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: S
+- impact: med
+- confidence: med
+
+`/noldor-gate` Step 4 prints `cr orchestrate … --kind code --lanes reviewer --base-sha origin/main` and says `crLanes.code` "can override" — but an explicit `--lanes` wins over config, so with `crLanes.code: ['reviewer', 'verifier']` the literal command ran only reviewer and codex (Q-0250, 2026-09-23). Only `--autonomous` with no `--lanes` reads `crLanes.code`. The Step 2.5 rule that `skipLanePicker: true` means `--autonomous` and no `--lanes` is never restated at Step 4. Wanted: orchestrate unions `crLanes.code` into an explicit `--lanes` the way it unions codex, or Step 4 restates the rule. Deletion test: the literal Step 4 command in a repo configuring a verifier runs the verifier. (absorbed 2026-09-24)
 
 ### Scaffold One Agent-Rules File, Not Two
 
