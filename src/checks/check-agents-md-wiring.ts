@@ -41,12 +41,13 @@ export interface ImportToken {
   readonly wholeLine: boolean;
 }
 
-const PATH_END = ' \t`';
+/** Whitespace of any kind, `\r` included, so a CRLF file ends a path where an LF one does. */
+const isSpace = (ch: string): boolean => ch.trim() === '';
 
 /**
  * Every import in `content` the way Claude Code reads them: an `@` that starts a
  * word, outside fenced code blocks and inline code spans, anywhere in a line. The
- * path runs to the next space, tab or backtick and resolves against the directory
+ * path runs to the next whitespace or backtick and resolves against the directory
  * of `file`, not the working directory.
  */
 export function importTokens(file: string, content: string): ImportToken[] {
@@ -62,14 +63,14 @@ export function importTokens(file: string, content: string): ImportToken[] {
     let inSpan = false;
     let i = 0;
     while (i < line.length) {
-      const startsWord = i === 0 || line[i - 1] === ' ' || line[i - 1] === '\t';
+      const startsWord = i === 0 || isSpace(line[i - 1]);
       if (line[i] === '`') inSpan = !inSpan;
       if (inSpan || line[i] !== '@' || !startsWord) {
         i++;
         continue;
       }
       let end = i + 1;
-      while (end < line.length && !PATH_END.includes(line[end])) end++;
+      while (end < line.length && !isSpace(line[end]) && line[end] !== '`') end++;
       const path = line.slice(i + 1, end);
       if (path.length > 0) {
         tokens.push({

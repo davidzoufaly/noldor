@@ -51,6 +51,12 @@ describe('importTokens', () => {
     expect(importTokens('CLAUDE.md', content)).toEqual([]);
   });
 
+  it('ends a path at a CRLF line ending, as at an LF one', () => {
+    expect(importTokens('CLAUDE.md', '# P\r\n@AGENTS.md\r\nmore\r\n')).toEqual([
+      { line: 1, start: 0, end: 10, target: 'AGENTS.md', wholeLine: true },
+    ]);
+  });
+
   it('keeps sentence punctuation in the path, as Claude does, so it names no rules file', () => {
     expect(targets('CLAUDE.md', 'Read @AGENTS.md.')).toEqual(['AGENTS.md.']);
   });

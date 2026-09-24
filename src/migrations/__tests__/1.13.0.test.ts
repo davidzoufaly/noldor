@@ -66,6 +66,15 @@ describe('migration_1_13_0', () => {
     expect(read(dir, 'CLAUDE.md')).toBe('# Project\n@AGENTS.md\nmore\n');
   });
 
+  it('repoints a noldor.md import in a CRLF file, keeping its line endings', () => {
+    const dir = tree({
+      '.claude/noldor.md': SHIPPED_V2,
+      'CLAUDE.md': '# Project\r\n@.claude/noldor.md\r\n',
+    });
+    migration_1_13_0.migrate(dir, {} as never);
+    expect(read(dir, 'CLAUDE.md')).toBe('# Project\r\n@AGENTS.md\r\n');
+  });
+
   it('repoints a mid-sentence noldor.md import in place', () => {
     const dir = tree({
       '.claude/noldor.md': SHIPPED_V2,
