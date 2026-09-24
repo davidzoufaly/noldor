@@ -1,13 +1,29 @@
-# Agent Rules — Noldor Consumer
+# Agent Rules
 
-This repo runs the Noldor discipline framework. Codex and opencode agents read
-this file natively; Claude Code reads `.claude/` instead. Same rules, one gate.
+Project rules for agents working in this repo go in this file, outside the Noldor
+block below. `noldor init --update` rewrites that block and nothing else.
+
+<!-- noldor:rules:start -->
+
+## Noldor
+
+This repo runs the Noldor discipline framework. Claude Code, Codex and opencode all
+read this file; it is the framework's one rules file. The block between the
+`noldor:rules` markers is kept current by `noldor init --update` — do not edit it by
+hand.
+
+- `docs/noldor/README.md` is the route table: every workflow has a page, so open the
+  matching one before any change.
+- On a repo that targets Claude Code, the engineering baseline is
+  `.claude/engineering-rules.md`.
 
 ## Hard rules
 
 - Every code change enters through the gate: run `pnpm noldor next-priority`
   to pick work; follow `docs/noldor/workflow.md` for the path (micro-chore /
-  fast-track / specs-only / full).
+  fast-track / specs-only / full). In Claude Code the `/noldor-gate` skill runs
+  it. Bypass with a `Noldor-Path-Override: <reason>` trailer only when a hook
+  genuinely cannot run.
 - Never edit `docs/roadmap.md`, `docs/backlog.md`, or `docs/release-notes.md`
   outside triage/promote flows — they are queue state, not docs.
 - Commits carry `Noldor-FD: <slug>` (and `Noldor-Path:` when a session is
@@ -76,9 +92,10 @@ outputs and exit codes: `docs/noldor/script-catalog.md`.
 
 <!-- noldor:capabilities:end -->
 
-## Skills (codex/opencode)
+## Skills
 
-The framework's interactive flows are CLI-backed. Invoke via the matching
+Claude Code runs the framework's interactive flows as skills in `.claude/skills/`
+(`/noldor-gate`, `/noldor-spec`, …). Codex and opencode invoke the matching
 `pnpm noldor` verb + the named doc; opencode users also have thin
 `.opencode/command/<name>` shims (codex reads this prose instead):
 
@@ -111,3 +128,5 @@ multi-root workspace, or a session started elsewhere).
 `noldor-refactor` / `noldor-release-sweep` are Claude-agent orchestrations (no
 thin-shim equivalent); `noldor-verify` and `noldor-debug` are discipline rules — see the Hard rules
 above. Deep interactive behavior of any skill is Claude-primary.
+
+<!-- noldor:rules:end -->

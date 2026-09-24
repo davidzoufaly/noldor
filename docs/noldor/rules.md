@@ -132,5 +132,5 @@ Resolution is only useful if someone asks. Two callers do:
 ## Where it sits
 
 - Baseline principles are reviewed at code-write time; the executable gate (`lint`, `fmt:check`, `typecheck`, `test`) is the automated half — see [`.claude/engineering-rules.md`](../../.claude/engineering-rules.md) § Commands.
-- The scoped store narrows what's relevant per edit. `.claude/CLAUDE.md` overlays carry project-specific rules on top of both.
+- The scoped store narrows what's relevant per edit. Project-specific rules sit on top of both: in `AGENTS.md` outside the `noldor:rules` block, or in a `.claude/CLAUDE.md` overlay that imports `AGENTS.md`.
 - `/noldor-garden`'s rule-contradiction sweep (Detector 14, see [garden-and-drift.md](garden-and-drift.md)) flags genuine mismatches between `.claude/CLAUDE.md` and the Noldor pages.

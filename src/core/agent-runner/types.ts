@@ -27,7 +27,7 @@ export interface RunnerCapabilities {
   sandbox: 'fine' | 'coarse' | 'none';
   supportsLocalModels: boolean;
   questionSuppression: 'flag' | 'non-interactive' | 'permission-config';
-  rulesFile: 'CLAUDE.md' | 'AGENTS.md';
+  rulesFile: 'AGENTS.md';
   /** How framework entry prompts are dispatched: 'slash-command' expands a
    *  vendored skill/command; 'prose' must be self-contained instructions. */
   promptDispatch: 'slash-command' | 'prose';

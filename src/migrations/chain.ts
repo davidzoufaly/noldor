@@ -8,6 +8,12 @@ import type { ChainResult, Migration, MigrationStep } from './types.js';
  * every migration whose `to` is in `(from, to]`, sorted ascending by `to`.
  * Asserts the chain is contiguous (each migration's `from` equals the running
  * cursor). Throws on downgrade (`from > to`) or a gap in the chain.
+ *
+ * The cursor starts at the last registered `to` at or below the anchor, not at
+ * the anchor itself: `init` and a no-op `upgrade` both stamp versions that fall
+ * between migrations, and a tree anchored there has the shape of the migration
+ * below it, because nothing registered changed it since. An anchor below every
+ * registered `to` starts at the anchor, so a missing earliest step still throws.
  */
 export function resolveChain(
   migrations: readonly Migration[],
@@ -20,7 +26,12 @@ export function resolveChain(
   const selected = migrations
     .filter((m) => semver.compare(m.to, from) > 0 && semver.compare(m.to, to) <= 0)
     .toSorted((a, b) => semver.compare(a.to, b.to));
-  let cursor = from;
+  let cursor =
+    migrations
+      .map((m) => m.to)
+      .filter((v) => semver.compare(v, from) <= 0)
+      .toSorted(semver.compare)
+      .at(-1) ?? from;
   for (const m of selected) {
     if (semver.compare(m.from, cursor) !== 0) {
       throw new Error(

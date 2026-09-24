@@ -29,6 +29,7 @@ import {
   renderVscodeSettingsOutcome,
 } from '../../core/init-vscode-settings.js';
 import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
+import { checkAgentsMdWiring } from '../../checks/check-agents-md-wiring.js';
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
@@ -69,7 +70,8 @@ if (adopt) {
   process.exit(0);
 }
 
-const manifest = filterTemplatesByAgents(templateFiles(), parseAgents());
+const targets = parseAgents();
+const manifest = filterTemplatesByAgents(templateFiles(), targets);
 const files = manifest.filter((f) => !SCAFFOLD_ONLY_TEMPLATES.has(f));
 const scaffoldOnly = manifest.filter((f) => SCAFFOLD_ONLY_TEMPLATES.has(f));
 
@@ -129,6 +131,12 @@ try {
   if (wiring.status !== 'ok') {
     const label = wiring.advisory ? 'warn' : 'unwired';
     console.log(`${label.padEnd(10)} ${wiring.rootName}: ${wiring.detail}`);
+  }
+  // Same contract for the CLAUDE files: they are the consumer's, so a CLAUDE.md
+  // that hides AGENTS.md is reported here and repaired by hand or by `upgrade`.
+  const rulesWiring = checkAgentsMdWiring(consumer, targets);
+  if (!rulesWiring.ok) {
+    console.log(`${(rulesWiring.advisory ? 'warn' : 'unwired').padEnd(10)} ${rulesWiring.detail}`);
   }
   // Arm the indirection ratchet. The hook block copied above runs `indirection
   // check`, which reports green on an absent baseline by design — so without

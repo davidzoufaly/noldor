@@ -7,7 +7,7 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
     sandbox: 'none',
     supportsLocalModels: false,
     questionSuppression: 'flag',
-    rulesFile: 'CLAUDE.md',
+    rulesFile: 'AGENTS.md',
     promptDispatch: 'slash-command',
     answerFile: 'agent-writes',
   },
@@ -35,7 +35,7 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
     sandbox: 'none',
     supportsLocalModels: true,
     questionSuppression: 'flag',
-    rulesFile: 'CLAUDE.md',
+    rulesFile: 'AGENTS.md',
     // Mirrors claude so contract-CI drain fixtures stay byte-identical (spec D5).
     promptDispatch: 'slash-command',
     answerFile: 'agent-writes',

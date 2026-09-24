@@ -1,4 +1,4 @@
-// @tests: make-noldor-agent-agnostic, portable-gate-entrypoint-for-non-claude-runners, cr-lane-verdicts-blocked-by-serialization-not-substance
+// @tests: make-noldor-agent-agnostic, portable-gate-entrypoint-for-non-claude-runners, cr-lane-verdicts-blocked-by-serialization-not-substance, scaffold-one-agent-rules-file-not-two
 import { describe, expect, it } from 'vitest';
 import { CAPABILITIES } from '../capabilities.js';
 import { CLAUDE_BIN, buildClaudeArgv } from '../runners/claude.js';
@@ -13,6 +13,15 @@ describe('capability matrix', () => {
     expect(CAPABILITIES.opencode.supportsLocalModels).toBe(true);
     expect(CAPABILITIES.claude.supportsLocalModels).toBe(false);
     expect(CAPABILITIES.codex.rulesFile).toBe('AGENTS.md');
+  });
+
+  it('names AGENTS.md as the rules file for every runner, claude included', () => {
+    expect(Object.values(CAPABILITIES).map((c) => c.rulesFile)).toEqual([
+      'AGENTS.md',
+      'AGENTS.md',
+      'AGENTS.md',
+      'AGENTS.md',
+    ]);
   });
 
   it('declares promptDispatch for every runner (portable gate entry, spec Unit 1)', () => {

@@ -55,6 +55,15 @@ export const SCAFFOLD_ONLY_TEMPLATES: ReadonlySet<string> = new Set([
   'docs/architecture/flows.md',
 ]);
 
+/**
+ * Templates the consumer also edits, so the framework owns only the region
+ * between the `noldor:rules` markers (`managed-region.ts`). `init` writes the
+ * whole template when the file is absent and otherwise appends or replaces the
+ * region; drift is measured on the region alone. See
+ * `docs/adr/0006-framework-owns-a-region-not-the-file.md`.
+ */
+export const REGION_MANAGED_TEMPLATES: ReadonlySet<string> = new Set(['AGENTS.md']);
+
 /** Enumerate every file under TEMPLATES_ROOT, returning paths relative to it. */
 export function templateFiles(root: string = TEMPLATES_ROOT): string[] {
   const out: string[] = [];

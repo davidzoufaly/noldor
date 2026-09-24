@@ -5,9 +5,9 @@
 //    dir, filtered to the consumer's `agents.targets`) against the consumer
 //    copy at the same relative path under `process.cwd()`.
 // 3. presence + version-floor check for every *configured* agent runner.
-// 4. structural wiring assertion on the consumer's root `lefthook.yml` — the
-//    one adopted surface phases 2-3 cannot see, because it is scaffold-only
-//    and so exempt from drift.
+// 4. structural wiring assertions on consumer-owned files phases 2-3 cannot
+//    see: the root `lefthook.yml` (scaffold-only, so exempt from drift) and the
+//    CLAUDE files, which must import `AGENTS.md` for Claude Code to read it.
 // 5. lockfile-vs-installed-modules freshness, so a pulled dependency change
 //    that was never installed reports itself instead of surfacing later as a
 //    typecheck failure that reads like a code bug.
@@ -21,6 +21,7 @@ import {
 } from '../../templates/manifest.js';
 import { computeDrift } from '../../templates/diff.js';
 import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
+import { checkAgentsMdWiring } from '../../checks/check-agents-md-wiring.js';
 import { REPAIR, checkInstallFreshness } from '../../checks/check-install-freshness.js';
 import {
   checkPenBridge,
@@ -95,6 +96,19 @@ if (wiring.status !== 'ok') {
   }
 }
 
+// Rules wiring: a CLAUDE file without an AGENTS.md import hides the framework
+// rules from Claude Code. Blocking for the project files, whose repair is always
+// harmless; a warning for CLAUDE.local.md, which is one person's and absent in CI.
+const rulesWiring = checkAgentsMdWiring(process.cwd(), agentsCfg.targets);
+let rulesWiringBad = 0;
+if (!rulesWiring.ok) {
+  if (rulesWiring.advisory) console.log(`${'warn'.padEnd(12)} rules: ${rulesWiring.detail}`);
+  else {
+    rulesWiringBad++;
+    console.log(`${'unwired'.padEnd(12)} rules: ${rulesWiring.detail}`);
+  }
+}
+
 // Install freshness: node_modules must have been installed from the lockfile
 // currently on disk. Blocking, because a stale tree makes every other signal in
 // the repo — typecheck, tests, this doctor run — describe dependencies nobody
@@ -164,7 +178,14 @@ for (const row of await checkParentOptIn(process.cwd())) {
   console.log(`${'warn'.padEnd(12)} ${renderParentOptInRow(row)}`);
 }
 
-if (prereqBad === 0 && bad === 0 && runnerBad === 0 && wiringBad === 0 && freshnessBad === 0) {
+if (
+  prereqBad === 0 &&
+  bad === 0 &&
+  runnerBad === 0 &&
+  wiringBad === 0 &&
+  rulesWiringBad === 0 &&
+  freshnessBad === 0
+) {
   console.log(
     `OK — prerequisites healthy, ${files.length} template files in sync, ${checks.length} runner(s) healthy, hooks wired, install fresh`,
   );
@@ -192,6 +213,11 @@ if (freshnessBad > 0) {
 if (wiringBad > 0) {
   console.error(
     `\nHook wiring is broken, so noldor's gate jobs never run. This is NOT drift — ${wiring.rootName} is yours to own, and 'init --update' will not touch it. Apply the repair above by hand.`,
+  );
+}
+if (rulesWiringBad > 0) {
+  console.error(
+    `\nClaude Code cannot see AGENTS.md, so it works without the framework rules. This is NOT drift — the CLAUDE file is yours, and 'init --update' will not touch it. Apply the repair above by hand.`,
   );
 }
 process.exit(1);

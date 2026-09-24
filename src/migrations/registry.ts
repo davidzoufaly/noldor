@@ -4,6 +4,7 @@ import { migration_0_5_0 } from './0.5.0.js';
 import { migration_0_6_0 } from './0.6.0.js';
 import { migration_0_7_0 } from './0.7.0.js';
 import { migration_1_0_0 } from './1.0.0.js';
+import { migration_1_13_0 } from './1.13.0.js';
 
 /**
  * Every shipped migration, in any order (the engine sorts by `to`). Each new
@@ -15,4 +16,5 @@ export const MIGRATIONS: readonly Migration[] = [
   migration_0_6_0,
   migration_0_7_0,
   migration_1_0_0,
+  migration_1_13_0,
 ];

@@ -27,7 +27,7 @@ Swappability is out of scope here by design — abstraction decisions (other pac
 ## Bootstrap
 
 1. **Install from npm.** Noldor is a public package (`@david.zoufaly/noldor`) on the npm registry — no `.npmrc`, no token. Install as a dev dependency: `pnpm add -D @david.zoufaly/noldor` (in a **pnpm workspace / monorepo**, add `-w` to install at the root: `pnpm add -Dw @david.zoufaly/noldor` — a bare `pnpm add -D` at a workspace root fails with `ERR_PNPM_ADDING_TO_ROOT`). Framework contributors point at a sibling clone instead: `"@david.zoufaly/noldor": "file:../noldor"`.
-2. **Scaffold** the framework files into your repo: `pnpm noldor init`. This drops the `docs/noldor/` rule pages, the lefthook config, the skill bundle, a starter `.noldor/config.json` (only when absent — never overwritten, even by `--update`), and `.noldor/rollout-marker` (arms the gate validators; commit it). Re-run `pnpm noldor init --update` to pull template updates, or `pnpm noldor doctor` to diff your copy against the package templates.
+2. **Scaffold** the framework files into your repo: `pnpm noldor init`. This drops the `docs/noldor/` rule pages, the lefthook config, the skill bundle, a starter `.noldor/config.json` (only when absent — never overwritten, even by `--update`), `.noldor/rollout-marker` (arms the gate validators; commit it), and `AGENTS.md` — the one rules file Claude Code, Codex and opencode all read. An `AGENTS.md` you already have keeps its content: the framework appends its `noldor:rules` block and later syncs only that block. Re-run `pnpm noldor init --update` to pull template updates, or `pnpm noldor doctor` to diff your copy against the package templates.
 3. **Configure** the scaffolded `.noldor/config.json`: fill the `consumer:` block with your repo's real values (see field table below).
 4. **Hooks** install automatically via the package's `postinstall` (`lefthook install`; skipped with a note when lefthook isn't present, e.g. registry installs without devDeps).
 
@@ -46,6 +46,8 @@ A `stale install:` row means `node_modules` was installed from a different
 dependency change with no install after it. Every downstream red (typecheck,
 tests, this doctor run) then describes the old tree rather than your code. The
 repair is one command: `pnpm install --frozen-lockfile`.
+
+> **Keeping a `CLAUDE.md`.** Claude Code reads a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` *instead of* `AGENTS.md`, so a repo that keeps one must import `AGENTS.md` from it: a line `@AGENTS.md` in a root `CLAUDE.md`, or `@../AGENTS.md` in `.claude/CLAUDE.md` (an import resolves against the file that holds it). `pnpm noldor doctor` fails until the import is there, and `pnpm noldor upgrade` adds it when moving an older tree.
 
 > **CI / deploy.** Any pipeline that runs `npm ci` / `pnpm install` — build, test, or a Pages/deploy job — resolves `noldor` from public npm with no extra auth: no `.npmrc`, no secret.
 
