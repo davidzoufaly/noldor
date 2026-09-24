@@ -39,7 +39,7 @@ flowchart LR
   G --> A[(artifact<br/>graphify-out)]
   A --> P[publish job<br/>token, no deps installed]
   P --> R[(branch<br/>noldor/graph-refresh)]
-  R --> Q[chore graph PR<br/>auto-merged where enabled]
+  R --> Q[chore graph PR<br/>merges itself]
   Q --> D[(default branch<br/>graphify-out/)]
   D -.read offset/limit via toc.-> Z[agent]
 ```
@@ -66,12 +66,13 @@ pnpm noldor graphify graph-to-toon graphify-out/graph.json
 
 On CI, a merged PR titled `feat`, `fix` or `refactor` regenerates `graphify-out/` onto the
 fixed `noldor/graph-refresh` branch and opens one `chore(graph): …` PR, force-updated by
-each later run — so the queue never grows past one. Where auto-merge is enabled the PR
-merges itself; where it is not (charuy today) it waits for a human. Three repository
-settings the template cannot set for you. GitHub Actions must be allowed to create pull
-requests (Settings → Actions → General → Workflow permissions) — it is off by default,
-and while it is off the run pushes the branch and then fails at `gh pr create`.
-Auto-merge must be enabled, or the PR waits. And a PR opened with the default
+each later run — so the queue never grows past one. The PR merges itself: through
+auto-merge where it is enabled, and by a direct squash-merge where it is not (a private
+repo on GitHub's free plan, like charuy, cannot enable it). Only branch protection — a
+required review or check — makes it wait for a human. Two repository settings the
+template cannot set for you. GitHub Actions must be allowed to create pull requests
+(Settings → Actions → General → Workflow permissions) — it is off by default, and while
+it is off the run pushes the branch and then fails at `gh pr create`. And a PR opened with the default
 `GITHUB_TOKEN` does not trigger other workflows, so required checks on the graph PR
 need a PAT or app token.
 

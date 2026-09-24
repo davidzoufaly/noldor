@@ -471,10 +471,22 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
         publishes: true,
       },
       { name: 'no graph exists yet', holder: 'neither', age: 'none', publishes: true },
+      {
+        name: 'auto-merge is unavailable (a private repo on a free plan)',
+        holder: 'neither',
+        age: 'none',
+        publishes: true,
+        autoMerge: false,
+      },
     ])(
       'when $name, publishes: $publishes',
-      ({ holder, age, publishes }) => {
-        using root = tempTree({ 'bin/gh': '#!/bin/sh\nexit 0\n' });
+      ({ holder, age, publishes, autoMerge = true }) => {
+        // Logs every call, and refuses `--auto` the way GitHub does where auto-merge is off.
+        using root = tempTree({
+          'bin/gh':
+            '#!/bin/sh\necho "$*" >> "$GH_LOG"\n' +
+            'case "$*" in *--auto*) [ "$AUTO_MERGE" = on ] || exit 1 ;; esac\nexit 0\n',
+        });
         chmodSync(join(root.dir, 'bin', 'gh'), 0o755);
         const remote = join(root.dir, 'origin.git');
         const seed = join(root.dir, 'seed');
@@ -530,9 +542,21 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
             MERGE_SHA: mergeA,
             PR_NUMBER: '7',
             GH_TOKEN: 'unused',
+            GH_LOG: join(root.dir, 'gh.log'),
+            AUTO_MERGE: autoMerge ? 'on' : 'off',
           },
         });
         expect(r.status, r.stderr).toBe(0);
+
+        // Where auto-merge is refused the PR is still merged — directly, never by a push.
+        const merges = publishes
+          ? readFileSync(join(root.dir, 'gh.log'), 'utf8')
+              .split('\n')
+              .filter((l) => l.startsWith('pr merge'))
+          : [];
+        const expected = publishes ? [`pr merge --auto --squash ${branch}`] : [];
+        if (publishes && !autoMerge) expected.push(`pr merge --squash ${branch}`);
+        expect(merges).toEqual(expected);
 
         const landed = spawnSync(
           'git',

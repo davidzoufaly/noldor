@@ -16,11 +16,12 @@
 # merged-tree code.
 #
 # Yours to edit after `noldor init` writes it: runner labels, the Python and
-# Node versions, and the graphifyy pin. Three repository settings this file
+# Node versions, and the graphifyy pin. Two repository settings this file
 # cannot set for you. Allow GitHub Actions to create pull requests (Settings ->
 # Actions -> General -> Workflow permissions): it is off by default, and while
 # it is off `gh pr create` below fails after the branch is already pushed.
-# Enable auto-merge, or the graph PR waits for a human. And a PR opened with the
+# Auto-merge is used where enabled; elsewhere the PR is merged directly, so
+# only branch protection makes it wait for a human. And a PR opened with the
 # default GITHUB_TOKEN does not trigger other workflows, so required checks on
 # the graph PR need a PAT or an app token.
 name: update-knowledge-graph
@@ -239,11 +240,16 @@ jobs:
               --head "$GRAPH_BRANCH" \
               --base "$DEFAULT_BRANCH" \
               --title "chore(graph): refresh the committed knowledge graph" \
-              --body "Regenerated after #${PR_NUMBER}. Merges itself where auto-merge is enabled; where it is not, this PR is waiting for you — it is not review work."
+              --body "Regenerated after #${PR_NUMBER}. Merges itself unless branch protection holds it; then this PR is waiting for you — it is not review work."
           fi
 
-          # Where auto-merge is off (charuy today) this is the documented stop:
-          # the PR stays open for a human. It must never fall back to a push.
+          # Where auto-merge is unavailable — switched off, or a private repo on
+          # GitHub's free plan (charuy), which cannot turn it on — merge the PR
+          # directly instead. That is still a PR merge, so branch protection
+          # still applies: a required review or check refuses it, and the PR
+          # then stays open for a human. It must never fall back to a push.
           if ! merge_out=$(gh pr merge --auto --squash "$GRAPH_BRANCH" 2>&1); then
-            echo "::warning::the graph PR is open and waiting for a human — gh pr merge --auto said: $merge_out"
+            if ! direct_out=$(gh pr merge --squash "$GRAPH_BRANCH" 2>&1); then
+              echo "::warning::the graph PR is open and waiting for a human — gh pr merge --auto said: $merge_out; a direct merge said: $direct_out"
+            fi
           fi
