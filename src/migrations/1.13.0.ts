@@ -78,22 +78,29 @@ function rulesFileStep(cwd: string): MigrationStep | null {
   return sync.kind === 'unchanged' ? null : { path: RULES_FILE, before, after: sync.content };
 }
 
+/** Every change the migration would make, computed before anything is written. */
+interface Plan {
+  readonly steps: MigrationStep[];
+  readonly removeNoldorMd: boolean;
+  readonly writes: readonly MigrationStep[];
+}
+
 /**
  * The steps depend on each other — step 2 acts only on a file step 1 removed,
- * step 3 must see step 2's rewrite — so every step is computed on an in-memory
- * view first and written only at the end. That is what makes `--dry-run` list
- * exactly what a real run does.
+ * step 3 must see step 2's rewrite — so they are planned on an in-memory view,
+ * and applying writes exactly that plan. That is what makes `--dry-run` list
+ * what a real run does.
  */
-function computeSteps(cwd: string, apply: boolean): MigrationStep[] {
+function plan(cwd: string): Plan {
   const steps: MigrationStep[] = [];
 
+  let removeNoldorMd = false;
   const noldorMdPath = join(cwd, NOLDOR_MD);
-  let removed = false;
   if (existsSync(noldorMdPath)) {
     const content = readFileSync(noldorMdPath);
-    removed = SHIPPED_NOLDOR_MD.has(sha256(content));
+    removeNoldorMd = SHIPPED_NOLDOR_MD.has(sha256(content));
     steps.push(
-      removed
+      removeNoldorMd
         ? { path: NOLDOR_MD, before: content.toString('utf8'), after: '' }
         : {
             path: NOLDOR_MD,
@@ -106,27 +113,26 @@ function computeSteps(cwd: string, apply: boolean): MigrationStep[] {
   const before = readClaudeFiles(cwd);
   let views = before;
   if (loadAgentsConfig(cwd).targets.includes('claude')) {
-    if (removed) views = repointNoldorImports(views);
+    if (removeNoldorMd) views = repointNoldorImports(views);
     views = addRulesImport(views);
   }
-  const claudeSteps = PROJECT_CLAUDE_FILES.flatMap((file) => {
+  const writes: MigrationStep[] = PROJECT_CLAUDE_FILES.flatMap((file) => {
     const was = before[file]?.content;
     const now = views[file]?.content;
     return was !== undefined && now !== undefined && was !== now
       ? [{ path: file, before: was, after: now }]
       : [];
   });
-  steps.push(...claudeSteps);
-
   const rules = rulesFileStep(cwd);
-  if (rules !== null) steps.push(rules);
+  if (rules !== null) writes.push(rules);
 
-  if (apply) {
-    if (removed) rmSync(noldorMdPath);
-    for (const step of claudeSteps) writeFileSync(join(cwd, step.path), step.after);
-    if (rules !== null) writeFileSync(join(cwd, RULES_FILE), rules.after);
-  }
-  return steps;
+  return { steps: [...steps, ...writes], removeNoldorMd, writes };
+}
+
+function apply(cwd: string, planned: Plan): MigrationStep[] {
+  if (planned.removeNoldorMd) rmSync(join(cwd, NOLDOR_MD));
+  for (const write of planned.writes) writeFileSync(join(cwd, write.path), write.after);
+  return planned.steps;
 }
 
 /**
@@ -141,6 +147,6 @@ export const migration_1_13_0: Migration = {
   to: '1.13.0',
   description:
     'make AGENTS.md the one rules file: remove the vendored .claude/noldor.md, import AGENTS.md from a CLAUDE.md, sync the noldor:rules region',
-  dryRun: (cwd) => computeSteps(cwd, false),
-  migrate: (cwd) => computeSteps(cwd, true),
+  dryRun: (cwd) => plan(cwd).steps,
+  migrate: (cwd) => apply(cwd, plan(cwd)),
 };
