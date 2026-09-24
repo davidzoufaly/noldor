@@ -137,16 +137,3 @@ Milestone membership rots by omission at both ends of the chain, so an active mi
 - confidence: med
 
 `blocked-by` is all-or-nothing, so a partial dependency degrades into prose the scorer cannot see. Several entries in a real consumer can start, and two-thirds ship, while one part waits — a bar whose five sections are independently blocked; a panel where one row needs a concept that does not exist yet. Marking the whole entry `blocked-by` divides its score by `1 + unshipped_dep_count` for work that is mostly doable today; leaving it off loses the dependency from the graph entirely, so `/noldor-garden` cannot see it and a reader has to find it in a paragraph. Wanted: a `partially-blocked-by:` that joins the blocked-by graph for cycle detection and `show` output but is **excluded from the dependency factor** in `scoreEntry()` — the semantics being "cannot finish" rather than "cannot start". Open question for the spec: whether `/noldor-gate` should surface the partial blocker at pickup so the agent knows which slice to leave alone, or whether that belongs in the entry body. Deletion test: an entry with only `partially-blocked-by` refs scores as unblocked while still appearing in the dependency graph. (found 2026-09-22)
-
-### Design Approval Certifies Provenance, Not Content
-
-- id: Q-0258
-- area: tooling
-- type: fix
-- since: 2026-09-22
-- size: M
-- impact: high
-- confidence: med
-- parent: ui-design-review-lane
-
-A `design verdict --approve` record can be internally valid, blob-bound and green while certifying something nobody approved. Two independent ways, both observed in one Q-0275 session. **(1) It signs whatever is on disk and cannot tell that the editor holds newer content.** The approval ran immediately after two new states were drawn and printed `approved: … @ 7f3cfb9cfbb7` — the pre-edit blob, because the editor had not flushed. The record covered six states where the operator had approved eight, and nothing in the output would tell a human that. Candidate: ask the bridge for the open document's top-level page names and refuse, or warn loudly, when the editor's page set differs from what the on-disk blob would produce; at minimum print the page names being signed, so "6 states" is visible when 8 were expected. **(2) The approval binds the `.pen` blob but not the spec, so a spec revision that changes a decision's *shape* silently invalidates a design that still hashes correctly.** Twice in that session a CR round rewrote what the UI *is* — "card withheld below `BESIDE_MIN_WIDTH`" became "card detaches and hangs below the readout"; "totals always pinned" became "the height cap outranks the pinning" — while the `.pen`, and therefore `penBlob`, stayed byte-identical and the approval stayed green. Only the reviewer lane caught it, by reading the spec's own claim that every state was drawn. The blob binding catches "someone edited the design"; the reverse case, "the spec moved under an unchanged design", has no detector at all. Candidate: record the spec's sha, or its decision-list digest, alongside `penBlob`, and have the `ui-reviewer` lane flag a design approved against an older spec. Deletion test: approving with unflushed editor content, and revising a spec decision after approval, each produce a warning or a refusal rather than a green record. (found 2026-09-22 shipping Q-0275)
