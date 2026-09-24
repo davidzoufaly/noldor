@@ -24,15 +24,19 @@ pre-commit:
             run: pnpm noldor sync doc-links --quiet
             stage_fixed: true
           - name: spec-links
-            glob: 'docs/design/specs/**/*.md'
+            glob: 'docs/design/specs/*.md'
             run: pnpm noldor sync spec-links
             stage_fixed: true
+    # Flat globs on purpose: lefthook's default matcher reads `dir/**/*.md` as
+    # "at least one subdirectory", so it never matched a flat FD or live spec
+    # and these jobs skipped silently. Its `*` does cross `/`, so the flat form
+    # still covers archive/ subdirectories.
     - name: fd-resources
-      glob: 'docs/features/**/*.md'
+      glob: 'docs/features/*.md'
       run: pnpm noldor sync fd-resources && pnpm fmt
       stage_fixed: true
     - name: code-links-auto-high
-      glob: 'docs/features/**/*.md'
+      glob: 'docs/features/*.md'
       run: pnpm noldor features fill-links-code-gaps --auto-high && pnpm noldor sync fd-resources && pnpm fmt
       stage_fixed: true
     - name: fmt
