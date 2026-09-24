@@ -582,5 +582,9 @@
   "Q-0275": {
     "slug": "registry-logsink-test-waits-for-the-flush",
     "retiredAt": "2026-09-24"
+  },
+  "Q-0276": {
+    "slug": "gate-skill-leftovers-from-q-0192",
+    "retiredAt": "2026-09-24"
   }
 }
