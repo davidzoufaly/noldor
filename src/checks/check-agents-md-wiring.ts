@@ -45,6 +45,25 @@ export interface ImportToken {
 const isSpace = (ch: string): boolean => ch.trim() === '';
 
 /**
+ * Index just past the inline code span that opens at `i`, or `null` when its
+ * backtick run never closes. As in CommonMark, a span opened by N backticks
+ * closes only at the next run of exactly N, so ``a `b` c`` is one span.
+ */
+function codeSpanEnd(line: string, i: number): number | null {
+  let open = i;
+  while (line[open] === '`') open++;
+  const width = open - i;
+  let j = open;
+  while (j < line.length) {
+    let run = j;
+    while (line[run] === '`') run++;
+    if (run - j === width) return run;
+    j = run > j ? run : j + 1;
+  }
+  return null;
+}
+
+/**
  * Every import in `content` the way Claude Code reads them: an `@` that starts a
  * word, outside fenced code blocks and inline code spans, anywhere in a line. The
  * path runs to the next whitespace or backtick and resolves against the directory
@@ -60,12 +79,15 @@ export function importTokens(file: string, content: string): ImportToken[] {
       return;
     }
     if (fenced) return;
-    let inSpan = false;
     let i = 0;
     while (i < line.length) {
-      const startsWord = i === 0 || isSpace(line[i - 1]);
-      if (line[i] === '`') inSpan = !inSpan;
-      if (inSpan || line[i] !== '@' || !startsWord) {
+      if (line[i] === '`') {
+        const spanEnd = codeSpanEnd(line, i);
+        if (spanEnd !== null) i = spanEnd;
+        else while (line[i] === '`') i++;
+        continue;
+      }
+      if (line[i] !== '@' || (i > 0 && !isSpace(line[i - 1]))) {
         i++;
         continue;
       }

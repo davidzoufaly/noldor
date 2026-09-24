@@ -46,9 +46,16 @@ describe('importTokens', () => {
   it.each([
     ['inside a fenced code block', '```\n@AGENTS.md\n```'],
     ['inside an inline code span', 'Write `@AGENTS.md` to import it.'],
+    ['inside a double-backtick code span', 'Use ``@AGENTS.md`` as an example.'],
+    ['inside a span whose delimiters hold a lone backtick', 'Try ``a ` @AGENTS.md`` here.'],
     ['glued to a word, like an email address', 'mail rules@AGENTS.md'],
   ])('does not count an @ %s', (_label, content) => {
     expect(importTokens('CLAUDE.md', content)).toEqual([]);
+  });
+
+  it('counts an import after a closed code span, and after a backtick that never closes', () => {
+    expect(targets('CLAUDE.md', '``a ` b`` then @AGENTS.md')).toEqual(['AGENTS.md']);
+    expect(targets('CLAUDE.md', 'a stray ` then @AGENTS.md')).toEqual(['AGENTS.md']);
   });
 
   it('ends a path at a CRLF line ending, as at an LF one', () => {
