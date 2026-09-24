@@ -72,6 +72,7 @@ Durable read-modify-write transitions are scattered across dashboard queue route
 - Dashboard queue writes have a reproducible lost-update race despite advertising optimistic concurrency through `If-Match`. Every mutator in `src/dashboard/api/blocks.ts` does read, sha256 and If-Match check, transform, then `atomicWriteFile`, with no critical section — so two requests read the same contents, both pass the same ETag, and both prepare different successor states. `src/dashboard/api/atomic.ts:17` makes it worse by always using a temp name of the form basename plus `.tmp.` plus the process pid, so every concurrent write in one dashboard process targets the same temporary file. Launching two `handleMove` calls concurrently with the same valid ETag ended, in all 50 trials, as one 200 plus one thrown ENOENT from `rename`, with the final file retaining a single user action. A unique temp suffix stops the ENOENT but not the stale overwrite: compare and write must become one serialized operation per target file, with the re-read and ETag recheck inside it. Regression tests need a barrier that makes two calls pass the initial read simultaneously, then assert exactly one 200, exactly one 412, no thrown filesystem error, no leftover temp file, and no silent loss. (confirmed by runtime probe)
 - Roadmap and backlog promotion/demotion can leave queue state half-applied by design. `crossSection()` (`src/dashboard/api/blocks.ts:329-357`) removes the block from the source with an atomic rename and then writes the destination; if the second write fails, the entry is already gone, the route returns 500 and logs `git restore docs/roadmap.md docs/backlog.md`, which also discards unrelated concurrent edits and is not a transactional recovery mechanism. The combined ETag stops some stale clients but does not make two renames atomic, and the lost-update race can interleave further mutations between them. Needs a recoverable multi-document transition: serialize queue mutations, precompute and schema-validate both successor files, persist enough journal or backup information to finish or roll back after any failure, and expose success only once both documents represent the same transition. Inject failures before and after each durable step, then prove an entry is never missing from both files nor duplicated in both after recovery. (confirmed by failure-path inspection)
 - Milestone activation is documented as atomic but performs three ordinary sequential writes. `activateMilestone()` (`src/milestones/lib.ts:149-167`) preflights, writes the target `status: active`, writes vision's `current-milestone`, then writes the prior active milestone as `shipped` — no temp and rename, no journal, no rollback, no post-write validation. Failing at step two leaves an active milestone invisible to vision; failing at step three leaves two active milestones. Separately, an already-active target returns at line 155 before ensuring vision points at it, so `noldor milestone activate foo` can print success while the dashboard still shows no current milestone. Model activation as a pure transition plan plus one recoverable multi-document application, and make idempotent re-activation repair all derived state. Fault-injection tests must fail each durable step, reopen the repository as a fresh process would, run recovery, and assert exactly one active file with vision pointing at it. (confirmed by code inspection and temp-consumer probe)
+- `atomicWriteFile` (`src/core/atomic-write.ts`) renames a fresh temp file onto its target, so the target loses its permission bits, a symlinked target is replaced by a regular file, and a failed rename leaves `<name>.tmp.<pid>` beside it. PR #542 moved `features seed-test-tags` onto it to avoid torn test files; its code review (round 2, green) noted both side effects as lows. Decide once for the helper — preserve mode, write through symlinks, or document the trade — rather than per caller. (found 2026-09-24, PR #542)
 
 (architecture candidate, Strong recommendation from the read-only audit 2026-08-12)
 
@@ -433,3 +434,28 @@ Pencil MCP could not verify a `.pen` written in a worktree while another VS Code
 - confidence: low
 
 Operator note, verbatim: "using stack PR's real code one stack rest second stack". Read as: ship a change as two stacked PRs — one carrying the real code, a second carrying the rest (docs, bookkeeping) — so review and history separate the two. Needs grooming before it can be sized with any confidence. (triaged 2026-09-24 from ideas.md `#### Now`)
+
+### DOM-to-.pen Capture Harness as a Noldor Module
+
+- id: Q-0294
+- area: tooling
+- type: feat
+- since: 2026-09-24
+- size: XL
+- impact: high
+- confidence: low
+- blocked-by: Q-0292
+
+The DOM→`.pen` capture harness is consumer code, but nothing in it is charuy-specific. Charuy's `scripts/design/` (extract, pen-emit, pen-render, diff, validate — ~3.8k lines) boots the app, drives states, walks the DOM into pen nodes, re-renders them in a browser and pixel-diffs against the live screenshot before writing. The 2026-09-23 recapture added three general mechanisms any consumer with glass or canvas UI needs: `groundImage` (photograph a see-through overlay with its text and icons made `color: transparent`, use it as the page's image fill, and drop every translucent fill/stroke/gradient/effect from the vector layers so nothing paints twice — text and icons keep their paint), `photograph: [selector]` (record an element the converter cannot express, e.g. an SVG drawing with `<text>`/`<title>`/rotated groups, as one image layer), and form-control values measured through an invisible mirror (a textarea's value is no text node, so the page silently lost it). Pictures go beside the baseline (`baseline/<surface>-ground/*.png`, relative image fills), which `design capture`'s receipt does not cover today — only the `.pen` blob is hashed. Wanted: the harness core shipped as a noldor module a consumer configures with a state list, the receipt hashing the picture folder with the `.pen`, and the Q-0292 layout/id contract built in. Capture Keep-Going Mode (Q-0271) would then land here rather than in each consumer. Deletion test: a second consumer gets a verified, contract-conforming baseline by declaring states only. (found 2026-09-23)
+
+### Triage Proposes a Touches Clause
+
+- id: Q-0295
+- area: tooling
+- type: feat
+- since: 2026-09-24
+- size: S
+- impact: low
+- confidence: low
+
+Q-0244's lane rule only fires when an entry declares `Touches:`, and no entry in the roadmap or backlog does today, so it stays dormant until one does. `/noldor-triage` proposes area, size and impact per bullet but never a `Touches:` clause; for an XS/S bullet that names a skill or a doc page it could propose one, and that clause is what routes the entry to `micro-chore` at `/noldor-gate` Step 0. The catch: `isDrainEligible` (`src/autonomous/drain-eligibility.ts`) refuses every Touches-bearing entry as multi-scope residue, so writing the clause on a small *code* entry would also pull it out of the drain. Either triage writes it only when every path is on the micro-chore lane (those entries cannot drain anyway), or the drain rule learns to accept a single-scope clause. (found 2026-09-24 shipping Q-0244)

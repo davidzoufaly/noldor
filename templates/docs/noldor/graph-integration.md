@@ -58,6 +58,16 @@ cohesion, and dead exports, which all come from the AST graph, and AST-only
 is deterministic and takes seconds. The full-semantic pipeline is an explicit
 operator opt-in (`/noldor-release-sweep --full-semantic`) reserved for deep passes.
 
+**A local rebuild with CI's exact recipe can still cluster differently from CI.**
+The v1.13.0 sweep ran the `update-knowledge-graph` workflow's recipe on the
+operator Mac (`PYTHONHASHSEED=0`, sorted input, `parallel=False`, graphifyy 0.7.8
+on both sides). It rebuilt 48415a0 with the same 3885 nodes and 10328 edges as CI
+(0 node or edge diffs) but found 222 communities where CI found 215. Community
+detection also depends on networkx, the Leiden backend and the Python patch
+version, so matching the recipe is not enough. When the extraction matches, keep
+CI's committed `graph.json` and `GRAPH_REPORT.md` rather than committing a
+reshuffle; the refactor precondition read `skip` against both. (PR #537)
+
 ## graph-fd-lookup substrate
 
 Detectors that need to map a code file to its owning FD use the path → FD

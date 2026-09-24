@@ -61,6 +61,36 @@ See [release-sweep-process-hardening](../features/release-sweep-process-hardenin
 
 - **Finishing a worktree** — once tests pass, run the full sequence without asking: gate Step 4 end-of-flow (code-stage CR → `pnpm noldor pr-flow`: push branch + open PR + auto-squash-merge) → `git worktree remove [--force] .worktrees/<name>` → `git branch -D feat/<name>` (force — squash-merge leaves the branch's commits non-ancestor of `main`) → `git fetch origin main && git checkout main && git merge --ff-only origin/main`. Skip the 4-option menu. Don't ask first — the user prefers autonomous finish; verify tests as the gate, not a prompt. Never `git push origin main` directly — the pre-push hook blocks it
 
+## Resuming a parked or dead session
+
+- **A gate session that dies in Step 4 can be finished from its worktree alone.**
+  The worktree's `.noldor/session.json` names the path and slug, the sinks under
+  `.noldor/cr/` hold each lane's last verdict, and
+  `.noldor/cr/autofix/<slug>-<kind>.json` records each round's head and colour.
+  Continue from that state instead of re-scaffolding with `/noldor-gate --resume`:
+  the ledger counts only rounds whose `sessionStartedAt` equals the marker's
+  `startedAt` (`isSameSeries`, `src/cr/autofix-ledger.ts`), and `appendRound`
+  replaces the series when they differ, so a new marker restarts the round cap.
+  The last lines of the dead session's transcript
+  (`~/.claude/projects/<project>/<session>.jsonl`) show the exact command it
+  stopped on. (PR #538)
+- **Rebase a parked attach worktree that is far behind main BEFORE its next CR
+  round, not after.** The retire commit conflicts on `docs/roadmap.md` and
+  `.noldor/retired-entry-ids.json`: take main's side of both (`git checkout
+  --ours` — in a rebase, ours is the upstream) and re-run
+  `pnpm noldor roadmap remove-block <slug> --retired-into <parent>`. The round cap
+  survives the rewrite (it counts red rounds per entry, keyed to the marker's
+  `startedAt`), so leave the marker alone. Pass `cr orchestrate --base-sha
+  <rebased twin of the last reviewed head>` so the delta holds only the fix, since
+  the ledger's recorded shas now sit outside the branch. (PR #542: 79 commits
+  behind, rebased and shipped)
+- **Re-read a parked spec's premise against what shipped since it was written.**
+  Q-0172's spec (2026-09-16) assumed the graph goes stale between release sweeps;
+  `update-knowledge-graph.yml` (#501, 2026-09-23) had since made it refresh after
+  every code merge, and on resume the operator dropped the half built on that
+  premise. When a spec is older than a relevant infra change, check it before its
+  last review round, not after implementation. (PR #542)
+
 ## Split-brain traps
 
 - **Agent Edit/Read/Write need worktree-ABSOLUTE paths.** In a worktree gate

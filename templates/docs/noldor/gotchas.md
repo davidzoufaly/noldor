@@ -41,6 +41,21 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   exactly one place: three consecutive attempts on the `fd-diagram` detector
   (Q-0185) each shipped a distinct hole, and two copies of the grammar in one
   file had already drifted on a rejected backtick opener.
+- **A Claude Code `@path` import resolves against the directory of the file that
+  holds it, not the repo root.** So `.claude/CLAUDE.md` reaches the root rules
+  file with `@../AGENTS.md`, while `@AGENTS.md` there names `.claude/AGENTS.md`.
+  A wrong import fails silently: the file simply never loads. The Q-0252 spec got
+  this wrong for both CLAUDE files and passed three review rounds; implementation
+  caught it only by re-reading
+  code.claude.com/docs/en/memory.md#import-additional-files. Check every `@path`
+  against the importing file's own directory. (PR #535)
+- **The first `// @fd:` tag an FD gains drops its hand-kept `links.code`.**
+  `pnpm noldor sync code-links` keeps an FD's hand-written list only while none
+  of its files carries a tag; after that it projects from tags alone and drops
+  every untagged file. Tagging a new seeder `// @fd: sdd-co-tag-detector` made the
+  sync drop `src/garden/graph-fd-lookup.ts`. When a change adds an FD's first tag,
+  tag the files it already lists in the same change, after checking no other FD
+  lists them. Mirror of the `test-links` trap under Tests. (PR #542)
 
 ## CR sinks
 
@@ -76,6 +91,21 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   test with an FD, tag every test that FD already lists. A `sync code-links` in
   the same session can also rewrite an unrelated FD — `git checkout` any FD the
   change did not mean to touch. (Q-0260)
+- **The pre-commit `test-links` job writes the FD but does not stage it.** Its
+  `stage_fixed: true` re-adds only the staged files its glob matched
+  (`**/*.test.ts`), so the `links.tests` it writes into
+  `docs/features/<slug>.md` stays unstaged, and right after the first commit that
+  adds tagged tests the FD shows as modified. Commit it on its own
+  (`docs(features:<slug>): link the tests`) before the phase flip, or the flip
+  commit silently carries it. (PR #535)
+- **vitest 3.2.4's JSON reporter never says "timed out".** A timed-out test's
+  `failureMessages[0]` starts `Error: STACK_TRACE_ERROR` from `@vitest/runner`'s
+  `chunk-hooks.js`: the error is built when the test is defined (to capture its
+  location), only its message is rewritten when the timer fires, and the reporter
+  prints the stack. So grepping a JSON report for "timed out" finds zero timeouts
+  in a run full of them — grep `STACK_TRACE_ERROR` instead. A test that timed out
+  inside synchronous work (`execSync`) also reports a duration ABOVE its bound
+  (14.5s against 10s), because vitest cannot interrupt it. (Q-0238)
 
 ## Worktrees
 
@@ -270,7 +300,14 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   `src/cr/finding-class.ts`, which the hub already imports, brought it back to
   +3. Before re-recording a large jump, diff `node bin/noldor.mjs indirection
   report --json` per module against `main`: a uniform +1 across many modules
-  points at one new edge from a hub. (Q-0263)
+  points at one new edge from a hub. The reverse move is not free either:
+  extracting a function from a hub into its own leaf can RAISE the number,
+  because every module that imports the hub then counts the leaf too. Q-0252
+  pulled `loadAgentsConfig` out of `agent-runner/registry.ts` for +16; the same
+  function in its own leaf measured +53. Measure the alternative before
+  extracting to lower the ratchet; if the edge is the price of the change,
+  re-record the baseline as its own `chore(indirection)` commit. (Q-0263,
+  PR #535)
 - **A backtick in a `pnpm noldor` argument runs as a shell command.** pnpm hands
   script arguments to `sh -c` inside double quotes, so backticks are command
   substitution even when the caller single-quoted them. `pnpm noldor design

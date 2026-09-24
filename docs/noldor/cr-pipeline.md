@@ -769,6 +769,19 @@ Two traps in how a round's result is read:
   into zero. `src/invariants/` has no AST route since TS7 dropped the
   in-process compiler API, so "this invariant needs an AST" is a recognised
   reason to *not build it now* rather than to write another heuristic.
+- **When a spec says how a value is computed, write the exact form the code's
+  helper uses.** Q-0258's spec said a blob id is "computed with
+  `git hash-object -w`", and codex blocked spec round 1 on line-ending drift,
+  although the helper the code would call (`blobIdOfWorktreeFile`,
+  `src/core/blob-id.ts`) already passes `--path` — the attribute-aware form,
+  `git hash-object --path <p> -- <p>`. One clause would have saved the round.
+  (PR #540)
+- **A green round's low suggestions against a fix seed the next round's lows.**
+  PR #540's first code round was green with two lows citing binding rules
+  (`error-result-types`, a missing deadline). Fixing them and re-earning the
+  receipt produced three new lows, all about the fix itself. Fix the lows that
+  cite a binding rule once, then file the rest as a follow-up instead of
+  re-rounding. (PR #540)
 
 ## Round budget
 

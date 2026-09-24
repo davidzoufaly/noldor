@@ -16,6 +16,215 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### FD Resources Hook Skips Flat Feature Docs
+
+- id: Q-0274
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: XS
+- impact: med
+- confidence: high
+
+The pre-commit `fd-resources` and `code-links-auto-high` jobs never run for a feature doc. Both use `glob: 'docs/features/**/*.md'` (`lefthook/noldor.yml`), and lefthook 2.1.9 (no `glob_matcher` set) reported `(skip) no matching staged files` on all three commits of PR #540 that staged `docs/features/pendev-ui-design-phase.md`, while `doc-links` (`docs/**/*.md`) ran on the same commits. The likely cause is the default matcher reading `**/` as at least one directory, so a direct child of `docs/features/` never matches. The FD's generated Resources block stayed stale until a hand-run `pnpm noldor sync fd-resources`. Candidate fix: `glob: 'docs/features/*.md'` (FDs are flat) or `glob_matcher: doublestar`. Deletion test: a commit that stages an FD with a new `links.code` entry carries the regenerated Resources block. (found 2026-09-24 shipping Q-0258, PR #540)
+
+### Registry Logsink Test Waits for the Flush
+
+- id: Q-0275
+- area: testing
+- type: fix
+- since: 2026-09-24
+- size: XS
+- impact: med
+- confidence: high
+
+`src/core/agent-runner/__tests__/registry-logsink.test.ts` ("pipes both streams, forwards to parent stdio, appends to the sink…") went red once in three concurrent full-suite runs with `AssertionError: expected '' to contain 'out-line'` at 0.2s — an assertion, not a timeout. The test waits a fixed `setTimeout(50)` for `createWriteStream` to flush the log sink, then reads the file; under load 50ms is not enough and the sink is still empty. Wanted: wait for the stream to finish (its `finish`/`close` event, or `spawnAgent` resolving only after the sink has flushed) instead of a fixed sleep. Deletion test: the test passes under three concurrent suites with the suite lock off. (found 2026-09-24 reproducing Q-0238)
+
+### Gate Skill Leftovers From Q-0192
+
+- id: Q-0276
+- area: tooling
+- type: docs
+- since: 2026-09-24
+- size: XS
+- impact: med
+- confidence: high
+
+Two edits to `.claude/skills/noldor-gate/SKILL.md` (and its `templates/` twin) that Q-0192 left behind. They need a micro-chore from `main`, because `checks shared-files` refuses `.claude/skills/**` from a feature worktree. (1) The fast-track scaffold could add one sentence: a diff mixing code with `docs/noldor/` needs `Noldor-Sibling-Scope`. #504 already names the trailer through a `rules brief` rule before the first `docs/noldor/` edit, so this is a second place to see it, not the only one. (2) The micro-chore handoff in Step 2 never says `git checkout <temp-branch>` before Step 4. `pr-flow-cli.ts` reads the branch from `HEAD`, so running it from the rewound `main` exits with `no commits ahead of origin/main on current branch`. Add it as a step between the stash pop and the Step 4 handoff, and note that the popped dirty files travel along harmlessly. Deletion test: a micro-chore run by the letter of the skill opens its PR on the first `pr-flow` call. (2026-09-23, split from the retired Q-0192 block)
+
+### Doctor Flags a Broken CLAUDE Import
+
+- id: Q-0277
+- area: tooling
+- type: feat
+- since: 2026-09-24
+- size: XS
+- impact: med
+- confidence: med
+
+A Claude Code `@path` import that names a missing file fails silently: the file simply never loads. `src/checks/check-agents-md-wiring.ts` already reads every project CLAUDE file and parses its imports the way Claude Code does (relative to the importing file's own directory), but only checks that one of them reaches `AGENTS.md`. Wanted: `noldor doctor` warns on any `@path` import in a project CLAUDE file whose target does not exist, naming the file, the import and the path it resolved to. The first real case is charuy: its `.claude/CLAUDE.md` imports `@.claude/charuy-overlay.md`, which resolves to `.claude/.claude/charuy-overlay.md`, so the overlay has probably never loaded. (Charuy, anchored 1.12.0, also still needs `noldor upgrade` then `noldor init --update` after the release carrying PR #535 — consumer-side work, not this entry.) Deletion test: a CLAUDE file importing a missing path gets a doctor row. (found 2026-09-24 shipping Q-0252)
+
+### CR Lane Prompts Stop Calling a .pen Encrypted
+
+- id: Q-0278
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: XS
+- impact: low
+- confidence: high
+
+Now that `design verdict` reads a `.pen` as JSON (PR #540), the remaining "encrypted, pencil MCP is the only reader" claims are the last of the false premise `docs/noldor/gotchas.md` describes: the `ui-reviewer` child prompt (`src/cr/lanes/ui-review-dispatch.ts`, "It is encrypted — the ONLY way to read it is pencil MCP"), the `render-export-dispatch.ts` prompt, and the headers of `ui-review-dispatch.ts` and `ui-review.ts`. The child should still review through pencil MCP (it needs the rendered pages), but the prompt should not assert a falsehood the next reader will build on. Deletion test: `grep -rn -i encrypted src/cr/lanes` returns nothing. (found 2026-09-24 shipping Q-0258)
+
+### Graph Workflow Publish-Step Hardening
+
+- id: Q-0279
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: XS
+- impact: low
+- confidence: high
+
+Two small hardening items the Q-0260 part 3 reviewer left as optional, both in the `update-knowledge-graph.yml` publish step. The newer-graph check treats every `git fetch` failure as "no graph on that ref" and publishes anyway (`git fetch --quiet origin "$ref" 2>/dev/null || continue`); only a missing ref should read that way, and an auth or network failure deserves a `::warning::`. And a re-run of a merge whose graph PR already landed opens a graph PR with an empty diff; the check could also stop when the default branch holds a graph built at exactly this merge. Deletion test: a re-run of an already-published merge opens no graph PR. (found 2026-09-23, PR #501 round 3)
+
+### Pin Every localeCompare to a Fixed Locale
+
+- id: Q-0280
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: S
+- impact: med
+- confidence: high
+
+Every bare `localeCompare` in `src/` sorts by the MACHINE locale, so the same data orders differently on an operator Mac than in CI. On a `cs_CZ.UTF-8` machine Czech collation treats `ch` as one letter sorting after `h`, so `'Charlie'.localeCompare('Delta')` is `1` where an `en` run gives `-1`. #519 fixed the case that surfaced it — `sortEntries` in `src/dashboard/views.ts` now compares through `cmpString` pinned to `'en'` — but 44 non-test call sites remain, including another bare one in `views.ts` itself, and the same pattern orders clone reports (`src/clones/detect.ts`), FD lookups (`src/garden/graph-fd-lookup.ts`), release notes (`src/release/release-notes.ts`) and metrics. Any of those sorting a string containing `ch` reorders across machines, so a committed artifact churns depending on who regenerated it. Wanted: one shared comparator pinned to a fixed locale (or plain code-unit `<`/`>` where the order only needs to be STABLE, not linguistic), applied across every site, plus a lint rule so a bare `localeCompare` cannot come back. Deletion test: a repo-wide grep for an unpinned `localeCompare` returns nothing, and the suite passes under both `LANG=cs_CZ.UTF-8` and `LANG=en_US.UTF-8`. (found 2026-09-22)
+
+### Design Verdict Check Edge Cases
+
+- id: Q-0281
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: XS
+- impact: low
+- confidence: med
+
+Three non-blocking edges `design verdict --check` still has, from PR #540's round-2 review: (a) `readApproval` (`src/design/design-approval.ts`) tests `existsSync`, which is false when a parent directory is unreadable, so an inaccessible record reads as absent ("take the verdict") instead of as a read failure — `statSync` with an `ENOENT` check tells them apart; (b) `specDiff` acquires its scratch dir outside its try, so a `mkdtempSync` failure throws out of `--check` instead of printing `could not diff`; (c) a `git diff` killed by a signal reports `exited null` — print `diff.signal`. Deletion test for (a): a record under a `chmod 000` directory makes `--check` exit 2 naming the read error. (found 2026-09-24, PR #540 review)
+
+### Verify Whether Subagents Load CLAUDE.md
+
+- id: Q-0282
+- area: tooling
+- type: docs
+- since: 2026-09-24
+- size: XS
+- impact: low
+- confidence: med
+
+`.claude/engineering-rules.md` says "Subagents don't auto-load CLAUDE.md", and the `agent-rules-guard` hook exists on that premise. Claude Code's sub-agents doc (as summarized by a research agent on 2026-09-24, not yet read first-hand) says subagents inherit CLAUDE.md and AGENTS.md by default, with the built-in Explore and Plan agents skipping them. Verify against https://code.claude.com/docs/en/sub-agents.md; if true, the rule text and the guard's reason need rewording, and the guard may only matter for Explore/Plan dispatches. Deletion test: the rule and the guard's reason state what the doc says, with the doc cited. (found 2026-09-24 shipping Q-0252)
+
+### Design Context Section Matching Without Backticks
+
+- id: Q-0283
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: XS
+- impact: low
+- confidence: med
+
+`pnpm noldor …` passes its arguments through `sh`, so a backtick inside an argument runs as a command, and spec headings often carry backticks. `pnpm noldor design context --section '<heading with a backticked flag>'` printed `sh: --approve: command not found` and matched no heading. Part of this is settled: `noldor commit -F <file>` exists (#500) for multi-line messages, and `docs/noldor/gotchas.md` documents the backtick trap — twice, in two near-identical Shell & tooling bullets that should be merged into one. What remains: `design context --section` and `design log --confirm-section` accept a heading's number or a backtick-free prefix, so an agent can name any heading without passing a backtick through pnpm. Deletion test: `design context --section` on a heading that contains backticks renders that heading when called by its number. (found 2026-09-24 shipping Q-0258)
+
+### Codex Skips FD Scaffold Stubs at Plan and Code
+
+- id: Q-0284
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: S
+- impact: med
+- confidence: med
+
+Codex still reads the whole feature MD at plan and code kinds, unfilled scaffold stubs included. `reviewWithCodex` passes `docs/features/<slug>.md` verbatim as `featureMd` for every kind but spec (`src/cr/review-with-codex.ts`), and the plan-kind prompt asks codex to surface "placeholder / TODO / unfilled content that must be resolved before implementation" (`src/cr/run-codex.ts`). `/noldor-draft-feature-md` fills User Story and Usage before those stages, but nothing fills `## Diagram`, so its `<!-- TODO: one mermaid fence … -->` stub can still reach a plan or code review and read as unfinished work. `spec-stage-cr-stopping-rule` (Q-0263) fixed this at spec kind only, by sending the FD's Summary. Wanted: the plan and code prompts never treat an FD scaffold stub as review content, without losing the drafted User Story and Usage that plan review checks against. Deletion test: a plan round whose FD still carries the Diagram stub files no finding about it. (found 2026-09-23 writing the Q-0263 spec)
+
+### Release npm Wait Bypasses the Registry Cache
+
+- id: Q-0285
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: S
+- impact: med
+- confidence: med
+
+`pnpm release`'s npm wait times out on a publish that already worked, and the cause looks like caching, not a slow publish. It happened on v1.10.0 and again on v1.13.0. v1.13.0's `publish.yml` printed `+ @david.zoufaly/noldor@1.13.0` with signed provenance 31s after the tag push. The wait still gave up at 301s, and `npm view …@1.13.0` still returned E404 about 5 minutes after the publish. Verified facts: the registry serves the packument with `cache-control: public, max-age=300` through Cloudflare (`cf-cache-status: HIT`); npm 11's `prefer-online` defaults to false, so `npm view` answers from its local cache while an entry is fresh; the preflight's `npm-name` row runs `npm view <name> versions` minutes before the tag (`src/release/preflight-probes.ts`), which loads the pre-publish packument into that cache; and `awaitPublish` (`src/release/release-publish.ts`) re-runs a plain `npm view` every 10s against a 300s default horizon, which is exactly the cache's max-age. Not verified: which layer (the local cache or the CDN edge) held the stale copy. Candidate fix: poll with `--prefer-online` (or a direct registry fetch with `cache-control: no-cache`), and set the default horizon above 2× max-age so both layers can expire. `docs/noldor/gotchas.md` → Release & publish tells operators to `--resume` meanwhile. Deletion test: a release whose publish lands within the horizon never needs `--resume`. (found 2026-09-24 releasing v1.13.0)
+
+### Drain Lock Atomic Publish and Safe Reclaim
+
+- id: Q-0286
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: S
+- impact: med
+- confidence: med
+
+`acquireLock` in `src/autonomous/drain-lock.ts` has two races that can leave two supervisors draining one repo. Both are rare, because supervisors seldom start in the same instant, and the Q-0238 suite lock (`src/testing/suite-lock.ts`, PR #538) already solves both.
+
+- **Payload window.** The lock is created with `openSync(path, 'wx')` and its `{ pid, startedAt }` payload is written in a second call. A second supervisor that reads the file between the two sees an empty payload, treats the holder as dead, renames the live lock aside and takes it — the reclaim path turns "unparseable" into "dead" with no age check. Fix: publish the lock with its content in one step (write a temp file, then `linkSync` it into place — `EEXIST` means held).
+- **Stale-read reclaim.** The reclaim renames a dead holder's `.noldor/drain.lock` aside and unlinks it without reading what it moved, so a supervisor that judged an older holder dead can move and delete a lock another supervisor has just taken. The suite lock's `replaceDead` is the pattern: hard-link the dead lock to a claim named after its inode (one holder per inode), judge the holder again through the claim, confirm the lock is still that inode, then rename the new lock over it so the path is never free.
+
+Deletion tests: several processes calling `acquireLock` at the same instant leave exactly one holder; and while a claim on the dead lock's inode is held, `acquireLock` leaves the lock alone. (found 2026-09-24 in the Q-0238 spec review and fixing PR #538's review blocker)
+
+### Step 0 Lists In-Progress Worktree Sessions
+
+- id: Q-0287
+- area: tooling
+- type: feat
+- since: 2026-09-24
+- size: S
+- impact: med
+- confidence: med
+
+`/noldor-gate` Step 0 cannot see in-progress work that lives in a worktree. An attach session's phase revert (`done → in-progress`) is committed only on its feature branch, and `next-priority` reads the FDs of the checkout it runs in, so on main its `inProgress` bucket stays empty. On 2026-09-24 "pick what is in progress" got `inProgress: []` while two attach worktrees were open — one stopped mid-Step 4 minutes earlier, one parked after spec review round 2 since 2026-09-16 — and both were found only through `git worktree list` and each worktree's `.noldor/session.json`. `worktrees status` lists the worktrees but not their session or stage, and Step 0 does not read it. Wanted: the in-progress bucket also lists worktree sessions, with the path, slug and last stage from each marker, and flags a marker past its 24h expiry as stale. Multiagent Parallel Session Visibility (Q-0114, backlog) is the dashboard side of the same blind spot. Deletion test: a repo whose only in-progress work is an attach session on a worktree branch gets a non-empty `inProgress` bucket naming it. (found 2026-09-24 resuming PR #538)
+
+### Design Links Open From a Terminal
+
+- id: Q-0288
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: S
+- impact: med
+- confidence: med
+
+Spec and plan links do not open when the operator runs Claude Code in iTerm2 rather than the VS Code extension. `pnpm noldor design open` prints a `link:` line built by `buildArtifactLink` (`src/design/open-artifact.ts`) as a markdown link to a workspace-relative path — which the VS Code extension resolves against the workspace folder, but a terminal has no workspace to resolve against, so the link is dead there. The harness is knowable: `CLAUDE_CODE_ENTRYPOINT` is `cli` in a terminal and `claude-vscode` under the extension (`checks pen-bridge` already reads it). Wanted: in a terminal harness, `design open` prints something the terminal can open — an absolute path or a `file://` URL (iTerm2 opens both on ⌘-click) — and keeps today's workspace-relative link under the extension. Deletion test: under `CLAUDE_CODE_ENTRYPOINT=cli`, the `link:` line names an absolute path that exists. (operator report, 2026-09-24)
+
+### Upgrade Restarts the Dashboard
+
+- id: Q-0289
+- area: tooling
+- type: feat
+- since: 2026-09-24
+- size: S
+- impact: med
+- confidence: med
+
+After `noldor upgrade` (or `init --update`), a dashboard server that was already running keeps serving the old code from memory, so new features and fixes do not show until someone restarts it by hand. `watchInstall` (`src/dashboard/server.ts`, PR #476) only exits a zombie whose file routes have started to 500; an upgrade that leaves every file route valid is never noticed. Wanted: the update flow restarts the project's dashboard when one is running — or `watchInstall` treats a changed installed version as a reason to exit so the SessionStart hook brings up a fresh one. Deletion test: after an upgrade that changes a dashboard page, the next request to that page serves the new version without a manual restart. (operator request, 2026-09-24)
+
+### Graph Freshness Reads Git, Not mtime
+
+- id: Q-0290
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: S
+- impact: med
+- confidence: med
+
+The graph freshness gate can read a current graph as stale after an ordinary pull. `loadFreshGraphOrWarn` compares `graph.json`'s mtime with the newest mtime under the scan roots, and a pull that brings a code merge together with its `update-knowledge-graph.yml` refresh writes files in index order — `graphify-out/` sorts before `src/`, so `graph.json` lands a few milliseconds before the code. Measured on main on 2026-09-24 after pulling #539 + #540: `src/design/design-approval.ts` was 7 ms newer than `graph.json` (that graph really was one merge behind, but the write order alone gives the same reading when it is current). Every graph consumer (the co-tag detector, detectors 9 and 10, `propose-pointers`, `features seed-test-tags`) then degrades or refuses until a local regen. Since #501 regenerates the graph after every code merge, the fitting measure is git rather than the clock: stale when a scan-root file changed in a commit after `graph.json`'s last commit, or has uncommitted changes. Deletion test: after a pull that brings code and its graph refresh together, `pnpm noldor features seed-test-tags` runs without a local regen. (found 2026-09-24 shipping PR #542)
+
 ### Geometry-Compare Lane — the Automated Half
 
 - id: Q-0180
@@ -124,3 +333,45 @@ Milestone membership rots by omission at both ends of the chain, so an active mi
 - confidence: med
 
 `blocked-by` is all-or-nothing, so a partial dependency degrades into prose the scorer cannot see. Several entries in a real consumer can start, and two-thirds ship, while one part waits — a bar whose five sections are independently blocked; a panel where one row needs a concept that does not exist yet. Marking the whole entry `blocked-by` divides its score by `1 + unshipped_dep_count` for work that is mostly doable today; leaving it off loses the dependency from the graph entirely, so `/noldor-garden` cannot see it and a reader has to find it in a paragraph. Wanted: a `partially-blocked-by:` that joins the blocked-by graph for cycle detection and `show` output but is **excluded from the dependency factor** in `scoreEntry()` — the semantics being "cannot finish" rather than "cannot start". Open question for the spec: whether `/noldor-gate` should surface the partial blocker at pickup so the agent knows which slice to leave alone, or whether that belongs in the entry body. Deletion test: an entry with only `partially-blocked-by` refs scores as unblocked while still appearing in the dependency graph. (found 2026-09-22)
+
+### Suite Lock Follow-Ups
+
+- id: Q-0291
+- area: testing
+- type: fix
+- since: 2026-09-24
+- size: S
+- impact: low
+- confidence: med
+
+Suite lock follow-ups from PR #538's review, all `low`: (a) `vitest run -t <name>` queues behind another worktree's full suite for up to 15 minutes, though a `-t` run is the dev loop the skip rule exists for — `suiteLockSkipReason` reads only vitest's `filenamePattern`, and `-t` sets `testNamePattern` (the reviewer says `--changed` and `--shard` runs queue too). (b) The real-vitest-CLI test in `src/testing/__tests__/suite-lock.test.ts` starts two nested vitest CLIs with a 9s exec timeout under the default 10s `testTimeout`, one of the heaviest tests in the suite it protects. (c) A stranded reclaim claim (the `noldor:cut` in `replaceDead`) makes later runs wait 15 minutes without a word and then print `still held by pid unknown`; naming the dead holder or the claim file would say what is stuck. Deletion test for (a): `vitest run -t probe` on the test's fixture project never sees the lock. (found 2026-09-24, PR #538 review)
+
+### UI Baseline .pen Layout and Id Contract
+
+- id: Q-0292
+- area: tooling
+- type: feat
+- since: 2026-09-24
+- size: M
+- impact: med
+- confidence: med
+- parent: pendev-ui-design-phase
+
+A UI baseline `.pen` has no layout or id contract, so every consumer invents one, and charuy's first attempt was unusable. `design capture` only runs the consumer's `uiCapture` command and vouches for the blob (`src/design/ui-capture.ts`); nothing says how the pages inside are arranged or named. Charuy's `app.pen` was two unordered rows (full pages / overlays) with counter ids (`n1`, `n2`…) that all shifted when one control was added, so no review, spec or agent could reference an id. Charuy's local fix (2026-09-23, branch `fast/baseline-structure`): one labelled row per area, dark page beside its light twin, page id `<state>-<theme>`, element id = parent id + `.<segment>` where the segment is `data-testid`, else icon, `aria-label`, slot, role, layer name, with `-2`/`-3` only on a repeated sibling. Constraints that must hold for any consumer: pages stay TOP-LEVEL frames (the ui-review / render-compare lanes enumerate only top-level `FINAL:<surface>:` frames, so a row frame would hide them — labels go in as sibling text nodes), and ids never contain `/` (the Pencil schema's `entity.id` pattern is `^[^/]+$`; `/` is its descendant-path separator). Wanted: the convention written down as noldor's baseline contract (area rows, twin order, id grammar), plus a check `design capture` runs on the written file — ids unique, no `^n\d+$`-style positional ids, no `/`, every `FINAL:` page top-level, every page in exactly one labelled row. Deletion test: a baseline with a counter id or a nested `FINAL:` page fails `design capture` naming the node. (found 2026-09-23 recapturing charuy's app baseline)
+
+- Operator ask, 2026-09-24: the baseline `.pen` — and other `.pen` files too — should carry huge section titles, so each app area is readable on the canvas without zooming in. The row labels above are where they go; the contract should fix their size, not just their presence.
+
+### One Graph Builder for the Sweep and CI
+
+- id: Q-0293
+- area: tooling
+- type: refactor
+- since: 2026-09-24
+- size: M
+- impact: med
+- confidence: low
+- parent: self-refreshing-compact-knowledge-graph
+
+The release sweep and the `update-knowledge-graph` workflow build the committed graph two different ways, so they fight over community ids. Both extract the same nodes and edges (0 diffs, rebuilt from 140ff63), but the sweep's `/graphify --ast-only` clusters with no fixed hash seed and names communities with an LLM, while the workflow pins `PYTHONHASHSEED=0`, sorts its input and writes `Community N`. Two unseeded runs on one tree gave 205 and then 204 communities. So the first graph PR after every release reshuffles every community id and relabels the report. Wanted: one builder both call — a `pnpm noldor graphify build` running the workflow's heredoc (clean AST pass over code files, seeded, sorted, `parallel=False`) — with release-sweep steps 1 and 5 switched to it. Deletion test: the sweep's graph step, run right after a graph PR merges, leaves `graphify-out/` byte-identical. (found 2026-09-23 shipping Q-0260 part 3, PR #501)
+
+- A shared recipe alone will not make the sweep byte-identical to CI. The v1.13.0 sweep ran the workflow's exact recipe on the operator Mac (`PYTHONHASHSEED=0`, sorted input, `parallel=False`, graphifyy 0.7.8 on both sides) and rebuilt 48415a0 with the same 3885 nodes and 10328 edges as CI, but found 222 communities where CI found 215. The rest of the dependency set (networkx, the Leiden backend, the Python patch version) has to match too — so either the builder pins those, or the sweep keeps CI's committed graph whenever the extraction matches (the current workaround, in `docs/noldor/graph-integration.md` → Pre-release sweep). (2026-09-24, PR #537)
