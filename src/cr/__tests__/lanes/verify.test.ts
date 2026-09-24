@@ -285,7 +285,9 @@ describe('runVerify worktree backstop', () => {
         stdio: 'pipe',
       }).toString();
     git('init', '-q');
-    git('commit', '-q', '--allow-empty', '-m', 'init');
+    writeFileSync(join(cwd, '.gitignore'), 'node_modules\n');
+    git('add', '.gitignore');
+    git('commit', '-q', '-m', 'init');
     return { cwd, input, git };
   }
 
@@ -320,17 +322,36 @@ describe('runVerify worktree backstop', () => {
     expect(JSON.stringify(readSink(cwd).notes ?? [])).not.toContain('worktree');
   });
 
-  it("leaves a sibling session's checkout under .worktrees/ alone when it appears mid-dispatch", async () => {
+  it('leaves a worktree on a branch alone when it appears mid-dispatch, and names it', async () => {
     const { cwd, input, git } = gitRepo();
-    const sibling = join(cwd, '.worktrees', 'other-slug');
+    const onBranch = scratchPath('branch');
     setVerifyDispatcher(async () => {
-      git('worktree', 'add', '-q', '-b', 'fast/other-slug', sibling, 'HEAD');
+      git('worktree', 'add', '-q', '-b', 'scratch', onBranch, 'HEAD');
       return PASS;
     });
     await runVerify(input);
-    expect(existsSync(sibling)).toBe(true);
-    expect(git('worktree', 'list', '--porcelain')).toContain(realpathSync(sibling));
-    expect(JSON.stringify(readSink(cwd).notes ?? [])).not.toContain('worktree');
+    expect(existsSync(onBranch)).toBe(true);
+    expect(git('worktree', 'list', '--porcelain')).toContain(realpathSync(onBranch));
+    const notes = JSON.stringify(readSink(cwd).notes);
+    expect(notes).toContain('left in place');
+    expect(notes).toContain(realpathSync(onBranch));
+    expect(notes).not.toContain('removed leaked worktree');
+  });
+
+  it('leaves a detached worktree carrying an untracked file alone, and names it', async () => {
+    const { cwd, input, git } = gitRepo();
+    const dirty = scratchPath('dirty');
+    setVerifyDispatcher(async () => {
+      git('worktree', 'add', '-q', '--detach', dirty, 'HEAD');
+      writeFileSync(join(dirty, 'scratch.txt'), 'unsaved work\n');
+      return PASS;
+    });
+    await runVerify(input);
+    expect(readFileSync(join(dirty, 'scratch.txt'), 'utf8')).toBe('unsaved work\n');
+    expect(git('worktree', 'list', '--porcelain')).toContain(realpathSync(dirty));
+    const notes = JSON.stringify(readSink(cwd).notes);
+    expect(notes).toContain('left in place');
+    expect(notes).not.toContain('removed leaked worktree');
   });
 
   it('records that the audit was skipped when the root is not a git repo', async () => {
