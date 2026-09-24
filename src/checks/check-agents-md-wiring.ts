@@ -29,34 +29,61 @@ export type ClaudeFileViews = Partial<Record<ClaudeFile, ClaudeFileView>>;
 
 export type AgentsMdWiring = 'wired' | 'unwired' | 'local-unwired' | 'no-claude-file';
 
-/**
- * Repo-relative path an `@path` line in `file` points at, or `null` when the line
- * is not an import. Claude Code resolves a relative import against the directory
- * of the file that holds it, not the working directory.
- */
-export function importTarget(file: string, line: string): string | null {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith('@') || trimmed.length === 1) return null;
-  if (trimmed.includes(' ') || trimmed.includes('\t')) return null;
-  return posix.normalize(posix.join(posix.dirname(file), trimmed.slice(1)));
+/** One `@path` import in a CLAUDE file: where it sits and the repo-relative file it names. */
+export interface ImportToken {
+  readonly line: number;
+  /** Index of the `@` in its line. */
+  readonly start: number;
+  /** Index just past the path. */
+  readonly end: number;
+  readonly target: string;
+  /** True when the import is the only thing on its line. */
+  readonly wholeLine: boolean;
 }
 
+const PATH_END = ' \t`';
+
 /**
- * Indices of `content`'s lines that import `target`, skipping fenced code blocks
- * (Claude does not expand an import inside one). Only a whole-line import counts.
+ * Every import in `content` the way Claude Code reads them: an `@` that starts a
+ * word, outside fenced code blocks and inline code spans, anywhere in a line. The
+ * path runs to the next space, tab or backtick and resolves against the directory
+ * of `file`, not the working directory.
  */
-export function importLines(file: string, content: string, target: string): number[] {
-  const hits: number[] = [];
+export function importTokens(file: string, content: string): ImportToken[] {
+  const tokens: ImportToken[] = [];
   let fenced = false;
-  content.split('\n').forEach((line, i) => {
+  content.split('\n').forEach((line, lineNo) => {
     const trimmed = line.trim();
     if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
       fenced = !fenced;
       return;
     }
-    if (!fenced && importTarget(file, line) === target) hits.push(i);
+    if (fenced) return;
+    let inSpan = false;
+    let i = 0;
+    while (i < line.length) {
+      const startsWord = i === 0 || line[i - 1] === ' ' || line[i - 1] === '\t';
+      if (line[i] === '`') inSpan = !inSpan;
+      if (inSpan || line[i] !== '@' || !startsWord) {
+        i++;
+        continue;
+      }
+      let end = i + 1;
+      while (end < line.length && !PATH_END.includes(line[end])) end++;
+      const path = line.slice(i + 1, end);
+      if (path.length > 0) {
+        tokens.push({
+          line: lineNo,
+          start: i,
+          end,
+          target: posix.normalize(posix.join(posix.dirname(file), path)),
+          wholeLine: trimmed === `@${path}`,
+        });
+      }
+      i = end;
+    }
   });
-  return hits;
+  return tokens;
 }
 
 /** The import line `file` needs to reach the root rules file (`@../AGENTS.md` from `.claude/`). */
@@ -67,7 +94,8 @@ export function rulesImportFor(file: ClaudeFile): string {
 function wires(file: ClaudeFile, view: ClaudeFileView | undefined): boolean {
   return (
     view !== undefined &&
-    (view.linksToRulesFile || importLines(file, view.content, RULES_FILE).length > 0)
+    (view.linksToRulesFile ||
+      importTokens(file, view.content).some((token) => token.target === RULES_FILE))
   );
 }
 

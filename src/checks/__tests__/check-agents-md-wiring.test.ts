@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   agentsMdWiring,
   checkAgentsMdWiring,
-  importLines,
+  importTokens,
   rulesImportFor,
 } from '../check-agents-md-wiring.js';
 
@@ -26,20 +26,33 @@ function write(file: string, content: string): void {
 const check = (targets: Parameters<typeof checkAgentsMdWiring>[1] = ['claude']) =>
   checkAgentsMdWiring(dir, targets);
 
-describe('importLines', () => {
+describe('importTokens', () => {
+  const targets = (file: string, content: string) =>
+    importTokens(file, content).map((t) => t.target);
+
   it('resolves an import against the directory of the file that holds it', () => {
-    expect(importLines('CLAUDE.md', '@AGENTS.md\n', 'AGENTS.md')).toEqual([0]);
-    expect(importLines('CLAUDE.md', '@./AGENTS.md\n', 'AGENTS.md')).toEqual([0]);
-    expect(importLines('.claude/CLAUDE.md', 'x\n@../AGENTS.md\n', 'AGENTS.md')).toEqual([1]);
+    expect(targets('CLAUDE.md', '@AGENTS.md\n')).toEqual(['AGENTS.md']);
+    expect(targets('CLAUDE.md', '@./AGENTS.md\n')).toEqual(['AGENTS.md']);
+    expect(targets('.claude/CLAUDE.md', 'x\n@../AGENTS.md\n')).toEqual(['AGENTS.md']);
+    expect(targets('.claude/CLAUDE.md', '@AGENTS.md\n')).toEqual(['.claude/AGENTS.md']);
+  });
+
+  it('finds an import in the middle of a sentence, with its position', () => {
+    expect(importTokens('CLAUDE.md', 'intro\nFollow the rules in @AGENTS.md now\n')).toEqual([
+      { line: 1, start: 20, end: 30, target: 'AGENTS.md', wholeLine: false },
+    ]);
   });
 
   it.each([
-    ['a .claude file importing the path as if from the root', '.claude/CLAUDE.md', '@AGENTS.md'],
-    ['an import inside a fenced code block', 'CLAUDE.md', '```\n@AGENTS.md\n```'],
-    ['a mention in a sentence', 'CLAUDE.md', 'Read @AGENTS.md first.'],
-    ['a quoted path', 'CLAUDE.md', '`@AGENTS.md`'],
-  ])('does not count %s', (_label, file, content) => {
-    expect(importLines(file, content, 'AGENTS.md')).toEqual([]);
+    ['inside a fenced code block', '```\n@AGENTS.md\n```'],
+    ['inside an inline code span', 'Write `@AGENTS.md` to import it.'],
+    ['glued to a word, like an email address', 'mail rules@AGENTS.md'],
+  ])('does not count an @ %s', (_label, content) => {
+    expect(importTokens('CLAUDE.md', content)).toEqual([]);
+  });
+
+  it('keeps sentence punctuation in the path, as Claude does, so it names no rules file', () => {
+    expect(targets('CLAUDE.md', 'Read @AGENTS.md.')).toEqual(['AGENTS.md.']);
   });
 });
 
@@ -89,6 +102,11 @@ describe('checkAgentsMdWiring', () => {
 
   it('passes a CLAUDE.md that imports AGENTS.md', () => {
     write('CLAUDE.md', '@AGENTS.md\n\n# Project\n');
+    expect(check()).toMatchObject({ status: 'wired', ok: true });
+  });
+
+  it('passes a CLAUDE.md that imports AGENTS.md mid-sentence', () => {
+    write('CLAUDE.md', '# Project\n\nFollow the rules in @AGENTS.md first.\n');
     expect(check()).toMatchObject({ status: 'wired', ok: true });
   });
 

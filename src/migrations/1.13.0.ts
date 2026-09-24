@@ -6,7 +6,7 @@ import {
   PROJECT_CLAUDE_FILES,
   RULES_FILE,
   agentsMdWiring,
-  importLines,
+  importTokens,
   readClaudeFiles,
   rulesImportFor,
   type ClaudeFileViews,
@@ -29,9 +29,11 @@ function sha256(buf: Buffer): string {
 }
 
 /**
- * Each import of the removed `.claude/noldor.md` becomes the file's `AGENTS.md`
- * import while no project CLAUDE file has one, and is dropped after that — so at
- * most one import is written, and no import the consumer already had is removed.
+ * Each import of the removed `.claude/noldor.md` is rewritten in place: the first
+ * becomes the file's `AGENTS.md` import while no project CLAUDE file has one, and
+ * any later one is dropped — a whole line goes, a mid-sentence one keeps its
+ * words as a plain path. So at most one import is written, and no import the
+ * consumer already had is removed.
  */
 function repointNoldorImports(views: ClaudeFileViews): ClaudeFileViews {
   let imported = agentsMdWiring(views) === 'wired';
@@ -39,15 +41,26 @@ function repointNoldorImports(views: ClaudeFileViews): ClaudeFileViews {
   for (const file of PROJECT_CLAUDE_FILES) {
     const view = views[file];
     if (view === undefined || view.linksToRulesFile) continue;
-    const hits = new Set(importLines(file, view.content, NOLDOR_MD));
-    if (hits.size === 0) continue;
-    const lines = view.content.split('\n').flatMap((line, i) => {
-      if (!hits.has(i)) return [line];
-      if (imported) return [];
-      imported = true;
-      return [rulesImportFor(file)];
-    });
-    next[file] = { ...view, content: lines.join('\n') };
+    const edits = importTokens(file, view.content)
+      .filter((token) => token.target === NOLDOR_MD)
+      .map((token) => {
+        const first = !imported;
+        imported = true;
+        return { token, first };
+      });
+    if (edits.length === 0) continue;
+    const lines = view.content.split('\n');
+    const dropped = new Set<number>();
+    for (const { token, first } of edits.toReversed()) {
+      if (!first && token.wholeLine) {
+        dropped.add(token.line);
+        continue;
+      }
+      const replacement = first ? rulesImportFor(file) : rulesImportFor(file).slice(1);
+      const line = lines[token.line];
+      lines[token.line] = line.slice(0, token.start) + replacement + line.slice(token.end);
+    }
+    next[file] = { ...view, content: lines.filter((_, i) => !dropped.has(i)).join('\n') };
   }
   return next;
 }

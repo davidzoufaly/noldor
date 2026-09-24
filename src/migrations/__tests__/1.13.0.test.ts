@@ -66,6 +66,31 @@ describe('migration_1_13_0', () => {
     expect(read(dir, 'CLAUDE.md')).toBe('# Project\n@AGENTS.md\nmore\n');
   });
 
+  it('repoints a mid-sentence noldor.md import in place', () => {
+    const dir = tree({
+      '.claude/noldor.md': SHIPPED_V2,
+      'CLAUDE.md': '# Project\nRead @.claude/noldor.md before editing.\n',
+    });
+    migration_1_13_0.migrate(dir, {} as never);
+    expect(read(dir, 'CLAUDE.md')).toBe('# Project\nRead @AGENTS.md before editing.\n');
+  });
+
+  it('adds nothing when a CLAUDE file already imports AGENTS.md mid-sentence', () => {
+    const files = { 'CLAUDE.md': '# Project\nFollow @AGENTS.md first.\n' };
+    const dir = tree(files);
+    migration_1_13_0.migrate(dir, {} as never);
+    expect(read(dir, 'CLAUDE.md')).toBe(files['CLAUDE.md']);
+  });
+
+  it('turns a later mid-sentence noldor.md import into a plain path once AGENTS.md is imported', () => {
+    const dir = tree({
+      '.claude/noldor.md': SHIPPED_V2,
+      'CLAUDE.md': '@AGENTS.md\nSee @.claude/noldor.md for the gate.\n',
+    });
+    migration_1_13_0.migrate(dir, {} as never);
+    expect(read(dir, 'CLAUDE.md')).toBe('@AGENTS.md\nSee AGENTS.md for the gate.\n');
+  });
+
   it('writes one import when both CLAUDE files imported noldor.md', () => {
     const dir = tree({
       '.claude/noldor.md': SHIPPED_V2,
