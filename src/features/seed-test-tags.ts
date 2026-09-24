@@ -1,8 +1,8 @@
 // @fd: sdd-co-tag-detector
 
-import { writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 
+import { atomicWriteFile } from '../core/atomic-write.js';
 import { runIfDirect } from '../core/cli-entry.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
@@ -172,7 +172,7 @@ export async function seedTestTags(options: {
   if (!options.apply) return { kind: 'seeded', plan, written };
   for (const edit of plan.edits) {
     try {
-      await writeFile(edit.path, edit.content, 'utf8');
+      await atomicWriteFile(edit.path, edit.content);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       return { kind: 'seeded', plan, written, failure: { message, path: edit.path } };
