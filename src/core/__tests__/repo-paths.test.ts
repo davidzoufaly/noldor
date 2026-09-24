@@ -11,6 +11,7 @@ import {
   DEFAULT_SCAN_ROOTS,
   actualPackageNames,
   newestMtimeInRoots,
+  repoRelativePath,
   scanRoots,
   walkCodeFiles,
   walkDir,
@@ -40,6 +41,25 @@ function makeTmpRepo(scanPaths: string[]): string {
   );
   return dir;
 }
+
+describe(repoRelativePath, () => {
+  it.each([
+    ['a relative path', 'src/a.ts', 'src/a.ts'],
+    ['a dotted relative path with a trailing slash', './src/design/', 'src/design'],
+    ['an absolute path inside the repository', '/repo/src/a.ts', 'src/a.ts'],
+    ['the repository root', '.', ''],
+  ])('keeps %s', (_label, value, expected) => {
+    expect(repoRelativePath('/repo', value)).toBe(expected);
+  });
+
+  it.each([
+    ['the parent directory itself', '..'],
+    ['a path climbing out', '../../etc/passwd'],
+    ['an absolute path elsewhere', '/elsewhere/a.ts'],
+  ])('refuses %s', (_label, value) => {
+    expect(repoRelativePath('/repo', value)).toBeNull();
+  });
+});
 
 describe('scanRoots', () => {
   it('returns configured consumer scanPaths when non-empty', () => {

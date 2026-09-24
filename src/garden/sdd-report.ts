@@ -15,7 +15,6 @@ import {
   walkRepo,
 } from '../core/fd-load.js';
 import type { FeatureRecord, Gap } from '../core/fd-load.js';
-import { extractTags } from '../sync/sync-test-links.js';
 import { parseBacklog } from '../utils/parse-blocks.js';
 import { extractUntriagedBullets } from '../triage/triage-list-untriaged.js';
 
@@ -30,6 +29,7 @@ import { commitOnlyTouchesReport, matchesExpectedOverride } from './detectors/ov
 import type { ExpectedOverrideRule } from './detectors/override-audit.js';
 import { loadConfigSync } from '../core/config.js';
 import {
+  TEST_FILE_RE,
   actualPackageNames,
   scanRoots as resolveScanRoots,
   walkCodeFiles,
@@ -40,12 +40,14 @@ import type { CloneReport } from '../clones/detect.js';
 import { readFileSync } from 'node:fs';
 import type { MetricsReport } from '../metrics/types.js';
 import {
-  buildFileToFdsMap,
+  collectTestInputs,
+  computeMissingCoTags,
   getCommunityOwners,
   getImportOwnersForTest,
   loadFreshGraphOrWarn,
   requireFreshGraph,
 } from './graph-fd-lookup.js';
+import type { TestInput } from './graph-fd-lookup.js';
 
 import type { BacklogEntry } from '../utils/parse-blocks.js';
 
@@ -259,8 +261,7 @@ const CODE_IGNORE_PATTERNS = [
   /^scripts\/fixtures\//,
   /^packages\/test-fixtures\/src\/scenes\//,
   /^docs\/user\/reference\/api\//,
-  /\.test\.tsx?$/,
-  /\.spec\.tsx?$/,
+  TEST_FILE_RE,
 ];
 
 /**
@@ -418,8 +419,6 @@ export function detectUntaggedTests(
     });
 }
 
-const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx)$/;
-
 /**
  * Flag test files whose `// @tests:` tag list is incomplete given the FDs
  * that own the source files the test imports.
@@ -429,50 +428,36 @@ const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx)$/;
  *   tags parsed from the body)
  * @param graphPath - Path to `graphify-out/graph.json`
  * @param srcRoots - Source roots whose mtime gates graph staleness
+ * @param e2ePrefix - Tests under this prefix are skipped; defaults to the
+ *   consumer config's `e2ePrefix`
  * @returns Per-test gaps listing missing co-tag slugs, or a single staleness
  *   meta-gap when the graph is out of date.
  *
  * @remarks
  * Forward-only: a tag is suggested when an imported source file is owned by
  * an FD via `links.code`, and that FD isn't in the test's declared tag list.
- * E2e tests under `apps/web/e2e/` are skipped — they typically don't import
- * source. FDs with empty `links.code` are silently invisible (no candidate
- * to suggest); the 14th detector covers that orthogonal concern.
+ * E2e tests are skipped — they typically don't import source. FDs with empty
+ * `links.code` are silently invisible (no candidate to suggest); the 14th
+ * detector covers that orthogonal concern. The rows are
+ * {@link computeMissingCoTags}, which `features seed-test-tags` writes from.
  */
 export function detectMissingCoTags(
   features: FeatureRecord[],
-  testInputs: { content: string; path: string }[],
+  testInputs: TestInput[],
   graphPath: string,
   srcRoots: string[],
+  e2ePrefix: string = loadConsumerConfig().e2ePrefix,
 ): Gap[] {
   const loadResult = loadFreshGraphOrWarn(graphPath, srcRoots);
   if (!loadResult.ok) return [loadResult.gap];
 
-  const { graph } = loadResult;
-  const { e2ePrefix } = loadConsumerConfig();
-  const fileToFds = buildFileToFdsMap(features);
-  const declaredByPath = new Map<string, string[]>();
-  for (const { content, path } of testInputs) declaredByPath.set(path, extractTags(content));
-
-  const gaps: Gap[] = [];
-  for (const node of graph.nodes) {
-    const sf = node.source_file;
-    if (!sf || !TEST_FILE_RE.test(sf) || sf.startsWith(e2ePrefix)) continue;
-    if (node.source_location !== 'L1') continue; // only file-level node, not inner symbols
-
-    const expectedFds = getImportOwnersForTest(node.id, graph, fileToFds);
-    const declared = new Set(declaredByPath.get(sf) ?? []);
-    const missing = [...expectedFds].filter((slug) => !declared.has(slug)).toSorted();
-    if (missing.length === 0) continue;
-
-    gaps.push({
+  return computeMissingCoTags(features, testInputs, loadResult.graph, e2ePrefix).map(
+    ({ missing, path }) => ({
       category: 'Tests with incomplete co-tag',
-      itemId: sf,
+      itemId: path,
       message: `imports files owned by FDs missing from @tests: tag — add: ${missing.join(', ')}`,
-    });
-  }
-
-  return gaps;
+    }),
+  );
 }
 
 const FEATURE_TAG_RE = /<!--\s*@feature:\s*[^>]+-->/;
@@ -999,19 +984,17 @@ async function main(): Promise<void> {
   const planPaths = await listPlans(loadDocRoots().plans);
 
   // Consumer `scanPaths` scope the walk (union-of-layouts fallback when
-  // unset) — the hardcoded packages/apps/scripts trio left standalone `src/`
-  // repos with an empty testInputs map, so every graph-known test read as
-  // untagged and detector 13 flagged all of them.
+  // unset), never a hardcoded root set — `collectTestInputs` records what the
+  // hardcoded packages/apps/scripts trio did to detector 13.
   const scanRoots = resolveScanRoots();
   const allRepoPaths: string[] = [];
   for (const root of scanRoots) {
     await walkRepo(root, allRepoPaths);
   }
 
-  const testFiles = allRepoPaths.filter(
-    (p) => /\.test\.(ts|tsx)$/.test(p) || /\.spec\.(ts|tsx)$/.test(p),
-  );
-  const testInputs = await readTextFiles(testFiles);
+  // Walks the scan roots a second time: one sub-second walk buys the test-file
+  // set `features seed-test-tags` also reads, rather than a copy of it here.
+  const testInputs = await collectTestInputs();
 
   const docFiles = await listDocMds(docPresenceRoots());
   const docInputs = await readTextFiles(docFiles);

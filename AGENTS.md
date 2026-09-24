@@ -62,7 +62,7 @@ outputs and exit codes: `docs/noldor/script-catalog.md`.
 - `cr` — Code-review orchestration (subagent / codex / standalone lanes): orchestrate, aggregate, codex, escalate, autofix, bootstrap, arbitration
 - `triage` — Triage + score backlog entries: score, list-untriaged, validate, mint-id, backfill-ids, merge-candidates
 - `rules` — Engineering rule store: resolve / list / validate: resolve, brief, list, validate
-- `features` — Feature MD validators + migrations: validate, attach-milestone, fill-links-code-gaps, migrate-features, migrate-code-tags, propose-pointers, migrate-fd-commits-to-prs, migrate-link-rot, phase-flip-done, phase-revert
+- `features` — Feature MD validators + migrations: validate, attach-milestone, fill-links-code-gaps, migrate-features, migrate-code-tags, propose-pointers, seed-test-tags, migrate-fd-commits-to-prs, migrate-link-rot, phase-flip-done, phase-revert
 - `roadmap` — Roadmap/backlog block operations: remove-block, has-block
 - `milestones` — Milestone validators: validate, show
 - `sync` — Sync links across docs/tests/FDs: test-links, doc-links, code-links, spec-links, fd-resources

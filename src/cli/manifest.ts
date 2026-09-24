@@ -228,6 +228,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'features/propose-pointers.ts',
         desc: 'Propose initial // @fd: pointers for a new FD',
       },
+      'seed-test-tags': {
+        src: 'features/seed-test-tags.ts',
+        desc: 'Seed missing // @tests: co-tags from the graph (dry run; --apply writes, --path batches)',
+      },
       'migrate-fd-commits-to-prs': {
         src: 'features/migrate-fd-commits-to-prs.ts',
         desc: 'Migrate FD commit refs to PR refs',

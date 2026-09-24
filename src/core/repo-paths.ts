@@ -2,7 +2,7 @@
 
 import { readFile, readdir } from 'node:fs/promises';
 import { readdirSync, realpathSync, statSync } from 'node:fs';
-import { isAbsolute, join, relative, sep } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { defaultRunGit } from './branch-added.js';
 import { loadConsumerConfig } from './consumer-config.js';
@@ -21,6 +21,24 @@ export const DEFAULT_SCAN_ROOTS = ['packages', 'apps', 'scripts', 'src'];
  */
 export function toPosixRelative(cwd: string, abs: string): string {
   return relative(cwd, abs).split(sep).join('/');
+}
+
+/**
+ * A path argument as the operator typed it, turned repo-relative POSIX — or
+ * `null` when it resolves outside `cwd`. `''` is `cwd` itself; whether the
+ * repository root is an acceptable answer is the caller's call.
+ *
+ * @param cwd - Repository root
+ * @param value - Relative (to `cwd`) or absolute path
+ * @returns The repo-relative path, or `null` for one outside the repository
+ *
+ * @remarks
+ * `'..'` is tested on its own: the exact parent does not start with `../`, so a
+ * prefix test alone lets it through.
+ */
+export function repoRelativePath(cwd: string, value: string): string | null {
+  const rel = toPosixRelative(cwd, resolve(cwd, value));
+  return rel === '..' || rel.startsWith('../') ? null : rel;
 }
 
 /**

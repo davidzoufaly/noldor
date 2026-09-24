@@ -569,5 +569,10 @@
     "slug": "design-approval-certifies-provenance-not-content",
     "retiredInto": "pendev-ui-design-phase",
     "retiredAt": "2026-09-24"
+  },
+  "Q-0172": {
+    "slug": "co-tag-detector-degraded-mode-honesty-mechanical-seeding",
+    "retiredInto": "sdd-co-tag-detector",
+    "retiredAt": "2026-09-24"
   }
 }

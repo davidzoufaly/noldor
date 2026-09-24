@@ -6,10 +6,8 @@
 // carries no error member: a caller reaching the module has already-validated
 // paths, and a usage error exits 2 before any verdict is computed.
 
-import { isAbsolute, resolve } from 'node:path';
-
 import { runIfDirect } from '../core/cli-entry.js';
-import { toPosixRelative } from '../core/repo-paths.js';
+import { repoRelativePath } from '../core/repo-paths.js';
 import { graphContext, type GraphContextResult, type PathDigest } from './graph-context.js';
 
 /** Exit codes. `stale` is non-zero so a shell caller can branch on it. */
@@ -41,12 +39,9 @@ export function parseArgs(argv: readonly string[], cwd: string): ParsedArgs {
       return { ok: false, error: '--path needs a value' };
     }
     i += 1;
-    const abs = isAbsolute(value) ? value : resolve(cwd, value);
-    const rel = toPosixRelative(cwd, abs);
-    // `rel === '..'` is the exact-parent case: it does not start with `../`, so
-    // a `startsWith` test alone accepted `--path ..` despite the exit-2
-    // contract. An empty `rel` is the repo root, which names no file.
-    if (rel.length === 0 || rel === '..' || rel.startsWith('../')) {
+    const rel = repoRelativePath(cwd, value);
+    // An empty `rel` is the repo root, which names no file.
+    if (rel === null || rel.length === 0) {
       return { ok: false, error: `path escapes the repository: ${value}` };
     }
     if (!paths.includes(rel)) paths.push(rel);

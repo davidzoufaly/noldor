@@ -9,9 +9,11 @@ deps: []
 links:
   spec: lost-pre-extraction
   code:
+    - src/features/seed-test-tags.ts
     - src/garden/graph-fd-lookup.ts
   tests:
     - src/features/__tests__/propose-pointers.test.ts
+    - src/features/__tests__/seed-test-tags.test.ts
     - src/garden/__tests__/graph-fd-lookup.test.ts
     - src/garden/__tests__/sdd-report.test.ts
     - src/sync/__tests__/sync-fd-resources.test.ts
@@ -20,7 +22,6 @@ introduced: 0.3.0
 noldor-tier: full
 updated: 0.4.0
 ---
-
 ## Summary
 
 13th SDD detector flagging tests whose `// @tests:` tag list is incomplete given the FDs that own the source files the test imports. Today silent: `sample-gallery.spec.ts` tagged only `sample-scene-gallery` despite exercising `empty-scene-state`; `tree.test.ts` tagged only `zod-scene-schema` despite covering `group-node`; engine tests tagged only their primary FD without `manifold-wasm-integration`. Detector reads `graphify-out/graph.json` `imports_from` edges (graphify v0.7.8+, with the v0.4.20 path-normalization fix), maps target source files to owning FDs via `links.code`, diffs against declared tags. Staleness gate: graph mtime vs MAX(mtime) of the consumer's `scanPaths` (`.noldor/config.json`, via `scanRoots` from `src/sync/sync-code-links.ts` — falls back to the packages/apps/scripts/src union when unset); on stale, emits one meta-gap with regen instructions. The same scanPaths drive the report's test-file walk — the previously hardcoded `packages/ apps/ scripts/` trio left standalone `src/` repos with an empty declared-tag map, flagging every graph-known test as fully untagged. Substrate (`loadFreshGraphOrWarn`, `buildFileToFdsMap`, `getFdOwnersForFile`) lives in `src/garden/graph-fd-lookup.ts`; reused by detectors 9 and 10 below.
@@ -34,22 +35,26 @@ Second batch (2026-05-11) — detectors 9 (orphan-owner suggestion), 10 (untagge
 
 ## Usage
 
+**Agent/Programmatic API**
+
+- `pnpm noldor garden sdd-report` — writes `docs/sdd-report.md`; each test file whose `// @tests:` tag misses an FD owning a file it imports gets one row under `### Tests with incomplete co-tag`. With a stale or missing `graphify-out/graph.json` the section is a single meta-gap naming the regen step instead.
+- `pnpm noldor features seed-test-tags` — adds those missing slugs to each test's existing `// @tests:` line, after the slugs already there. Dry run by default (prints `<path>  + <slugs>`); `--apply` writes; repeatable `--path <dir|file>` scopes a batch, matching at a `/` boundary. A test with no `// @tests:` line is left alone. Exits 1 when the graph is stale or missing — its own `--apply` stales it, so regenerate between batches — and 2 on a `--path` that selects no test file.
+
+A report row:
+
+```
+- `packages/format/src/__tests__/tree.test.ts` — imports files owned by FDs missing from @tests: tag — add: group-node
+```
+
+Draining the backlog, one reviewable batch at a time:
+
 ```bash
-pnpm sdd:report
-```
-
-Output (under `### Tests with incomplete co-tag`):
-
-```
-- packages/format/src/__tests__/tree.test.ts: imports files owned by FDs missing from @tests: tag — add: group-node
-```
-
-To resolve: open the flagged test file, append the missing slugs to its `// @tests:` line (comma-separated), then run `pnpm sync:test-links` to populate the FD `links.tests` arrays.
-
-When the graph is stale, the detector emits a single meta-gap with a regen instruction instead of per-test gaps:
-
-```
-- graphify-out/graph.json: Co-tag detector ran in degraded mode … Run /graphify + pnpm toon …
+/graphify --ast-only && pnpm toon                        # fresh graph (required)
+pnpm noldor features seed-test-tags --path src/design     # dry run
+pnpm noldor features seed-test-tags --path src/design --apply
+/graphify --ast-only && pnpm toon                        # the apply staled the graph
+pnpm noldor features seed-test-tags --path src/metrics --apply
+pnpm noldor sync test-links                               # propagate into FD links.tests
 ```
 
 <!-- generated: resources -->

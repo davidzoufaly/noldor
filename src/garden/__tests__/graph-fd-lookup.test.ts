@@ -9,6 +9,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildFileToFdsMap,
+  collectTestInputs,
+  computeMissingCoTags,
   getCommunityOwners,
   getFdOwnersForFile,
   getImportOwnersForTest,
@@ -390,6 +392,104 @@ describe(getImportOwnersForTest, () => {
     const fileToFds = new Map<string, Set<string>>([['packages/a/src/x.ts', new Set(['fd-a'])]]);
     const owners = getImportOwnersForTest('test_a', graph, fileToFds);
     expect(owners.size).toBe(0);
+  });
+});
+
+// The filter decides which graph nodes are tests at all, and dropping one loses
+// its row from both the report and the seeder — so the shapes it must keep sit
+// in their own table beside the shapes it must drop.
+describe(computeMissingCoTags, () => {
+  const owners = [feature('zeta', ['src/x.ts']), feature('alpha', ['src/y.ts'])];
+
+  function importing(node: { file: string; location?: string }): GraphifyGraph {
+    return {
+      links: [
+        { relation: 'imports_from', source: 't', target: 'x' },
+        { relation: 'imports_from', source: 't', target: 'y' },
+      ],
+      nodes: [
+        { id: 't', source_file: node.file, source_location: node.location ?? 'L1' },
+        { id: 'x', source_file: 'src/x.ts', source_location: 'L1' },
+        { id: 'y', source_file: 'src/y.ts', source_location: 'L1' },
+      ],
+    };
+  }
+
+  it.each([
+    ['a .test.ts file', 'src/a.test.ts'],
+    ['a .spec.tsx file', 'src/b.spec.tsx'],
+    ['a .test.js file', 'src/c.test.js'],
+    ['a .spec.jsx file', 'src/d.spec.jsx'],
+  ])('still reports %s', (_label, file) => {
+    expect(computeMissingCoTags(owners, [], importing({ file }), 'e2e/')).toEqual([
+      { missing: ['alpha', 'zeta'], path: file },
+    ]);
+  });
+
+  it.each([
+    ['a non-test source file', { file: 'src/lib.ts' }],
+    ['a .test.mjs file', { file: 'src/e.test.mjs' }],
+    ['a test under the e2e prefix', { file: 'e2e/flow.test.ts' }],
+    ['an inner symbol of a test file', { file: 'src/a.test.ts', location: 'L7' }],
+  ])('drops %s', (_label, node) => {
+    expect(computeMissingCoTags(owners, [], importing(node), 'e2e/')).toEqual([]);
+  });
+
+  it('leaves out the slugs the test already declares', () => {
+    const inputs = [{ content: '// @tests: zeta\n', path: 'src/a.test.ts' }];
+    expect(
+      computeMissingCoTags(owners, inputs, importing({ file: 'src/a.test.ts' }), 'e2e/'),
+    ).toEqual([{ missing: ['alpha'], path: 'src/a.test.ts' }]);
+  });
+
+  it('omits a test that declares every owner', () => {
+    const inputs = [{ content: '// @tests: alpha, zeta\n', path: 'src/a.test.ts' }];
+    expect(
+      computeMissingCoTags(owners, inputs, importing({ file: 'src/a.test.ts' }), 'e2e/'),
+    ).toEqual([]);
+  });
+});
+
+describe(collectTestInputs, () => {
+  it('reads every test file under the configured scan roots, and nothing else', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'collect-tests-'));
+    const previous = process.cwd();
+    try {
+      const write = (rel: string, text: string): void => {
+        mkdirSync(dirname(join(dir, rel)), { recursive: true });
+        writeFileSync(join(dir, rel), text);
+      };
+      write(
+        '.noldor/config.json',
+        JSON.stringify({
+          consumer: {
+            appPathPrefix: '',
+            boundaries: [],
+            deprecatedPackages: [],
+            e2ePrefix: '',
+            lockstepPackages: ['package.json'],
+            name: 'acme',
+            packagePrefix: '',
+            repoUrl: 'https://github.com/x/y',
+            samplesPath: '',
+            scanPaths: ['lib'],
+          },
+        }),
+      );
+      write('lib/a.test.ts', '// @tests: a\n');
+      write('lib/deep/b.spec.js', '// @tests: b\n');
+      write('lib/c.ts', 'export {};\n');
+      write('other/d.test.ts', '// @tests: d\n');
+      process.chdir(dir);
+      const inputs = await collectTestInputs();
+      expect(inputs.toSorted((l, r) => l.path.localeCompare(r.path))).toEqual([
+        { content: '// @tests: a\n', path: 'lib/a.test.ts' },
+        { content: '// @tests: b\n', path: 'lib/deep/b.spec.js' },
+      ]);
+    } finally {
+      process.chdir(previous);
+      rmSync(dir, { force: true, recursive: true });
+    }
   });
 });
 
