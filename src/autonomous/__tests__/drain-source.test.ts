@@ -85,6 +85,17 @@ describe('roadmapSource', () => {
     }
   });
 
+  it('names micro-chore as the reason a small skill-prose entry is not drained', () => {
+    const dir = tmpRepo(block('prose', 'XS', 'Touches: `.claude/skills/noldor-gate/SKILL.md`.'));
+    try {
+      const c = roadmapSource(dir).nextItem(new Set());
+      expect(c!.eligible).toBe(false);
+      expect(c!.reason).toMatch(/routes to micro-chore/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('hands out the queued blocker rather than the entry it blocks', () => {
     const dir = tmpRepo(
       blockWithDeps('beta', 'XS', 'alpha', 'depends on alpha') + block('alpha', 'XS', 'base'),

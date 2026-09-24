@@ -6,7 +6,8 @@ import matter from 'gray-matter';
 import { loadDocRoots, milestonePath, readQueueFile } from './doc-roots.js';
 import { pathErrorMessage, readFileNoFollow } from './slug-paths.js';
 import { parseSlug } from './slug.js';
-import { sizeToPath, type GatePath } from './size-routing.js';
+import { entryToPath, type GatePath } from './size-routing.js';
+import { extractTouches } from './extract-touches.js';
 import { FeatureFrontmatterSchema } from './feature-schema.js';
 import { parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 
@@ -178,7 +179,7 @@ export interface SuggestionsInput {
 
 /**
  * A roadmap entry stamped with the gate path the size→path policy recommends
- * for it (see {@link sizeToPath}). `/noldor-gate` Step 0 reads `suggestedPath` directly
+ * for it (see {@link entryToPath}). `/noldor-gate` Step 0 reads `suggestedPath` directly
  * instead of re-deriving the size→tier mapping in prose.
  */
 export interface SuggestedEntry extends BacklogEntry {
@@ -225,7 +226,7 @@ export interface Suggestions {
  *
  * @param roadmapRaw - Raw contents of `docs/roadmap.md`.
  * @param input - In-progress FDs (caller-discovered) + the active milestone's slug and gate paragraph.
- * @returns 3 top + 2 small×high-impact (disjoint from top) + 1 milestone-aligned (disjoint) + 3 bugfixes (disjoint) + inProgress (passed through verbatim). Each surfaced entry is stamped with a `suggestedPath` per the size→path policy ({@link sizeToPath}).
+ * @returns 3 top + 2 small×high-impact (disjoint from top) + 1 milestone-aligned (disjoint) + 3 bugfixes (disjoint) + inProgress (passed through verbatim). Each surfaced entry is stamped with a `suggestedPath` per the size→path policy ({@link entryToPath}).
  */
 export function getSuggestions(
   roadmapRaw: string,
@@ -290,10 +291,15 @@ export function getSuggestions(
 
 /**
  * Stamp a roadmap entry with the gate path recommended by the size→path policy.
- * The `-attach` variants are selected when the entry declares a `parent` FD.
+ * The `-attach` variants are selected when the entry declares a `parent` FD, and
+ * the paths its `Touches:` clause declares can move a small entry to `micro-chore`.
  */
 function withRouting(entry: BacklogEntry): SuggestedEntry {
-  return { ...entry, suggestedPath: sizeToPath(entry.size, entry.parent !== undefined) };
+  const touches = extractTouches(entry.description).paths;
+  return {
+    ...entry,
+    suggestedPath: entryToPath(entry.size, entry.parent !== undefined, touches),
+  };
 }
 
 /**

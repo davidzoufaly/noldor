@@ -282,6 +282,48 @@ Body.
     expect(result.topPriority[0]?.suggestedPath).toBe('specs-only-attach');
   });
 
+  it('routes a small entry to micro-chore only when its Touches: clause stays on that lane', () => {
+    const md = `# Roadmap
+
+### Noldor Framework
+
+#### Skill Prose Fix
+
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: XS
+- impact: med
+
+Reword a gate step. Touches: \`.claude/skills/noldor-gate/SKILL.md\`, \`templates/.claude/skills/noldor-gate/SKILL.md\`.
+
+#### Skill Plus Code Fix
+
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: S
+- impact: med
+
+Reword a gate step and the router behind it. Touches: \`.claude/skills/noldor-gate/SKILL.md\`, \`src/core/size-routing.ts\`.
+
+#### Undeclared Skill Fix
+
+- area: tooling
+- type: fix
+- since: 2026-09-24
+- size: XS
+- impact: med
+
+Reword \`.claude/skills/noldor-gate/SKILL.md\` without declaring it.
+`;
+    const result = getSuggestions(md, { inProgressFds: [], milestoneGate: '' });
+    const byName = new Map(result.topPriority.map((e) => [e.name, e.suggestedPath]));
+    expect(byName.get('Skill Prose Fix')).toBe('micro-chore');
+    expect(byName.get('Skill Plus Code Fix')).toBe('fast-track');
+    expect(byName.get('Undeclared Skill Fix')).toBe('fast-track');
+  });
+
   it('stamps the milestoneAligned entry with a suggestedPath', () => {
     const result = getSuggestions(ROADMAP_FOR_SUGGESTIONS, {
       inProgressFds: [],

@@ -30,13 +30,15 @@ Prep effort scales with an entry's `size:` field. Small entries are mechanical a
 
 | `size:` | Spec? | Default path                                | Rationale                                      |
 | ------- | ----- | ------------------------------------------- | ---------------------------------------------- |
-| XS / S  | —     | `fast-track` (or `micro-chore` if pure-doc) | mechanical; a spec/plan is overhead, no FD     |
+| XS / S  | —     | `fast-track` (or `micro-chore`, see below)  | mechanical; a spec/plan is overhead, no FD     |
 | M       | ✓     | `specs-only-new` / `specs-only-attach`      | design worth capturing; plan would be overkill |
 | L / XL  | ✓     | `full-new` / `full-attach`                  | design **and** plan decomposition both warrant |
 
 The `-attach` variant is chosen when the entry declares a `parent:` FD. A missing or unrecognized `size:` defaults to `specs-only` — the policy never silently drops review for an entry whose size it can't read.
 
-The mapping is encoded once in [`sizeToPath()`](../../src/core/size-routing.ts) (with `sizeToTier()` and `sizeSkipsSpec()`); `getSuggestions()` stamps each entry surfaced at `/noldor-gate` Step 0 with a `suggestedPath` so the gate reads the verdict instead of re-deriving it in prose. Because XS/S route to `fast-track` (no FD, no `/noldor-promote`), `/noldor-gate` retires the source roadmap block itself when the fast-track ships — see the gate skill's "Roadmap-entry retirement" step.
+The mapping is encoded once in [`sizeToPath()`](../../src/core/size-routing.ts) (with `sizeToTier()` and `sizeSkipsSpec()`); `getSuggestions()` stamps each entry surfaced at `/noldor-gate` Step 0 with a `suggestedPath` so the gate reads the verdict instead of re-deriving it in prose.
+
+`getSuggestions()` stamps through `entryToPath()`, which adds one rule on top: an XS/S entry whose `Touches:` clause names only micro-chore-lane paths (`MICRO_CHORE_GLOBS` in [`src/core/allowlist.ts`](../../src/core/allowlist.ts)) routes to `micro-chore`. That is where a skill edit has to go — `checks shared-files` refuses `.claude/skills/**` from a `.worktrees/` checkout, so a fast-track pick would build a worktree whose real commit is then refused. An entry with no `Touches:` clause routes by size, and the pure-doc downgrade stays the operator's call; M and larger keep their spec-bearing path whatever they touch. Because XS/S route to `fast-track` (no FD, no `/noldor-promote`), `/noldor-gate` retires the source roadmap block itself when the fast-track ships — see the gate skill's "Roadmap-entry retirement" step.
 
 ### Split suggestion
 
