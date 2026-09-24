@@ -1,4 +1,4 @@
-// @tests: version-aware-upgrade-and-migration-chain
+// @tests: version-aware-upgrade-and-migration-chain, scaffold-one-agent-rules-file-not-two
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,6 +6,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Migration } from '../types.js';
 import { resolveChain, runChain, renderSteps } from '../chain.js';
+import { MIGRATIONS } from '../registry.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(here, 'fixtures', '0.2.0');
@@ -58,6 +59,19 @@ describe('resolveChain', () => {
   it('throws on a chain gap', () => {
     expect(() => resolveChain([m040], '0.2.0', '0.4.0')).toThrow(/gap/);
   });
+  it('starts an anchor that sits between migrations at the migration below it', () => {
+    expect(resolveChain(ALL, '0.3.5', '0.4.0').map((m) => m.to)).toEqual(['0.4.0']);
+  });
+  it('still throws on a gap between two registered migrations', () => {
+    const m050: Migration = { ...m040, from: '0.4.0', to: '0.5.0' };
+    expect(() => resolveChain([m030, m050], '0.2.0', '0.5.0')).toThrow(/gap/);
+  });
+  it.each(['1.0.0', '1.5.0', '1.12.0', '1.12.3'])(
+    'resolves the shipped chain from anchor %s to 1.13.0 without a gap',
+    (anchor) => {
+      expect(resolveChain(MIGRATIONS, anchor, '1.13.0').map((m) => m.to)).toEqual(['1.13.0']);
+    },
+  );
   it('rejects malformed versions via npm semver (Invalid Version)', () => {
     expect(() => resolveChain(ALL, 'not-a-version', '0.4.0')).toThrow(/Invalid Version/);
   });

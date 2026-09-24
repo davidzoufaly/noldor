@@ -30,9 +30,14 @@ orchestration) and the discipline rules `noldor-verify` and `noldor-debug` have 
 | model / role selection | `--model` | `--model` / `config.toml` | `--model <provider/model>` |
 | structured output | parse stdout prose | `--output-schema <json-schema>` | `--format json` → NDJSON events, parsed by `opencode-events.ts` |
 | CR lane answer file | the child writes it (`answerFile: agent-writes`) | the CLI writes the final message: `--output-last-message <path>` (`answerFile: cli-writes`) | the child writes it (`answerFile: agent-writes`) |
-| rules file | `CLAUDE.md` | `AGENTS.md` | `AGENTS.md` |
+| rules file | `AGENTS.md` | `AGENTS.md` | `AGENTS.md` |
 | guards | `.claude` hooks + `src/hooks/` | sandbox modes (coarse) | `opencode.json` glob permission rules |
 | local models | no | no | yes (ollama et al.) |
+
+All three runtimes read `AGENTS.md`, and the framework owns only the block between its `noldor:rules`
+markers. Claude Code (v2.1.277+) reads it only while no `CLAUDE.md`, `.claude/CLAUDE.md` or
+`CLAUDE.local.md` sits on the path; a repo that keeps one imports it — `@AGENTS.md` at the root,
+`@../AGENTS.md` in `.claude/` — and `noldor doctor` checks that the import is there.
 
 Capability matrix as code: `src/core/agent-runner/capabilities.ts`. opencode flags + the
 `versionFloors` example are verified against opencode 1.17.20 (`opencode run --help`, 2026-07-14):

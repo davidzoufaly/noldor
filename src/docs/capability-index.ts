@@ -8,7 +8,7 @@ import { readFileIfExists } from '../core/fd-load.js';
 
 // Both copies: the repo's own agent-rules file and the template every consumer
 // scaffolds and `doctor` diffs against. A file that is absent is skipped — a
-// claude-only consumer carries no AGENTS.md.
+// consumer carries no templates/AGENTS.md.
 const TARGETS = ['AGENTS.md', 'templates/AGENTS.md'] as const;
 
 const START = '<!-- noldor:capabilities:start -->';

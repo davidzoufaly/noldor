@@ -15,12 +15,13 @@ export interface TemplateSyncResult {
 
 /**
  * Given the files a commit/push touched, verify every templated file among them
- * is byte-identical to its `templates/` copy.
+ * matches its `templates/` copy — byte for byte, or by `noldor:rules` region for
+ * a region-managed path such as `AGENTS.md`.
  *
  * A changed path is "templated" if it is `templates/<rel>` (→ `<rel>`) or is
  * itself a member of `templateFiles()`. Non-templated changes are ignored, as
  * are template subtrees outside the consumer's `agents.targets` (a claude-only
- * consumer carries no `.opencode/` / `AGENTS.md` twins — same filter as doctor).
+ * consumer carries no `.opencode/` twins — same filter as doctor).
  *
  * @param opts.cwd - Consumer root (repo root).
  * @param opts.changedFiles - Repo-relative POSIX paths touched by the commit/push.
