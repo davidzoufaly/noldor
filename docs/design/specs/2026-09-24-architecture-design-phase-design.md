@@ -98,6 +98,7 @@ Recorded as [ADR 0007](../../adr/0007-design-kinds-share-one-machinery.md): ever
 - `resolveFeaturePen` in `design verdict`
 - `collect` in `archive-resolve` (:115, :182)
 - the two prefixes in the pre-commit guard (`check-shared-files.ts:27`, :121)
+- the guard's record-tamper rule, which derives a record's `.pen` from its path, and `stagedAwarePenLookup`, which it resolves through (`check-shared-files.ts:271`, :163)
 - `rankPenCandidates` in `pen-bridge` (:39)
 
 An approval record's path mirrors the `.pen`'s place. UI records stay at `.noldor/design-approval/<stem>.json`. An architecture `.pen` at `docs/design/architecture/[milestones/]<stem>.pen` records at `.noldor/design-approval/architecture/[milestones/]<stem>.json`. Records are keyed by stem only today (`approvalRelPath`, `design-approval.ts:82`), so without this a UI `.pen` and an architecture `.pen` with the same date and key would collide.
@@ -166,7 +167,7 @@ The `AGENTS.md` capability index is regenerated rather than hand-edited. Skill f
 5. An import between two modules that no arrow covers prints an advisory row and does not change the exit code.
 6. Release preflight blocks on a red check when the baseline exists. `RELEASE_SKIP_ARCH_BASELINE=1` forces `skipped` and writes an audit-log entry.
 7. `design verdict --approve` on an architecture design `.pen` binds the record to its spec, or with `--milestone <slug>` to `docs/milestones/<slug>.md`. Records land in per-kind directories and never overwrite a UI record with the same stem. `--check` exits 1 once the bound file changes.
-8. Pre-commit refuses a new architecture design `.pen` with no matching record (`pen-unapproved`). It also refuses `docs/design/architecture/baseline.pen` staged from a `.worktrees/` checkout (`pen-baseline`), unless `NOLDOR_ALLOW_PEN_WRITE=1` is set.
+8. Pre-commit refuses a new architecture design `.pen` with no matching record (`pen-unapproved`). It also refuses `docs/design/architecture/baseline.pen` staged from a `.worktrees/` checkout (`pen-baseline`), unless `NOLDOR_ALLOW_PEN_WRITE=1` is set. And it refuses a commit that drops or degrades an architecture record while its `.pen` stays.
 9. `design archive` moves the session's architecture `.pen` into `docs/design/architecture/archive/` and repoints `links.arch`.
 10. `design arch-route` matches each arrow to the same two boxes the check resolves. Its snippet, run against a fixture page (nested frames included) through stub `Get`/`Update`, leaves every arrow's two ends on its two boxes' borders.
 11. The session marker accepts `archVerdict` / `archWaiver`, and the FD schema accepts `links.arch` ending in `.pen`.
