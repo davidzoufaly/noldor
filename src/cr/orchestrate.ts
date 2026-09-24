@@ -128,18 +128,23 @@ export function resolveLanes(
   // path is the size band's projection — see core/lanes.ts).
   const mandatory = (lanes: readonly Lane[]): Lane[] =>
     withMandatoryCodex(args.kind, sessionPath, withMandatoryReviewer(args.kind, lanes));
-  // 1. Explicit --lanes always wins.
+  // 1. Explicit --lanes always wins — it is the one way to narrow a single run
+  //    below the configured posture (e.g. leave the verifier out of a change
+  //    with no runtime surface).
   if (args.lanes && args.lanes.length > 0) return mandatory(args.lanes);
-  // 2. Autonomous / skipLanePicker path: configured crLanes.<kind> when present,
-  //    else the built-in autonomous-safe default (subagent). Never throws — a
-  //    missing crLanes block is no longer a hard error.
-  if (args.autonomous || cfg?.autonomous?.skipLanePicker) {
+  // 2. Configured crLanes.<kind> when present, else the built-in autonomous-safe
+  //    default. Taken on the autonomous / skipLanePicker path, and always at code
+  //    stage: the gate's Step 4 has no lane multi-select, so an empty return there
+  //    told the controller nothing it could act on — the skill hardcoded
+  //    `--lanes reviewer` instead and under-ran a configured verifier. Never
+  //    throws — a missing crLanes block is no longer a hard error.
+  if (args.kind === 'code' || args.autonomous || cfg?.autonomous?.skipLanePicker) {
     const configured = cfg?.crLanes?.[args.kind];
     return mandatory(
       configured && configured.length > 0 ? configured : DEFAULT_CR_LANES[args.kind],
     );
   }
-  // 3. Interactive mode, no CLI flag: empty signals the /noldor-gate skill to prompt.
+  // 3. Interactive spec/plan, no CLI flag: empty signals the /noldor-gate skill to prompt.
   return [];
 }
 

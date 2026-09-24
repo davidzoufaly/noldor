@@ -551,5 +551,9 @@
   "Q-0269": {
     "slug": "verify-lane-leaves-a-registered-worktree-behind",
     "retiredAt": "2026-09-24"
+  },
+  "Q-0270": {
+    "slug": "code-stage-command-skips-the-configured-verifier",
+    "retiredAt": "2026-09-24"
   }
 }

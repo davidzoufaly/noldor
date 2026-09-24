@@ -118,10 +118,11 @@ dependency, so the prompt stays a thin pointer.
   `Noldor-Reviewed-Subagent` receipt and burns a full code-stage dispatch
   re-earning it.
 - Code-stage CR:
-  `pnpm noldor cr orchestrate --slug <slug> --artifact . --kind code --lanes reviewer --base-sha origin/main --profile fast-track --autonomous`
+  `pnpm noldor cr orchestrate --slug <slug> --artifact . --kind code --base-sha origin/main --profile fast-track --autonomous`
   (drop `--profile fast-track` on the resume path — that profile is for
-  fast-track roadmap entries). `--base-sha origin/main` (the full feature
-  range) is mandatory only on the **first** pass.
+  fast-track roadmap entries). Pass no `--lanes`: an explicit list wins over
+  `crLanes.code` and would drop a configured verifier. `--base-sha origin/main`
+  (the full feature range) is mandatory only on the **first** pass.
 - Post-green mechanical fix (a push-gate red the preflight missed, a fmt-hook
   rewrite): the receipt invalidates but the reviewed range hasn't changed.
   Capture the green tip **before** committing the fix (`git rev-parse HEAD`),

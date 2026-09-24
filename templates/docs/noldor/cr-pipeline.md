@@ -133,11 +133,13 @@ is the autonomous-safe default.
 
 Precedence at orchestrate time (`resolveLanes` in `src/cr/orchestrate.ts`):
 
-1. CLI `--lanes <list>` wins.
-2. Otherwise, when `--autonomous` is passed **or** `autonomous.skipLanePicker: true`:
+1. CLI `--lanes <list>` wins — the one way to narrow a single run below the
+   configured posture.
+2. Otherwise, at `--kind code` (which has no lane picker to prompt), or when
+   `--autonomous` is passed **or** `autonomous.skipLanePicker: true`:
    the configured `crLanes.<kind>` if present, else `DEFAULT_CR_LANES[kind]`.
    A missing `crLanes` block is no longer a hard error — it falls back to the default.
-3. Otherwise (interactive, no flag): the gate skill prompts via the lane multi-select.
+3. Otherwise (interactive spec/plan, no flag): the gate skill prompts via the lane multi-select.
 
 Whichever branch wins, the resolved set for `spec` and `plan` passes through
 `withMandatoryReviewer` (`src/core/lanes.ts`): **`reviewer` is always-on for
@@ -689,16 +691,18 @@ More sink/receipt traps:
   FIRST` line above the disposition instructions. `cr aggregate` is where
   staleness gates; the skeleton is where it is disclosed. (Q-0211)
 
-- **`--lanes reviewer` silently under-runs a configured `crLanes.code`.** The
-  gate's Step 4 examples hardcode `--lanes reviewer`, but a repo whose
-  `.noldor/config.json` sets `crLanes.code: ['reviewer', 'verifier']` then runs
-  only half its own review posture — the verifier lane never dispatches and the
-  aggregate still reads green, so nothing marks the gap. Prefer `--autonomous`
-  with no `--lanes` (orchestrate reads `crLanes.<kind>`) over the hardcoded
-  example, or check the config before passing an explicit lane list. Note this
-  is the mirror of the fallback trap above: an ABSENT `crLanes.<kind>` degrades
-  to reviewer-only, and an explicit `--lanes` overrides a PRESENT one — both
-  land on reviewer-only, neither says so. (2026-08-24, Q-0158)
+- **An explicit `--lanes` silently under-runs a configured `crLanes.code`.** A
+  repo whose `.noldor/config.json` sets `crLanes.code: ['reviewer', 'verifier']`
+  and then runs `cr orchestrate --kind code --lanes reviewer` runs only half its
+  own review posture — the verifier lane never dispatches and the aggregate
+  still reads green, so nothing marks the gap. The gate's Step 4 examples used
+  to hardcode `--lanes reviewer` and hit exactly this (Q-0250); they now pass no
+  `--lanes`, and at `--kind code` orchestrate reads `crLanes.code` in every
+  session, `--autonomous` or not (Q-0270). Pass `--lanes` at code stage only to
+  narrow one run on purpose. Note this is the mirror of the fallback trap above:
+  an ABSENT `crLanes.<kind>` degrades to reviewer-only, and an explicit
+  `--lanes` overrides a PRESENT one — both land on reviewer-only, neither says
+  so. (2026-08-24, Q-0158; 2026-09-24, Q-0270)
 - **Re-running `cr orchestrate` over an existing sink without `--autonomous`
   dies instantly in any non-TTY runner.** `guardLaneOverwrite` fires an
   interactive prompt, which throws
