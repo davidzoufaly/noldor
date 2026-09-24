@@ -578,5 +578,9 @@
   "Q-0274": {
     "slug": "fd-resources-hook-skips-flat-feature-docs",
     "retiredAt": "2026-09-24"
+  },
+  "Q-0275": {
+    "slug": "registry-logsink-test-waits-for-the-flush",
+    "retiredAt": "2026-09-24"
   }
 }

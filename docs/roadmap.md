@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Registry Logsink Test Waits for the Flush
-
-- id: Q-0275
-- area: testing
-- type: fix
-- since: 2026-09-24
-- size: XS
-- impact: med
-- confidence: high
-
-`src/core/agent-runner/__tests__/registry-logsink.test.ts` ("pipes both streams, forwards to parent stdio, appends to the sink…") went red once in three concurrent full-suite runs with `AssertionError: expected '' to contain 'out-line'` at 0.2s — an assertion, not a timeout. The test waits a fixed `setTimeout(50)` for `createWriteStream` to flush the log sink, then reads the file; under load 50ms is not enough and the sink is still empty. Wanted: wait for the stream to finish (its `finish`/`close` event, or `spawnAgent` resolving only after the sink has flushed) instead of a fixed sleep. Deletion test: the test passes under three concurrent suites with the suite lock off. (found 2026-09-24 reproducing Q-0238)
-
 ### Gate Skill Leftovers From Q-0192
 
 - id: Q-0276
