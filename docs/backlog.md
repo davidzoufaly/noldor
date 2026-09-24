@@ -384,6 +384,8 @@ Should `noUncheckedIndexedAccess: true` join the graded compiler settings in the
 
 A third clone-ratchet noise class past the two Q-0214 dropped. A comments-and-one-field change to three sibling object literals moved the ratchet by -126: Q-0213 touched only `detect.ts` / `baseline.ts` / `clones-cli.ts` and added no copied logic, yet whole-corpus `duplicatedTokens` fell 28967 → 28841 and the group count 290 → 289 — because adding `compared: false` to three neighbouring `return {...}` literals in `ratchetOutcome` changed how they structurally match. Q-0214 dropped import headers and pure delegations; structural matching of sibling literals is untouched, and it is the same sensitivity that forced two hand re-records. Parked rather than roadmapped because it went unnoticed only by moving in the *helpful* direction, and no policy is obvious — suppressing sibling-literal matches would also hide genuinely copied literal blocks. Deletion test: adding a field to neighbouring return literals with no copied logic leaves the ratchet unmoved. (raised 2026-09-08 from an untriaged ideas bullet)
 
+- Second instance, diff-scope verdict (2026-09-23, Q-0250 / PR #492): four CR lanes on one answer seam each declare an answer-shape string, a repair-prompt function, a `LaneAnswerContract` object and a `createAnswerSeam` call; pre-push `noldor-clones` flagged two runs (62 and 52 tokens) as duplication the change wrote while total duplicated tokens fell by 240. Type-2 normalization folds same-key object literals and collapses each prompt template to one `LIT`, so declarations of one interface always match, and only perturbation clears it. The push skipped the step once via `LEFTHOOK_EXCLUDE=noldor-clones`, recorded only in a PR comment. Likelier fix than suppressing the match: an audited override for the diff-scope verdict, like `Noldor-Path-Override` for commits.
+
 ### Swallowed-Error Spawns Over Config-Supplied Args
 
 - id: Q-0259
@@ -395,3 +397,39 @@ A third clone-ratchet noise class past the two Q-0214 dropped. A comments-and-on
 - confidence: low
 
 A config-supplied value that is only **shape**-validated, feeding a spawn whose caller wraps it in `catch { return []; }`, silently disables the check it scopes. The concrete instance already shipped its fix: Q-0242's `release.gateComplianceSince` went out with a `/^[0-9a-f]{7,40}$/` schema regex, so a one-character typo yielded a rev git rejects, both gate-compliance detectors swallowed the failure, and the release row went permanently green — quieter than `RELEASE_SKIP_GATE_COMPLIANCE`, which at least logs to `.noldor/overrides.log`. The code-stage reviewer caught it and the floor now resolves through `git rev-parse --verify <sha>^{commit}`, discarding an unresolvable one with a warning. What is parked here is the **general** shape: every `catch { return []; }` around a spawn whose arguments come from consumer config is a place where a typo buys silence instead of an error. Candidate: a lint or invariant over `src/**` that flags it. Parked rather than roadmapped because the detector's precision is unproven — a swallowed spawn is sometimes exactly right (an optional probe), so the rule needs a way to tell "absent is fine" from "misconfigured is fine", and nobody has counted how many sites exist. Spike the census before committing to the rule. Deletion test: a config-sourced rev that git rejects fails a check loudly rather than passing it. (raised 2026-09-22 from a lesson absorbed the same day)
+
+### Capture Keep-Going Mode
+
+- id: Q-0271
+- area: tooling
+- type: feat
+- since: 2026-09-24
+- size: S
+- impact: med
+- confidence: med
+
+A consumer capture that writes nothing on any failure and runs states in order lets one red state hide every later state's bugs. Charuy's single failing dialog masked three real bugs for a week (textarea values never extracted, chat sends racing React's draft commit, an unconvertible floor-plan SVG), each surfacing only after the one before was fixed, at a full 50-page run apiece. Wanted: a `--keep-going` mode that captures every state, reports all failures, and still refuses to write. The harness is consumer code today, so this lands with (or after) the harness moving into noldor. Deletion test: a capture with two failing states reports both in one run and writes nothing. (absorbed 2026-09-24)
+
+### pen-bridge Names the Window That Owns the Socket
+
+- id: Q-0272
+- area: tooling
+- type: feat
+- since: 2026-09-24
+- size: S
+- impact: low
+- confidence: med
+
+Pencil MCP could not verify a `.pen` written in a worktree while another VS Code window owned the bridge: `execute({ filePath })` and `get_app_state` both returned "A file needs to be open in the editor", and `code -r <file>` did not help. The only fidelity evidence left was the harness's own browser re-render, which cannot see how Pencil draws (relative-url image fills especially). Wanted: `pnpm noldor design pen-bridge` reports which window owns the socket and offers to open the file there. Deletion test: with the bridge owned by another window, `pen-bridge` names it instead of failing opaquely. (absorbed 2026-09-24)
+
+### Stacked PRs
+
+- id: Q-0273
+- area: tooling
+- type: feat
+- since: 2026-09-24
+- size: M
+- impact: low
+- confidence: low
+
+Operator note, verbatim: "using stack PR's real code one stack rest second stack". Read as: ship a change as two stacked PRs — one carrying the real code, a second carrying the rest (docs, bookkeeping) — so review and history separate the two. Needs grooming before it can be sized with any confidence. (triaged 2026-09-24 from ideas.md `#### Now`)
