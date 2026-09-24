@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.13.0 — 2026-09-24
+
+### Features
+
+- feat(templates): AGENTS.md is the one rules file for every agent, and the framework owns only its marked block ([d80b1fb](https://github.com/davidzoufaly/noldor/commit/d80b1fb0143e46aa90e1e5733476b02dac9c54bd)) ([#535](https://github.com/davidzoufaly/noldor/pull/535))
+
+### Fixes
+
+- fix(worktrees): a new worktree branches from a freshly fetched origin/main, so work never starts on stale code ([091f1ca](https://github.com/davidzoufaly/noldor/commit/091f1caedd37fb6d612ceca526f63d9aa62d7938)) ([#532](https://github.com/davidzoufaly/noldor/pull/532))
+- fix(core): a skill-only entry routes to micro-chore, so the gate stops building a worktree that cannot commit it ([1b44e37](https://github.com/davidzoufaly/noldor/commit/1b44e37e60dfd6b0b89144c26e38be52bddad87a)) ([#530](https://github.com/davidzoufaly/noldor/pull/530))
+- fix(graph): the graph PR merges itself where auto-merge is unavailable, by a direct squash-merge ([04f98d8](https://github.com/davidzoufaly/noldor/commit/04f98d8a9eed7afdfddaebd0ab787043239562f2)) ([#528](https://github.com/davidzoufaly/noldor/pull/528))
+- fix(cr): the code-stage round reads crLanes.code in every session, so the gate's literal command runs a configured verifier ([9292cba](https://github.com/davidzoufaly/noldor/commit/9292cba0cb4a9d1cadd0c4b34587324e322579d9)) ([#526](https://github.com/davidzoufaly/noldor/pull/526))
+- fix(cr): the verify lane removes every worktree its child registers and leaves behind ([04cacdf](https://github.com/davidzoufaly/noldor/commit/04cacdfe94522166467abe785602c630ea3e237e)) ([#525](https://github.com/davidzoufaly/noldor/pull/525))
+- fix(skills): a spec's structural read puts a regenerated graph back ([87561e7](https://github.com/davidzoufaly/noldor/commit/87561e7388a5ac48447dea30b1e536501e48f6ef)) ([#524](https://github.com/davidzoufaly/noldor/pull/524))
+- fix(cr): a spec session's ADR commit no longer hides the spec from review or titles the PR ([10fdd42](https://github.com/davidzoufaly/noldor/commit/10fdd42858e5823bca49e322c33b38a40b880087)) ([#523](https://github.com/davidzoufaly/noldor/pull/523))
+- fix(cli): skills read the real exit code through pnpm, so an oversized entry reaches the split prompt ([50aba61](https://github.com/davidzoufaly/noldor/commit/50aba6153a423d2525eab8ac59fca8f7e040897f)) ([#522](https://github.com/davidzoufaly/noldor/pull/522))
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift ([6ee436a](https://github.com/davidzoufaly/noldor/commit/6ee436a0f8ade030c9afe43939ac5e0d162aea20)) ([#537](https://github.com/davidzoufaly/noldor/pull/537))
+- chore(graph): refresh the committed knowledge graph ([48415a0](https://github.com/davidzoufaly/noldor/commit/48415a0c4e51f3f33b44cc6912d8357e84ea6f31)) ([#536](https://github.com/davidzoufaly/noldor/pull/536))
+- chore(graph): refresh the committed knowledge graph ([0ebf246](https://github.com/davidzoufaly/noldor/commit/0ebf246b60e7d2828311c6195bdab487a3841c78)) ([#534](https://github.com/davidzoufaly/noldor/pull/534))
+- docs(skills): a micro-chore syncs local main to origin/main before its first edit ([653076a](https://github.com/davidzoufaly/noldor/commit/653076ac71c7d825765ca5b672e13163d6c49a98)) ([#533](https://github.com/davidzoufaly/noldor/pull/533))
+- chore(graph): refresh the committed knowledge graph ([0b02051](https://github.com/davidzoufaly/noldor/commit/0b02051eddd643da716b04e6b6fd82b379386089)) ([#531](https://github.com/davidzoufaly/noldor/pull/531))
+- chore(graph): refresh the committed knowledge graph ([c9fc9bf](https://github.com/davidzoufaly/noldor/commit/c9fc9bf6ad5c3bafdf496df26616d9aac7654cf4)) ([#529](https://github.com/davidzoufaly/noldor/pull/529))
+- chore(graph): refresh the committed knowledge graph ([5ebbcdd](https://github.com/davidzoufaly/noldor/commit/5ebbcdde5c58992e6cb54165a8796a891f5e05a0)) ([#527](https://github.com/davidzoufaly/noldor/pull/527))
+- chore(graph): refresh the committed knowledge graph ([7eb72fc](https://github.com/davidzoufaly/noldor/commit/7eb72fc16ae76e506bbae9e767d466195f10837b)) ([#502](https://github.com/davidzoufaly/noldor/pull/502))
+- docs(triage): absorb lessons into gotchas, queue Q-0266..Q-0273 ([c777f39](https://github.com/davidzoufaly/noldor/commit/c777f39f827ceb7996efedb770efc87171c88f22)) ([#521](https://github.com/davidzoufaly/noldor/pull/521))
+
 ## v1.12.0 — 2026-09-24
 
 ### Features

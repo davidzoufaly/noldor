@@ -1,5 +1,15 @@
 # Release Notes
 
+## v1.13.0 — 2026-09-24
+
+### Agents
+
+#### Scaffold One Agent-Rules File, Not Two
+
+AGENTS.md is now the one rules file for every agent. The framework owns only its marked block inside that file (#535).
+
+[Feature page](/features/scaffold-one-agent-rules-file-not-two)
+
 ## v1.12.0 — 2026-09-24
 
 ### Tooling
