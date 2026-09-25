@@ -284,8 +284,8 @@ By hand, before or without the lane:
 
 ```
 pnpm noldor design geometry-export --pen docs/design/ui/<file>.pen --surface app --out design.json
-node scripts/geometry-capture.mjs http://localhost:5173/ impl.json 1440 900
-pnpm noldor design geometry-diff --design design.json --impl impl.json
+NOLDOR_GEOMETRY_SURFACE=app node scripts/geometry-capture.mjs http://localhost:5173/ impl.json 1440 900
+pnpm noldor design geometry-diff design.json impl.json --surface app
 pnpm noldor design geometry-review --pen docs/design/ui/<file>.pen --surface app --url http://localhost:5173/ --capture "node scripts/geometry-capture.mjs {url} {out} {width} {height}"
 ```
 
