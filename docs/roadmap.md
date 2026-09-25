@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Design Log Section Resolves on Decide and Open
-
-- id: Q-0300
-- area: tooling
-- type: fix
-- since: 2026-09-25
-- size: XS
-- impact: med
-- confidence: high
-
-`design log --section` on `--decide` / `--open` stores its value verbatim — only `--confirm-section` resolves a heading number or prefix (#561) — and a heading that contains backticks cannot pass through `pnpm noldor` at all (`sh: inspectBaseline: command not found`). A decision logged with a prefix binds to no heading (`⚠ D1 section 'Unit 3' matches no heading` in `design context`), and the only repair is deleting the gitignored ledger and logging again. What worked: plain-text H3 headings in the spec, and `node bin/noldor.mjs design log …`. Wanted: `--section` on `--decide` / `--open` resolves a number or prefix the way `--confirm-section` does. Deletion test: `design log --decide --section 3` binds to the spec's third H3. (found 2026-09-25, Q-0292)
-
 ### Gate Skill Rebase Base-Sha Qualifier
 
 - id: Q-0301

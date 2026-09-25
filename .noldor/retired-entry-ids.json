@@ -665,5 +665,9 @@
   "Q-0299": {
     "slug": "drain-child-waits-for-its-background-tasks",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0300": {
+    "slug": "design-log-section-resolves-on-decide-and-open",
+    "retiredAt": "2026-09-25"
   }
 }
