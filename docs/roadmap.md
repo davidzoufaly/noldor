@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### CR Lane Prompts Stop Calling a .pen Encrypted
-
-- id: Q-0278
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: XS
-- impact: low
-- confidence: high
-
-Now that `design verdict` reads a `.pen` as JSON (PR #540), the remaining "encrypted, pencil MCP is the only reader" claims are the last of the false premise `docs/noldor/gotchas.md` describes: the `ui-reviewer` child prompt (`src/cr/lanes/ui-review-dispatch.ts`, "It is encrypted — the ONLY way to read it is pencil MCP"), the `render-export-dispatch.ts` prompt, and the headers of `ui-review-dispatch.ts` and `ui-review.ts`. The child should still review through pencil MCP (it needs the rendered pages), but the prompt should not assert a falsehood the next reader will build on. Deletion test: `grep -rn -i encrypted src/cr/lanes` returns nothing. (found 2026-09-24 shipping Q-0258)
-
 ### Graph Workflow Publish-Step Hardening
 
 - id: Q-0279

@@ -590,5 +590,9 @@
   "Q-0277": {
     "slug": "doctor-flags-a-broken-claude-import",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0278": {
+    "slug": "cr-lane-prompts-stop-calling-a-pen-encrypted",
+    "retiredAt": "2026-09-25"
   }
 }
