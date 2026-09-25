@@ -42,6 +42,9 @@ check reads) inherits every over-claim.
   check: a fresh over-claim shows up as new co-tag rows at the next garden pass.
 - Adding `// @tests:` lines to untagged tests — detector 10's job, not this drain's.
 - E2E specs (`e2ePrefix`), which the detector already skips.
+- Multi-owner claims on docs, skills and config files (`docs/**`, `.claude/**`,
+  `.noldor/config.json`). Tests never import them, so they make no co-tags; they are left for a
+  follow-up roadmap entry.
 
 ## Design
 
@@ -114,8 +117,9 @@ family be reverted alone.
 - On a graph built from the PR's head, `pnpm noldor garden detect` reports zero
   incomplete-co-tag rows.
 - `pnpm noldor features seed-test-tags` (dry run) on that graph proposes zero edits.
-- After the prune, no file is covered by more than one FD's `links.code` except the pairs the
-  approved prune table keeps, and no `links.code` entry is a bare directory under `src/`.
+- After the prune, no `src/**/*.ts` file is covered by more than one FD's `links.code` except
+  the owners the approved prune table keeps, and no `links.code` entry is a bare directory under
+  `src/`.
 - The PR's diff touches only FD frontmatter (`links.code`), `// @fd:` header lines, `// @tests:`
   lines, this spec and its ADR; no test body or code line changes.
 - `pnpm noldor sync code-links --check` reports no FD the prune made stale.
