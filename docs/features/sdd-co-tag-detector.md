@@ -39,7 +39,7 @@ Second batch (2026-05-11) — detectors 9 (orphan-owner suggestion), 10 (untagge
 **Agent/Programmatic API**
 
 - `pnpm noldor garden sdd-report` — writes `docs/sdd-report.md`; each test file whose `// @tests:` tag misses an FD owning a file it imports gets one row under `### Tests with incomplete co-tag`. With a stale or missing `graphify-out/graph.json` the section is a single meta-gap naming the regen step instead.
-- `pnpm noldor features seed-test-tags` — adds those missing slugs to each test's existing `// @tests:` line, after the slugs already there. Dry run by default (prints `<path>  + <slugs>`); `--apply` writes; repeatable `--path <dir|file>` scopes a batch, matching at a `/` boundary. A test with no `// @tests:` line is left alone. Exits 1 when the graph is stale or missing — its own `--apply` stales it, so regenerate between batches — and 2 on a `--path` that selects no test file.
+- `pnpm noldor features seed-test-tags` — adds those missing slugs to each test's existing `// @tests:` line, after the slugs already there. Dry run by default (prints `<path>  + <slugs>`); `--apply` writes; repeatable `--path <dir|file>` scopes a batch, matching at a `/` boundary. A test with no `// @tests:` line is left alone. Exits 1 when the graph is stale or missing, and 2 on a `--path` that selects no test file.
 
 A report row:
 

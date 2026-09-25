@@ -344,7 +344,7 @@ describe(renderSeedResult, () => {
     const out = renderSeedResult({ kind: 'graph-unusable', stale: true }, true);
     expect(out.code).toBe(1);
     expect(out.stderr).toMatch(/pnpm noldor graphify build/);
-    expect(out.stderr).toMatch(/regenerate between batches/);
+    expect(out.stderr).not.toMatch(/regenerate between batches/);
   });
 
   it('names the generate step when the graph is missing', () => {

@@ -717,5 +717,9 @@
   "Q-0315": {
     "slug": "graph-freshness-remedies-ignore-uncommitted-edits",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0316": {
+    "slug": "seed-test-tags-still-claims-an-apply-stales-the-graph",
+    "retiredAt": "2026-09-25"
   }
 }
