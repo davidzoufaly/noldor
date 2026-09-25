@@ -28,11 +28,17 @@ noldor-tier: full
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an agent running `/noldor-gate` (interactive, or as a headless drain child), I want the skill to load only the steps my session's path runs, so that I start with under half of today's 19k-token load and the rules for my path are the ones in front of me.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**Agent/Programmatic API**
+
+- `/noldor-gate` loads the router, `.claude/skills/noldor-gate/SKILL.md`. Its load table lists the branch files each path reads. At each fork, a `**Read now:**` line names the file to read in full before acting: `micro-chore.md`, `fast-track.md`, `attach.md`, `artifact-review.md`, `blockers.md`, `code-review.md`, `fd-close.md`, `design-writeback.md` or `autonomous.md`.
+- A drain child (`/noldor-gate --drain <slug>`, `--drain <slug> --finish`, or `--resume <slug>` under `NOLDOR_DRAIN=1`) goes from the entry check straight to `docs/noldor/drain-mode.md`, which is the whole drain contract for every runner.
+- `pnpm noldor skill-size check` exits 0 when every `.md` under `.claude/skills/` is within its baseline, 1 naming each file that grew or has no entry, and 3 when the baseline is missing, unreadable or from another algorithm version. It runs at pre-push in this repo only.
+- `pnpm noldor skill-size baseline` re-records `.noldor/skill-size-baseline.json`. Commit it in the same push as the growth; on the micro-chore lane, inside its one commit.
+- `pnpm noldor checks skill-portability` also refuses a read-now link to a missing file (`missing-branch-file`) and a skill `.md` no read-now chain reaches (`unreachable-branch-file`).
 
 ## PRs
 
