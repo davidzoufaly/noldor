@@ -148,6 +148,30 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** whenever dragging boxes left arrows behind. The check never reads geometry, so a green check can sit on a canvas whose arrows are out of place.
 - **Source:** [`src/design/arch-route.ts`](../../src/design/arch-route.ts)
 
+### `design:arch-progress`
+
+- **Trigger:** `pnpm noldor design arch-progress --milestone <slug>`. It runs in three places:
+  - `/noldor-spec` step 1.6, for an FD whose `milestone:` has a target;
+  - `/noldor-milestone activate`, for the milestone being shipped;
+  - by hand, whenever you want the gap.
+- **Inputs:**
+  - the milestone's target, `docs/design/architecture/milestones/<slug>.pen` — its `FINAL:<view>:` pages;
+  - the baseline, `docs/design/architecture/baseline.pen`.
+- **Outputs:** a summary line, then, for each view the target covers:
+  - one `to-build` row per item in the target but not the baseline;
+  - one `to-remove` row per item in the baseline that the target's page dropped;
+  - a `done` count.
+
+  Items compare by name: modules by path, other boxes by layer name, arrows by canonical `<from> -> <to>`. A view with no `FINAL:` page is no change planned and is not reported.
+
+  Exit codes: 0 = report printed (it never fails on the gap itself), 1 = the target or the baseline cannot be read, 2 = a missing or malformed `--milestone`.
+- **When to use:**
+  - while a milestone is active, to see which features still owe the target;
+  - at `activate`, to see what the shipped milestone left undone.
+
+  It is advisory: milestones never block.
+- **Source:** [`src/design/arch-progress.ts`](../../src/design/arch-progress.ts)
+
 ### `design:geometry-diff`
 
 - **Trigger:** `pnpm noldor design geometry-diff <design.json> <impl.json> --surface <name>`. Run by hand while writing or debugging a `geometryCommand` capture script, or over a failing `geometry-compare` round's evidence files.

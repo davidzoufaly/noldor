@@ -42,7 +42,7 @@
 - Modify (generated): `AGENTS.md`, `templates/AGENTS.md`
 - Test: `src/design/__tests__/arch-progress.test.ts`
 
-- [ ] **Step 1: Write the failing test file.**
+- [x] **Step 1: Write the failing test file.**
 
   Create `src/design/__tests__/arch-progress.test.ts`:
 
@@ -135,12 +135,12 @@
   });
   ```
 
-- [ ] **Step 2: Run the test to verify it fails.**
+- [x] **Step 2: Run the test to verify it fails.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-progress.test.ts`
   Expected: FAIL — `Failed to resolve import "../arch-progress.js"`.
 
-- [ ] **Step 3: Write the comparison and the CLI.**
+- [x] **Step 3: Write the comparison and the CLI.**
 
   Create `src/design/arch-progress.ts`:
 
@@ -262,7 +262,7 @@
   runIfDirect('arch-progress', 'design arch-progress', async (argv) => main(argv));
   ```
 
-- [ ] **Step 4: Run the test and the typecheck to verify they pass.**
+- [x] **Step 4: Run the test and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-progress.test.ts`
   Expected: PASS — `Tests  2 passed (2)`.
@@ -270,7 +270,7 @@
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 5: Register and document the command.**
+- [x] **Step 5: Register and document the command.**
 
   In `src/cli/manifest.ts`, inside `design.subs`, directly after the `'arch-route'` entry, add:
 
@@ -321,7 +321,7 @@
   - `capability-index --write` exits 0, and the `design` line in `AGENTS.md` and `templates/AGENTS.md` now lists `arch-progress`.
   - `validate script-catalog` exits 0.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
   ```bash
   msg=$(mktemp)

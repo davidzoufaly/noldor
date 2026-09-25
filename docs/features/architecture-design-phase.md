@@ -13,10 +13,12 @@ links:
   spec: docs/design/specs/2026-09-24-architecture-design-phase-design.md
   tests:
     - src/checks/__tests__/check-arch-baseline.test.ts
+    - src/core/__tests__/allowlist.test.ts
     - src/core/__tests__/feature-schema.test.ts
     - src/core/__tests__/session.test.ts
     - src/design/__tests__/arch-check.test.ts
     - src/design/__tests__/arch-pen.test.ts
+    - src/design/__tests__/arch-progress.test.ts
     - src/design/__tests__/arch-route.test.ts
     - src/design/__tests__/archive-cli.test.ts
     - src/design/__tests__/archive-resolve.test.ts
@@ -84,10 +86,12 @@ As an operator designing a new milestone, feature or package, I want an as-built
   - [`src/indirection/module-pairs.ts`](../../src/indirection/module-pairs.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-arch-baseline.test.ts`](../../src/checks/__tests__/check-arch-baseline.test.ts)
+  - [`src/core/__tests__/allowlist.test.ts`](../../src/core/__tests__/allowlist.test.ts)
   - [`src/core/__tests__/feature-schema.test.ts`](../../src/core/__tests__/feature-schema.test.ts)
   - [`src/core/__tests__/session.test.ts`](../../src/core/__tests__/session.test.ts)
   - [`src/design/__tests__/arch-check.test.ts`](../../src/design/__tests__/arch-check.test.ts)
   - [`src/design/__tests__/arch-pen.test.ts`](../../src/design/__tests__/arch-pen.test.ts)
+  - [`src/design/__tests__/arch-progress.test.ts`](../../src/design/__tests__/arch-progress.test.ts)
   - [`src/design/__tests__/arch-route.test.ts`](../../src/design/__tests__/arch-route.test.ts)
   - [`src/design/__tests__/archive-cli.test.ts`](../../src/design/__tests__/archive-cli.test.ts)
   - [`src/design/__tests__/archive-resolve.test.ts`](../../src/design/__tests__/archive-resolve.test.ts)

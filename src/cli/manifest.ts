@@ -91,6 +91,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'design/arch-route.ts',
         desc: "Print a pencil execute snippet that redraws an architecture .pen's named arrows from their boxes' live bounds",
       },
+      'arch-progress': {
+        src: 'design/arch-progress.ts',
+        desc: "How far the architecture baseline is from a milestone's target: to-build / to-remove / done per view; advisory",
+      },
       open: {
         src: 'design/open-artifact-cli.ts',
         desc: "Open a spec/plan in VS Code and print the path that resolves from the editor's workspace",
