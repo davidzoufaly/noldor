@@ -1,6 +1,23 @@
-# Noldor
+<p align="center">
+  <img src="docs/assets/brand/noldor-banner.png" alt="Noldor. Prompts are suggestions. Hooks are rules. A pre-push receipt lists every check as passed, but the pushed tree no longer matches the reviewed one, so the receipt is stamped PUSH REFUSED.">
+</p>
 
-Noldor is a discipline framework for repositories where agents write most of the code. Every change starts at one gate. The gate sizes the change, picks one of six paths, and scaffolds what that path needs: a worktree, a feature doc, a spec, a plan, a review. Git hooks then check that the artifacts exist, that the commit trailers name them, and that the review receipt on the tip commit still matches the tree being pushed. Edit a file after review and the receipt dies with it.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@david.zoufaly/noldor"><img src="https://img.shields.io/npm/v/@david.zoufaly/noldor?color=blue" alt="npm version"></a>
+  <img src="https://img.shields.io/badge/node-%E2%89%A5%2024-3c873a" alt="Node 24 or newer">
+  <img src="https://img.shields.io/badge/pnpm-%E2%89%A5%209-f69220" alt="pnpm 9 or newer">
+  <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT license">
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#what-gets-refused">What gets refused</a> ·
+  <a href="docs/noldor/adoption-guide.md">Adoption guide</a> ·
+  <a href="docs/noldor/README.md">Docs</a>
+</p>
+
+Noldor is a discipline framework for repositories where AI agents write most of the code. Every change starts at one gate. The gate sizes the change, picks one of six paths, and scaffolds what that path needs: a worktree, a feature doc, a spec, a plan, a review. Git hooks then check that the artifacts exist, that the commit trailers name them, and that the review receipt on the tip commit still matches the tree being pushed. Edit a file after review and the receipt dies with it.
 
 It is a CLI, a set of lefthook jobs that shell into that CLI, and a folder of JSON and markdown committed next to your code. There is no server and no database. Everything Noldor knows can be read with `git log` and a text editor.
 
@@ -8,17 +25,19 @@ It is a CLI, a set of lefthook jobs that shell into that CLI, and a folder of JS
 pnpm add -D @david.zoufaly/noldor
 ```
 
-[![npm](https://img.shields.io/npm/v/@david.zoufaly/noldor?color=blue)](https://www.npmjs.com/package/@david.zoufaly/noldor) Node 24 or newer, pnpm 9 or newer, MIT.
+The same hooks and review hold when nobody is watching. A drain ships small roadmap entries unattended, one fresh agent session per entry, and parks what it cannot finish for a human. More than twenty detectors check that the docs still describe the code.
+
+This repository runs on Noldor. More than 600 pull requests have merged here since May 2026.
 
 This page explains what Noldor is and whether you want it. The [adoption guide](docs/noldor/adoption-guide.md) gets it installed in a real repo, including the traps.
 
 ## The problem
 
-An agent will write a feature in twenty minutes. It will also skip the spec, forget the test, amend a commit that was already reviewed, and push to main, because nothing stops it. Instructions in a CLAUDE.md are suggestions. The model reads them, agrees with them, and drifts anyway a few hours into a session.
+An agent will write a feature in twenty minutes. It will also skip the spec, forget the test, amend a commit that was already reviewed, and push to main, because nothing stops it. Instructions in a CLAUDE.md or an AGENTS.md are suggestions. The model reads them, agrees with them, and drifts anyway a few hours into a session.
 
 Noldor's bet is that discipline has to be mechanical. If a rule is not enforced by a hook with an exit code, it is not a rule. So the framework moves every rule it cares about out of prose and into git hooks, commit trailers, and files the CLI writes and validates.
 
-## How a change moves through it
+## How it works
 
 Whoever starts work, a person or an agent, runs `/noldor-gate` first. The gate reads the top of `docs/roadmap.md`, proposes an entry, and picks a path for it based on the entry's size. Then it scaffolds what that path needs and writes `.noldor/session.json`, the session marker. From then on the hooks know which path you are on and what they may demand of you.
 
@@ -37,6 +56,8 @@ flowchart LR
   push --> pr[PR and auto-merge]
 ```
 
+### What each stage leaves behind
+
 Each stage leaves a trace, and the next stage checks it:
 
 | Stage | What is written | What checks it |
@@ -52,7 +73,24 @@ Before the first edit to a file, `pnpm noldor rules brief --file <path>` prints 
 
 Review can loop. A reviewer finds something, you fix it, the fix is new prose, and the reviewer finds something in the fix. Noldor caps that at two red re-rounds per artifact per session, in code, and it detects a reviewer oscillating between two positions. Past the cap you get one closing decision, not another round.
 
-## What gets refused
+### Six paths, chosen by size
+
+The gate routes on the entry's `size:` field. You can override the pick, but the default is the policy.
+
+| Size | Path | Worktree | Feature doc | Spec | Plan | Review |
+| --- | --- | --- | --- | --- | --- | --- |
+| doc-only | `micro-chore` | no | no | no | no | no |
+| XS, S | `fast-track` | yes | no | no | no | reviewer |
+| M | `specs-only-new`, `specs-only-attach` | yes | new, or a parent | yes | no | reviewer and codex |
+| L, XL | `full-new`, `full-attach` | yes | new, or a parent | yes | yes | reviewer and codex |
+
+The `-attach` variants extend an existing feature doc instead of creating one. A missing or unreadable size routes to `specs-only`, never to `fast-track`. The policy does not drop review because it could not read a label.
+
+Two more paths exist that you cannot pick. `release-sweep` covers the regeneration commits before a release and `release-automation` covers the version bump itself. The release script and the sweep skill write their own session markers.
+
+Details: [`complexity-gating.md`](docs/noldor/complexity-gating.md) and [`lifecycle.md`](docs/noldor/lifecycle.md).
+
+### What gets refused
 
 Most of these are git hooks. The first is an editor hook, and the last is the drain.
 
@@ -71,22 +109,39 @@ Most of these are git hooks. The first is an editor hook, and the last is the dr
 
 No hook can catch `--no-verify`, so repo policy forbids it. The sanctioned escape is a `Noldor-Path-Override: <reason>` trailer. It is logged, and the garden detectors audit the log.
 
-## Six paths, chosen by size
+## Is Noldor for you?
 
-The gate routes on the entry's `size:` field. You can override the pick, but the default is the policy.
+Probably yes, if:
 
-| Size | Path | Worktree | Feature doc | Spec | Plan | Review |
-| --- | --- | --- | --- | --- | --- | --- |
-| doc-only | `micro-chore` | no | no | no | no | no |
-| XS, S | `fast-track` | yes | no | no | no | reviewer |
-| M | `specs-only-new`, `specs-only-attach` | yes | new, or a parent | yes | no | reviewer and codex |
-| L, XL | `full-new`, `full-attach` | yes | new, or a parent | yes | yes | reviewer and codex |
+- Agents write a large share of your code and you want a trail a human can audit later without replaying the session.
+- Your stack is TypeScript, pnpm, git, and GitHub, and you are willing to run lefthook and write Conventional Commits.
+- You would rather have a few hard rules than many soft ones.
 
-The `-attach` variants extend an existing feature doc instead of creating one. A missing or unreadable size routes to `specs-only`, never to `fast-track`. The policy does not drop review because it could not read a label.
+Probably not, if:
 
-Two more paths exist that you cannot pick. `release-sweep` covers the regeneration commits before a release and `release-automation` covers the version bump itself. The release script and the sweep skill write their own session markers.
+- You want to configure the discipline. Noldor is opinionated by design. The defaults are the framework, and even the size thresholds are constants in source rather than config.
+- You cannot meet the floor: Node 24, pnpm 9, git 2.30, gh 2, lefthook 1. `doctor` fails on the first missing row and points at the guide.
+- A typo fix going through a gate, a session marker, and a PR sounds like too much. On the `micro-chore` path that takes about a minute, but it is still a PR.
 
-Details: [`complexity-gating.md`](docs/noldor/complexity-gating.md) and [`lifecycle.md`](docs/noldor/lifecycle.md).
+Claude Code is the primary interactive runner. Codex and opencode are first-class for headless roles (review, drain, research) through the runner registry, opencode gets thin command shims, and codex reads `AGENTS.md`. See [`agent-runtimes.md`](docs/noldor/agent-runtimes.md).
+
+## Quick start
+
+```bash
+pnpm add -D @david.zoufaly/noldor   # in a pnpm workspace root, add -w
+pnpm noldor init                    # scaffold docs/noldor, hooks, skills, .noldor/config.json, rollout marker
+pnpm noldor doctor                  # every prerequisite row should be green before the first commit
+```
+
+Have an existing repo with its own docs layout? `pnpm noldor init --adopt` reverse-bootstraps it. Choose which agent shims to write with `--agents claude,codex,opencode`. Re-pull the templates later with `--update`.
+
+Three things people trip on:
+
+1. Commit `.noldor/rollout-marker` in the bootstrap commit. It arms the commit-stage gate. The editor guard arms as soon as the file exists.
+2. The scaffolded hooks call your `lint`, `fmt`, `fmt:check`, and `test` scripts. Add any you lack before the first commit, or the hooks fail with "missing script".
+3. Fill the `consumer:` block in `.noldor/config.json` with real values, then run `pnpm noldor validate noldor-config`.
+
+From the first edit after that commit, the gate is live. Your first change goes through `/noldor-gate` like every change after it.
 
 ## Unattended work
 
@@ -121,9 +176,10 @@ pnpm noldor dashboard server --port 4321 --root .
 
 A read-only local view over the same files. It is never a source of truth.
 
-Overview: project, activity, and health.
+![Dashboard overview: project, activity, and health](docs/assets/dashboard/home.png)
 
-![Overview](docs/assets/dashboard/home.png)
+<details>
+<summary><b>More pages:</b> agents, metrics, features, WIP age</summary>
 
 Agents: live drain state, run timelines, per-agent durations.
 
@@ -141,39 +197,7 @@ WIP age and hot zones: work that is aging, and the files that churn most.
 
 ![WIP age](docs/assets/dashboard/wip-age.png)
 
-## Quick start
-
-```bash
-pnpm add -D @david.zoufaly/noldor   # in a pnpm workspace root, add -w
-pnpm noldor init                    # scaffold docs/noldor, hooks, skills, .noldor/config.json, rollout marker
-pnpm noldor doctor                  # every prerequisite row should be green before the first commit
-```
-
-Have an existing repo with its own docs layout? `pnpm noldor init --adopt` reverse-bootstraps it. Choose which agent shims to write with `--agents claude,codex,opencode`. Re-pull the templates later with `--update`.
-
-Three things people trip on:
-
-1. Commit `.noldor/rollout-marker` in the bootstrap commit. It arms the commit-stage gate. The editor guard arms as soon as the file exists.
-2. The scaffolded hooks call your `lint`, `fmt`, `fmt:check`, and `test` scripts. Add any you lack before the first commit, or the hooks fail with "missing script".
-3. Fill the `consumer:` block in `.noldor/config.json` with real values, then run `pnpm noldor validate noldor-config`.
-
-From the first edit after that commit, the gate is live.
-
-## Is Noldor for you?
-
-Probably yes, if:
-
-- Agents write a large share of your code and you want a trail a human can audit later without replaying the session.
-- Your stack is TypeScript, pnpm, git, and GitHub, and you are willing to run lefthook and write Conventional Commits.
-- You would rather have a few hard rules than many soft ones.
-
-Probably not, if:
-
-- You want to configure the discipline. Noldor is opinionated by design. The defaults are the framework, and even the size thresholds are constants in source rather than config.
-- You cannot meet the floor: Node 24, pnpm 9, git 2.30, gh 2, lefthook 1. `doctor` fails on the first missing row and points at the guide.
-- A typo fix going through a gate, a session marker, and a PR sounds like too much. On the `micro-chore` path that takes about a minute, but it is still a PR.
-
-Claude Code is the primary interactive runner. Codex and opencode are first-class for headless roles (review, drain, research) through the runner registry, opencode gets thin command shims, and codex reads `AGENTS.md`. See [`agent-runtimes.md`](docs/noldor/agent-runtimes.md).
+</details>
 
 ## How it is built
 
@@ -228,13 +252,14 @@ Policy: [`versioning.md`](docs/noldor/versioning.md).
 
 ## Documentation
 
-- [`docs/noldor/`](docs/noldor/README.md) is the rule set, indexed by what you are trying to do. It is the single source of truth. This README and any project's CLAUDE.md are overlays on it.
+- [`docs/noldor/`](docs/noldor/README.md) is the rule set, indexed by what you are trying to do. It is the single source of truth. This README and any project's `AGENTS.md` are overlays on it.
 - [`docs/architecture/`](docs/architecture/context.md) holds the four C4-style pages.
 - [`docs/adr/`](docs/adr/) holds the decision records, append-only.
+- [`CHANGELOG.md`](CHANGELOG.md) lists every release.
 
 ## Contributing
 
-This repo runs on itself. Every pull request here went through the gate, so contributing means going through it too: run `/noldor-gate`, pick a path, and let the hooks tell you what is missing. Read [`docs/noldor/README.md`](docs/noldor/README.md) first.
+This repo runs on itself, so contributing means going through the gate too: run `/noldor-gate`, pick a path, and let the hooks tell you what is missing. Read [`docs/noldor/README.md`](docs/noldor/README.md) first.
 
 A consumer repo on the same machine can point at your clone with a `file:` dependency, assuming a sibling checkout:
 
@@ -250,4 +275,4 @@ CI publishes to npm on a `v*` tag, with provenance.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [`LICENSE`](LICENSE).
