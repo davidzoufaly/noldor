@@ -92,14 +92,15 @@ function docImpactRefusal(value: string | undefined, cwd: string): string | null
   if (value === undefined) return null;
   const entries = value.split(',').map((entry) => entry.trim());
   if (entries.length === 1 && entries[0] === 'none') return null;
-  const missing = entries.filter((slug) => {
+  const invalid = entries.filter((slug) => {
+    if (slug === 'none') return true;
     const fd = resolveSlugPath(cwd, ['docs', 'features'], slug, { suffix: '.md' });
     return !fd.ok || !existsSync(fd.path);
   });
-  if (missing.length === 0) return null;
+  if (invalid.length === 0) return null;
   return (
     `Noldor-Doc-Impact must be 'none' alone or slugs of existing docs/features/<slug>.md files; ` +
-    `no feature MD for: ${missing.map((slug) => JSON.stringify(slug)).join(', ')}`
+    `invalid: ${invalid.map((slug) => JSON.stringify(slug)).join(', ')}`
   );
 }
 

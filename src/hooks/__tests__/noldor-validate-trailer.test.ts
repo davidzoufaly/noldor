@@ -828,8 +828,10 @@ describe('validateTrailer', () => {
       expect(r.reason).not.toContain('alpha');
     });
 
-    it('rejects none listed beside a slug', () => {
-      const r = validateTrailer({ message: fastTrack('none, alpha'), cwd: repoWithFds() });
+    it('rejects none listed beside a slug, even when a feature MD is named none', () => {
+      const dir = repoWithFds();
+      writeFileSync(join(dir, 'docs', 'features', 'none.md'), '---\nname: None\n---\n');
+      const r = validateTrailer({ message: fastTrack('none, alpha'), cwd: dir });
       expect(r.ok).toBe(false);
       expect(r.reason).toContain('none');
     });
