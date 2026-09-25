@@ -13,7 +13,7 @@
 // sharing one key, and a key-addressed record would let the later verdict
 // silently overwrite the earlier archived design's only record.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { z } from 'zod';
 
@@ -107,9 +107,17 @@ export function readApproval(
 ): { ok: true; record: DesignApprovalRecord | null } | { ok: false; error: string } {
   const rel = approvalRelPath(penBasename);
   const path = join(repoRoot, rel);
-  if (!existsSync(path)) return { ok: true, record: null };
+  let bytes: Buffer;
   try {
-    return { ok: true, record: parseApprovalBytes(readFileSync(path)) };
+    bytes = readFileSync(path);
+  } catch (err) {
+    // Only ENOENT means "no record": an unreadable parent directory is a read
+    // failure, and reading it as absent would send the operator to re-verdict.
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { ok: true, record: null };
+    return { ok: false, error: `${rel}: ${errMessage(err)}` };
+  }
+  try {
+    return { ok: true, record: parseApprovalBytes(bytes) };
   } catch (err) {
     return { ok: false, error: `${rel}: ${errMessage(err)}` };
   }
