@@ -470,6 +470,19 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
         age: 'same',
         publishes: true,
       },
+      {
+        name: 'the default branch has this merge graph (a re-run after the graph PR landed)',
+        holder: 'the default branch',
+        age: 'same',
+        publishes: false,
+      },
+      {
+        name: 'fetching the graph branch fails for a reason other than a missing ref',
+        holder: 'the graph branch',
+        age: 'newer',
+        publishes: true,
+        fetchFails: true,
+      },
       { name: 'no graph exists yet', holder: 'neither', age: 'none', publishes: true },
       {
         name: 'auto-merge is unavailable (a private repo on a free plan)',
@@ -480,7 +493,7 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
       },
     ])(
       'when $name, publishes: $publishes',
-      ({ holder, age, publishes, autoMerge = true }) => {
+      ({ holder, age, publishes, autoMerge = true, fetchFails = false }) => {
         // Logs every call, and refuses `--auto` the way GitHub does where auto-merge is off.
         using root = tempTree({
           'bin/gh':
@@ -488,6 +501,16 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
             'case "$*" in *--auto*) [ "$AUTO_MERGE" = on ] || exit 1 ;; esac\nexit 0\n',
         });
         chmodSync(join(root.dir, 'bin', 'gh'), 0o755);
+        if (fetchFails) {
+          // Refuses `git fetch origin <FAIL_FETCH>` the way an auth failure would; the ref exists.
+          const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+          writeFileSync(
+            join(root.dir, 'bin', 'git'),
+            '#!/bin/sh\n[ "$1" = fetch ] && [ "$4" = "$FAIL_FETCH" ] && exit 128\n' +
+              `exec "${realGit}" "$@"\n`,
+          );
+          chmodSync(join(root.dir, 'bin', 'git'), 0o755);
+        }
         const remote = join(root.dir, 'origin.git');
         const seed = join(root.dir, 'seed');
         const work = join(root.dir, 'work');
@@ -508,8 +531,11 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
         const mergeA = commit('merge A', { 'a.ts': 'a\n' });
         const mergeB = commit('merge B', { 'b.ts': 'b\n' });
         if (holder === 'the default branch') {
-          commit('graph PR for B', {
-            'graphify-out/graph.json': graph({ built_at_commit: mergeB, marker: 'remote' }),
+          commit('graph PR', {
+            'graphify-out/graph.json': graph({
+              built_at_commit: age === 'same' ? mergeA : mergeB,
+              marker: 'remote',
+            }),
           });
         }
         git(seed, 'push', '-q', remote, 'main');
@@ -544,9 +570,12 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
             GH_TOKEN: 'unused',
             GH_LOG: join(root.dir, 'gh.log'),
             AUTO_MERGE: autoMerge ? 'on' : 'off',
+            FAIL_FETCH: fetchFails ? branch : '',
           },
         });
         expect(r.status, r.stderr).toBe(0);
+        // A missing ref is silent; only a fetch that failed for another reason warns.
+        expect(r.stdout.includes('::warning::could not fetch')).toBe(fetchFails);
 
         // Where auto-merge is refused the PR is still merged — directly, never by a push.
         const merges = publishes
