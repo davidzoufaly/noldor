@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   agentsMdWiring,
+  brokenClaudeImports,
   checkAgentsMdWiring,
   importTokens,
   rulesImportFor,
@@ -136,5 +137,40 @@ describe('checkAgentsMdWiring', () => {
   it('checks nothing when claude is not an agent target', () => {
     write('CLAUDE.md', '# Project\n');
     expect(check(['codex'])).toMatchObject({ status: 'not-targeted', ok: true });
+  });
+});
+
+describe('brokenClaudeImports', () => {
+  it('names an import whose file is missing, resolved against the importing file', () => {
+    write('.claude/CLAUDE.md', '@../AGENTS.md\n@.claude/overlay.md\n');
+    write('.claude/overlay.md', 'x\n');
+    expect(brokenClaudeImports(dir)).toEqual([
+      {
+        file: '.claude/CLAUDE.md',
+        written: '@.claude/overlay.md',
+        resolved: '.claude/.claude/overlay.md',
+      },
+    ]);
+  });
+
+  it('passes imports that reach existing files', () => {
+    write('CLAUDE.md', '@AGENTS.md\nSee @docs/rules.md too.\n');
+    write('docs/rules.md', 'x\n');
+    expect(brokenClaudeImports(dir)).toEqual([]);
+  });
+
+  it.each([
+    ['a home import', '@~/.claude/mine.md'],
+    ['an absolute import', '@/etc/rules.md'],
+    ['a bare mention', 'ask @someone'],
+    ['an import inside a code span', 'write `@missing.md`'],
+  ])('skips %s', (_label, line) => {
+    write('CLAUDE.md', `@AGENTS.md\n${line}\n`);
+    expect(brokenClaudeImports(dir)).toEqual([]);
+  });
+
+  it('ignores CLAUDE.local.md', () => {
+    write('CLAUDE.local.md', '@missing.md\n');
+    expect(brokenClaudeImports(dir)).toEqual([]);
   });
 });

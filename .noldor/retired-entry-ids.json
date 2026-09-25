@@ -586,5 +586,9 @@
   "Q-0276": {
     "slug": "gate-skill-leftovers-from-q-0192",
     "retiredAt": "2026-09-24"
+  },
+  "Q-0277": {
+    "slug": "doctor-flags-a-broken-claude-import",
+    "retiredAt": "2026-09-25"
   }
 }
