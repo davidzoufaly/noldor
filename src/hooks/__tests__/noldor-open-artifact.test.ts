@@ -1,4 +1,4 @@
-// @tests: auto-open-design-artifacts
+// @tests: auto-open-design-artifacts, pendev-ui-design-phase
 import { execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -1,4 +1,4 @@
-// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows, plan-runner
+// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows, plan-runner, cr-re-round-cap-enforcement-and-oscillation-detector, pr-summary-body-enforcement
 import { describe, expect, it } from 'vitest';
 
 import { buildDraftPrompt } from '../draft.js';

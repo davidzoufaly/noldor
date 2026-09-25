@@ -1,4 +1,4 @@
-// @tests: plan-runner
+// @tests: plan-runner, consumer-architecture-doc-surface
 import matter from 'gray-matter';
 import { describe, expect, it } from 'vitest';
 

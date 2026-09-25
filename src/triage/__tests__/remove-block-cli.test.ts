@@ -13,7 +13,7 @@ function ok(argv: string[]) {
   return result.data;
 }
 
-// @tests: stable-entry-ids-for-roadmap-backlog
+// @tests: stable-entry-ids-for-roadmap-backlog, noldor
 describe(parseRemoveBlockArgs, () => {
   it('reads the slug from the first positional token', () => {
     expect(ok(['some-entry'])).toStrictEqual({

@@ -18,7 +18,7 @@ import { templateFiles, TEMPLATES_ROOT, SCAFFOLD_ONLY_TEMPLATES } from '../manif
 import { filterTemplatesByAgents } from '../agent-filter.js';
 import { parse as parseYaml } from 'yaml';
 
-// @tests: noldor-package-lift, self-refreshing-compact-knowledge-graph
+// @tests: noldor-package-lift, self-refreshing-compact-knowledge-graph, make-noldor-agent-agnostic, noldor
 
 describe('computeDrift', () => {
   let dir: string;

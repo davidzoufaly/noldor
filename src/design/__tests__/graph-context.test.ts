@@ -1,4 +1,4 @@
-// @tests: graphify-plan-of-edges-nodes-for-plans-specs
+// @tests: graphify-plan-of-edges-nodes-for-plans-specs, rules-cascade-v1
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, utimesSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';

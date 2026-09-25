@@ -1,4 +1,4 @@
-// @tests: dynamic-fd-file-pointers-via-frontmatter
+// @tests: dynamic-fd-file-pointers-via-frontmatter, feature-md-links-overhaul
 
 import { describe, expect, it } from 'vitest';
 

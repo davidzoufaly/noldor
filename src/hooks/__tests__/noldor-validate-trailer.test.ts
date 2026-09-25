@@ -1,4 +1,4 @@
-// @tests: noldor, scope-sibling-trailer-for-doc-sync-commits, fast-track-changes-can-obsolete-an-unattached-fd
+// @tests: noldor, scope-sibling-trailer-for-doc-sync-commits, fast-track-changes-can-obsolete-an-unattached-fd, framework-doc-extraction
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';

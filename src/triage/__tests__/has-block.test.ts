@@ -1,4 +1,4 @@
-// @tests: stable-entry-ids-for-roadmap-backlog
+// @tests: stable-entry-ids-for-roadmap-backlog, noldor
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';

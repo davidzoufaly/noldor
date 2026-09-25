@@ -1,4 +1,4 @@
-// @tests: feature-md-links-overhaul
+// @tests: feature-md-links-overhaul, noldor
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
