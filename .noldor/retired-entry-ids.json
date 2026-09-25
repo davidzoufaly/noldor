@@ -614,5 +614,9 @@
   "Q-0283": {
     "slug": "design-context-section-matching-without-backticks",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0284": {
+    "slug": "codex-skips-fd-scaffold-stubs-at-plan-and-code",
+    "retiredAt": "2026-09-25"
   }
 }

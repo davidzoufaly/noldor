@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Codex Skips FD Scaffold Stubs at Plan and Code
-
-- id: Q-0284
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: S
-- impact: med
-- confidence: med
-
-Codex still reads the whole feature MD at plan and code kinds, unfilled scaffold stubs included. `reviewWithCodex` passes `docs/features/<slug>.md` verbatim as `featureMd` for every kind but spec (`src/cr/review-with-codex.ts`), and the plan-kind prompt asks codex to surface "placeholder / TODO / unfilled content that must be resolved before implementation" (`src/cr/run-codex.ts`). `/noldor-draft-feature-md` fills User Story and Usage before those stages, but nothing fills `## Diagram`, so its `<!-- TODO: one mermaid fence … -->` stub can still reach a plan or code review and read as unfinished work. `spec-stage-cr-stopping-rule` (Q-0263) fixed this at spec kind only, by sending the FD's Summary. Wanted: the plan and code prompts never treat an FD scaffold stub as review content, without losing the drafted User Story and Usage that plan review checks against. Deletion test: a plan round whose FD still carries the Diagram stub files no finding about it. (found 2026-09-23 writing the Q-0263 spec)
-
 ### Release npm Wait Bypasses the Registry Cache
 
 - id: Q-0285
