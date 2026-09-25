@@ -1,3 +1,4 @@
+// @fd: graphify-plan-of-edges-nodes-for-plans-specs
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 

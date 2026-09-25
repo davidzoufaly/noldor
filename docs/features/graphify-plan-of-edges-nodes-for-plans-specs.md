@@ -7,6 +7,7 @@ links:
     - src/design/graph-context-cli.ts
     - src/design/graph-context.ts
     - src/garden/detectors/structural-context.ts
+    - src/graphify/enrich-doc-nodes.ts
   docs: []
   tests:
     - src/design/__tests__/graph-context-cli.test.ts
@@ -124,6 +125,7 @@ fd nodes + plan-of/spec-of edges added to graph, plus graph-adjacency stale fall
   - [`src/design/graph-context-cli.ts`](../../src/design/graph-context-cli.ts)
   - [`src/design/graph-context.ts`](../../src/design/graph-context.ts)
   - [`src/garden/detectors/structural-context.ts`](../../src/garden/detectors/structural-context.ts)
+  - [`src/graphify/enrich-doc-nodes.ts`](../../src/graphify/enrich-doc-nodes.ts)
 - **Tests:**
   - [`src/design/__tests__/graph-context-cli.test.ts`](../../src/design/__tests__/graph-context-cli.test.ts)
   - [`src/design/__tests__/graph-context.test.ts`](../../src/design/__tests__/graph-context.test.ts)

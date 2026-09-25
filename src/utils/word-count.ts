@@ -1,3 +1,4 @@
+// @fd: consumer-architecture-doc-surface
 /**
  * Whitespace-token word count, empty-safe.
  *
