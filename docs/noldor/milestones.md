@@ -58,8 +58,19 @@ milestone: mvp # slug of a docs/milestones/<slug>.md file
   when an active milestone is set and the bullet aligns with its `## Gate`;
   override or drop per row, exactly like `confidence` / `deps`. `/noldor-promote` copies
   the line verbatim into the scaffolded FD frontmatter.
+- **Tagging after the fact** — `pnpm noldor milestones assign <milestone> <slug|Q-NNNN>...`
+  writes the milestone onto roadmap entries, backlog entries and FDs in one call,
+  for work filed before the milestone existed. A target already naming another
+  milestone refuses unless `--replace` is given; a name that matches both a queue
+  block and an FD refuses too — pass the `Q-NNNN` to pick one. Any refusal writes
+  nothing, and a re-run is a no-op.
 
 ## What gets surfaced
+
+- **CLI** — `pnpm noldor milestones show <slug>` lists the milestone's FDs with a
+  done/total count and its queued entries, then how many roadmap entries,
+  backlog entries and in-progress FDs name no milestone at all — the work no
+  membership list can show.
 
 - **Garden** — `pnpm garden:detect` flags any feature whose milestone is
   `status: shipped` while its own `phase != done` (the

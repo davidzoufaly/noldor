@@ -369,6 +369,40 @@ export function buildMilestoneGroupBases(
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || compareSequence(a, b));
 }
 
+/** How much live work names no milestone, per source. */
+export interface UnassignedCounts {
+  roadmap: number;
+  backlog: number;
+  /** Feature MDs at `phase: in-progress` — shipped history is not live work. */
+  features: number;
+}
+
+/**
+ * Count the work that carries no milestone at all.
+ *
+ * `validate triage` catches a milestone slug that does not exist; this is the
+ * other half — work that names none, which no membership list can show. The
+ * backlog is its own number so its size cannot hide the roadmap's gap.
+ *
+ * @param features - Every feature MD.
+ * @param roadmap - Parsed roadmap entries.
+ * @param backlog - Parsed backlog entries.
+ * @returns One count per source.
+ */
+export function countUnassigned(
+  features: readonly FeatureRecord[],
+  roadmap: readonly BacklogEntry[],
+  backlog: readonly BacklogEntry[],
+): UnassignedCounts {
+  return {
+    roadmap: roadmap.filter((e) => e.milestone === undefined).length,
+    backlog: backlog.filter((e) => e.milestone === undefined).length,
+    features: features.filter(
+      (f) => f.frontmatter.phase === 'in-progress' && f.frontmatter.milestone === undefined,
+    ).length,
+  };
+}
+
 /**
  * Render one milestone's membership: its feature MDs and the queue entries that
  * still name it.
@@ -391,11 +425,9 @@ export async function renderMilestoneShow(
     return { ok: false, message: `Milestone "${slug}" not found under docs/milestones/` };
   }
   const features = await loadSddFeatures(join(cwd, 'docs/features'));
-  const entries = [
-    ...parseRoadmap(await readQueueFile(join(cwd, 'docs/roadmap.md'))),
-    ...parseBacklog(await readQueueFile(join(cwd, 'docs/backlog.md'))),
-  ];
-  const group = buildMilestoneGroupBases([target], features, entries)[0];
+  const roadmap = parseRoadmap(await readQueueFile(join(cwd, 'docs/roadmap.md')));
+  const backlog = parseBacklog(await readQueueFile(join(cwd, 'docs/backlog.md')));
+  const group = buildMilestoneGroupBases([target], features, [...roadmap, ...backlog])[0];
   if (!group) {
     return { ok: false, message: `Milestone "${slug}" could not be grouped` };
   }
@@ -409,6 +441,8 @@ export async function renderMilestoneShow(
       ? ['  (none)']
       : group.queued.map((e) => `  - ${e.slug}${e.size ? ` (${e.size})` : ''}`);
 
+  const unassigned = countUnassigned(features, roadmap, backlog);
+
   return {
     ok: true,
     text: [
@@ -420,6 +454,9 @@ export async function renderMilestoneShow(
       '',
       `Queued (${group.queuedCount}):`,
       ...queueLines,
+      '',
+      // Printed at zero too, so "nothing untagged" is stated rather than implied.
+      `Unassigned (no milestone): roadmap ${unassigned.roadmap}, backlog ${unassigned.backlog}, in-progress features ${unassigned.features}`,
       '',
     ].join('\n'),
   };

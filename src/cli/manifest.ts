@@ -281,7 +281,11 @@ export const MANIFEST: Record<string, Group> = {
       validate: { src: 'milestones/validate-milestones.ts', desc: 'Validate milestones' },
       show: {
         src: 'milestones/show-cli.ts',
-        desc: "Print one milestone's features and its queued roadmap/backlog entries",
+        desc: "Print one milestone's features, its queued roadmap/backlog entries and the untagged count",
+      },
+      assign: {
+        src: 'milestones/assign-cli.ts',
+        desc: 'Tag roadmap/backlog entries and feature MDs with a milestone (--replace to move one)',
       },
     },
   },

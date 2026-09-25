@@ -236,7 +236,8 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 | ------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `pnpm noldor validate noldor-config` | [`src/validate/noldor-config.ts`](../../src/validate/noldor-config.ts) | Validate `.noldor/config.json` shape (categories, scanPaths, crLanes, …).  |
 | `pnpm noldor validate milestones` (alias: `pnpm noldor milestones validate`) | [`src/milestones/validate-milestones.ts`](../../src/milestones/validate-milestones.ts) | Validate `docs/milestones/*.md` + vision's `current-milestone:` pointer.   |
-| `pnpm noldor milestones show <slug>` | [`src/milestones/show-cli.ts`](../../src/milestones/show-cli.ts) | Print one milestone's feature MDs and the roadmap/backlog entries naming it. |
+| `pnpm noldor milestones show <slug>` | [`src/milestones/show-cli.ts`](../../src/milestones/show-cli.ts) | Print one milestone's feature MDs, the roadmap/backlog entries naming it, and how many roadmap entries, backlog entries and in-progress FDs name no milestone. |
+| `pnpm noldor milestones assign <milestone> <slug\|Q-NNNN>... [--replace]` | [`src/milestones/assign-cli.ts`](../../src/milestones/assign-cli.ts) | Tag roadmap/backlog entries and feature MDs with a milestone. A target naming another milestone, matching nowhere, or matching more than one place refuses; any refusal writes nothing. Exit 0 tagged / 1 refused / 2 usage. |
 | `pnpm noldor validate triage` (alias: `pnpm noldor triage validate`) | [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts) | Validate roadmap/backlog schema-C blocks.                                  |
 
 ## Gate hooks
