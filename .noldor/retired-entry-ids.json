@@ -673,5 +673,9 @@
   "Q-0301": {
     "slug": "gate-skill-rebase-base-sha-qualifier",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0302": {
+    "slug": "sync-fd-resources-honours-slug",
+    "retiredAt": "2026-09-25"
   }
 }
