@@ -13,7 +13,12 @@ const execFileP = promisify(execFile);
 
 /** Default poll target; overridable per-consumer via `release.publish.registry`. */
 export const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
-const DEFAULT_TIMEOUT_MS = 5 * 60_000;
+/**
+ * The registry serves the packument with `cache-control: max-age=300`. A stale
+ * copy can sit in the CDN edge and then in npm's local cache, so the horizon
+ * must outlast both expiring back to back — above 2 × 300s.
+ */
+export const DEFAULT_PUBLISH_TIMEOUT_MS = 11 * 60_000;
 const DEFAULT_POLL_MS = 10_000;
 
 /** Exec seam so unit tests can stub the `npm view` probe without PATH games. */
@@ -43,6 +48,10 @@ export interface RegistryProbe {
  * failure — a 404 (not published yet) or even a transient 401/403 — is treated
  * as "not visible yet" and the caller keeps polling. There is no missing-token
  * special case: public reads need no token.
+ *
+ * `--prefer-online` makes npm revalidate instead of answering from its local
+ * cache. Without it, the pre-publish packument the preflight's `npm view`
+ * cached stays "fresh" for 300s and every probe reads E404 (v1.10.0, v1.13.0).
  */
 export async function isVersionOnRegistry(probe: RegistryProbe): Promise<boolean> {
   const exec = probe.exec ?? realExec;
@@ -50,7 +59,15 @@ export async function isVersionOnRegistry(probe: RegistryProbe): Promise<boolean
   try {
     await exec(
       'npm',
-      ['view', `${probe.pkgName}@${probe.version}`, 'version', '--json', '--registry', registry],
+      [
+        'view',
+        `${probe.pkgName}@${probe.version}`,
+        'version',
+        '--json',
+        '--registry',
+        registry,
+        '--prefer-online',
+      ],
       probe.env,
     );
     return true;
@@ -60,7 +77,7 @@ export async function isVersionOnRegistry(probe: RegistryProbe): Promise<boolean
 }
 
 export interface AwaitPublishOptions extends RegistryProbe {
-  /** Give-up horizon (default 5 min; env `NOLDOR_PUBLISH_TIMEOUT_MS`). */
+  /** Give-up horizon (default 11 min; env `NOLDOR_PUBLISH_TIMEOUT_MS`). */
   timeoutMs?: number;
   /** Probe interval (default 10 s; env `NOLDOR_PUBLISH_POLL_MS`). */
   pollMs?: number;
@@ -87,7 +104,7 @@ function envTuning(env: Record<string, string> | undefined, key: string, fallbac
  */
 export async function awaitPublish(opts: AwaitPublishOptions): Promise<AwaitPublishResult> {
   const timeoutMs =
-    opts.timeoutMs ?? envTuning(opts.env, 'NOLDOR_PUBLISH_TIMEOUT_MS', DEFAULT_TIMEOUT_MS);
+    opts.timeoutMs ?? envTuning(opts.env, 'NOLDOR_PUBLISH_TIMEOUT_MS', DEFAULT_PUBLISH_TIMEOUT_MS);
   const pollMs = opts.pollMs ?? envTuning(opts.env, 'NOLDOR_PUBLISH_POLL_MS', DEFAULT_POLL_MS);
   const registry = opts.registry ?? DEFAULT_REGISTRY;
   const started = Date.now();

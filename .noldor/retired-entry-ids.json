@@ -618,5 +618,9 @@
   "Q-0284": {
     "slug": "codex-skips-fd-scaffold-stubs-at-plan-and-code",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0285": {
+    "slug": "release-npm-wait-bypasses-the-registry-cache",
+    "retiredAt": "2026-09-25"
   }
 }

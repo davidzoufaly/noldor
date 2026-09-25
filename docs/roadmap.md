@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Release npm Wait Bypasses the Registry Cache
-
-- id: Q-0285
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: S
-- impact: med
-- confidence: med
-
-`pnpm release`'s npm wait times out on a publish that already worked, and the cause looks like caching, not a slow publish. It happened on v1.10.0 and again on v1.13.0. v1.13.0's `publish.yml` printed `+ @david.zoufaly/noldor@1.13.0` with signed provenance 31s after the tag push. The wait still gave up at 301s, and `npm view …@1.13.0` still returned E404 about 5 minutes after the publish. Verified facts: the registry serves the packument with `cache-control: public, max-age=300` through Cloudflare (`cf-cache-status: HIT`); npm 11's `prefer-online` defaults to false, so `npm view` answers from its local cache while an entry is fresh; the preflight's `npm-name` row runs `npm view <name> versions` minutes before the tag (`src/release/preflight-probes.ts`), which loads the pre-publish packument into that cache; and `awaitPublish` (`src/release/release-publish.ts`) re-runs a plain `npm view` every 10s against a 300s default horizon, which is exactly the cache's max-age. Not verified: which layer (the local cache or the CDN edge) held the stale copy. Candidate fix: poll with `--prefer-online` (or a direct registry fetch with `cache-control: no-cache`), and set the default horizon above 2× max-age so both layers can expire. `docs/noldor/gotchas.md` → Release & publish tells operators to `--resume` meanwhile. Deletion test: a release whose publish lands within the horizon never needs `--resume`. (found 2026-09-24 releasing v1.13.0)
-
 ### Drain Lock Atomic Publish and Safe Reclaim
 
 - id: Q-0286
