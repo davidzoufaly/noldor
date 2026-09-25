@@ -837,6 +837,17 @@ describe('release preflight — ui-design-freshness row', () => {
       expect(row.detail).toContain('2.20');
     });
 
+    it('names schema advisories in the warning even when another status is the reason for it', async () => {
+      await useSchema('2.20');
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', { version: '2.19', children: [] }, 'docs: baseline');
+      await writeUiConfig(cwd, ['src/app/**']);
+      const row = await runProbe('ui-design-freshness', ctx());
+      expect(row.status).toBe('warn');
+      expect(row.detail).toContain('app (unverified)');
+      expect(row.detail).toContain('2.20');
+    });
+
     it('reports ok for a fresh baseline the installed schema agrees with', async () => {
       await useSchema('2.19');
       await captured({ version: '2.19', children: [] });

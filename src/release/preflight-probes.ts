@@ -179,6 +179,14 @@ function warnWorthyNames(verdict: UiFreshnessVerdict): string {
     .join(', ');
 }
 
+/** Every surface's pen schema advisories as one clause, or `''` when there are none. */
+function schemaAdvisoryDetail(verdict: UiFreshnessVerdict): string {
+  const advised = verdict.surfaces.filter((s) => (s.advisories ?? []).length > 0);
+  return advised.length === 0
+    ? ''
+    : `pen schema advisories: ${advised.map((s) => `${s.surface}: ${s.advisories!.join('; ')}`).join('; ')}`;
+}
+
 /** Shared tail for both unevaluated-probe fix lines — one string, so they cannot drift. */
 const NOT_A_PASS = 'a probe that could not evaluate its gate must not be read as a pass.';
 
@@ -547,17 +555,14 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
         detail: 'no uiPaths configured / no surface history',
       };
     }
+    // Advisories never block — the schema behind them differs between machines
+    // — but every row that reports on the baselines names them, so no status
+    // can hide them.
+    const advisories = schemaAdvisoryDetail(verdict);
     if (verdict.overall === 'fresh') {
-      // Advisories never block — the schema behind them differs between
-      // machines — but "all UI baselines fresh" over one would hide it.
-      const advised = verdict.surfaces.filter((s) => (s.advisories ?? []).length > 0);
-      return advised.length === 0
+      return advisories === ''
         ? { id: 'ui-design-freshness', status: 'ok', detail: 'all UI baselines fresh' }
-        : {
-            id: 'ui-design-freshness',
-            status: 'warn',
-            detail: `pen schema advisories: ${advised.map((s) => `${s.surface}: ${s.advisories!.join('; ')}`).join('; ')}`,
-          };
+        : { id: 'ui-design-freshness', status: 'warn', detail: advisories };
     }
     // The non-blocking verdicts are advisory — adoption must not brick a
     // release, and a git failure may never mint a red — and each must be an
@@ -574,7 +579,9 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       return {
         id: 'ui-design-freshness',
         status: 'warn',
-        detail: `baseline surface(s) needing attention: ${warnWorthyNames(verdict)}`,
+        detail: [`baseline surface(s) needing attention: ${warnWorthyNames(verdict)}`, advisories]
+          .filter((part) => part !== '')
+          .join('; '),
         // Derived, not assumed: an `indeterminate` overall can be the
         // synthetic `(unmapped)` row, whose problem is a failed git probe and
         // which carries no `remediation` — telling that operator to declare a
@@ -615,7 +622,9 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     return {
       id: 'ui-design-freshness',
       status: 'blocking',
-      detail: blocking.map((s) => `${s.surface}: ${s.detail}`).join('; '),
+      detail: [...blocking.map((s) => `${s.surface}: ${s.detail}`), advisories]
+        .filter((part) => part !== '')
+        .join('; '),
       fix: [
         needsCapture ? capitalize(captureRemediation(captureSurfaceName(verdict))) : '',
         needsSync

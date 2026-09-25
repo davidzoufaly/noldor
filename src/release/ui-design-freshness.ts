@@ -453,9 +453,7 @@ async function receiptVerdict(
   // unreachable in a fresh clone of main, and the probe below would then
   // degrade to `skipped` permanently.
   // Read the receipt's bytes once: `git show` reports absence and content in
-  // the same call, so the separate `cat-file -e` existence probe this branch
-  // used to run first was a second subprocess spent on an answer already in
-  // hand. The BINDING check further down needs those bytes anyway.
+  // the same call, and the BINDING check further down needs those bytes.
   const receiptBlob = await showAtHead(cwd, receiptRel);
   if (!receiptBlob.ok) {
     return { surface, status: 'indeterminate', uiCommit, detail: 'git show failed' };
@@ -653,7 +651,7 @@ export async function evaluateUiDesignFreshness(
         : {
             ...row,
             status: worse(row.status, 'indeterminate'),
-            detail: `${row.detail}; content unchecked — git show failed reading ${baselineFile}`,
+            detail: `${row.detail}; content unchecked — ${baselineFile} could not be read at HEAD`,
           },
     );
   }
