@@ -18,13 +18,10 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   realpathSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 
 import { blobIdOfBytes, blobIdOfWorktreeFile } from '../core/blob-id.js';
@@ -45,6 +42,7 @@ import {
 import { loadDocRoots } from '../core/doc-roots.js';
 import { errMessage } from '../core/err-message.js';
 import { readRepoText } from '../core/read-text.js';
+import { scratchDir } from '../core/scratch-dir.js';
 import {
   designApprovalRecordSchema,
   readApproval,
@@ -648,12 +646,6 @@ function boundFile(
   return { ok: true, kind: 'spec', ...spec, abs, rel: relative(cwd, abs).split(sep).join('/') };
 }
 
-/** A disposable scratch directory, removed on every path out of its scope. */
-function scratchDir(): { path: string } & Disposable {
-  const path = mkdtempSync(join(tmpdir(), 'noldor-verdict-'));
-  return { path, [Symbol.dispose]: () => rmSync(path, { recursive: true, force: true }) };
-}
-
 const GIT_TIMEOUT_MS = 30_000;
 
 /**
@@ -673,7 +665,7 @@ function specDiff(
   if (old.error !== undefined) return { kind: 'failed', error: errMessage(old.error) };
   if (old.status !== 0) return { kind: 'missing' };
   try {
-    using scratch = scratchDir();
+    using scratch = scratchDir('noldor-verdict-');
     mkdirSync(join(scratch.path, 'approved'));
     mkdirSync(join(scratch.path, 'current'));
     writeFileSync(join(scratch.path, 'approved', name), old.stdout);

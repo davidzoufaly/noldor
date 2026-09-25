@@ -17,21 +17,14 @@
 
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { atomicWriteFileSync } from '../core/atomic-write.js';
 import { isEntrypoint } from '../core/cli-entry.js';
+import { scratchDir } from '../core/scratch-dir.js';
 import {
   buildContext,
   type GraphData,
@@ -308,11 +301,6 @@ function pythonEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   };
 }
 
-function scratchDir(): { path: string } & Disposable {
-  const path = mkdtempSync(join(tmpdir(), 'noldor-graphify-'));
-  return { path, [Symbol.dispose]: () => rmSync(path, { recursive: true, force: true }) };
-}
-
 /** Copy `sha`'s tree into `into/tree/` through a throwaway index, leaving the repo's own untouched. */
 function exportTree(deps: BuildDeps, root: string, sha: string, into: string): Step<string> {
   const tree = join(into, 'tree');
@@ -404,7 +392,7 @@ export function buildGraph(force: boolean, deps: BuildDeps): number {
     return 2;
   }
 
-  using work = scratchDir();
+  using work = scratchDir('noldor-graphify-');
   const outputs = runRecipe(deps, python.value, root, sha, work.path);
   if (!outputs.ok) {
     deps.warn(`${LABEL}: ${outputs.error}`);
