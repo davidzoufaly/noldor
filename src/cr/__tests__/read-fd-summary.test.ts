@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { extractFdAcceptance, readFdSummary } from '../read-fd-summary.js';
+import { extractFdAcceptance, readFdSummary, stripFdScaffoldStubs } from '../read-fd-summary.js';
 
 let dir: string;
 beforeEach(async () => {
@@ -67,5 +67,34 @@ describe('extractFdAcceptance', () => {
   it('throws when neither section exists', async () => {
     const p = await write('# Title\nno sections\n');
     await expect(extractFdAcceptance(p)).rejects.toThrow(/no ## Summary or ## Usage/);
+  });
+});
+
+describe('stripFdScaffoldStubs (Q-0284)', () => {
+  it('drops a section holding only a stub and keeps filled sections', () => {
+    const fd =
+      '## Summary\n\nThe what.\n\n## Diagram\n\n<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or\ntwo on what it shows. -->\n\n## Usage\n\n- run it\n';
+    expect(stripFdScaffoldStubs(fd)).toBe('## Summary\n\nThe what.\n\n## Usage\n\n- run it\n');
+  });
+
+  it('removes a stub beside real content but keeps the section', () => {
+    const fd = '## Usage\n\n<!-- TODO polish -->\n- run it\n';
+    expect(stripFdScaffoldStubs(fd)).toBe('## Usage\n\n- run it\n');
+  });
+
+  it('drops a trailing stub-only section', () => {
+    expect(stripFdScaffoldStubs('## Summary\n\nx\n\n## Usage\n\n<!-- TODO: steps -->\n')).toBe(
+      '## Summary\n\nx\n',
+    );
+  });
+
+  it('keeps a stub quoted inside a code fence, and a fenced heading-shaped line', () => {
+    const fd = '## Notes\n\n```md\n## Diagram\n<!-- TODO: stub -->\n```\n';
+    expect(stripFdScaffoldStubs(fd)).toBe(fd);
+  });
+
+  it('keeps ordinary comments that are not stubs', () => {
+    const fd = '## Summary\n\n<!-- keep me -->\n';
+    expect(stripFdScaffoldStubs(fd)).toBe(fd);
   });
 });
