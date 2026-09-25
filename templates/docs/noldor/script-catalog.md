@@ -134,11 +134,43 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 
 ### `design:verdict`
 
-- **Trigger:** `pnpm noldor design verdict --pen <path> --approve --surface <s> [--surface <s>...] --spec <path> --editor-page <name> [--editor-page <name>...] [--reservation <text>]`, `--waive --reason "<why>"`, `--check`, or `--reconfirm`. Run by `/noldor-spec` step 7.5 — the `--approve` form after the operator's approve verdict lands its sentence in the spec's `## Design`, the `--waive` form in the waiver-after-Seed branch — and by gate Step 2.5 on a UI-bearing session: `--check`, then `--reconfirm` on the operator's word.
-- **Inputs:** `--pen` must realpath-resolve inside `docs/design/ui/` (its `archive/` included, `baseline/` excluded) and match the `<date>-<key>.pen` naming scheme. Exactly one of `--approve` / `--waive` / `--check` / `--reconfirm`. `--approve` takes `--surface` (repeatable, deduplicated; each must own a `FINAL:<surface>:` page in the file, and every `FINAL:` page must name one), `--editor-page` (repeatable: every top-level page name the editor shows, compared as a multiset with the page names in the `.pen` on disk) and `--spec` (a real file directly in the specs root or its `archive/`, for the same dialogue key as the `.pen`). `--reason` belongs to `--waive`; `--check` and `--reconfirm` take `--pen` alone.
-- **Outputs:** `.noldor/design-approval/<pen-stem>.json` — a discriminated union on `outcome` (`approved` with surfaces, the signed `pages`, the bound `spec: { name, blob }` and an optional reservation; or `waived` with a reason), both members carrying `penBlob`, git's object id of the `.pen`. Atomic write; an existing record for the stem is overwritten (re-taking the verdict on a revised design is the stale remedy). `--approve` prints every page it signed and stores the spec's text as a git object, so `--check` can diff it later; `--check` writes nothing; `--reconfirm` rewrites only `spec.blob` and `at`. Exit codes — `--approve` / `--waive`: 0 = record written (stage it with the `.pen` and the spec), 1 = the editor and the file hold different pages (save the `.pen`, re-run) or the write failed, 2 = usage/containment/format/hash error, nothing written. `--check`: 0 = the spec is the one approved (or the record is waived), 1 = the spec changed since the approval (diff printed), 2 = no usable record, no spec binding, or the named spec is gone. `--reconfirm`: 0 = rebound, 1 = write failed, 2 = refused (the design changed, or the record is waived or names no spec).
+- **Trigger:** `pnpm noldor design verdict --pen <path> --approve --surface <s> [--surface <s>...] (--spec <path> | --milestone <slug>) --editor-page <name> [--editor-page <name>...] [--reservation <text>]`, `--waive --reason "<why>"`, `--check`, or `--reconfirm`. Run by `/noldor-spec` step 7.5 — the `--approve` form after the operator's approve verdict lands its sentence in the spec's `## Design`, the `--waive` form in the waiver-after-Seed branch — and by gate Step 2.5 on a UI-bearing session: `--check`, then `--reconfirm` on the operator's word.
+- **Inputs:** `--pen` must realpath-resolve inside `docs/design/ui/` or `docs/design/architecture/` (each one's `archive/` included; `docs/design/ui/baseline/` and `docs/design/architecture/baseline.pen` excluded) and match the `<date>-<key>.pen` naming scheme — except a milestone target, `docs/design/architecture/milestones/<slug>.pen`, which is keyed by its slug. Exactly one of `--approve` / `--waive` / `--check` / `--reconfirm`. `--approve` takes `--surface` (repeatable, deduplicated; each must own a `FINAL:<surface>:` page in the file, and every `FINAL:` page must name one; for an architecture design each must also be a view — `context`, `containers`, `modules` or `flows`), `--editor-page` (repeatable: every top-level page name the editor shows, compared as a multiset with the page names in the `.pen` on disk) and `--spec` (a real file directly in the specs root or its `archive/`, for the same dialogue key as the `.pen`); a milestone target (`docs/design/architecture/milestones/<slug>.pen`) takes `--milestone <slug>` instead, bound to `docs/milestones/<slug>.md` — the two flags exclude each other, and each belongs to its own kind of design. `--reason` belongs to `--waive`; `--check` and `--reconfirm` take `--pen` alone.
+- **Outputs:** `.noldor/design-approval/<pen-stem>.json` for a UI design, `.noldor/design-approval/architecture/<pen-stem>.json` for an architecture design (`.noldor/design-approval/architecture/milestones/<slug>.json` for a milestone target, whose record carries `milestone: { slug, blob }` in place of `spec`) (an archived `.pen` keeps its record path) — a discriminated union on `outcome` (`approved` with surfaces, the signed `pages`, the bound `spec: { name, blob }` and an optional reservation; or `waived` with a reason), both members carrying `penBlob`, git's object id of the `.pen`. Atomic write; an existing record for the stem is overwritten (re-taking the verdict on a revised design is the stale remedy). `--approve` prints every page it signed and stores the bound file's text — the spec, or a milestone target's milestone file — as a git object, so `--check` can diff it later; `--check` writes nothing; `--reconfirm` rewrites only the binding's blob (`spec.blob` or `milestone.blob`) and `at`. Exit codes — `--approve` / `--waive`: 0 = record written (stage it with the `.pen` and the bound file), 1 = the editor and the file hold different pages (save the `.pen`, re-run) or the write failed, 2 = usage/containment/format/hash error, nothing written. `--check`: 0 = the bound file is the one approved (or the record is waived), 1 = it changed since the approval (diff printed), 2 = no usable record, no binding, or the bound file is gone. `--reconfirm`: 0 = rebound, 1 = write failed, 2 = refused (the design changed, or the record is waived or binds no file).
 - **When to use:** never by hand in the normal flow — the spec skill's verdict step and gate Step 2.5 own every call site. Re-run `--approve` after a `pen-approval-mismatch` refusal from `checks shared-files` or a `design-approval-stale` terminal from the `ui-reviewer` lane, on the design as it now stands; run `--reconfirm` after a `design-approval-spec-stale` terminal when the design still depicts the spec.
 - **Source:** [`src/design/design-approval-cli.ts`](../../src/design/design-approval-cli.ts)
+
+### `design:arch-route`
+
+- **Trigger:** `pnpm noldor design arch-route --pen <path.pen> [--view context|containers|modules|flows]` — as `pnpm -s noldor …` when capturing stdout, so pnpm's banner stays out of the snippet. Run after boxes move on an architecture canvas, by `/noldor-spec` step 1.6 while iterating and by gate Step 4 after the baseline write-back.
+- **Inputs:** the `.pen` on disk, read with the architecture reader (`readArchPen`), so arrows resolve exactly as `checks arch-baseline` resolves them. Moved boxes need no save: the snippet reads live bounds. A newly drawn arrow needs one, because matching reads the file.
+- **Outputs:** a pencil `execute` snippet on stdout. Pass it as `input`, with `filePath` set to the same `.pen`. It rewrites every routable arrow as a border-to-border path with a two-stroke arrowhead, and prints `re-routed <n> of <m> arrow(s)`. Arrows whose ends do not resolve are named on stderr and left alone. Exit 0 = snippet printed, 1 = no arrow to route, 2 = bad arguments or an unreadable `.pen`.
+- **When to use:** whenever dragging boxes left arrows behind. The check never reads geometry, so a green check can sit on a canvas whose arrows are out of place.
+- **Source:** [`src/design/arch-route.ts`](../../src/design/arch-route.ts)
+
+### `design:arch-progress`
+
+- **Trigger:** `pnpm noldor design arch-progress --milestone <slug>`. It runs in three places:
+  - `/noldor-spec` step 1.6, for an FD whose `milestone:` has a target;
+  - `/noldor-milestone activate`, for the milestone being shipped;
+  - by hand, whenever you want the gap.
+- **Inputs:**
+  - the milestone's target, `docs/design/architecture/milestones/<slug>.pen` — its `FINAL:<view>:` pages;
+  - the baseline, `docs/design/architecture/baseline.pen`.
+- **Outputs:** a summary line, then, for each view the target covers:
+  - one `to-build` row per item in the target but not the baseline;
+  - one `to-remove` row per item in the baseline that the target's page dropped;
+  - a `done` count.
+
+  Items compare by name: modules by path, other boxes by layer name, arrows by canonical `<from> -> <to>`. A view with no `FINAL:` page is no change planned and is not reported.
+
+  Exit codes: 0 = report printed (it never fails on the gap itself), 1 = the target or the baseline cannot be read, 2 = a missing or malformed `--milestone`.
+- **When to use:**
+  - while a milestone is active, to see which features still owe the target;
+  - at `activate`, to see what the shipped milestone left undone.
+
+  It is advisory: milestones never block.
+- **Source:** [`src/design/arch-progress.ts`](../../src/design/arch-progress.ts)
 
 ### `design:geometry-diff`
 
@@ -163,6 +195,24 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **Outputs:** per-surface freshness rows (`fresh` / `stale` / `uninitialized` / `unverified` / `indeterminate` / `skipped`, ancestry-based). Ancestry is read against the surface's capture receipt (`.noldor/ui-capture/<surface>.json`), which only a successful `design capture` advances; a surface that has never had one falls back to the baseline file's own commit, reporting a legacy `stale` as `stale` and a legacy `fresh` as `unverified`. `indeterminate` means the check could not run for that surface (a git call failed, or the receipt is unreadable) and `skipped` means it ran and does not apply (shallow clone, no commit touches the surface); the two are separate statuses because the overall verdict is a max over the rows, and an unchecked surface reported at `skipped`'s rank would be masked by any healthy one. Exit 0 on fresh/skipped/unverified/indeterminate, exit 1 on stale/uninitialized — callers choose whether that blocks.
 - **When to use:** any time you want to know whether the UI design baseline still reflects the shipped UI. Remediation depends on the row: `unverified` and a receipt-backed `stale` are cleared by `pnpm noldor design capture`, which is the only command that advances the receipt; `uninitialized`, and a surface still on the pre-receipt read, are repaired by hand with `pnpm noldor design ui-sync`. An `indeterminate` row has no remediation — re-run it once git can answer. The report names the right one per surface.
 - **Source:** [`src/checks/check-ui-design-freshness.ts`](../../src/checks/check-ui-design-freshness.ts)
+
+### `check:arch-baseline`
+
+- **Trigger:** `pnpm noldor checks arch-baseline`. Run by `/noldor-gate` Step 4 (advisory — the exit code never blocks `pr-flow`) and by release preflight (the `arch-baseline` row, blocking when the baseline exists).
+- **Inputs:** `docs/design/architecture/baseline.pen`; the module set (`listModuleDirs` over `consumer.scanPaths`); module-to-module import pairs from dependency-cruiser (`moduleImportPairs` — tests excluded, tsconfig aliases resolved, the indirection ratchet's completeness guard).
+- **Outputs:** one row per finding, then advisory rows.
+  - Findings:
+    - `unreadable`: a view page missing or doubled, a file that is not a `.pen` document, or an import graph that could not be built.
+    - `missing-module`, `unknown-module`, `duplicate-module`, `dangling-edge`.
+    - `phantom-edge`: an arrow no import backs after group and multi-module expansion.
+  - Advisory: `undrawn-edge`, an import between two boxed modules that no arrow shows.
+
+  Exit 0 when the baseline is absent (nothing is checked) or clean; exit 1 on any finding. Advisories never change the exit code.
+- **When to use:** after drawing or editing the baseline, and whenever a change adds, removes or renames a module. Repair by redrawing the named box or arrow. The layer names are the contract:
+  - a module box is named by its path: `src/cr`, or `src/a + src/b` for a box that covers two;
+  - a group frame is named `group: <Name>`;
+  - an arrow is named `<from> -> <to>`.
+- **Source:** [`src/checks/check-arch-baseline.ts`](../../src/checks/check-arch-baseline.ts)
 
 ### `check:readme`
 

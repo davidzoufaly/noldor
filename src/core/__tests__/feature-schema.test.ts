@@ -14,7 +14,7 @@ const base = {
   'noldor-tier': 'full' as const,
 };
 
-// @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100
+// @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100, architecture-design-phase
 describe('FeatureFrontmatterSchema', () => {
   it('accepts a valid done feature', () => {
     expect(FeatureFrontmatterSchema.safeParse(base).success).toBeTruthy();
@@ -169,5 +169,22 @@ describe('noldor-tier field', () => {
       links: { code: [], tests: [] },
     });
     expect(parsed.links.plan).toBeUndefined();
+  });
+});
+
+describe('links.arch', () => {
+  const withArch = (arch: string): boolean =>
+    FeatureFrontmatterSchema.safeParse({ ...base, links: { ...base.links, arch } }).success;
+
+  it('accepts a repo-relative .pen path and refuses anything else', () => {
+    expect(withArch('docs/design/architecture/2026-09-24-x.pen')).toBe(true);
+    for (const arch of [
+      'docs/design/architecture/x.md',
+      '/abs/x.pen',
+      'docs/../x.pen',
+      'https://x.test/x.pen',
+    ]) {
+      expect(withArch(arch)).toBe(false);
+    }
   });
 });

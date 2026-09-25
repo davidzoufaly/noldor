@@ -18,7 +18,7 @@ import { loadDocRoots } from '../core/doc-roots.js';
 import type { SessionMarker } from '../core/session.js';
 
 export interface ArchiveMove {
-  readonly kind: 'spec' | 'plan' | 'pen';
+  readonly kind: 'spec' | 'plan' | 'pen' | 'arch-pen';
   /** Repo-relative source path, e.g. `docs/design/specs/<date>-<key>-design.md`. */
   readonly from: string;
   /** Repo-relative destination, e.g. `docs/design/specs/archive/<basename>`. */
@@ -127,7 +127,7 @@ async function collect(
       : kind === 'plan'
         ? planSlugFromFilename
         : penSlugFromFilename;
-  const ext = kind === 'pen' ? '.pen' : '.md';
+  const ext = kind === 'pen' || kind === 'arch-pen' ? '.pen' : '.md';
   /** Archive listing, read at most once and only if some entry matches the key. */
   let archived: Set<string> | null = null;
 
@@ -180,10 +180,11 @@ export async function resolveArchivePlan(options: ResolveOptions): Promise<Archi
   const specs = await collect('spec', roots.specs, repo, key, added, readdir);
   const plans = await collect('plan', roots.plans, repo, key, added, readdir);
   const pens = await collect('pen', roots.designUi, repo, key, added, readdir);
+  const archPens = await collect('arch-pen', roots.designArch, repo, key, added, readdir);
 
   return {
     key,
-    moves: [...specs.moves, ...plans.moves, ...pens.moves],
-    skipped: [...specs.skipped, ...plans.skipped, ...pens.skipped],
+    moves: [...specs.moves, ...plans.moves, ...pens.moves, ...archPens.moves],
+    skipped: [...specs.skipped, ...plans.skipped, ...pens.skipped, ...archPens.skipped],
   };
 }

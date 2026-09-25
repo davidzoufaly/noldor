@@ -87,6 +87,14 @@ export const MANIFEST: Record<string, Group> = {
         src: 'design/pen-bridge-cli.ts',
         desc: 'Open a .pen in VS Code so pencil MCP answers (bridge wake)',
       },
+      'arch-route': {
+        src: 'design/arch-route.ts',
+        desc: "Print a pencil execute snippet that redraws an architecture .pen's named arrows from their boxes' live bounds",
+      },
+      'arch-progress': {
+        src: 'design/arch-progress.ts',
+        desc: "How far the architecture baseline is from a milestone's target: to-build / to-remove / done per view; advisory",
+      },
       open: {
         src: 'design/open-artifact-cli.ts',
         desc: "Open a spec/plan in VS Code and print the path that resolves from the editor's workspace",
@@ -363,6 +371,10 @@ export const MANIFEST: Record<string, Group> = {
       'ui-design-freshness': {
         src: 'checks/check-ui-design-freshness.ts',
         desc: 'UI baseline freshness per surface; exit 1 on stale/uninitialized — callers choose whether that blocks',
+      },
+      'arch-baseline': {
+        src: 'checks/check-arch-baseline.ts',
+        desc: 'Architecture baseline .pen held to the code; exit 1 on findings, 0 when absent or clean',
       },
       'push-gates': {
         src: 'checks/check-push-gates.ts',

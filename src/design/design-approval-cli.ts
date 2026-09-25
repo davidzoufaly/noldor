@@ -29,11 +29,17 @@ import { z } from 'zod';
 import { blobIdOfBytes, blobIdOfWorktreeFile } from '../core/blob-id.js';
 import { runIfDirect } from '../core/cli-entry.js';
 import {
+  ARCH_BASELINE_PATH,
+  ARCH_DESIGN_DIR,
   ARCHIVE_DIR,
+  designKindOfPath,
+  milestonePenPath,
+  milestoneSlugFromPenPath,
   penSlugFromFilename,
   specSlugFromFilename,
   UI_BASELINE_DIR,
   UI_DESIGN_DIR,
+  type DesignKind,
 } from '../core/design-artifact-names.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { errMessage } from '../core/err-message.js';
@@ -43,15 +49,20 @@ import {
   writeApproval,
   type DesignApprovalRecord,
 } from './design-approval.js';
+import { ARCH_VIEWS } from './arch-pen.js';
 
 const USAGE =
-  'usage: design verdict --pen <path> --approve --surface <s> [--surface <s>...] --spec <path>\n' +
+  'usage: design verdict --pen <path> --approve --surface <s> [--surface <s>...] (--spec <path> | --milestone <slug>)\n' +
   '                      --editor-page <name> [--editor-page <name>...] [--reservation <text>]\n' +
+  '                      (a docs/design/architecture/ .pen takes views as surfaces: context | containers | modules | flows)\n' +
   '       design verdict --pen <path> --waive --reason <text>\n' +
   '       design verdict --pen <path> --check\n' +
   '       design verdict --pen <path> --reconfirm';
 
 const STAGE_HINT = 'stage the record with the .pen and the spec — it rides the same commit';
+
+/** What an approval binds: a feature design's spec, or a milestone target's milestone file. */
+type ApprovalBinding = { kind: 'spec'; spec: string } | { kind: 'milestone'; slug: string };
 
 type ApproveMode = {
   verb: 'approve';
@@ -59,7 +70,7 @@ type ApproveMode = {
   reservation?: string;
   /** Every top-level page name the editor shows, duplicates kept. */
   editorPages: string[];
-  spec: string;
+  against: ApprovalBinding;
 };
 
 type VerdictMode =
@@ -90,12 +101,14 @@ export function parseVerdictArgs(argv: readonly string[]): VerdictArgs {
   let reservation: string | undefined;
   let reason: string | undefined;
   let spec: string | undefined;
+  let milestone: string | undefined;
 
   const valueFlags = new Map<string, (v: string) => void>([
     ['--pen', (v) => (pen = v)],
     ['--surface', (v) => surfaces.push(v)],
     ['--editor-page', (v) => editorPages.push(v)],
     ['--spec', (v) => (spec = v)],
+    ['--milestone', (v) => (milestone = v)],
     ['--reservation', (v) => (reservation = v)],
     ['--reason', (v) => (reason = v)],
   ]);
@@ -138,7 +151,19 @@ export function parseVerdictArgs(argv: readonly string[]): VerdictArgs {
           '--approve requires at least one --editor-page — every top-level page the editor shows',
       };
     }
-    if (spec === undefined) return { ok: false, error: '--approve requires --spec' };
+    if (spec !== undefined && milestone !== undefined) {
+      return { ok: false, error: '--spec and --milestone exclude each other' };
+    }
+    if (spec === undefined && milestone === undefined) {
+      return {
+        ok: false,
+        error: '--approve requires --spec (or --milestone <slug> for a milestone target)',
+      };
+    }
+    const against: ApprovalBinding =
+      spec !== undefined
+        ? { kind: 'spec', spec }
+        : { kind: 'milestone', slug: milestone as string };
     return {
       ok: true,
       pen,
@@ -146,7 +171,7 @@ export function parseVerdictArgs(argv: readonly string[]): VerdictArgs {
         verb: 'approve',
         surfaces: [...new Set(surfaces)],
         editorPages,
-        spec,
+        against,
         ...(reservation === undefined ? {} : { reservation }),
       },
     };
@@ -157,6 +182,7 @@ export function parseVerdictArgs(argv: readonly string[]): VerdictArgs {
     ['--reservation', reservation !== undefined],
     ['--editor-page', editorPages.length > 0],
     ['--spec', spec !== undefined],
+    ['--milestone', milestone !== undefined],
   ];
   const stray = approveOnly.find(([, given]) => given);
   if (stray !== undefined) return { ok: false, error: `${stray[0]} belongs to --approve` };
@@ -205,38 +231,52 @@ function resolveUnder(
 }
 
 /**
- * Containment for `--pen`: the path must realpath-resolve inside
- * `<repo>/docs/design/ui/` and outside `baseline/` — symlinks, traversal and
- * absolute paths all resolve BEFORE the test. `archive/` is deliberately
- * inside: gate Step 4 archives the `.pen` in the flip commit before the
- * code-stage lane runs, so a re-verdict on an archived design is a legitimate
- * call, not an error.
+ * Containment for `--pen`: the path must realpath-resolve inside one design
+ * kind's directory — `docs/design/ui/` or `docs/design/architecture/`, the kind
+ * read off the lexical path — and must not be that kind's baseline. Symlinks,
+ * traversal and absolute paths all resolve BEFORE the test. `archive/` is
+ * deliberately inside: gate Step 4 archives the `.pen` in the flip commit
+ * before the code-stage lane runs, so a re-verdict on an archived design is a
+ * legitimate call, not an error.
  */
 export function resolveFeaturePen(
   repoRoot: string,
   penArg: string,
-): { ok: true; abs: string; base: string } | Refusal {
-  const found = resolveUnder(repoRoot, '--pen', penArg, join(repoRoot, UI_DESIGN_DIR));
+): { ok: true; abs: string; base: string; kind: DesignKind; milestone: string | null } | Refusal {
+  const lexical = relative(repoRoot, resolve(repoRoot, penArg)).split(sep).join('/');
+  const kind = designKindOfPath(lexical) ?? 'ui';
+  const designDir = kind === 'architecture' ? ARCH_DESIGN_DIR : UI_DESIGN_DIR;
+  const found = resolveUnder(repoRoot, '--pen', penArg, join(repoRoot, designDir));
   if (!found.ok) return found;
   const { abs, root: designRoot } = found;
   const rel = relative(designRoot, abs);
   if (rel.startsWith('..') || rel === '') {
-    return { ok: false, error: `--pen must resolve inside ${UI_DESIGN_DIR}/` };
+    return {
+      ok: false,
+      error: `--pen must resolve inside ${UI_DESIGN_DIR}/ or ${ARCH_DESIGN_DIR}/`,
+    };
   }
-  // Baseline exclusion by resolved prefix. The baseline dir may simply not
-  // exist yet (a repo before its first capture), which excludes nothing.
-  const baselineRoot = (() => {
+  // Baseline exclusion, resolved. Either baseline may not exist yet (a repo
+  // before its first capture or bootstrap), which excludes nothing.
+  const resolvedOrNull = (path: string): string | null => {
     try {
-      return realpathSync(join(repoRoot, UI_BASELINE_DIR));
+      return realpathSync(join(repoRoot, path));
     } catch {
       return null;
     }
-  })();
-  if (baselineRoot !== null && abs.startsWith(baselineRoot + sep)) {
+  };
+  if (kind === 'ui') {
+    const baselineRoot = resolvedOrNull(UI_BASELINE_DIR);
+    if (baselineRoot !== null && abs.startsWith(baselineRoot + sep)) {
+      return { ok: false, error: '--pen must not name a baseline .pen' };
+    }
+  } else if (abs === resolvedOrNull(ARCH_BASELINE_PATH)) {
     return { ok: false, error: '--pen must not name a baseline .pen' };
   }
   if (!abs.endsWith('.pen')) return { ok: false, error: '--pen must name a .pen file' };
-  return { ok: true, abs, base: basename(abs) };
+  // `lexical` (the top of this function) equals the real path here: a symlinked --pen is refused above.
+  const milestone = kind === 'architecture' ? milestoneSlugFromPenPath(lexical) : null;
+  return { ok: true, abs, base: basename(abs), kind, milestone };
 }
 
 /**
@@ -348,7 +388,7 @@ export interface VerdictDeps {
 interface VerdictCtx {
   cwd: string;
   now: () => string;
-  pen: { abs: string; base: string; rel: string; key: string };
+  pen: { abs: string; rel: string; key: string; kind: DesignKind; milestone: string | null };
 }
 
 function fail(message: string, code: 1 | 2): 1 | 2 {
@@ -369,9 +409,55 @@ function writeValidated(
   if (!parsed.success) {
     return { code: fail(`record would be unusable: ${parsed.error.message}`, 2) };
   }
-  const written = writeApproval(ctx.cwd, ctx.pen.base, parsed.data);
+  const written = writeApproval(ctx.cwd, ctx.pen.rel, parsed.data);
   if (!written.ok) return { code: fail(written.message, 1) };
   return { code: 0, rel: relative(ctx.cwd, written.path).split(sep).join('/') };
+}
+
+/** Resolve what an approval binds: the design's spec, or — for a milestone target, and only there — its milestone file. */
+function resolveBinding(
+  ctx: VerdictCtx,
+  against: ApprovalBinding,
+):
+  | { ok: true; kind: 'spec'; name: string; rel: string }
+  | { ok: true; kind: 'milestone'; slug: string; rel: string }
+  | Refusal {
+  if (against.kind === 'spec') {
+    if (ctx.pen.milestone !== null) {
+      return {
+        ok: false,
+        error: `${ctx.pen.rel} is a milestone target — approve it against its milestone file with --milestone ${ctx.pen.milestone}`,
+      };
+    }
+    const spec = resolveFeatureSpec(ctx.cwd, against.spec, ctx.pen.key);
+    return spec.ok ? { ok: true, kind: 'spec', name: spec.name, rel: spec.rel } : spec;
+  }
+  if (ctx.pen.milestone !== against.slug) {
+    return {
+      ok: false,
+      error: `--milestone ${against.slug} does not own ${ctx.pen.rel} — its target is ${milestonePenPath(against.slug)}`,
+    };
+  }
+  const abs = join(loadDocRoots(ctx.cwd).milestones, `${against.slug}.md`);
+  const rel = relative(ctx.cwd, abs).split(sep).join('/');
+  if (!existsSync(abs) || !lstatSync(abs).isFile()) {
+    return { ok: false, error: `--milestone ${against.slug}: no ${rel}` };
+  }
+  return { ok: true, kind: 'milestone', slug: against.slug, rel };
+}
+
+/**
+ * The record member that binds a file — `spec` for a feature design, `milestone`
+ * for a milestone target, never both. Unvalidated: every caller hands it to
+ * {@link writeValidated}, which parses the whole record.
+ */
+function bindingField(
+  file: { kind: 'spec'; name: string } | { kind: 'milestone'; slug: string },
+  blob: string,
+): { spec: { name: string; blob: string } } | { milestone: { slug: string; blob: string } } {
+  return file.kind === 'spec'
+    ? { spec: { name: file.name, blob } }
+    : { milestone: { slug: file.slug, blob } };
 }
 
 function approve(ctx: VerdictCtx, mode: ApproveMode): number {
@@ -394,15 +480,25 @@ function approve(ctx: VerdictCtx, mode: ApproveMode): number {
       1,
     );
   }
+  if (ctx.pen.kind === 'architecture') {
+    const views: readonly string[] = ARCH_VIEWS;
+    const stray = mode.surfaces.filter((surface) => !views.includes(surface));
+    if (stray.length > 0) {
+      return fail(
+        `--surface ${stray.join(', ')} is not an architecture view (${views.join(' | ')})`,
+        2,
+      );
+    }
+  }
   const coverage = surfaceCoverageError(mode.surfaces, read.pages);
   if (coverage !== null) return fail(coverage, 2);
-  const spec = resolveFeatureSpec(ctx.cwd, mode.spec, ctx.pen.key);
-  if (!spec.ok) return fail(spec.error, 2);
+  const bound = resolveBinding(ctx, mode.against);
+  if (!bound.ok) return fail(bound.error, 2);
 
   const penBlob = blobIdOfBytes(ctx.cwd, ctx.pen.rel, bytes);
   if (penBlob === null) return fail(`git could not hash ${ctx.pen.rel}`, 2);
-  const specBlob = blobIdOfWorktreeFile(ctx.cwd, spec.rel, { write: true });
-  if (specBlob === null) return fail(`git could not store ${spec.rel}`, 2);
+  const boundBlob = blobIdOfWorktreeFile(ctx.cwd, bound.rel, { write: true });
+  if (boundBlob === null) return fail(`git could not store ${bound.rel}`, 2);
 
   const written = writeValidated(ctx, {
     outcome: 'approved',
@@ -411,13 +507,13 @@ function approve(ctx: VerdictCtx, mode: ApproveMode): number {
     surfaces: mode.surfaces,
     ...(mode.reservation === undefined ? {} : { reservation: mode.reservation }),
     pages: read.pages,
-    spec: { name: spec.name, blob: specBlob },
+    ...bindingField(bound, boundBlob),
   });
   if (written.code !== 0) return written.code;
   console.log(`approved: ${written.rel} → ${ctx.pen.rel} @ ${penBlob.slice(0, 12)}`);
   console.log(`signed ${read.pages.length} page(s):`);
   for (const page of read.pages) console.log(`  ${page}`);
-  console.log(`against spec ${spec.rel} @ ${specBlob.slice(0, 12)}`);
+  console.log(`against ${bound.kind} ${bound.rel} @ ${boundBlob.slice(0, 12)}`);
   console.log(STAGE_HINT);
   return 0;
 }
@@ -432,14 +528,40 @@ function waive(ctx: VerdictCtx, reason: string): number {
   return 0;
 }
 
-/** The spec an approved record names, where it now sits: live, or archived under the same name. */
-function boundSpec(
+/**
+ * The file an approved record binds, where it now sits: a milestone target's
+ * milestone file, or a feature design's spec — live, or archived under the
+ * same name.
+ */
+/** A bound file located on disk. `name` is its basename, the name `--check`'s diff shows. */
+type BoundFile =
+  | { kind: 'spec'; name: string; blob: string; rel: string; abs: string }
+  | { kind: 'milestone'; slug: string; name: string; blob: string; rel: string; abs: string };
+
+function boundFile(
   cwd: string,
   pen: VerdictCtx['pen'],
   record: ApprovedRecord,
-):
-  | { ok: true; name: string; blob: string; rel: string; abs: string }
-  | { ok: false; error: string } {
+): ({ ok: true } & BoundFile) | { ok: false; error: string } {
+  if (record.milestone !== undefined) {
+    const abs = join(loadDocRoots(cwd).milestones, `${record.milestone.slug}.md`);
+    const rel = relative(cwd, abs).split(sep).join('/');
+    if (!existsSync(abs) || !lstatSync(abs).isFile()) {
+      return {
+        ok: false,
+        error: `the milestone file the approval names (${rel}) is gone — take the verdict again with --milestone`,
+      };
+    }
+    return {
+      ok: true,
+      kind: 'milestone',
+      slug: record.milestone.slug,
+      name: `${record.milestone.slug}.md`,
+      blob: record.milestone.blob,
+      rel,
+      abs,
+    };
+  }
   const { spec } = record;
   if (spec === undefined) {
     return {
@@ -458,7 +580,7 @@ function boundSpec(
       error: `the spec the approval names (${spec.name}) is in neither ${shown}/ nor ${shown}/${ARCHIVE_DIR}/ — take the verdict again with --spec`,
     };
   }
-  return { ok: true, ...spec, abs, rel: relative(cwd, abs).split(sep).join('/') };
+  return { ok: true, kind: 'spec', ...spec, abs, rel: relative(cwd, abs).split(sep).join('/') };
 }
 
 /** A disposable scratch directory, removed on every path out of its scope. */
@@ -514,9 +636,9 @@ function loadApproval(ctx: VerdictCtx):
   | {
       kind: 'bound';
       record: ApprovedRecord;
-      spec: { name: string; blob: string; rel: string; abs: string };
+      spec: BoundFile;
     } {
-  const read = readApproval(ctx.cwd, ctx.pen.base);
+  const read = readApproval(ctx.cwd, ctx.pen.rel);
   if (!read.ok) return { kind: 'refused', code: fail(`cannot read the record: ${read.error}`, 2) };
   const { record } = read;
   if (record === null) {
@@ -524,7 +646,7 @@ function loadApproval(ctx: VerdictCtx):
     return { kind: 'refused', code };
   }
   if (record.outcome === 'waived') return { kind: 'waived' };
-  const spec = boundSpec(ctx.cwd, ctx.pen, record);
+  const spec = boundFile(ctx.cwd, ctx.pen, record);
   if (!spec.ok) return { kind: 'refused', code: fail(spec.error, 2) };
   return { kind: 'bound', record, spec };
 }
@@ -552,9 +674,9 @@ function check(ctx: VerdictCtx): number {
     console.log(
       `the approval-time text (${spec.blob.slice(0, 12)}) is not in this clone's object store — compare by hand`,
     );
-  } else console.log(`could not diff the spec: ${diff.error}`);
+  } else console.log(`could not diff the ${spec.kind}: ${diff.error}`);
   console.log(
-    `if the design still depicts the spec: design verdict --pen ${ctx.pen.rel} --reconfirm; ` +
+    `if the design still depicts the ${spec.kind}: design verdict --pen ${ctx.pen.rel} --reconfirm; ` +
       'otherwise revise the design and take the verdict again',
   );
   return 1;
@@ -581,7 +703,7 @@ function reconfirm(ctx: VerdictCtx): number {
   const written = writeValidated(ctx, {
     ...record,
     at: ctx.now(),
-    spec: { name: spec.name, blob: specBlob },
+    ...bindingField(spec, specBlob),
   });
   if (written.code !== 0) return written.code;
   console.log(
@@ -615,7 +737,7 @@ export async function main(argv: readonly string[], deps?: Partial<VerdictDeps>)
   if (!pen.ok) return fail(pen.error, 2);
   // `resolveFeaturePen`'s realpath already proved existence; the remaining
   // trust-boundary check is the naming scheme, which keys the record.
-  const key = penSlugFromFilename(pen.base);
+  const key = pen.milestone ?? penSlugFromFilename(pen.base);
   if (key === null) {
     return fail(
       `'${pen.base}' does not match the <date>-<key>.pen naming scheme — ` +
@@ -627,7 +749,13 @@ export async function main(argv: readonly string[], deps?: Partial<VerdictDeps>)
   const ctx: VerdictCtx = {
     cwd,
     now,
-    pen: { abs: pen.abs, base: pen.base, rel: relative(cwd, pen.abs).split(sep).join('/'), key },
+    pen: {
+      abs: pen.abs,
+      rel: relative(cwd, pen.abs).split(sep).join('/'),
+      key,
+      kind: pen.kind,
+      milestone: pen.milestone,
+    },
   };
   switch (args.mode.verb) {
     case 'approve':

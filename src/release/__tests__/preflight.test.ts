@@ -171,8 +171,8 @@ describe('runPreflight', () => {
 
   it('returns exactly one row per registered check, ids unique', async () => {
     const rows = await run(cwd);
-    expect(rows.length).toBe(17);
-    expect(new Set(rows.map((r) => r.id)).size).toBe(17);
+    expect(rows.length).toBe(18);
+    expect(new Set(rows.map((r) => r.id)).size).toBe(18);
   });
 
   it('populates detail on every row, including ok and skipped ones', async () => {

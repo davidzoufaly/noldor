@@ -459,6 +459,25 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   showed the thing behind the glass was a blurred gallery, and that the glass
   layer is a child of the dialog root. Whenever a fidelity diff fails, write
   both PNGs to a scratch dir and look before theorising. (charuy Q-0278)
+- **An architecture arrow is a loose path, not a connector.** pen.dev has no
+  sticky arrows, so dragging a box leaves its arrows where they were — and
+  `checks arch-baseline` stays green, because it reads layer names, not
+  geometry. After moving boxes run `pnpm -s noldor design arch-route --pen
+  <path> --view <view>` and pass its stdout to pencil `execute`. Save first
+  when you drew a new arrow: the matching reads the file on disk.
+  (architecture-design-phase)
+- **On an architecture canvas the layer name is the contract, not the label.**
+  A module box means its layer name (`src/cr`), an arrow its `<from> -> <to>`
+  name; the text inside a box is decoration. Renaming the label without the
+  layer changes nothing the check sees, a typo in the layer name surfaces as
+  `unknown-module` or `dangling-edge`, and a duplicated box keeps its
+  original's name — `duplicate-module` until the copy is renamed.
+  (architecture-design-phase)
+- **Pasted mermaid SVG is not an architecture baseline.** pen.dev turns pasted
+  SVG into editable nodes but drops arrow tips (`<marker>`) and HTML labels
+  (`foreignObject`), and every pasted box arrives unnamed, so the check sees
+  none of it. Emit the `.pen` from data with the names set as each node is
+  created, as this repo's baseline was. (architecture-design-phase)
 
 ## Release & publish
 

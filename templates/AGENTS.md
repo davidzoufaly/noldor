@@ -55,7 +55,7 @@ outputs and exit codes: `docs/noldor/script-catalog.md`.
 
 - `autonomous` — Autonomous runners (queue-drain / plan-runner): run, queue-drain, watch, inbox, unpark, branch-state, status
 - `prep` — Parallel prep: fan out spec/plan drafts, then promote approved ones to FDs: fanout, promote, format
-- `design` — Running design context for a spec/plan dialogue (ledger + inline block): archive, ui-sync, capture, pen-bridge, open, verdict, context, graph-context, log, support-check, geometry-diff, geometry-validate
+- `design` — Running design context for a spec/plan dialogue (ledger + inline block): archive, ui-sync, capture, pen-bridge, arch-route, arch-progress, open, verdict, context, graph-context, log, support-check, geometry-diff, geometry-validate
 - `research` — Parallel read-only research agents (fanout + opt-in synthesis): fanout
 - `garden` — Garden drift detection + SDD report + receipts: detect, receipt, sdd-report, demote-stale
 - `metrics` — Effectiveness metrics derived from repo history: compute
@@ -69,7 +69,7 @@ outputs and exit codes: `docs/noldor/script-catalog.md`.
 - `validate` — Validators (noldor config + skill catalog + scope): noldor, noldor-config, noldor-scope, skill-catalog, script-catalog, features, milestones, triage, feature-slug-scope
 - `release` — Release pipeline: run, publish
 - `hooks` — Lefthook entrypoints (pre-commit / commit-msg / pre-push): pre-commit, inject-trailers, validate-trailer, enforce-review-receipt, enforce-arbitration, pre-push, pre-edit-guard, open-artifact
-- `checks` — Invariant + shared-file checks: invariants, shared-files, feature-slug-scope, template-sync, ui-design-freshness, push-gates, readme, skill-portability, pen-bridge
+- `checks` — Invariant + shared-file checks: invariants, shared-files, feature-slug-scope, template-sync, ui-design-freshness, arch-baseline, push-gates, readme, skill-portability, pen-bridge
 - `graphify` — Graphify runner + helpers: graph-to-toon, enrich-docs, refactor-precondition
 - `dashboard` — Dev dashboard: server, ensure, status
 - `docs` — Docs builders + checks: api, howto, check, transclude, adr, architecture, capability-index

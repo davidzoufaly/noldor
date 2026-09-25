@@ -1,5 +1,6 @@
 // @tests: parallel-worktree-workflow
 // @tests: pendev-ui-design-phase
+// @tests: architecture-design-phase
 
 import { describe, expect, it } from 'vitest';
 
@@ -356,7 +357,7 @@ describe('check-shared-files / evaluate — record-tamper rule (amend bypass)', 
   const PEN_STEM = '2026-08-30-my-feature';
   const RECORD = `.noldor/design-approval/${PEN_STEM}.json`;
   /** The pen survives in HEAD — the amend stages only the record change. */
-  const penInHead: PenBlobLookup = (stem) => (stem === PEN_STEM ? OID_A : null);
+  const penInHead: PenBlobLookup = (record) => (record === RECORD ? OID_A : null);
 
   it('refuses a staged DELETE of a record whose pen survives (amend bypass closed)', () => {
     const staged: StagedChange[] = [{ path: RECORD, change: 'delete', blob: ZERO }];
@@ -394,31 +395,55 @@ describe('check-shared-files / evaluate — record-tamper rule (amend bypass)', 
     const lookup: RecordLookup = () => approvedRecord(OID_A);
     expect(evaluate(staged, MAIN, {}, lookup, penInHead)).toEqual([]);
   });
+
+  it('refuses a staged delete of an architecture record whose design survives', () => {
+    const ARCH_RECORD = `.noldor/design-approval/architecture/${PEN_STEM}.json`;
+    const staged: StagedChange[] = [{ path: ARCH_RECORD, change: 'delete', blob: ZERO }];
+    const lookup = stagedAwareRecordLookup(staged, () => approvedRecord(OID_A));
+    const archInHead: PenBlobLookup = (record) => (record === ARCH_RECORD ? OID_A : null);
+    expect(evaluate(staged, MAIN, {}, lookup, archInHead)).toEqual([
+      { path: ARCH_RECORD, reason: 'pen-unapproved' },
+    ]);
+  });
 });
 
 describe('check-shared-files / stagedAwarePenLookup', () => {
   const PEN_STEM = '2026-08-30-my-feature';
   const FEATURE = `docs/design/ui/${PEN_STEM}.pen`;
   const ARCHIVED = `docs/design/ui/archive/${PEN_STEM}.pen`;
+  const RECORD = `.noldor/design-approval/${PEN_STEM}.json`;
 
   it('prefers the staged feature-path blob', () => {
     const staged: StagedChange[] = [{ path: FEATURE, change: 'modify', blob: OID_B }];
-    expect(stagedAwarePenLookup(staged, () => null)(PEN_STEM)).toBe(OID_B);
+    expect(stagedAwarePenLookup(staged, () => null)(RECORD)).toBe(OID_B);
   });
 
   it('treats a staged delete as gone and falls through to the archive twin in HEAD', () => {
     const staged: StagedChange[] = [{ path: FEATURE, change: 'delete', blob: ZERO }];
     const lookup = stagedAwarePenLookup(staged, (rel) => (rel === ARCHIVED ? OID_A : null));
-    expect(lookup(PEN_STEM)).toBe(OID_A);
+    expect(lookup(RECORD)).toBe(OID_A);
   });
 
   it('reads HEAD when the commit does not touch the pen (the amend shape)', () => {
     const lookup = stagedAwarePenLookup([], (rel) => (rel === FEATURE ? OID_A : null));
-    expect(lookup(PEN_STEM)).toBe(OID_A);
+    expect(lookup(RECORD)).toBe(OID_A);
   });
 
   it('returns null when neither path survives', () => {
-    expect(stagedAwarePenLookup([], () => null)(PEN_STEM)).toBeNull();
+    expect(stagedAwarePenLookup([], () => null)(RECORD)).toBeNull();
+  });
+
+  it('looks an architecture record up among the architecture designs, never the UI one with its stem', () => {
+    const arch = `docs/design/architecture/${PEN_STEM}.pen`;
+    const lookup = stagedAwarePenLookup([], (rel) =>
+      rel === FEATURE ? OID_A : rel === arch ? OID_B : null,
+    );
+    expect(lookup(`.noldor/design-approval/architecture/${PEN_STEM}.json`)).toBe(OID_B);
+    expect(lookup(RECORD)).toBe(OID_A);
+  });
+
+  it('returns null for a path that is not a record', () => {
+    expect(stagedAwarePenLookup([], () => OID_A)('.noldor/design-approval/notes.txt')).toBeNull();
   });
 });
 
@@ -458,5 +483,64 @@ describe('check-shared-files / stagedAwareRecordLookup', () => {
     const staged: StagedChange[] = [{ path: RECORD, change: 'modify', blob: ZERO }];
     const lookup = stagedAwareRecordLookup(staged, () => 'anything');
     expect(lookup(RECORD)).toBeNull();
+  });
+});
+
+describe('check-shared-files / evaluate — architecture designs', () => {
+  const ARCH_PEN = 'docs/design/architecture/2026-08-30-my-feature.pen';
+  const ARCH_RECORD = '.noldor/design-approval/architecture/2026-08-30-my-feature.json';
+  const BASELINE = 'docs/design/architecture/baseline.pen';
+  const addArch: StagedChange = { path: ARCH_PEN, change: 'add', blob: OID_A };
+
+  it('refuses an architecture design added with no record, asking for the architecture record path', () => {
+    const asked: string[] = [];
+    const lookup: RecordLookup = (p) => {
+      asked.push(p);
+      return null;
+    };
+    expect(evaluate([addArch], MAIN, {}, lookup)).toEqual([
+      { path: ARCH_PEN, reason: 'pen-unapproved' },
+    ]);
+    expect(asked).toEqual([ARCH_RECORD]);
+  });
+
+  it('accepts an architecture design whose record matches', () => {
+    const lookup: RecordLookup = (p) => (p === ARCH_RECORD ? approvedRecord(OID_A) : null);
+    expect(evaluate([addArch], MAIN, {}, lookup)).toEqual([]);
+  });
+
+  it('treats the architecture baseline as a baseline: never a design, and refused from a worktree unless overridden', () => {
+    expect(
+      evaluate([{ path: BASELINE, change: 'add', blob: OID_A }], MAIN, {}, NO_RECORDS),
+    ).toEqual([]);
+    expect(evaluate(mod(BASELINE), WORKTREE, {}, NO_RECORDS)).toEqual([
+      { path: BASELINE, reason: 'pen-baseline' },
+    ]);
+    expect(evaluate(mod(BASELINE), WORKTREE, { NOLDOR_ALLOW_PEN_WRITE: '1' }, NO_RECORDS)).toEqual(
+      [],
+    );
+  });
+});
+
+describe('check-shared-files / evaluate — milestone targets', () => {
+  const TARGET = 'docs/design/architecture/milestones/m1.pen';
+  const RECORD = '.noldor/design-approval/architecture/milestones/m1.json';
+  const addTarget: StagedChange = { path: TARGET, change: 'add', blob: OID_A };
+
+  it('keys a milestone target by its slug: refused with no record, accepted with a matching one', () => {
+    expect(evaluate([addTarget], MAIN, {}, NO_RECORDS)).toEqual([
+      { path: TARGET, reason: 'pen-unapproved' },
+    ]);
+    const lookup: RecordLookup = (p) => (p === RECORD ? approvedRecord(OID_A) : null);
+    expect(evaluate([addTarget], MAIN, {}, lookup)).toEqual([]);
+  });
+
+  it('refuses dropping the record of a target that stays', () => {
+    const staged: StagedChange[] = [{ path: RECORD, change: 'delete', blob: ZERO }];
+    const lookup = stagedAwareRecordLookup(staged, () => approvedRecord(OID_A));
+    const targetInHead = stagedAwarePenLookup([], (rel) => (rel === TARGET ? OID_A : null));
+    expect(evaluate(staged, MAIN, {}, lookup, targetInHead)).toEqual([
+      { path: RECORD, reason: 'pen-unapproved' },
+    ]);
   });
 });

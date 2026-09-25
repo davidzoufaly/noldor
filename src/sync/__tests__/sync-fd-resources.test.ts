@@ -1,4 +1,4 @@
-// @tests: doc-gardening-skill, sdd-co-tag-detector
+// @tests: doc-gardening-skill, sdd-co-tag-detector, architecture-design-phase
 
 import { execSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -558,5 +558,21 @@ Body.
     await syncFile(mdPath);
     const out = readFileSync(mdPath, 'utf8');
     expect(out).toContain('design: docs/design/ui/archive/2026-08-19-x.pen');
+  });
+
+  it('repoints links.arch to archive/ when the file moved there', async () => {
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(join(tmpDir, 'docs/design/architecture/archive'), { recursive: true });
+    writeFileSync(join(tmpDir, 'docs/design/architecture/archive/2026-09-24-x.pen'), 'pen', 'utf8');
+    const mdPath = join(tmpDir, 'fd.md');
+    writeFileSync(
+      mdPath,
+      '---\nname: Fake\nlinks:\n  arch: docs/design/architecture/2026-09-24-x.pen\n  code: []\n---\n\n## Summary\n\nBody.\n',
+      'utf8',
+    );
+    await syncFile(mdPath);
+    expect(readFileSync(mdPath, 'utf8')).toContain(
+      'arch: docs/design/architecture/archive/2026-09-24-x.pen',
+    );
   });
 });

@@ -1,4 +1,4 @@
-// @tests: pendev-ui-design-phase
+// @tests: pendev-ui-design-phase, architecture-design-phase
 
 import { execFileSync } from 'node:child_process';
 import {
@@ -99,6 +99,53 @@ describe('design-approval / record round-trip', () => {
   });
 });
 
+describe('design-approval / records by design kind', () => {
+  const ARCH = 'docs/design/architecture/2026-08-30-my-feature.pen';
+  const ARCH_APPROVED: DesignApprovalRecord = {
+    outcome: 'approved',
+    at: '2026-08-30T00:00:00.000Z',
+    penBlob: 'e'.repeat(40),
+    surfaces: ['modules'],
+  };
+
+  it('records an architecture design under architecture/, archived or not, and leaves UI paths alone', () => {
+    expect(approvalRelPath(ARCH)).toBe(
+      '.noldor/design-approval/architecture/2026-08-30-my-feature.json',
+    );
+    expect(approvalRelPath('docs/design/architecture/archive/2026-08-30-my-feature.pen')).toBe(
+      '.noldor/design-approval/architecture/2026-08-30-my-feature.json',
+    );
+    expect(approvalRelPath(`docs/design/ui/${PEN}`)).toBe(
+      '.noldor/design-approval/2026-08-30-my-feature.json',
+    );
+    expect(approvalRelPath(PEN)).toBe('.noldor/design-approval/2026-08-30-my-feature.json');
+  });
+
+  it('keeps a UI record and an architecture record with the same stem apart', () => {
+    const cwd = tempRepo();
+    expect(writeApproval(cwd, `docs/design/ui/${PEN}`, APPROVED).ok).toBe(true);
+    expect(writeApproval(cwd, ARCH, ARCH_APPROVED).ok).toBe(true);
+    expect(readBack(cwd, `docs/design/ui/${PEN}`)).toEqual(APPROVED);
+    expect(readBack(cwd, ARCH)).toEqual(ARCH_APPROVED);
+  });
+
+  it('records a milestone target under architecture/milestones/, keyed by the milestone slug', () => {
+    expect(approvalRelPath('docs/design/architecture/milestones/m1.pen')).toBe(
+      '.noldor/design-approval/architecture/milestones/m1.json',
+    );
+  });
+
+  it('parses a record bound to a milestone, and refuses a malformed binding', () => {
+    const bound = { ...ARCH_APPROVED, milestone: { slug: 'm1', blob: 'f'.repeat(40) } };
+    expect(parseApprovalBytes(JSON.stringify(bound))).toEqual(bound);
+    expect(
+      parseApprovalBytes(
+        JSON.stringify({ ...ARCH_APPROVED, milestone: { slug: 'M 1', blob: 'f'.repeat(40) } }),
+      ),
+    ).toBeNull();
+  });
+});
+
 describe('design-approval / parse policy', () => {
   it('rejects an unknown field — writer and reader must agree (.strict())', () => {
     expect(parseApprovalBytes(JSON.stringify({ ...APPROVED, extra: 1 }))).toBeNull();
@@ -187,6 +234,143 @@ describe('design-approval / path containment', () => {
 
   it('derives the record rel path from the pen basename', () => {
     expect(approvalRelPath(PEN)).toBe('.noldor/design-approval/2026-08-30-my-feature.json');
+  });
+});
+
+describe('design verdict CLI / architecture designs', () => {
+  const archRel = `docs/design/architecture/${PEN}`;
+  const ARCH_PAGES = ['BASE:modules: as-built', 'FINAL:modules: split cr'];
+
+  function archRepo(): string {
+    const cwd = gitRepo();
+    mkdirSync(join(cwd, 'docs', 'design', 'architecture', 'archive'), { recursive: true });
+    writeFileSync(join(cwd, 'docs', 'design', 'architecture', PEN), penJson(ARCH_PAGES));
+    return cwd;
+  }
+  const archArgv = (surfaces: readonly string[] = ['modules']): string[] => [
+    '--pen',
+    archRel,
+    '--approve',
+    ...surfaces.flatMap((s) => ['--surface', s]),
+    '--spec',
+    specRel,
+    ...ARCH_PAGES.flatMap((p) => ['--editor-page', p]),
+  ];
+
+  it('writes the record under architecture/, beside a UI record of the same stem', async () => {
+    const cwd = archRepo();
+    expect((await run(cwd, approveArgv())).code).toBe(0);
+    expect((await run(cwd, archArgv())).code).toBe(0);
+    expect(readBack(cwd, archRel)).toMatchObject({
+      outcome: 'approved',
+      surfaces: ['modules'],
+      penBlob: blobOf(cwd, archRel),
+    });
+    expect(readBack(cwd, penRel)).toMatchObject({ outcome: 'approved', surfaces: ['app'] });
+  });
+
+  it('refuses a surface that is not an architecture view, writing nothing', async () => {
+    const cwd = archRepo();
+    const r = await run(cwd, archArgv(['app']));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('not an architecture view');
+    expect(readBack(cwd, archRel)).toBeNull();
+  });
+
+  it('refuses the architecture baseline', () => {
+    const cwd = archRepo();
+    writeFileSync(
+      join(cwd, 'docs', 'design', 'architecture', 'baseline.pen'),
+      penJson(['modules']),
+    );
+    expect(resolveFeaturePen(cwd, 'docs/design/architecture/baseline.pen').ok).toBe(false);
+  });
+
+  it('still finds the record after the design moves into archive/', async () => {
+    const cwd = archRepo();
+    expect((await run(cwd, archArgv())).code).toBe(0);
+    renameSync(join(cwd, archRel), join(cwd, 'docs', 'design', 'architecture', 'archive', PEN));
+    const r = await run(cwd, ['--pen', `docs/design/architecture/archive/${PEN}`, '--check']);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('current');
+  });
+});
+
+describe('design verdict CLI / milestone targets', () => {
+  const target = 'docs/design/architecture/milestones/m1.pen';
+  const PAGES_M = ['BASE:modules: as-built', 'FINAL:modules: split cr'];
+
+  function milestoneRepo(): string {
+    const cwd = gitRepo();
+    mkdirSync(join(cwd, 'docs', 'design', 'architecture', 'milestones'), { recursive: true });
+    mkdirSync(join(cwd, 'docs', 'milestones'), { recursive: true });
+    writeFileSync(join(cwd, target), penJson(PAGES_M));
+    writeFileSync(
+      join(cwd, 'docs', 'milestones', 'm1.md'),
+      '---\nname: m1\nstatus: draft\n---\n\n## Gate\n\nShip it.\n',
+    );
+    return cwd;
+  }
+  const argv = (bind: string[]): string[] => [
+    '--pen',
+    target,
+    '--approve',
+    '--surface',
+    'modules',
+    ...bind,
+    ...PAGES_M.flatMap((p) => ['--editor-page', p]),
+  ];
+
+  it('approves a milestone target against its milestone file', async () => {
+    const cwd = milestoneRepo();
+    expect((await run(cwd, argv(['--milestone', 'm1']))).code).toBe(0);
+    expect(readBack(cwd, target)).toMatchObject({
+      outcome: 'approved',
+      surfaces: ['modules'],
+      milestone: { slug: 'm1', blob: blobOf(cwd, 'docs/milestones/m1.md') },
+    });
+  });
+
+  it('refuses the wrong binding, a foreign slug, a feature design, a missing milestone file, and both flags', async () => {
+    const cwd = milestoneRepo();
+    const wrong = await run(cwd, argv(['--spec', specRel]));
+    expect([wrong.code, wrong.err]).toEqual([2, expect.stringContaining('is a milestone target')]);
+    writeFileSync(join(cwd, 'docs', 'milestones', 'm2.md'), '---\nname: m2\nstatus: draft\n---\n');
+    const foreign = await run(cwd, argv(['--milestone', 'm2']));
+    expect([foreign.code, foreign.err]).toEqual([2, expect.stringContaining('does not own')]);
+    const featureArgv = approveArgv().filter(
+      (a, i, all) => a !== '--spec' && all[i - 1] !== '--spec',
+    );
+    const feature = await run(cwd, [...featureArgv, '--milestone', 'm1']);
+    expect([feature.code, feature.err]).toEqual([2, expect.stringContaining('does not own')]);
+    rmSync(join(cwd, 'docs', 'milestones', 'm1.md'));
+    const missing = await run(cwd, argv(['--milestone', 'm1']));
+    expect([missing.code, missing.err]).toEqual([
+      2,
+      expect.stringContaining('no docs/milestones/m1.md'),
+    ]);
+    expect(parseVerdictArgs(argv(['--milestone', 'm1', '--spec', specRel])).ok).toBe(false);
+  });
+
+  it('reports drift once the milestone file changes', async () => {
+    const cwd = milestoneRepo();
+    await run(cwd, argv(['--milestone', 'm1']));
+    expect((await run(cwd, ['--pen', target, '--check'])).code).toBe(0);
+    appendFileSync(join(cwd, 'docs', 'milestones', 'm1.md'), 'A later gate.\n');
+    const drift = await run(cwd, ['--pen', target, '--check']);
+    expect(drift.code).toBe(1);
+    expect(drift.out).toContain('docs/milestones/m1.md');
+  });
+
+  it('reconfirms a milestone target against its changed milestone file', async () => {
+    const cwd = milestoneRepo();
+    await run(cwd, argv(['--milestone', 'm1']));
+    appendFileSync(join(cwd, 'docs', 'milestones', 'm1.md'), 'A later gate.\n');
+    expect((await run(cwd, ['--pen', target, '--reconfirm'])).code).toBe(0);
+    expect(readBack(cwd, target)).toMatchObject({
+      milestone: { slug: 'm1', blob: blobOf(cwd, 'docs/milestones/m1.md') },
+    });
+    expect((await run(cwd, ['--pen', target, '--check'])).code).toBe(0);
   });
 });
 

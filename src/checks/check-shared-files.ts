@@ -1,7 +1,10 @@
 import { execFileSync } from 'node:child_process';
 
 import {
+  ARCH_BASELINE_PATH,
+  ARCH_DESIGN_DIR,
   ARCHIVE_DIR,
+  milestoneSlugFromPenPath,
   penSlugFromFilename,
   UI_BASELINE_DIR,
   UI_DESIGN_DIR,
@@ -11,6 +14,7 @@ import {
   APPROVAL_DIR_SEGMENTS,
   approvalRelPath,
   parseApprovalBytes,
+  penCandidatesForRecord,
 } from '../design/design-approval.js';
 import { isEntrypoint } from '../core/cli-entry.js';
 
@@ -118,19 +122,29 @@ function isPen(path: string): boolean {
   return path.endsWith('.pen');
 }
 
-const FEATURE_PEN_PREFIX = `${UI_DESIGN_DIR}/`;
+/** Every design kind's directory (ADR 0007): a `.pen` under one is a design, unless it is that kind's baseline. */
+const FEATURE_PEN_PREFIXES = [`${UI_DESIGN_DIR}/`, `${ARCH_DESIGN_DIR}/`] as const;
+
+/** A baseline `.pen` of either kind: under the UI baseline directory, or the one architecture baseline file. */
+function isBaselinePen(path: string): boolean {
+  return path.startsWith(BASELINE_PREFIX) || path === ARCH_BASELINE_PATH;
+}
 
 /**
- * A FEATURE `.pen`: under `docs/design/ui/`, `archive/` included — an add into
- * `archive/` is usually `design archive`'s sanctioned move of a file whose
- * record (keyed by the unchanged stem, bound to the unchanged blob) is already
- * committed, and that satisfies the approval rules for free; a `.pen` added
- * DIRECTLY into `archive/` with no record would otherwise be the guard's
- * bypass. Baseline pens are excluded: undated (unkeyable by design), covered
- * by their own rule, and never verdict targets.
+ * A FEATURE `.pen`: under a design kind's directory, `archive/` included — an
+ * add into `archive/` is usually `design archive`'s sanctioned move of a file
+ * whose record (keyed by the unchanged stem, bound to the unchanged blob) is
+ * already committed, and that satisfies the approval rules for free; a `.pen`
+ * added DIRECTLY into `archive/` with no record would otherwise be the guard's
+ * bypass. Baseline pens are excluded: undated (unkeyable by design), covered by
+ * their own rule, and never verdict targets.
  */
 function isFeaturePen(path: string): boolean {
-  return isPen(path) && path.startsWith(FEATURE_PEN_PREFIX) && !path.startsWith(BASELINE_PREFIX);
+  return (
+    isPen(path) &&
+    FEATURE_PEN_PREFIXES.some((prefix) => path.startsWith(prefix)) &&
+    !isBaselinePen(path)
+  );
 }
 
 /**
@@ -142,29 +156,28 @@ function isFeaturePen(path: string): boolean {
 export type RecordLookup = (recordRelPath: string) => string | null;
 
 /**
- * The blob the resulting tree will hold for a stem's `.pen` (feature path or
- * its `archive/`), or `null` when neither survives the commit. Injected for
- * the record-tamper rule below; {@link stagedAwarePenLookup} is the production
- * shape.
+ * The blob the resulting tree will hold for the design a record path stands
+ * for (see `penCandidatesForRecord`), or `null` when neither the design nor its
+ * `archive/` twin survives the commit. Injected for the record-tamper rule
+ * below; {@link stagedAwarePenLookup} is the production shape.
  */
-export type PenBlobLookup = (stem: string) => string | null;
+export type PenBlobLookup = (recordRelPath: string) => string | null;
 
 const APPROVAL_PREFIX = `${APPROVAL_DIR_SEGMENTS.join('/')}/`;
 
 /**
  * Production {@link PenBlobLookup}: staged entry first (a staged delete or a
  * zero oid means that path does not survive), `HEAD` for a path the commit
- * does not touch. Checks the feature path, then its `archive/` twin.
+ * does not touch. Checks the design path, then its `archive/` twin — both in
+ * the record's own design kind, so an architecture record is never compared
+ * against a UI design that happens to share its stem.
  */
 export function stagedAwarePenLookup(
   staged: readonly StagedChange[],
   headBlob: (relPath: string) => string | null,
 ): PenBlobLookup {
-  return (stem) => {
-    for (const rel of [
-      `${FEATURE_PEN_PREFIX}${stem}.pen`,
-      `${FEATURE_PEN_PREFIX}${ARCHIVE_DIR}/${stem}.pen`,
-    ]) {
+  return (recordRelPath) => {
+    for (const rel of penCandidatesForRecord(recordRelPath)) {
       const entry = staged.findLast((s) => s.path === rel);
       if (entry !== undefined) {
         if (entry.change === 'delete' || ZERO_OID_RE.test(entry.blob)) continue;
@@ -251,7 +264,7 @@ export function evaluate(
     // drift after that is the ui-reviewer lane's `design-approval-stale`.
     if (entry.change === 'add' && isFeaturePen(entry.path)) {
       const base = entry.path.split('/').at(-1) ?? entry.path;
-      const key = penSlugFromFilename(base);
+      const key = milestoneSlugFromPenPath(entry.path) ?? penSlugFromFilename(base);
       // An unkeyable filename refuses rather than passes: a file the naming
       // scheme cannot identify is one no record can name. The SECOND test is
       // the writable-key requirement — `PEN_FILE_RE`'s key grammar is wider
@@ -262,7 +275,7 @@ export function evaluate(
         violations.push({ path: entry.path, reason: 'pen-unapproved' });
         continue;
       }
-      const record = records(approvalRelPath(base));
+      const record = records(approvalRelPath(entry.path));
       const parsed = record === null ? null : parseApprovalBytes(record);
       if (parsed === null) {
         violations.push({ path: entry.path, reason: 'pen-unapproved' });
@@ -280,8 +293,7 @@ export function evaluate(
     // usable, matching record behind, or the amended commit would introduce a
     // pen with no valid record — the exact state the invariant forbids.
     if (entry.path.startsWith(APPROVAL_PREFIX) && entry.path.endsWith('.json')) {
-      const stem = (entry.path.split('/').at(-1) ?? '').slice(0, -'.json'.length);
-      const penBlob = penBlobs(stem);
+      const penBlob = penBlobs(entry.path);
       if (penBlob !== null) {
         const resulting = records(entry.path);
         const parsed = resulting === null ? null : parseApprovalBytes(resulting);
@@ -300,7 +312,7 @@ export function evaluate(
       violations.push({ path: entry.path, reason: 'pen-archive' });
       continue;
     }
-    if (inWorktree && entry.path.startsWith(BASELINE_PREFIX)) {
+    if (inWorktree && isBaselinePen(entry.path)) {
       violations.push({ path: entry.path, reason: 'pen-baseline' });
     }
   }
@@ -312,7 +324,7 @@ const REMEDIATION: Readonly<Record<BlockReason, string>> = {
     'Shared root file(s) edited from a feature worktree.\n' +
     'Move these edits to the main worktree, or set NOLDOR_ALLOW_SHARED=1 to override.',
   'pen-baseline':
-    'UI baseline .pen edited from a feature worktree.\n' +
+    'Baseline .pen (UI or architecture) edited from a feature worktree.\n' +
     "The only sanctioned baseline write is the gate's Step 4 write-back — re-run that commit with " +
     `${PEN_OVERRIDE}=1 if this is it.\n` +
     'Otherwise pencil MCP wrote to the wrong canvas (it ignores filePath and edits whatever the app has open):\n' +

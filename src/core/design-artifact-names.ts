@@ -38,6 +38,50 @@ export const UI_BASELINE_DIR = 'docs/design/ui/baseline';
 export const UI_DESIGN_DIR = 'docs/design/ui';
 
 /**
+ * Directory holding architecture-design `.pen` files: the baseline, the dated
+ * per-session designs and their `archive/`, and milestone targets under
+ * `milestones/`. Parallel to {@link UI_DESIGN_DIR}; see ADR 0007.
+ */
+export const ARCH_DESIGN_DIR = 'docs/design/architecture';
+
+/**
+ * The as-built architecture baseline: one `.pen`, one top-level page per
+ * architecture view. Its presence is the opt-in — every architecture check is
+ * inert while it is absent.
+ */
+export const ARCH_BASELINE_PATH = `${ARCH_DESIGN_DIR}/baseline.pen`;
+
+/**
+ * The design-artifact kinds. Each has its own design directory and baseline;
+ * every other piece of the lifecycle — approval record, `.pen` guard, archive,
+ * bridge — is shared and takes the kind from the path (ADR 0007).
+ */
+export type DesignKind = 'ui' | 'architecture';
+
+/** A design `.pen`'s kind from its repo-relative POSIX path, or `null` for a path under neither design directory. */
+export function designKindOfPath(path: string): DesignKind | null {
+  if (path.startsWith(`${ARCH_DESIGN_DIR}/`)) return 'architecture';
+  if (path.startsWith(`${UI_DESIGN_DIR}/`)) return 'ui';
+  return null;
+}
+
+/** Directory holding milestone target-architecture `.pen` files, one per milestone: `<slug>.pen`. */
+export const ARCH_MILESTONES_DIR = `${ARCH_DESIGN_DIR}/milestones`;
+
+/** A milestone's target-architecture `.pen`. */
+export function milestonePenPath(slug: string): string {
+  return `${ARCH_MILESTONES_DIR}/${slug}.pen`;
+}
+
+/** The milestone a repo-relative `.pen` path is the target of, or `null` for any other path. */
+export function milestoneSlugFromPenPath(path: string): string | null {
+  const prefix = `${ARCH_MILESTONES_DIR}/`;
+  if (!path.startsWith(prefix) || !path.endsWith('.pen')) return null;
+  const slug = path.slice(prefix.length, -'.pen'.length);
+  return slug === '' || slug.includes('/') ? null : slug;
+}
+
+/**
  * Derive the feature slug from a plan filename.
  *
  * @param filename - The basename, e.g. `2026-04-19-tooltips.md` or

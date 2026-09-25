@@ -1,4 +1,4 @@
-// @tests: doc-gardening-skill
+// @tests: doc-gardening-skill, architecture-design-phase
 // Spawn-level coverage of `noldor design archive` in real temp git repos: the
 // `git mv` staging shape, why an uncommitted artifact is not eligible, dry-run
 // inertness, the fail-closed and invalid-marker paths, and the legacy
@@ -339,5 +339,31 @@ describe('parseArchiveArgs — the key is not a path', () => {
 
   it('still refuses an empty key, which would match nothing and read as success', () => {
     expect(parseArchiveArgs(['--slug', '   '])).toMatchObject({ error: expect.any(String) });
+  });
+});
+
+describe('design archive / architecture designs', () => {
+  it('moves the session architecture .pen into archive/ and repoints links.arch', () => {
+    const dir = repo({
+      session: { path: 'full-new', slug: KEY, startedAt: '2026-08-04T00:00:00.000Z' },
+    });
+    const pen = `docs/design/architecture/2026-08-04-${KEY}.pen`;
+    const archived = `docs/design/architecture/archive/2026-08-04-${KEY}.pen`;
+    mkdirSync(join(dir, 'docs/design/architecture'), { recursive: true });
+    writeFileSync(join(dir, pen), '{"children":[]}\n');
+    mkdirSync(join(dir, 'docs/features'), { recursive: true });
+    writeFileSync(
+      join(dir, 'docs/features', `${KEY}.md`),
+      ['---', 'name: Seeded', 'links:', `  arch: ${pen}`, '---', '', 'body', ''].join('\n'),
+    );
+    git(dir, ['add', '-A']);
+    git(dir, ['commit', '-qm', 'add architecture design']);
+    const r = run(dir);
+    expect(r.status).toBe(0);
+    expect(staged(dir)).toContain(`R100\t${pen}\t${archived}`);
+    const fm = matter(readFileSync(join(dir, 'docs/features', `${KEY}.md`), 'utf8')).data as {
+      links: { arch: string };
+    };
+    expect(fm.links.arch).toBe(archived);
   });
 });

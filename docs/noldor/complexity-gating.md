@@ -94,6 +94,7 @@ The pre-commit hook enforces that `micro-chore` diffs match this set of globs on
 - Root `*.md` (e.g. `ideas.md`, `README.md`, `CLAUDE.md`)
 - `docs/**` template twins `templates/docs/**/*.md`
 - `lefthook.yml`, `.gitignore`, `.noldor/rollout-marker` (framework config edits)
+- `docs/design/architecture/milestones/*.pen`, `.noldor/design-approval/architecture/milestones/*.json` (a milestone's target architecture and its approval record: drafting a milestone is a micro-chore, so the target lands in the milestone's commit — the `.pen` guard still refuses a target with no record)
 - `.noldor/id-counter.json`, `.noldor/retired-entry-ids.json` (triage bookkeeping the gate writes: `triage mint-id` bumps the counter into the same commit as the roadmap block, and `roadmap remove-block` records the retired ID)
 - `.noldor/config.json` (consumer config — on the lane because gates print remedies that edit it: `ui-design-freshness` tells you to declare `consumer.uiCapture` for a surface by name, and that declaration needs somewhere to land. Subject to the content guard below.)
 

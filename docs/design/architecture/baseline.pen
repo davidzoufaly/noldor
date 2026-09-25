@@ -1,0 +1,2702 @@
+{
+  "version": "2.19",
+  "children": [
+    {
+      "id": "p31",
+      "type": "frame",
+      "name": "context",
+      "layout": "none",
+      "x": 0,
+      "y": 0,
+      "width": 1016,
+      "height": 354,
+      "fill": "#FFFFFF",
+      "clip": true,
+      "children": [
+        {
+          "id": "g5",
+          "type": "frame",
+          "name": "group: Actors",
+          "layout": "none",
+          "x": 40,
+          "y": 40,
+          "width": 272,
+          "height": 136,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t6",
+              "type": "text",
+              "name": "Title",
+              "content": "Actors",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b1",
+              "type": "frame",
+              "name": "Human operator",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 240,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t2",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "Human operator",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b3",
+              "type": "frame",
+              "name": "Agent runtime",
+              "layout": "none",
+              "x": 16,
+              "y": 74,
+              "width": 240,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t4",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "Agent runtime",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g9",
+          "type": "frame",
+          "name": "group: System",
+          "layout": "none",
+          "x": 372,
+          "y": 40,
+          "width": 272,
+          "height": 90,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t10",
+              "type": "text",
+              "name": "Title",
+              "content": "System",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b7",
+              "type": "frame",
+              "name": "noldor CLI",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 240,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t8",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "noldor CLI",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g21",
+          "type": "frame",
+          "name": "group: Externals",
+          "layout": "none",
+          "x": 704,
+          "y": 40,
+          "width": 272,
+          "height": 274,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t22",
+              "type": "text",
+              "name": "Title",
+              "content": "Externals",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b11",
+              "type": "frame",
+              "name": "The governed repository",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 240,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t12",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "The governed repository",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b13",
+              "type": "frame",
+              "name": "git",
+              "layout": "none",
+              "x": 16,
+              "y": 74,
+              "width": 240,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t14",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "git",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b15",
+              "type": "frame",
+              "name": "gh — pull requests",
+              "layout": "none",
+              "x": 16,
+              "y": 120,
+              "width": 240,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t16",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "gh — pull requests",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b17",
+              "type": "frame",
+              "name": "graphify — code graph",
+              "layout": "none",
+              "x": 16,
+              "y": 166,
+              "width": 240,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t18",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "graphify — code graph",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b19",
+              "type": "frame",
+              "name": "Review runtimes — claude · codex",
+              "layout": "none",
+              "x": 16,
+              "y": 212,
+              "width": 240,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t20",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "Review runtimes — claude · codex",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "a23",
+          "type": "path",
+          "name": "Human operator -> noldor CLI",
+          "x": 294,
+          "y": 79.1,
+          "width": 96,
+          "height": 11.8,
+          "viewBox": [
+            294,
+            79.1,
+            96,
+            11.8
+          ],
+          "geometry": "M 296 85 L 388 85 M 379.9 88.9 L 388 85 L 379.9 81.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a24",
+          "type": "path",
+          "name": "Agent runtime -> noldor CLI",
+          "x": 294,
+          "y": 96.9,
+          "width": 96,
+          "height": 19.5,
+          "viewBox": [
+            294,
+            96.9,
+            96,
+            19.5
+          ],
+          "geometry": "M 296 114.4 L 388 101.6 M 380.5 106.6 L 388 101.6 L 379.4 98.9",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a25",
+          "type": "path",
+          "name": "noldor CLI -> The governed repository",
+          "x": 626,
+          "y": 79.1,
+          "width": 96,
+          "height": 11.8,
+          "viewBox": [
+            626,
+            79.1,
+            96,
+            11.8
+          ],
+          "geometry": "M 628 85 L 720 85 M 711.9 88.9 L 720 85 L 711.9 81.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a26",
+          "type": "path",
+          "name": "noldor CLI -> git",
+          "x": 626,
+          "y": 99.6,
+          "width": 96,
+          "height": 19.5,
+          "viewBox": [
+            626,
+            99.6,
+            96,
+            19.5
+          ],
+          "geometry": "M 628 101.6 L 720 114.4 M 711.4 117.1 L 720 114.4 L 712.5 109.4",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a27",
+          "type": "path",
+          "name": "noldor CLI -> gh — pull requests",
+          "x": 567.3,
+          "y": 100,
+          "width": 213.4,
+          "height": 63.6,
+          "viewBox": [
+            567.3,
+            100,
+            213.4,
+            63.6
+          ],
+          "geometry": "M 569.3 102 L 778.7 160 M 769.8 161.6 L 778.7 160 L 771.9 154.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a28",
+          "type": "path",
+          "name": "noldor CLI -> graphify — code graph",
+          "x": 546.9,
+          "y": 100,
+          "width": 254.2,
+          "height": 108.5,
+          "viewBox": [
+            546.9,
+            100,
+            254.2,
+            108.5
+          ],
+          "geometry": "M 548.9 102 L 799.1 206 M 790.1 206.5 L 799.1 206 L 793.1 199.3",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a29",
+          "type": "path",
+          "name": "noldor CLI -> Review runtimes — claude · codex",
+          "x": 536.7,
+          "y": 100,
+          "width": 274.6,
+          "height": 154,
+          "viewBox": [
+            536.7,
+            100,
+            274.6,
+            154
+          ],
+          "geometry": "M 538.7 102 L 809.3 252 M 800.3 251.5 L 809.3 252 L 804.1 244.6",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a30",
+          "type": "path",
+          "name": "git -> The governed repository",
+          "x": 834.1,
+          "y": 100,
+          "width": 11.8,
+          "height": 16,
+          "viewBox": [
+            834.1,
+            100,
+            11.8,
+            16
+          ],
+          "geometry": "M 840 114 L 840 102 M 843.9 110.1 L 840 102 L 836.1 110.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        }
+      ]
+    },
+    {
+      "id": "p62",
+      "type": "frame",
+      "name": "containers",
+      "layout": "none",
+      "x": 1136,
+      "y": 0,
+      "width": 764,
+      "height": 400,
+      "fill": "#FFFFFF",
+      "clip": true,
+      "children": [
+        {
+          "id": "g38",
+          "type": "frame",
+          "name": "group: Runnable units",
+          "layout": "none",
+          "x": 40,
+          "y": 40,
+          "width": 292,
+          "height": 182,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t39",
+              "type": "text",
+              "name": "Title",
+              "content": "Runnable units",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b32",
+              "type": "frame",
+              "name": "noldor CLI",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 260,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t33",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "noldor CLI",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b34",
+              "type": "frame",
+              "name": "lefthook jobs",
+              "layout": "none",
+              "x": 16,
+              "y": 74,
+              "width": 260,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t35",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "lefthook jobs",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b36",
+              "type": "frame",
+              "name": "Dev dashboard",
+              "layout": "none",
+              "x": 16,
+              "y": 120,
+              "width": 260,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t37",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "Dev dashboard",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g52",
+          "type": "frame",
+          "name": "group: Durable state",
+          "layout": "none",
+          "x": 432,
+          "y": 40,
+          "width": 292,
+          "height": 320,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t53",
+              "type": "text",
+              "name": "Title",
+              "content": "Durable state",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b40",
+              "type": "frame",
+              "name": ".noldor/session.json",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 260,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t41",
+                  "type": "text",
+                  "name": "Label",
+                  "content": ".noldor/session.json",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b42",
+              "type": "frame",
+              "name": ".noldor/cr lane sinks",
+              "layout": "none",
+              "x": 16,
+              "y": 74,
+              "width": 260,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t43",
+                  "type": "text",
+                  "name": "Label",
+                  "content": ".noldor/cr lane sinks",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b44",
+              "type": "frame",
+              "name": ".noldor/id-counter.json",
+              "layout": "none",
+              "x": 16,
+              "y": 120,
+              "width": 260,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t45",
+                  "type": "text",
+                  "name": "Label",
+                  "content": ".noldor/id-counter.json",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b46",
+              "type": "frame",
+              "name": ".noldor/clones-baseline.json",
+              "layout": "none",
+              "x": 16,
+              "y": 166,
+              "width": 260,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t47",
+                  "type": "text",
+                  "name": "Label",
+                  "content": ".noldor/clones-baseline.json",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b48",
+              "type": "frame",
+              "name": ".noldor/rules",
+              "layout": "none",
+              "x": 16,
+              "y": 212,
+              "width": 260,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t49",
+                  "type": "text",
+                  "name": "Label",
+                  "content": ".noldor/rules",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b50",
+              "type": "frame",
+              "name": "docs",
+              "layout": "none",
+              "x": 16,
+              "y": 258,
+              "width": 260,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t51",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "docs",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "a54",
+          "type": "path",
+          "name": "lefthook jobs -> noldor CLI",
+          "x": 180.1,
+          "y": 100,
+          "width": 11.8,
+          "height": 16,
+          "viewBox": [
+            180.1,
+            100,
+            11.8,
+            16
+          ],
+          "geometry": "M 186 114 L 186 102 M 189.9 110.1 L 186 102 L 182.1 110.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a55",
+          "type": "path",
+          "name": "Dev dashboard -> docs",
+          "x": 232.3,
+          "y": 192,
+          "width": 299.4,
+          "height": 109,
+          "viewBox": [
+            232.3,
+            192,
+            299.4,
+            109
+          ],
+          "geometry": "M 234.3 194 L 529.7 298 M 520.8 299 L 529.7 298 L 523.4 291.6",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a56",
+          "type": "path",
+          "name": "noldor CLI -> .noldor/session.json",
+          "x": 314,
+          "y": 79.1,
+          "width": 136,
+          "height": 11.8,
+          "viewBox": [
+            314,
+            79.1,
+            136,
+            11.8
+          ],
+          "geometry": "M 316 85 L 448 85 M 439.9 88.9 L 448 85 L 439.9 81.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a57",
+          "type": "path",
+          "name": "noldor CLI -> .noldor/cr lane sinks",
+          "x": 314,
+          "y": 98.3,
+          "width": 136,
+          "height": 22.4,
+          "viewBox": [
+            314,
+            98.3,
+            136,
+            22.4
+          ],
+          "geometry": "M 316 100.3 L 448 115.7 M 439.5 118.7 L 448 115.7 L 440.4 110.9",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a58",
+          "type": "path",
+          "name": "noldor CLI -> .noldor/id-counter.json",
+          "x": 256.4,
+          "y": 100,
+          "width": 251.2,
+          "height": 64,
+          "viewBox": [
+            256.4,
+            100,
+            251.2,
+            64
+          ],
+          "geometry": "M 258.4 102 L 505.6 160 M 496.8 162 L 505.6 160 L 498.6 154.3",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a59",
+          "type": "path",
+          "name": "noldor CLI -> .noldor/clones-baseline.json",
+          "x": 232.3,
+          "y": 100,
+          "width": 299.4,
+          "height": 109,
+          "viewBox": [
+            232.3,
+            100,
+            299.4,
+            109
+          ],
+          "geometry": "M 234.3 102 L 529.7 206 M 520.8 207 L 529.7 206 L 523.4 199.6",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a60",
+          "type": "path",
+          "name": "noldor CLI -> .noldor/rules",
+          "x": 220.2,
+          "y": 100,
+          "width": 323.6,
+          "height": 154.1,
+          "viewBox": [
+            220.2,
+            100,
+            323.6,
+            154.1
+          ],
+          "geometry": "M 222.2 102 L 541.8 252 M 532.8 252.1 L 541.8 252 L 536.1 245",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a61",
+          "type": "path",
+          "name": "noldor CLI -> docs",
+          "x": 213,
+          "y": 100,
+          "width": 338,
+          "height": 200,
+          "viewBox": [
+            213,
+            100,
+            338,
+            200
+          ],
+          "geometry": "M 215 102 L 549 298 M 540.1 297.3 L 549 298 L 544 290.5",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        }
+      ]
+    },
+    {
+      "id": "p149",
+      "type": "frame",
+      "name": "modules",
+      "layout": "none",
+      "x": 2020,
+      "y": 0,
+      "width": 1414,
+      "height": 590,
+      "fill": "#FFFFFF",
+      "clip": true,
+      "children": [
+        {
+          "id": "g67",
+          "type": "frame",
+          "name": "group: Entry",
+          "layout": "none",
+          "x": 616,
+          "y": 40,
+          "width": 344,
+          "height": 90,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t68",
+              "type": "text",
+              "name": "Title",
+              "content": "Entry",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b63",
+              "type": "frame",
+              "name": "src/cli",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t64",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/cli",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b65",
+              "type": "frame",
+              "name": "src/hooks",
+              "layout": "none",
+              "x": 178,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t66",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/hooks",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g85",
+          "type": "frame",
+          "name": "group: Workflow",
+          "layout": "none",
+          "x": 40,
+          "y": 180,
+          "width": 344,
+          "height": 228,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t86",
+              "type": "text",
+              "name": "Title",
+              "content": "Workflow",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b69",
+              "type": "frame",
+              "name": "src/cr",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t70",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/cr",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b71",
+              "type": "frame",
+              "name": "src/prep",
+              "layout": "none",
+              "x": 178,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t72",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/prep",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b73",
+              "type": "frame",
+              "name": "src/design",
+              "layout": "none",
+              "x": 16,
+              "y": 74,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t74",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/design",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b75",
+              "type": "frame",
+              "name": "src/features",
+              "layout": "none",
+              "x": 178,
+              "y": 74,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t76",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/features",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b77",
+              "type": "frame",
+              "name": "src/triage",
+              "layout": "none",
+              "x": 16,
+              "y": 120,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t78",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/triage",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b79",
+              "type": "frame",
+              "name": "src/autonomous",
+              "layout": "none",
+              "x": 178,
+              "y": 120,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t80",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/autonomous",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b81",
+              "type": "frame",
+              "name": "src/worktrees",
+              "layout": "none",
+              "x": 16,
+              "y": 166,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t82",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/worktrees",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b83",
+              "type": "frame",
+              "name": "src/research",
+              "layout": "none",
+              "x": 178,
+              "y": 166,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t84",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/research",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g103",
+          "type": "frame",
+          "name": "group: Quality gates",
+          "layout": "none",
+          "x": 424,
+          "y": 180,
+          "width": 344,
+          "height": 228,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t104",
+              "type": "text",
+              "name": "Title",
+              "content": "Quality gates",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b87",
+              "type": "frame",
+              "name": "src/checks",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t88",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/checks",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b89",
+              "type": "frame",
+              "name": "src/invariants",
+              "layout": "none",
+              "x": 178,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t90",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/invariants",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b91",
+              "type": "frame",
+              "name": "src/indirection",
+              "layout": "none",
+              "x": 16,
+              "y": 74,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t92",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/indirection",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b93",
+              "type": "frame",
+              "name": "src/clones",
+              "layout": "none",
+              "x": 178,
+              "y": 74,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t94",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/clones",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b95",
+              "type": "frame",
+              "name": "src/rules",
+              "layout": "none",
+              "x": 16,
+              "y": 120,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t96",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/rules",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b97",
+              "type": "frame",
+              "name": "src/validate",
+              "layout": "none",
+              "x": 178,
+              "y": 120,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t98",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/validate",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b99",
+              "type": "frame",
+              "name": "src/verify",
+              "layout": "none",
+              "x": 16,
+              "y": 166,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t100",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/verify",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b101",
+              "type": "frame",
+              "name": "src/garden",
+              "layout": "none",
+              "x": 178,
+              "y": 166,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t102",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/garden",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g117",
+          "type": "frame",
+          "name": "group: Projection and reporting",
+          "layout": "none",
+          "x": 808,
+          "y": 180,
+          "width": 344,
+          "height": 182,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t118",
+              "type": "text",
+              "name": "Title",
+              "content": "Projection and reporting",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b105",
+              "type": "frame",
+              "name": "src/sync",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t106",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/sync",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b107",
+              "type": "frame",
+              "name": "src/docs",
+              "layout": "none",
+              "x": 178,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t108",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/docs",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b109",
+              "type": "frame",
+              "name": "src/metrics",
+              "layout": "none",
+              "x": 16,
+              "y": 74,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t110",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/metrics",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b111",
+              "type": "frame",
+              "name": "src/dashboard",
+              "layout": "none",
+              "x": 178,
+              "y": 74,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t112",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/dashboard",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b113",
+              "type": "frame",
+              "name": "src/graphify",
+              "layout": "none",
+              "x": 16,
+              "y": 120,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t114",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/graphify",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b115",
+              "type": "frame",
+              "name": "src/milestones",
+              "layout": "none",
+              "x": 178,
+              "y": 120,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t116",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/milestones",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g125",
+          "type": "frame",
+          "name": "group: Shipping",
+          "layout": "none",
+          "x": 1192,
+          "y": 180,
+          "width": 182,
+          "height": 182,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t126",
+              "type": "text",
+              "name": "Title",
+              "content": "Shipping",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b119",
+              "type": "frame",
+              "name": "src/release",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t120",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/release",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b121",
+              "type": "frame",
+              "name": "src/migrations",
+              "layout": "none",
+              "x": 16,
+              "y": 74,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t122",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/migrations",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b123",
+              "type": "frame",
+              "name": "src/templates",
+              "layout": "none",
+              "x": 16,
+              "y": 120,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t124",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/templates",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g137",
+          "type": "frame",
+          "name": "group: Shared",
+          "layout": "none",
+          "x": 376,
+          "y": 460,
+          "width": 830,
+          "height": 90,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t138",
+              "type": "text",
+              "name": "Title",
+              "content": "Shared",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b127",
+              "type": "frame",
+              "name": "src/core",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t128",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/core",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b129",
+              "type": "frame",
+              "name": "src/utils",
+              "layout": "none",
+              "x": 178,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t130",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/utils",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b131",
+              "type": "frame",
+              "name": "src/lib",
+              "layout": "none",
+              "x": 340,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t132",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/lib",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b133",
+              "type": "frame",
+              "name": "src/testing",
+              "layout": "none",
+              "x": 502,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t134",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/testing",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b135",
+              "type": "frame",
+              "name": "src/fixtures",
+              "layout": "none",
+              "x": 664,
+              "y": 28,
+              "width": 150,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t136",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "src/fixtures",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "a139",
+          "type": "path",
+          "name": "src/cli -> group: Quality gates",
+          "x": 654.5,
+          "y": 100,
+          "width": 45.5,
+          "height": 82,
+          "viewBox": [
+            654.5,
+            100,
+            45.5,
+            82
+          ],
+          "geometry": "M 698 102 L 656.5 180 M 656.9 171 L 656.5 180 L 663.8 174.7",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a140",
+          "type": "path",
+          "name": "src/cli -> group: Shipping",
+          "x": 757.6,
+          "y": 100,
+          "width": 436.4,
+          "height": 144.8,
+          "viewBox": [
+            757.6,
+            100,
+            436.4,
+            144.8
+          ],
+          "geometry": "M 759.6 102 L 1192 241.6 M 1183.1 242.8 L 1192 241.6 L 1185.5 235.4",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a141",
+          "type": "path",
+          "name": "src/hooks -> src/core",
+          "x": 481.3,
+          "y": 100,
+          "width": 373.4,
+          "height": 390,
+          "viewBox": [
+            481.3,
+            100,
+            373.4,
+            390
+          ],
+          "geometry": "M 852.7 102 L 483.3 488 M 486 479.4 L 483.3 488 L 491.7 484.9",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a142",
+          "type": "path",
+          "name": "group: Workflow -> src/core",
+          "x": 347.8,
+          "y": 406,
+          "width": 100.7,
+          "height": 84,
+          "viewBox": [
+            347.8,
+            406,
+            100.7,
+            84
+          ],
+          "geometry": "M 349.8 408 L 446.5 488 M 437.7 485.8 L 446.5 488 L 442.7 479.8",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a143",
+          "type": "path",
+          "name": "group: Quality gates -> src/core",
+          "x": 475.4,
+          "y": 406,
+          "width": 52.9,
+          "height": 84,
+          "viewBox": [
+            475.4,
+            406,
+            52.9,
+            84
+          ],
+          "geometry": "M 526.3 408 L 477.4 488 M 478.3 479 L 477.4 488 L 485 483.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a144",
+          "type": "path",
+          "name": "group: Projection and reporting -> src/core",
+          "x": 502.3,
+          "y": 347.5,
+          "width": 307.7,
+          "height": 142.7,
+          "viewBox": [
+            502.3,
+            347.5,
+            307.7,
+            142.7
+          ],
+          "geometry": "M 808 349.5 L 504.3 488 M 510 481.1 L 504.3 488 L 513.3 488.2",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a145",
+          "type": "path",
+          "name": "group: Shipping -> src/core",
+          "x": 524.3,
+          "y": 295.1,
+          "width": 669.7,
+          "height": 196.4,
+          "viewBox": [
+            524.3,
+            295.1,
+            669.7,
+            196.4
+          ],
+          "geometry": "M 1192 297.1 L 526.3 488 M 533 482 L 526.3 488 L 535.2 489.5",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a146",
+          "type": "path",
+          "name": "src/core -> src/utils",
+          "x": 540,
+          "y": 499.1,
+          "width": 16,
+          "height": 11.8,
+          "viewBox": [
+            540,
+            499.1,
+            16,
+            11.8
+          ],
+          "geometry": "M 542 505 L 554 505 M 545.9 508.9 L 554 505 L 545.9 501.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a147",
+          "type": "path",
+          "name": "src/garden -> src/docs",
+          "x": 722.3,
+          "y": 239.1,
+          "width": 293.4,
+          "height": 108.9,
+          "viewBox": [
+            722.3,
+            239.1,
+            293.4,
+            108.9
+          ],
+          "geometry": "M 724.3 346 L 1013.7 242 M 1007.4 248.4 L 1013.7 242 L 1004.7 241.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a148",
+          "type": "path",
+          "name": "src/release -> src/garden",
+          "x": 749.7,
+          "y": 240,
+          "width": 460.6,
+          "height": 110,
+          "viewBox": [
+            749.7,
+            240,
+            460.6,
+            110
+          ],
+          "geometry": "M 1208.3 242 L 751.7 346 M 758.7 340.4 L 751.7 346 L 760.4 348",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        }
+      ]
+    },
+    {
+      "id": "p186",
+      "type": "frame",
+      "name": "flows",
+      "layout": "none",
+      "x": 3554,
+      "y": 0,
+      "width": 1008,
+      "height": 262,
+      "fill": "#FFFFFF",
+      "clip": true,
+      "children": [
+        {
+          "id": "g160",
+          "type": "frame",
+          "name": "group: The gate flow",
+          "layout": "none",
+          "x": 40,
+          "y": 40,
+          "width": 444,
+          "height": 182,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t161",
+              "type": "text",
+              "name": "Title",
+              "content": "The gate flow",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b150",
+              "type": "frame",
+              "name": "Operator · gate",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 200,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t151",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "Operator · gate",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b152",
+              "type": "frame",
+              "name": "noldor gate",
+              "layout": "none",
+              "x": 228,
+              "y": 28,
+              "width": 200,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t153",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "noldor gate",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b154",
+              "type": "frame",
+              "name": "git hooks",
+              "layout": "none",
+              "x": 16,
+              "y": 74,
+              "width": 200,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t155",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "git hooks",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b156",
+              "type": "frame",
+              "name": "cr orchestrate",
+              "layout": "none",
+              "x": 228,
+              "y": 74,
+              "width": 200,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t157",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "cr orchestrate",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b158",
+              "type": "frame",
+              "name": "gh",
+              "layout": "none",
+              "x": 16,
+              "y": 120,
+              "width": 200,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t159",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "gh",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g172",
+          "type": "frame",
+          "name": "group: The release flow",
+          "layout": "none",
+          "x": 524,
+          "y": 40,
+          "width": 444,
+          "height": 182,
+          "fill": "#F4F6F8",
+          "stroke": "#C9D1D9",
+          "strokeWidth": 1,
+          "cornerRadius": 8,
+          "children": [
+            {
+              "id": "t173",
+              "type": "text",
+              "name": "Title",
+              "content": "The release flow",
+              "x": 16,
+              "y": 8,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "fill": "#1F2328"
+            },
+            {
+              "id": "b162",
+              "type": "frame",
+              "name": "Operator · release",
+              "layout": "none",
+              "x": 16,
+              "y": 28,
+              "width": 200,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t163",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "Operator · release",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b164",
+              "type": "frame",
+              "name": "noldor release",
+              "layout": "none",
+              "x": 228,
+              "y": 28,
+              "width": 200,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t165",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "noldor release",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b166",
+              "type": "frame",
+              "name": "preflight probes",
+              "layout": "none",
+              "x": 16,
+              "y": 74,
+              "width": 200,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t167",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "preflight probes",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b168",
+              "type": "frame",
+              "name": "repository state",
+              "layout": "none",
+              "x": 228,
+              "y": 74,
+              "width": 200,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t169",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "repository state",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            },
+            {
+              "id": "b170",
+              "type": "frame",
+              "name": "npm registry",
+              "layout": "none",
+              "x": 16,
+              "y": 120,
+              "width": 200,
+              "height": 34,
+              "fill": "#FFFFFF",
+              "stroke": "#57606A",
+              "strokeWidth": 1,
+              "cornerRadius": 4,
+              "children": [
+                {
+                  "id": "t171",
+                  "type": "text",
+                  "name": "Label",
+                  "content": "npm registry",
+                  "x": 10,
+                  "y": 9,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fill": "#1F2328"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "a174",
+          "type": "path",
+          "name": "Operator · gate -> noldor gate",
+          "x": 254,
+          "y": 79.1,
+          "width": 16,
+          "height": 11.8,
+          "viewBox": [
+            254,
+            79.1,
+            16,
+            11.8
+          ],
+          "geometry": "M 256 85 L 268 85 M 259.9 88.9 L 268 85 L 259.9 81.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a175",
+          "type": "path",
+          "name": "noldor gate -> git hooks",
+          "x": 232.3,
+          "y": 100,
+          "width": 59.4,
+          "height": 18.1,
+          "viewBox": [
+            232.3,
+            100,
+            59.4,
+            18.1
+          ],
+          "geometry": "M 289.7 102 L 234.3 114 M 241.4 108.5 L 234.3 114 L 243.1 116.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a176",
+          "type": "path",
+          "name": "noldor gate -> cr orchestrate",
+          "x": 362.1,
+          "y": 100,
+          "width": 11.8,
+          "height": 16,
+          "viewBox": [
+            362.1,
+            100,
+            11.8,
+            16
+          ],
+          "geometry": "M 368 102 L 368 114 M 364.1 105.9 L 368 114 L 371.9 105.9",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a177",
+          "type": "path",
+          "name": "cr orchestrate -> noldor gate",
+          "x": 362.1,
+          "y": 100,
+          "width": 11.8,
+          "height": 16,
+          "viewBox": [
+            362.1,
+            100,
+            11.8,
+            16
+          ],
+          "geometry": "M 368 114 L 368 102 M 371.9 110.1 L 368 102 L 364.1 110.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a178",
+          "type": "path",
+          "name": "noldor gate -> gh",
+          "x": 193.2,
+          "y": 100,
+          "width": 137.6,
+          "height": 62.4,
+          "viewBox": [
+            193.2,
+            100,
+            137.6,
+            62.4
+          ],
+          "geometry": "M 328.8 102 L 195.2 160 M 201 153.2 L 195.2 160 L 204.2 160.4",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a179",
+          "type": "path",
+          "name": "gh -> Operator · gate",
+          "x": 150.1,
+          "y": 100,
+          "width": 11.8,
+          "height": 62,
+          "viewBox": [
+            150.1,
+            100,
+            11.8,
+            62
+          ],
+          "geometry": "M 156 160 L 156 102 M 159.9 110.1 L 156 102 L 152.1 110.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a180",
+          "type": "path",
+          "name": "Operator · release -> noldor release",
+          "x": 738,
+          "y": 79.1,
+          "width": 16,
+          "height": 11.8,
+          "viewBox": [
+            738,
+            79.1,
+            16,
+            11.8
+          ],
+          "geometry": "M 740 85 L 752 85 M 743.9 88.9 L 752 85 L 743.9 81.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a181",
+          "type": "path",
+          "name": "noldor release -> preflight probes",
+          "x": 716.3,
+          "y": 100,
+          "width": 59.4,
+          "height": 18.1,
+          "viewBox": [
+            716.3,
+            100,
+            59.4,
+            18.1
+          ],
+          "geometry": "M 773.7 102 L 718.3 114 M 725.4 108.5 L 718.3 114 L 727.1 116.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a182",
+          "type": "path",
+          "name": "preflight probes -> repository state",
+          "x": 738,
+          "y": 125.1,
+          "width": 16,
+          "height": 11.8,
+          "viewBox": [
+            738,
+            125.1,
+            16,
+            11.8
+          ],
+          "geometry": "M 740 131 L 752 131 M 743.9 134.9 L 752 131 L 743.9 127.1",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a183",
+          "type": "path",
+          "name": "noldor release -> repository state",
+          "x": 846.1,
+          "y": 100,
+          "width": 11.8,
+          "height": 16,
+          "viewBox": [
+            846.1,
+            100,
+            11.8,
+            16
+          ],
+          "geometry": "M 852 102 L 852 114 M 848.1 105.9 L 852 114 L 855.9 105.9",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a184",
+          "type": "path",
+          "name": "noldor release -> npm registry",
+          "x": 677.2,
+          "y": 100,
+          "width": 137.6,
+          "height": 62.4,
+          "viewBox": [
+            677.2,
+            100,
+            137.6,
+            62.4
+          ],
+          "geometry": "M 812.8 102 L 679.2 160 M 685 153.2 L 679.2 160 L 688.2 160.4",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "a185",
+          "type": "path",
+          "name": "noldor release -> Operator · release",
+          "x": 738,
+          "y": 79.1,
+          "width": 16,
+          "height": 11.8,
+          "viewBox": [
+            738,
+            79.1,
+            16,
+            11.8
+          ],
+          "geometry": "M 752 85 L 740 85 M 748.1 81.1 L 740 85 L 748.1 88.9",
+          "stroke": "#57606A",
+          "strokeWidth": 1.5
+        }
+      ]
+    }
+  ]
+}
