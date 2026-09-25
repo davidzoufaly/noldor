@@ -29,7 +29,7 @@ check reads) inherits every over-claim.
 ## Goals
 
 - `garden detect`'s incomplete-co-tag category reads empty (the Q-0323 deletion test).
-- Every tag the drain adds names an FD that is about a file the test imports (ADR 0008's rule).
+- Every tag the drain adds names an FD that is about a file the test imports (ADR 0009's rule).
   Whether the test exercises that feature's behaviour is not checked.
 - `links.code` stops claiming files an FD only passed through, so `features owners` names the
   FDs a file is about rather than every FD that once edited it.
@@ -96,7 +96,7 @@ smaller change, but it hides the bad claims from the co-tag detector alone and l
    frontmatter, and a directory swap adds `// @fd:` headers to the files it keeps — otherwise
    the next sync undoes it. The FD edits go
    through `pnpm noldor validate features`, and `sync code-links --check` reports no new drift.
-   The rule is recorded as [ADR 0008](../../adr/0008-links-code-means-what-a-file-is-about.md).
+   The rule is recorded as [ADR 0009](../../adr/0009-links-code-means-what-a-file-is-about.md).
 2. **Seed.** Re-run `seed-test-tags` (dry run) and check the proposal count dropped to roughly
    the single-owner set; then apply it one file family at a time with `--path <dir> --apply`.
 3. **Verify.** `garden detect` shows the category empty; `features validate` and the suite stay
