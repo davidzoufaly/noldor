@@ -86,9 +86,11 @@ smaller change, but it hides the bad claims from the co-tag detector alone and l
 
    The agent drafts a prune table (`file | kept owner | dropped from`), shows it to the operator
    before editing any FD, and puts the approved table in the prune commit's message body.
-   A claim that comes from a source file's `// @fd:` header (`pnpm noldor sync code-links`
-   rebuilds `links.code` from those headers, `src/sync/sync-code-links.ts`) is dropped by
-   editing the header, not the FD — otherwise the next sync puts it back. The FD edits go
+   For an FD with any `// @fd:` headers, `pnpm noldor sync code-links` rebuilds every
+   file-level `links.code` entry from those headers and keeps only directory entries
+   (`project`, `src/sync/projection.ts`). So a prune there is a header edit plus the matching
+   frontmatter, and a directory swap adds `// @fd:` headers to the files it keeps — otherwise
+   the next sync undoes it. The FD edits go
    through `pnpm noldor validate features`, and `sync code-links --check` reports no new drift.
    The rule is recorded as [ADR 0008](../../adr/0008-links-code-means-what-a-file-is-about.md).
 2. **Seed.** Re-run `seed-test-tags` (dry run) and check the proposal count dropped to roughly
@@ -98,7 +100,8 @@ smaller change, but it hides the bad claims from the co-tag detector alone and l
 
 ### Delivery
 
-One PR from this session. The first commit is the prune (FD frontmatter only); then one
+One PR from this session. The first commit is the prune (`// @fd:` header edits plus the
+matching FD frontmatter); then one
 commit per file family of tag edits (cr, core, dashboard, design, garden, autonomous, release,
 and one catch-all for the small families). The entry proposed one PR per family, but the
 families are the same mechanical edit and all of them wait on the prune, so seven sessions
