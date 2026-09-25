@@ -1,9 +1,10 @@
-// @tests: pendev-ui-design-phase, architecture-design-phase
+// @tests: pendev-ui-design-phase, architecture-design-phase, feature-pen-coverage-from-acceptance-criteria
 
 import { execFileSync } from 'node:child_process';
 import {
   appendFileSync,
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -381,6 +382,26 @@ const SPEC = '2026-08-30-my-feature-design.md';
 const PAGES = ['BASE:app: rest', 'FINAL:app: rest', 'FINAL:app: empty'];
 const NOW = '2026-08-30T00:00:00.000Z';
 
+/** A spec whose `### Design coverage` table declares exactly the `FINAL:` pages of {@link PAGES}. */
+const SPEC_TEXT = [
+  '# My feature — Design',
+  '',
+  '## Design',
+  '',
+  '### Design coverage',
+  '',
+  '| Page               | Criteria | Shows             |',
+  '| ------------------ | -------- | ----------------- |',
+  '| `FINAL:app: rest`  | 1        | the card withheld |',
+  '| `FINAL:app: empty` | 2        | an empty scene    |',
+  '',
+  '## Acceptance criteria',
+  '',
+  '1. The card is withheld.',
+  '2. An empty scene reads zero.',
+  '',
+].join('\n');
+
 /** A `.pen` as the editor saves it: plain JSON whose top-level children are the pages. */
 function penJson(pages: readonly unknown[]): string {
   return JSON.stringify({
@@ -397,7 +418,7 @@ function gitRepo(): string {
   mkdirSync(join(cwd, 'docs', 'design', 'ui', 'archive'), { recursive: true });
   mkdirSync(join(cwd, 'docs', 'design', 'specs', 'archive'), { recursive: true });
   writeFileSync(join(cwd, 'docs', 'design', 'ui', PEN), penJson(PAGES));
-  writeFileSync(join(cwd, 'docs', 'design', 'specs', SPEC), '# Spec\n\nThe card is withheld.\n');
+  writeFileSync(join(cwd, 'docs', 'design', 'specs', SPEC), SPEC_TEXT);
   return cwd;
 }
 
@@ -465,6 +486,13 @@ describe('design verdict CLI / argv boundary', () => {
     [['--pen', 'x.pen', '--check', '--surface', 'app'], '--surface belongs'],
     [['--pen', 'x.pen', '--reconfirm', '--spec', 's.md'], '--spec belongs'],
     [['--pen', 'x.pen', '--waive', '--reason', 'r', '--editor-page', 'p'], '--editor-page belongs'],
+    [['--pen', 'x.pen', '--coverage', '--editor-page', 'p'], '--coverage requires --spec'],
+    [['--pen', 'x.pen', '--coverage', '--spec', 's.md'], '--editor-page'],
+    [
+      ['--pen', 'x.pen', '--coverage', '--spec', 's.md', '--editor-page', 'p', '--surface', 'app'],
+      '--surface',
+    ],
+    [['--pen', 'x.pen', '--coverage', '--check'], 'exactly one of'],
   ])('refuses %j', (argv, message) => {
     const parsed = parseVerdictArgs(argv as string[]);
     expect(parsed.ok).toBe(false);
@@ -479,6 +507,14 @@ describe('design verdict CLI / argv boundary', () => {
   it('keeps repeated editor pages — the page comparison counts duplicates', () => {
     const parsed = parseVerdictArgs(approveArgv({ pages: ['p', 'p'] }));
     expect(parsed).toMatchObject({ ok: true, mode: { verb: 'approve', editorPages: ['p', 'p'] } });
+  });
+
+  it('parses --coverage with the spec and the editor pages it judges', () => {
+    const argv = ['--pen', 'x.pen', '--coverage', '--spec', 's.md', '--editor-page', 'p'];
+    expect(parseVerdictArgs(argv)).toMatchObject({
+      ok: true,
+      mode: { verb: 'coverage', spec: 's.md', editorPages: ['p'] },
+    });
   });
 
   it('parses the two read-side verbs with --pen alone', () => {
@@ -890,6 +926,176 @@ describe('design verdict CLI / --reconfirm', () => {
     const before = readBack(cwd, PEN);
     expect((await run(cwd, reconfirm)).code).toBe(2);
     expect(readBack(cwd, PEN)).toEqual(before);
+  });
+});
+
+describe('design verdict CLI / --approve holds the design to the coverage table', () => {
+  const writeSpec = (cwd: string, text: string): void => {
+    writeFileSync(join(cwd, specRel), text);
+  };
+
+  it.each([
+    [
+      'the spec has no Design coverage table',
+      '# Spec\n\n## Acceptance criteria\n\n1. The card is withheld.\n',
+      'no-coverage-table',
+    ],
+    [
+      'the spec has no acceptance criteria',
+      SPEC_TEXT.replace(/## Acceptance criteria[\s\S]*$/, ''),
+      'no-criteria',
+    ],
+    ['a criterion is on no row', `${SPEC_TEXT}3. One cut, not two.\n`, 'unaccounted-criterion'],
+    [
+      'a row is malformed',
+      SPEC_TEXT.replace('| `FINAL:app: rest`  |', '| FINAL:app: rest    |'),
+      'malformed-row',
+    ],
+    [
+      'the criteria skip a number',
+      SPEC_TEXT.replace('2. An empty', '3. An empty'),
+      'misnumbered-criteria',
+    ],
+  ])('exits 2, writing nothing, when %s', async (_, text, code) => {
+    const cwd = gitRepo();
+    writeSpec(cwd, text);
+    const r = await run(cwd, approveArgv());
+    expect(r.code).toBe(2);
+    expect(readBack(cwd, PEN)).toBeNull();
+    expect(r.err).toContain(code);
+  });
+
+  it('names the declared page the design lacks and the FINAL page nobody declared', async () => {
+    const cwd = gitRepo();
+    const pages = ['BASE:app: rest', 'FINAL:app: rest', 'FINAL:app: focus'];
+    writeFileSync(join(cwd, penRel), penJson(pages));
+    const r = await run(cwd, approveArgv({ pages }));
+    expect(r.code).toBe(2);
+    expect(readBack(cwd, PEN)).toBeNull();
+    expect(r.err).toContain('FINAL:app: empty');
+    expect(r.err).toContain('FINAL:app: focus');
+  });
+
+  it('approves one surface with three FINAL pages once the table declares all three', async () => {
+    const cwd = gitRepo();
+    const pages = [...PAGES, 'FINAL:app: error'];
+    writeFileSync(join(cwd, penRel), penJson(pages));
+    expect((await run(cwd, approveArgv({ pages }))).code).toBe(2);
+    writeSpec(
+      cwd,
+      SPEC_TEXT.replace(
+        '| `FINAL:app: empty` | 2        | an empty scene    |',
+        '| `FINAL:app: empty` | 2        | an empty scene    |\n| `FINAL:app: error` | 3        | the engine failed |',
+      ).replace(
+        '2. An empty scene reads zero.',
+        '2. An empty scene reads zero.\n3. An error blanks it.',
+      ),
+    );
+    expect((await run(cwd, approveArgv({ pages }))).code).toBe(0);
+    expect(readBack(cwd, PEN)).toMatchObject({ outcome: 'approved', pages });
+  });
+
+  it('does not check a waiver, nor an architecture design, against the table', async () => {
+    const cwd = gitRepo();
+    writeSpec(cwd, '# Spec\n\nNo table, no criteria.\n');
+    expect((await run(cwd, approveArgv())).code).toBe(2);
+    expect((await run(cwd, ['--pen', penRel, '--waive', '--reason', 'bridge down'])).code).toBe(0);
+    const archRel = `docs/design/architecture/${PEN}`;
+    const archPages = ['BASE:modules: as-built', 'FINAL:modules: split cr'];
+    mkdirSync(join(cwd, 'docs', 'design', 'architecture'), { recursive: true });
+    writeFileSync(join(cwd, archRel), penJson(archPages));
+    const archArgv = [
+      '--pen',
+      archRel,
+      '--approve',
+      '--surface',
+      'modules',
+      '--spec',
+      specRel,
+      ...archPages.flatMap((p) => ['--editor-page', p]),
+    ];
+    expect((await run(cwd, archArgv)).code).toBe(0);
+  });
+});
+
+describe('design verdict CLI / --reconfirm holds the changed spec to the approved pages', () => {
+  const reconfirm = ['--pen', penRel, '--reconfirm'];
+
+  it('exits 2, changing nothing, when the changed spec gains a criterion no row accounts for', async () => {
+    const cwd = gitRepo();
+    await run(cwd, approveArgv());
+    const before = readBack(cwd, PEN);
+    appendFileSync(join(cwd, specRel), '3. One cut, not two.\n');
+    const r = await run(cwd, reconfirm);
+    expect(r.code).toBe(2);
+    expect(readBack(cwd, PEN)).toEqual(before);
+    expect(r.err).toContain('unaccounted-criterion');
+    expect(r.err).toContain('Design coverage');
+  });
+
+  it('reads the pages from the unchanged .pen, so a record written before pages existed reconfirms', async () => {
+    const cwd = gitRepo();
+    writeApproval(cwd, PEN, {
+      ...APPROVED,
+      penBlob: blobOf(cwd, penRel),
+      spec: { name: SPEC, blob: 'e'.repeat(40) },
+    });
+    appendFileSync(join(cwd, specRel), 'A wording fix.\n');
+    expect((await run(cwd, reconfirm)).code).toBe(0);
+    expect(readBack(cwd, PEN)).toMatchObject({ spec: { name: SPEC, blob: blobOf(cwd, specRel) } });
+    appendFileSync(join(cwd, specRel), '\n3. One cut, not two.\n');
+    expect((await run(cwd, reconfirm)).code).toBe(2);
+  });
+});
+
+describe('design verdict CLI / --coverage', () => {
+  const coverageArgv = (pages: readonly string[], spec = specRel): string[] => [
+    '--pen',
+    penRel,
+    '--coverage',
+    '--spec',
+    spec,
+    ...pages.flatMap((p) => ['--editor-page', p]),
+  ];
+  const recordPath = (cwd: string): string => join(cwd, approvalRelPath(PEN));
+
+  it('exits 0 on a covered design and writes nothing', async () => {
+    const cwd = gitRepo();
+    expect((await run(cwd, coverageArgv(PAGES))).code).toBe(0);
+    expect(existsSync(recordPath(cwd))).toBe(false);
+  });
+
+  it('exits 1 listing every gap, and writes nothing', async () => {
+    const cwd = gitRepo();
+    const r = await run(cwd, coverageArgv(['FINAL:app: rest', 'FINAL:app: focus']));
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('FINAL:app: empty');
+    expect(r.out).toContain('FINAL:app: focus');
+    expect(existsSync(recordPath(cwd))).toBe(false);
+  });
+
+  it('judges the page names it is given, not the file on disk — the editor may not have saved', async () => {
+    const cwd = gitRepo();
+    writeFileSync(join(cwd, penRel), penJson(['FINAL:app: rest']));
+    expect((await run(cwd, coverageArgv(PAGES))).code).toBe(0);
+    writeFileSync(join(cwd, penRel), penJson(PAGES));
+    expect((await run(cwd, coverageArgv(['FINAL:app: rest']))).code).toBe(1);
+  });
+
+  it('exits 2 on an architecture design and on another feature’s spec', async () => {
+    const cwd = gitRepo();
+    const archRel = `docs/design/architecture/${PEN}`;
+    mkdirSync(join(cwd, 'docs', 'design', 'architecture'), { recursive: true });
+    writeFileSync(join(cwd, archRel), penJson(['FINAL:modules: split cr']));
+    const arch = ['--pen', archRel, '--coverage', '--spec', specRel, '--editor-page', 'p'];
+    const archRun = await run(cwd, arch);
+    expect(archRun.code).toBe(2);
+    expect(archRun.err).toContain('architecture');
+    const other = '2026-08-30-other-feature-design.md';
+    writeFileSync(join(cwd, 'docs', 'design', 'specs', other), SPEC_TEXT);
+    const otherRun = await run(cwd, coverageArgv(PAGES, `docs/design/specs/${other}`));
+    expect(otherRun.code).toBe(2);
+    expect(otherRun.err).toContain("is for 'other-feature'");
   });
 });
 

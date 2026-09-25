@@ -240,6 +240,12 @@ describe('assessSpecSplit', () => {
     );
   });
 
+  it('S2: list lines inside a fence under the acceptance section are not counted', () => {
+    const fenced = Array.from({ length: 25 }, (_, i) => `- fenced ${i}`).join('\n');
+    const md = `# Spec\n\n## Acceptance criteria\n\n- top one\n\n\`\`\`md\n${fenced}\n\`\`\`\n`;
+    expect(assessSpecSplit(md)).toEqual([]);
+  });
+
   it('fires S1 then S2 in rule order when both trip', () => {
     const md = specWith(SPEC_CRITERIA_THRESHOLD + 1, `\n${words(SPEC_WORD_THRESHOLD + 1)}\n`);
     expect(assessSpecSplit(md).map((s) => s.rule)).toEqual(['S1', 'S2']);

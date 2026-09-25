@@ -8,6 +8,9 @@
 // because the record is the authoritative half and writing it last makes the
 // survivable failure the loud one: a sentence with no record is refused at the
 // next commit, a record with no sentence would be a silent claim of ratification.
+// A UI design must hold exactly the pages its spec's `### Design coverage` table
+// declares: `--approve` and `--reconfirm` refuse one that does not, and
+// `--coverage` asks the same question read-only, before the pages are shown.
 
 import { spawnSync } from 'node:child_process';
 import {
@@ -41,6 +44,7 @@ import {
 } from '../core/design-artifact-names.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { errMessage } from '../core/err-message.js';
+import { readRepoText } from '../core/read-text.js';
 import {
   designApprovalRecordSchema,
   readApproval,
@@ -48,12 +52,18 @@ import {
   type DesignApprovalRecord,
 } from './design-approval.js';
 import { ARCH_VIEWS } from './arch-pen.js';
+import {
+  checkFeatureCoverage,
+  type CoverageFinding,
+  type CoverageFindingCode,
+} from './feature-coverage.js';
 import { parsePenDocument, topLevelPages } from './pen-doc.js';
 
 const USAGE =
   'usage: design verdict --pen <path> --approve --surface <s> [--surface <s>...] (--spec <path> | --milestone <slug>)\n' +
   '                      --editor-page <name> [--editor-page <name>...] [--reservation <text>]\n' +
   '                      (a docs/design/architecture/ .pen takes views as surfaces: context | containers | modules | flows)\n' +
+  '       design verdict --pen <path> --coverage --spec <path> --editor-page <name> [--editor-page <name>...]\n' +
   '       design verdict --pen <path> --waive --reason <text>\n' +
   '       design verdict --pen <path> --check\n' +
   '       design verdict --pen <path> --reconfirm';
@@ -72,8 +82,11 @@ type ApproveMode = {
   against: ApprovalBinding;
 };
 
+type CoverageMode = { verb: 'coverage'; spec: string; editorPages: string[] };
+
 type VerdictMode =
   | ApproveMode
+  | CoverageMode
   | { verb: 'waive'; reason: string }
   | { verb: 'check' }
   | { verb: 'reconfirm' };
@@ -85,7 +98,7 @@ export type VerdictArgs =
 
 type ApprovedRecord = Extract<DesignApprovalRecord, { outcome: 'approved' }>;
 
-const VERB_FLAGS = ['--approve', '--waive', '--check', '--reconfirm'] as const;
+const VERB_FLAGS = ['--approve', '--waive', '--check', '--reconfirm', '--coverage'] as const;
 type VerbFlag = (typeof VERB_FLAGS)[number];
 
 const isVerbFlag = (arg: string): arg is VerbFlag =>
@@ -134,7 +147,7 @@ export function parseVerdictArgs(argv: readonly string[]): VerdictArgs {
   if (verb === undefined || extra.length > 0) {
     return {
       ok: false,
-      error: 'exactly one of --approve / --waive / --check / --reconfirm is required',
+      error: 'exactly one of --approve / --waive / --check / --reconfirm / --coverage is required',
     };
   }
 
@@ -176,15 +189,36 @@ export function parseVerdictArgs(argv: readonly string[]): VerdictArgs {
     };
   }
 
-  const approveOnly: Array<[string, boolean]> = [
-    ['--surface', surfaces.length > 0],
-    ['--reservation', reservation !== undefined],
-    ['--editor-page', editorPages.length > 0],
-    ['--spec', spec !== undefined],
-    ['--milestone', milestone !== undefined],
+  if (verb === '--coverage') {
+    const foreign: Array<[string, boolean]> = [
+      ['--surface', surfaces.length > 0],
+      ['--reservation', reservation !== undefined],
+      ['--milestone', milestone !== undefined],
+      ['--reason', reason !== undefined],
+    ];
+    const stray = foreign.find(([, given]) => given);
+    if (stray !== undefined)
+      return { ok: false, error: `${stray[0]} does not apply to --coverage` };
+    if (spec === undefined) return { ok: false, error: '--coverage requires --spec' };
+    if (editorPages.length === 0) {
+      return {
+        ok: false,
+        error:
+          '--coverage requires at least one --editor-page — every top-level page the editor shows',
+      };
+    }
+    return { ok: true, pen, mode: { verb: 'coverage', spec, editorPages } };
+  }
+
+  const approveOnly: Array<[string, boolean, string]> = [
+    ['--surface', surfaces.length > 0, '--approve'],
+    ['--reservation', reservation !== undefined, '--approve'],
+    ['--editor-page', editorPages.length > 0, '--approve or --coverage'],
+    ['--spec', spec !== undefined, '--approve or --coverage'],
+    ['--milestone', milestone !== undefined, '--approve'],
   ];
   const stray = approveOnly.find(([, given]) => given);
-  if (stray !== undefined) return { ok: false, error: `${stray[0]} belongs to --approve` };
+  if (stray !== undefined) return { ok: false, error: `${stray[0]} belongs to ${stray[2]}` };
 
   if (verb === '--waive') {
     if (reason === undefined) return { ok: false, error: '--waive requires --reason' };
@@ -379,6 +413,26 @@ function surfaceCoverageError(
   return bare.length > 0 ? `--surface ${bare.join(', ')} owns no FINAL: page in the file` : null;
 }
 
+/** The findings a changed design answers; every other finding is answered in the spec's table. */
+const PAGE_GAPS: ReadonlySet<CoverageFindingCode> = new Set([
+  'missing-page',
+  'duplicate-page',
+  'undeclared-page',
+]);
+
+/** A UI design's pages against the spec's `### Design coverage` table — no gaps means covered. */
+function coverageGaps(
+  cwd: string,
+  specRel: string,
+  pages: readonly string[],
+): { ok: true; gaps: CoverageFinding[] } | { ok: false; error: string } {
+  const spec = readRepoText(cwd, specRel);
+  return spec.ok ? { ok: true, gaps: checkFeatureCoverage(spec.text, pages) } : spec;
+}
+
+const gapLines = (gaps: readonly CoverageFinding[]): string =>
+  gaps.map((gap) => `  ${gap.code}: ${gap.message}`).join('\n');
+
 /** Everything `main` needs, injected so tests drive real behaviour. */
 export interface VerdictDeps {
   cwd: string;
@@ -490,10 +544,21 @@ function approve(ctx: VerdictCtx, mode: ApproveMode): number {
       );
     }
   }
-  const coverage = surfaceCoverageError(mode.surfaces, read.pages);
-  if (coverage !== null) return fail(coverage, 2);
+  const surfaceError = surfaceCoverageError(mode.surfaces, read.pages);
+  if (surfaceError !== null) return fail(surfaceError, 2);
   const bound = resolveBinding(ctx, mode.against);
   if (!bound.ok) return fail(bound.error, 2);
+  if (ctx.pen.kind === 'ui' && bound.kind === 'spec') {
+    const covered = coverageGaps(ctx.cwd, bound.rel, read.pages);
+    if (!covered.ok) return fail(covered.error, 2);
+    if (covered.gaps.length > 0) {
+      return fail(
+        `${ctx.pen.rel} does not cover ${bound.rel}:\n${gapLines(covered.gaps)}\n` +
+          "return to Iterate: draw what is missing, or correct the spec's ### Design coverage table — nothing was written",
+        2,
+      );
+    }
+  }
 
   const penBlob = blobIdOfBytes(ctx.cwd, ctx.pen.rel, bytes);
   if (penBlob === null) return fail(`git could not hash ${ctx.pen.rel}`, 2);
@@ -682,6 +747,36 @@ function check(ctx: VerdictCtx): number {
   return 1;
 }
 
+/**
+ * Why the changed spec is no longer covered by the approved design, or `null`.
+ * The pages come from the `.pen` on disk — the caller has proven its blob is the
+ * approved one — so a record written before `pages` existed is checked too.
+ */
+function reconfirmCoverageError(ctx: VerdictCtx, specRel: string): string | null {
+  let bytes: Buffer;
+  try {
+    bytes = readFileSync(ctx.pen.abs);
+  } catch (err) {
+    return `${ctx.pen.rel}: ${errMessage(err)}`;
+  }
+  const read = readPenPages(bytes);
+  if (!read.ok) return `${ctx.pen.rel}: ${read.error}`;
+  const covered = coverageGaps(ctx.cwd, specRel, read.pages);
+  if (!covered.ok) return covered.error;
+  if (covered.gaps.length === 0) return null;
+  const onPages = covered.gaps.some((gap) => PAGE_GAPS.has(gap.code));
+  const onTable = covered.gaps.some((gap) => !PAGE_GAPS.has(gap.code));
+  return [
+    `${specRel} is no longer covered by the approved ${ctx.pen.rel}:`,
+    gapLines(covered.gaps),
+    ...(onTable ? ["correct the spec's ### Design coverage table, then re-run --reconfirm"] : []),
+    ...(onPages
+      ? ['the design must change to hold the declared pages: revise it and take the verdict again']
+      : []),
+    'nothing was written',
+  ].join('\n');
+}
+
 function reconfirm(ctx: VerdictCtx): number {
   const loaded = loadApproval(ctx);
   if (loaded.kind === 'refused') return loaded.code;
@@ -698,6 +793,10 @@ function reconfirm(ctx: VerdictCtx): number {
       2,
     );
   }
+  if (ctx.pen.kind === 'ui' && spec.kind === 'spec') {
+    const uncovered = reconfirmCoverageError(ctx, spec.rel);
+    if (uncovered !== null) return fail(uncovered, 2);
+  }
   const specBlob = blobIdOfWorktreeFile(ctx.cwd, spec.rel, { write: true });
   if (specBlob === null) return fail(`git could not store ${spec.rel}`, 2);
   const written = writeValidated(ctx, {
@@ -711,6 +810,29 @@ function reconfirm(ctx: VerdictCtx): number {
   );
   console.log('stage the record — it rides the next commit');
   return 0;
+}
+
+/** Read-only: the editor's pages against the spec's table, before anyone is shown them. */
+function coverage(ctx: VerdictCtx, mode: CoverageMode): number {
+  if (ctx.pen.kind !== 'ui') {
+    return fail(
+      `--coverage holds a UI design to its spec; ${ctx.pen.rel} is an architecture design`,
+      2,
+    );
+  }
+  const spec = resolveFeatureSpec(ctx.cwd, mode.spec, ctx.pen.key);
+  if (!spec.ok) return fail(spec.error, 2);
+  const covered = coverageGaps(ctx.cwd, spec.rel, mode.editorPages);
+  if (!covered.ok) return fail(covered.error, 2);
+  if (covered.gaps.length === 0) {
+    console.log(
+      `covered: the FINAL pages are exactly the ones ${spec.rel} declares, and every criterion has a row`,
+    );
+    return 0;
+  }
+  console.log(`not covered: ${ctx.pen.rel} against ${spec.rel}`);
+  console.log(gapLines(covered.gaps));
+  return 1;
 }
 
 export async function main(argv: readonly string[], deps?: Partial<VerdictDeps>): Promise<number> {
@@ -766,6 +888,8 @@ export async function main(argv: readonly string[], deps?: Partial<VerdictDeps>)
       return check(ctx);
     case 'reconfirm':
       return reconfirm(ctx);
+    case 'coverage':
+      return coverage(ctx, args.mode);
   }
 }
 
