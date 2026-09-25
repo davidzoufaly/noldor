@@ -58,7 +58,7 @@ Pure functions over a `.pen`'s bytes. The file is plain JSON (the gotcha `docs/n
 It looks in this order and takes the first hit:
 
 1. `NOLDOR_PEN_SCHEMA`, when set, is a path to a `pen.schema.json`. This covers CI and editors noldor does not search.
-2. The newest `~/.vscode/extensions/highagency.pencildev-<version>/node_modules/@ha/schema/pen.schema.json`. "Newest" is by semver on the directory suffix, using the `semver` dependency noldor already has. Two versions sit side by side after an extension update (0.6.71 and 0.6.73 on the operator's machine today), and the older one is stale.
+2. The pen.dev install VS Code's own registry names: the `highagency.pencildev` entry of `~/.vscode/extensions/extensions.json`, whose location holds `node_modules/@ha/schema/pen.schema.json`. The registry rather than a scan of `highagency.pencildev-<version>` directories, because an update leaves the old version on disk, listed only in `.obsolete` (0.6.71 beside 0.6.73 on the operator's machine today), and its schema is stale.
 
 A missing, unreadable or unparseable file counts as "no schema". It never throws.
 
@@ -106,14 +106,15 @@ For every surface whose baseline exists at HEAD, `evaluateUiDesignFreshness` rea
 
 - Two new statuses, `invalid` (any red validity finding) and `incomplete` (any red coverage finding), join the red-capable tier of `RANK`: `invalid` 7, `incomplete` 6, above `stale` 5. A row takes the worst of its freshness, validity and coverage statuses, and its `detail` names every failing leg, not just the winner.
 - Advisory findings ride a new optional `advisories: string[]` on the row. They never change `status`.
-- A git failure reading the bytes leaves the row `indeterminate`, never `invalid`, in line with the module's rule that a failed probe may not mint a red.
+- A git failure reading the bytes adds `indeterminate` to the row, never `invalid`, in line with the module's rule that a failed probe may not mint a red. The freshness verdict is computed first, so a known `stale` still outranks the unknown.
 - `remediation` for the new statuses is `capture` when the surface declares `uiCapture`, and `ui-sync` otherwise.
 
 Downstream:
 
 - `exitCodeFor` in `src/checks/check-ui-design-freshness.ts` exits 1 on `invalid` and `incomplete`. `renderRows` prints advisories under their row.
 - The `ui-design-freshness` probe in `src/release/preflight-probes.ts` blocks on `invalid` and `incomplete`, as it does on `stale`. A run whose overall is `fresh` but carries advisories warns instead of reporting ok. The exhaustive `never` checks there and in `exitCodeFor` make every new status a typecheck error until it is handled.
-- `src/cli/commands/doctor.ts` warns on `invalid` and `incomplete` beside `stale`, `uninitialized` and `unverified`. Its filter is an allowlist with no exhaustive check, so without this edit doctor would stay silent on both.
+- `src/cli/commands/doctor.ts` warns on `invalid` and `incomplete` beside `stale`, `uninitialized` and `unverified`. Its filter was an allowlist with no exhaustive check, so it becomes an exhaustive switch; without it doctor would have stayed silent on both.
+- `src/design/ui-sync-cli.ts`, the command a `ui-sync` remediation names, treats `invalid` and `incomplete` the way it treats `stale`: the operator fixes the file in a pencil session, and ui-sync stages it and stays pending until then. Without this it would print "no action" and exit 0 over a broken baseline.
 
 ### Unit 6 — Capture-side gate (`src/design/ui-capture-cli.ts`)
 
@@ -131,7 +132,7 @@ Every probe keeps the module's existing posture: report, never throw, and never 
 ### Testing
 
 - `pen-doc.ts`: fixture documents for each finding. The charuy shape (empty `variables`, pages binding `$dark-viewport-bg`) must yield `unresolved-variable`. A qualified `$alias:name` with a declared alias must not. A text node whose `content` is `$price` counts as a binding, which is what the schema says it is.
-- `pen-schema.ts`: a temp `HOME` with two extension directories must pick the newer one. `NOLDOR_PEN_SCHEMA` must win. A corrupt schema file must read as none.
+- `pen-schema.ts`: a temp `HOME` with two extension directories must pick the one the registry names, not the leftover. `NOLDOR_PEN_SCHEMA` must win. A corrupt schema file must read as none.
 - Evaluator: extend the temp-git-repo harness in `src/release/__tests__/ui-design-freshness.test.ts` with an invalid baseline, an incomplete one, a schema advisory, and a failed `git show` that must stay `indeterminate`. Every existing freshness test must pass unchanged.
 - CLI and preflight: exit codes and row statuses for the new statuses.
 - Capture: a stub capture command that writes an invalid baseline must leave no receipt and exit non-zero.
@@ -147,7 +148,7 @@ Every probe keeps the module's existing posture: report, never throw, and never 
 7. Release preflight blocks on `invalid` and `incomplete`, and warns rather than reporting ok when the only findings are advisories.
 8. A git failure reading the committed baseline yields `indeterminate`, never `invalid` or `incomplete`.
 9. `design capture` writes no receipt and exits non-zero when the baseline it produced is `invalid` or `incomplete`. `--vouch-only` refuses the same way.
-10. A valid, fully covered baseline keeps the verdict it has today, and every existing freshness, capture and approval test passes unchanged.
+10. A valid, fully covered baseline keeps the verdict it has today. Every existing freshness, capture, ui-sync and approval test keeps its assertions; only its `.pen` fixtures become valid documents, since placeholder text is now correctly `invalid`.
 11. `validate noldor-config` rejects a `uiCoverage` key that names no declared surface.
 
 ## Risks / trade-offs
@@ -167,7 +168,7 @@ As an operator whose release gate trusts the UI baseline, I want `checks ui-desi
 - Any time: `pnpm noldor checks ui-design-freshness`. A row now reads `invalid` (the file is not a usable `.pen`: not JSON, a missing required key, or a `$variable` nothing declares) or `incomplete` (a declared page is missing, or a `FINAL:` page is undeclared), and both exit 1. Schema advisories, such as a `version` that differs from the installed pen schema, print under the row and do not change the exit code. Gate Step 4 and release preflight run the same check, and preflight blocks on both new statuses.
 - Declare coverage (optional) in `consumer` of `.noldor/config.json`: `"uiCoverage": {"app": {"states": ["rest", "chat-open"], "modes": ["light", "dark"]}}`. The baseline must then hold exactly one top-level page per `<state>-<mode>` id (`rest-light`, `rest-dark`, …).
 - `pnpm noldor design capture [--surface <name>] [--vouch-only]` now refuses to write a receipt for a baseline that is `invalid` or `incomplete`, and prints why.
-- Schema: found automatically in the newest pen.dev VS Code extension install. Point `NOLDOR_PEN_SCHEMA` at a `pen.schema.json` to use another, for example in CI.
+- Schema: found automatically in the pen.dev extension VS Code has active. Point `NOLDOR_PEN_SCHEMA` at a `pen.schema.json` to use another, for example in CI.
 
 ## Open questions (resolved)
 
@@ -176,5 +177,5 @@ As an operator whose release gate trusts the UI baseline, I want `checks ui-desi
 3. *How does a page match a declared state and mode?* → By the top-level frame's `id`, shaped `<state>-<mode>` (D3). An id is stable where a display name is not, and charuy already emits this shape.
 4. *Presence only, or an exact match?* → Exact: a declared id must be carried by exactly one top-level frame, and an undeclared `FINAL:<surface>:` page is reported (D4). A leftover page is what misled charuy's capture.
 5. *Should `design capture` run the same checks?* → Yes, and refuse the receipt (D5). The receipt is what makes a surface read fresh, so it is the one place a broken baseline must be stopped.
-6. *Where is the installed schema found?* → `NOLDOR_PEN_SCHEMA`, then the newest pen.dev VS Code extension under `~/.vscode/extensions` (D6). The desktop app is no longer a noldor editor.
+6. *Where is the installed schema found?* → `NOLDOR_PEN_SCHEMA`, then the pen.dev install VS Code's extension registry names (D6). The registry knows which install is active; a directory scan can land on an obsolete one. The desktop app is no longer a noldor editor.
 7. *What happens when no schema is installed, as in CI?* → The schema advisories are skipped and nothing reds on schema grounds (D7). The red findings run everywhere because they need no schema.
