@@ -701,5 +701,9 @@
   "Q-0308": {
     "slug": "load-timeout-tests-in-dashboard-and-sdd-report",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0309": {
+    "slug": "design-archive-repoints-a-folded-linksspec",
+    "retiredAt": "2026-09-25"
   }
 }
