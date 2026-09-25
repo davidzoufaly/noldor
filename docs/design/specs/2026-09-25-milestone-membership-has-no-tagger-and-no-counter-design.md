@@ -35,7 +35,7 @@ The entry's claim that the feature counter is "structurally always `0/0`" no lon
 
 `pnpm noldor milestones assign <milestone> <target>...` — a new sub under the existing `milestones` group in `src/cli/manifest.ts`, backed by `src/milestones/assign-cli.ts` over a pure core in `src/milestones/assign.ts`.
 
-Each `<target>` is a slug or a `Q-NNNN` id. It resolves in this order: a roadmap block, then a backlog block (matched the way `has-block-cli.ts` matches), then `docs/features/<slug>.md` (FDs match by slug, or by their `entry-id:` for a `Q-NNNN`). A target that resolves nowhere is a refusal.
+Each `<target>` is a slug or a `Q-NNNN` id, looked up in the roadmap, the backlog (matched the way `has-block-cli.ts` matches) and `docs/features/<slug>.md` (FDs match by slug, or by their `entry-id:` for a `Q-NNNN`). A target must match exactly one of them: one that matches nowhere is a refusal, and one that matches more than one is an `ambiguous` refusal naming every match.
 
 For a queue block, the tool writes a `- milestone: <milestone>` bullet as the last bullet of the block's field list. For an FD, it sets `milestone:` in the frontmatter via gray-matter, the same way `flipPhaseToDone` (`src/core/phase-flip-done.ts`) rewrites `phase:`.
 
@@ -43,7 +43,7 @@ Per target, the outcome is one of: `written` (had none), `noop` (already names t
 
 The milestone must exist in `docs/milestones/` and must not be `shipped`. Writing work into a shipped milestone is exactly what `detectMilestoneShippedIncomplete` flags later.
 
-**All-or-nothing.** Every target is resolved and judged before any file is written. If any target refuses, nothing is written and the command exits 1, listing every refusal. Exit 0 means every target is now `written` or `noop`; exit 2 is a usage error. It prints one line per target with its outcome.
+**Every check before any write.** Every target is resolved and judged before any file is written. If any target refuses, nothing is written and the command exits 1, listing every refusal. Exit 0 means every target is now `written` or `noop`; exit 2 is a usage error. It prints one line per target with its outcome.
 
 Writing to `docs/roadmap.md` / `docs/backlog.md` from this command is a triage-flow write, the same class as `roadmap remove-block` and `triage backfill-ids`. The existing `validate triage` hook on those files still checks the result at commit time.
 
@@ -74,7 +74,7 @@ Architecture verdict: skip — new files live inside the existing `src/milestone
 - The same works for a backlog entry, for a `Q-NNNN` id, and for a feature MD (frontmatter `milestone:` set; `validate features` stays green).
 - Re-running the same assign changes no file and exits 0.
 - A target already tagged with a different milestone exits 1 and changes no file; with `--replace` it is rewritten.
-- An unknown target, an unknown milestone, or a `shipped` milestone exits 1.
+- An unknown target, a target matching more than one place, an unknown milestone, or a `shipped` milestone exits 1.
 - With several targets and one refusal, no file is written.
 - After tagging an FD, `milestones show <m>` counts it under `Features`, and flipping it to `done` raises the done count.
 - `milestones show <m>` prints the number of untagged roadmap entries, untagged backlog entries and untagged in-progress FDs as separate counts, including when all are zero.
@@ -82,6 +82,7 @@ Architecture verdict: skip — new files live inside the existing `src/milestone
 ## Risks / trade-offs
 
 - **Formatting churn on FDs.** gray-matter re-serializes the whole frontmatter. `flipPhaseToDone` already accepts this, so FDs are used to it; the diff may still reorder or re-quote a line.
+- **No rollback on a failed write.** Refusals are caught before any write, but a disk error partway through a multi-file write leaves the earlier files written. Each file is written atomically (`atomicWriteFileSync`), so none is left half-written, and re-running is safe because a tagged target reads as `noop`. `activateMilestone` makes the same trade.
 - **Roadmap is queue state.** A command that writes it widens who edits it. It is limited to one bullet per named block, and every write is operator-named.
 - **The backlog count is large.** In a repo with a big parking lot the backlog number will dwarf the others. Accepted: it is a separate number, so the roadmap gap stays readable.
 
