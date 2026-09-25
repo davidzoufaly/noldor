@@ -7,12 +7,9 @@
 // "no change planned" and reports nothing. Advisory by design: milestones are
 // optional and never block, so the report always exits 0 once it can read.
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
 import { ARCH_BASELINE_PATH, milestonePenPath } from '../core/design-artifact-names.js';
-import { errMessage } from '../core/err-message.js';
+import { readRepoText } from '../core/read-text.js';
 import { isSlug } from '../core/slug.js';
 import type { ArchitecturePageId } from '../docs/architecture-schema.js';
 import {
@@ -79,13 +76,9 @@ function readDoc(
   cwd: string,
   rel: string,
 ): { ok: true; doc: ArchDoc } | { ok: false; error: string } {
-  let text: string;
-  try {
-    text = readFileSync(join(cwd, rel), 'utf8');
-  } catch (err) {
-    return { ok: false, error: `${rel}: ${errMessage(err)}` };
-  }
-  const read = readArchPen(text);
+  const file = readRepoText(cwd, rel);
+  if (!file.ok) return file;
+  const read = readArchPen(file.text);
   return read.ok ? read : { ok: false, error: `${rel}: ${read.error}` };
 }
 

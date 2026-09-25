@@ -6,6 +6,7 @@ entry-id: Q-0296
 links:
   code:
     - src/checks/check-arch-baseline.ts
+    - src/core/read-text.ts
     - src/design/arch-baseline.ts
     - src/design/arch-check.ts
     - src/design/arch-pen.ts
@@ -125,6 +126,7 @@ As an operator designing a new milestone, feature or package, I want an as-built
 - **Spec:** [`docs/design/specs/archive/2026-09-24-architecture-design-phase-design.md`](../../docs/design/specs/archive/2026-09-24-architecture-design-phase-design.md)
 - **Code:**
   - [`src/checks/check-arch-baseline.ts`](../../src/checks/check-arch-baseline.ts)
+  - [`src/core/read-text.ts`](../../src/core/read-text.ts)
   - [`src/design/arch-baseline.ts`](../../src/design/arch-baseline.ts)
   - [`src/design/arch-check.ts`](../../src/design/arch-check.ts)
   - [`src/design/arch-pen.ts`](../../src/design/arch-pen.ts)

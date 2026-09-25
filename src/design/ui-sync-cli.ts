@@ -57,8 +57,8 @@ export interface BaselineValidation {
   notice?: string;
 }
 
-/** What a Node process can see: exists, non-empty, staged. Content rules (page
- * naming, one FINAL per surface) are validated in-session via pencil MCP. */
+/** The staging preconditions: exists, non-empty, staged. What the file holds is
+ * judged by `evaluateUiDesignFreshness`, which reads it with `inspectBaseline`. */
 export function validateBaselineFile(
   absPath: string,
   git: { staged: boolean },

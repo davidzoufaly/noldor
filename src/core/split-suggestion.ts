@@ -16,6 +16,7 @@
 import type { BacklogEntry } from '../utils/parse-blocks.js';
 import { countWords } from '../utils/word-count.js';
 import { extractTouches } from './extract-touches.js';
+import { readCriteria } from './spec-criteria.js';
 
 export interface SplitSignal {
   readonly rule: string; // 'E1' | 'E2' | 'E3' | 'F1' | 'P1' | 'S1' | 'S2'
@@ -131,29 +132,6 @@ export function assessPlanSplit(planMd: string): SplitSignal[] {
   ];
 }
 
-const SPEC_ACCEPTANCE_HEADING_RE = /^##\s+Acceptance/i;
-const SECTION_HEADING_RE = /^## /;
-const TOP_LEVEL_CRITERION_RE = /^(?:-|\d+\.) /;
-
-/**
- * Top-level list items (`- ` or `N. ` — 6 of the corpus's acceptance
- * sections are ordered lists) inside the acceptance section: from the first
- * line matching `## Acceptance*` (case-insensitive — covers `## Acceptance
- * criteria` and bare `## Acceptance`) up to the next `## ` heading or EOF.
- * Nested (indented) items are not counted. No matching heading → 0.
- */
-function countSpecCriteria(specMd: string): number {
-  const lines = specMd.split('\n');
-  const start = lines.findIndex((l) => SPEC_ACCEPTANCE_HEADING_RE.test(l));
-  if (start === -1) return 0;
-  let count = 0;
-  for (let i = start + 1; i < lines.length; i++) {
-    if (SECTION_HEADING_RE.test(lines[i])) break;
-    if (TOP_LEVEL_CRITERION_RE.test(lines[i])) count += 1;
-  }
-  return count;
-}
-
 /**
  * S1/S2 heuristics over a design-spec markdown body. A spec with no
  * `## Acceptance*` heading is S2-silent by design — with no criteria section
@@ -172,7 +150,7 @@ export function assessSpecSplit(specMd: string): SplitSignal[] {
         `sibling attach enhancements, one per concern, before implementation.`,
     });
   }
-  const criteria = countSpecCriteria(specMd);
+  const criteria = readCriteria(specMd).length;
   if (criteria > SPEC_CRITERIA_THRESHOLD) {
     signals.push({
       rule: 'S2',
