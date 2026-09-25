@@ -373,6 +373,8 @@ Let more roadmap entries — ideally any of them — carry a UI-design pass, rat
 
 Should `noUncheckedIndexedAccess: true` join the graded compiler settings in the toolchain floor, and should it live in the shipped base config consumers extend? The flag turns every index read into `T | undefined`, which catches a real defect class the repo currently relies on review to catch — but switching it on is not a config edit, it is a corpus-wide type-error sweep in this repo and in every consumer that extends the base config, and the floor grades every discovered tsconfig since Q-0208. Parked as a question: the sweep cost has to be measured (how many sites, how many are genuine) before this is a decision rather than a preference. (raised 2026-09-08 from an untriaged ideas bullet)
 
+- The floor now grades both `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` and warns on this repo's `tsconfig.base.json` in every garden pass. The open question narrows to: run the migration (one flag per PR) or record a waiver in `.noldor/config.json` `consumer.toolchainFloor.waivers` with the reason. (2026-09-25, garden pass)
+
 ### Clone-Ratchet Sibling-Literal Noise
 
 - id: Q-0236
