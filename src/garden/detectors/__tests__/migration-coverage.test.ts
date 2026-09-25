@@ -1,10 +1,10 @@
 // @tests: outcome-telemetry-and-effectiveness-metrics
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { detectMigrationCoverage, evaluateCoverage } from '../migration-coverage.js';
 
 describe('evaluateCoverage', () => {
@@ -62,8 +62,14 @@ describe('evaluateCoverage with a no-migration declaration', () => {
 });
 
 describe('detectMigrationCoverage', () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
   function repo(): string {
     const dir = mkdtempSync(join(tmpdir(), 'migration-coverage-'));
+    dirs.push(dir);
     execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir });
     execFileSync('git', ['config', 'user.email', 't@example.com'], { cwd: dir });
     execFileSync('git', ['config', 'user.name', 'T'], { cwd: dir });

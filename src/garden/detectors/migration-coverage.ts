@@ -85,16 +85,21 @@ export function detectMigrationCoverage(
   cwd: string = process.cwd(),
 ): MigrationCoverageFinding | null {
   let changed: string[] = [];
-  let declared: Set<string>;
   try {
     changed = execFileSync('git', ['diff', '--name-only', range], { cwd, encoding: 'utf8' })
       .trim()
       .split('\n')
       .map((s) => s.trim())
       .filter(Boolean);
-    declared = filesDeclaredNoMigration(range, cwd);
   } catch {
     return null;
+  }
+  // A declaration that cannot be read excuses nothing: keep flagging.
+  let declared = new Set<string>();
+  try {
+    declared = filesDeclaredNoMigration(range, cwd);
+  } catch {
+    // fall through with no declarations
   }
   return evaluateCoverage(changed, declared);
 }
