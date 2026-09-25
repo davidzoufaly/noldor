@@ -4,7 +4,12 @@ category: Tooling
 deps: []
 entry-id: Q-0296
 links:
-  code: []
+  code:
+    - src/checks/check-arch-baseline.ts
+    - src/design/arch-baseline.ts
+    - src/design/arch-check.ts
+    - src/design/arch-pen.ts
+    - src/indirection/module-pairs.ts
   spec: docs/design/specs/2026-09-24-architecture-design-phase-design.md
   tests:
     - src/checks/__tests__/check-arch-baseline.test.ts

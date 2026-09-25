@@ -184,12 +184,12 @@ The file is emitted as plain JSON by a one-off script, not drawn through pencil 
 
 Every box sits at explicit coordinates, and each arrow is computed from the same numbers. The layout is a starting point for the operator to tidy on the canvas. Moving boxes later is what `design arch-route` (Part 6) is for.
 
-- [ ] **Step 1: Read the installed schema version.**
+- [x] **Step 1: Read the installed schema version.**
 
   Run: `grep -oE 'version: "[0-9.]+"' ~/.vscode/extensions/highagency.pencildev-*/out/skills/pen-dev/pen-schema.md | head -1`
   Expected: `version: "2.17"`. If it prints another version, use that value for `VERSION` in Step 2.
 
-- [ ] **Step 2: Write the generator and emit the baseline.**
+- [x] **Step 2: Write the generator and emit the baseline.**
 
   Create the one-off script outside the repo and run it from the worktree root:
 
@@ -312,7 +312,7 @@ Every box sits at explicit coordinates, and each arrow is computed from the same
 
   Expected: `wrote 4 views: context, containers, modules, flows`, and `docs/design/architecture/baseline.pen` exists. Keep `$gen` for Step 3.
 
-- [ ] **Step 3: Run the check and correct the data until it is green.**
+- [x] **Step 3: Run the check and correct the data until it is green.**
 
   Run: `pnpm noldor checks arch-baseline`
   Expected: either `arch-baseline: ok …` with exit 0, or findings. Correct each finding in the generator's data (`$gen`), then re-run `node "$gen"` and the check:
@@ -321,7 +321,7 @@ Every box sits at explicit coordinates, and each arrow is computed from the same
 
   Repeat until the check exits 0. Advisory `undrawn-edge` rows are expected and do not block.
 
-- [ ] **Step 4: Look at it on the canvas (advisory).**
+- [x] **Step 4: Look at it on the canvas (advisory).**
 
   Run: `pnpm noldor design pen-bridge --pen docs/design/architecture/baseline.pen`
   Then call pencil `get_app_state`. When it reports this worktree's `docs/design/architecture/baseline.pen` as the open document, call pencil `execute` with `filePath` set to that file's absolute path and this `input`:
@@ -334,17 +334,17 @@ Every box sits at explicit coordinates, and each arrow is computed from the same
 
   Expected: no `problems` rows print, and the screenshot shows six groups, 32 module boxes and the arrows. This step reads only and writes nothing. If pencil MCP is unavailable (a headless session, or no VS Code window), skip the step and say so in the commit body. The check in Step 3 is the acceptance criterion; the render is a courtesy.
 
-- [ ] **Step 5: Fill the FD's code links.**
+- [x] **Step 5: Fill the FD's code links.**
 
   Run: `pnpm noldor sync code-links --slug architecture-design-phase`
   Expected: `docs/features/architecture-design-phase.md` `links.code` lists `src/design/arch-pen.ts`, `src/design/arch-check.ts`, `src/design/arch-baseline.ts`, `src/indirection/module-pairs.ts` and `src/checks/check-arch-baseline.ts` (every file tagged `// @fd: architecture-design-phase`), and the FD is staged.
 
-- [ ] **Step 6: Preflight the push gates.**
+- [x] **Step 6: Preflight the push gates.**
 
   Run: `pnpm noldor checks push-gates`
   Expected: exit 0. On exit 1 fix what it names (usually a clones baseline moved by the new files, or a template twin) and commit the fix before continuing.
 
-- [ ] **Step 7: Commit.**
+- [x] **Step 7: Commit.**
 
   ```bash
   msg=$(mktemp)
