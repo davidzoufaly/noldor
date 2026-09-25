@@ -95,8 +95,11 @@ export function readCheckedState<T>(path: string, schema: z.ZodType<T>): Checked
   if (raw === undefined) return { kind: 'absent' };
   const parsed = schema.safeParse(raw);
   if (parsed.success) return { kind: 'ok', value: parsed.data };
+  const issue = parsed.error.issues[0];
   return {
     kind: 'unreadable',
-    reason: parsed.error.issues[0]?.message ?? 'does not match its schema',
+    reason: issue
+      ? `${issue.path.join('.') || '(root)'}: ${issue.message}`
+      : 'does not match its schema',
   };
 }

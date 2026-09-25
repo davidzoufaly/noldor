@@ -158,6 +158,17 @@ describe('noldor skill-size check', () => {
 });
 
 describe('noldor skill-size baseline', () => {
+  it('says the previous baseline was unreadable instead of listing every file as new', async () => {
+    using repo = repoWith({
+      '.claude/skills/a/SKILL.md': words(3),
+      [SKILL_SIZE_BASELINE]: '{ torn',
+    });
+    const rerecord = await run(['baseline'], repo.dir);
+    expect(rerecord.code).toBe(0);
+    expect(rerecord.out).toContain('the previous baseline was unreadable');
+    expect(rerecord.out).not.toContain('new .claude/skills/a/SKILL.md');
+  });
+
   it('records every skill file and prints which ones moved', async () => {
     using repo = repoWith({
       '.claude/skills/a/SKILL.md': words(3),

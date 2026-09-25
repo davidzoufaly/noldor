@@ -74,6 +74,9 @@ describe('readCheckedState', () => {
     expect(readCheckedState(broken, schema).kind).toBe('unreadable');
     const wrong = join(scratch(), 'wrong.json');
     writeJsonState(wrong, { n: 'three' });
-    expect(readCheckedState(wrong, schema).kind).toBe('unreadable');
+    expect(readCheckedState(wrong, schema)).toMatchObject({
+      kind: 'unreadable',
+      reason: expect.stringMatching(/^n: /),
+    });
   });
 });

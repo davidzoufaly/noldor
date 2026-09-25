@@ -158,11 +158,17 @@ function check(repo: string): number {
 function record(repo: string): number {
   const current = measureSkillSizes(repo);
   const read = readSkillSizeBaseline(repo);
-  const previous = read.kind === 'ok' ? read.baseline.files : {};
   writeSkillSizeBaseline(repo, current);
   process.stdout.write(
     `skill-size: recorded ${Object.keys(current).length} skill files to ${SKILL_SIZE_BASELINE}\n`,
   );
+  if (read.kind === 'unreadable') {
+    process.stdout.write(
+      `  the previous baseline was unreadable (${read.reason}); no per-file diff shown\n`,
+    );
+    return 0;
+  }
+  const previous = read.kind === 'ok' ? read.baseline.files : {};
   const label = { grew: 'RAISED', fell: 'lowered', unrecorded: 'new', gone: 'dropped' } as const;
   for (const r of compareSkillSizes(previous, current)) {
     if (r.kind !== 'same') process.stdout.write(`  ${label[r.kind]} ${describeRow(r)}\n`);

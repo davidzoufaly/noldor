@@ -1,6 +1,6 @@
 # /noldor-gate — blockers
 
-Read on any red round: at Step 2.5 when the operator picks `address-blockers`, and at Step 4 when the code-stage aggregate is red.
+Read on any red round: at Step 2.5 when the operator picks `address-blockers`, at Step 4 when the code-stage aggregate is red, and whenever tests or typecheck fail before the code-stage review (**Escalate on test-red** below).
 
 ## Spec and plan rounds (Step 2.5)
 
