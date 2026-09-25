@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### seed-test-tags Still Claims an Apply Stales the Graph
-
-- id: Q-0316
-- area: tooling
-- type: docs
-- since: 2026-09-25
-- size: XS
-- impact: low
-- confidence: high
-
-seed-test-tags' "Every --apply leaves the graph older than the files it wrote, so regenerate between batches" predates Q-0290's git leg, which ignores test-only edits: an apply no longer stales the graph. The message and the sdd-co-tag-detector FD's Usage both still claim it does. (PR #589)
-
 ### Migration Coverage Fires on Additive-Only Schema Changes
 
 - id: Q-0322
