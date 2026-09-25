@@ -19,7 +19,7 @@ A shared recipe is not enough on its own. The v1.13.0 sweep ran the workflow's e
 ## Goals
 
 - One command builds the committed graph, and both producers call it: `pnpm noldor graphify build`.
-- What it builds is a function of the tree and a committed lock of every Python package — not of the machine or the run.
+- What it builds is a function of the commit and a committed lock of every Python package — not of the machine or the run.
 - Run right after a graph PR merges, the sweep's graph step leaves `graphify-out/` byte-identical.
 - The sweep's default path no longer depends on an external `/graphify` skill.
 
@@ -49,7 +49,7 @@ Three touched files sit on busier ground:
 
 The workflow's heredoc becomes `src/graphify/build-graph.py`, unchanged in substance: `detect`, a sorted code list, `extract(..., parallel=False)`, `cluster`, `Community N` labels, `generate`, `to_json(force=True)`. Four things change, each because a working machine is not a fresh CI checkout:
 
-- **Only tracked files.** The recipe runs in a temporary copy of the files git tracks, so a scratch file, an ignored build output or a `.worktrees/` checkout never enters the graph, nor the file and word totals `detect` hands the report. CI's checkout holds nothing else, so this changes nothing there.
+- **Only HEAD's files.** The recipe runs in a temporary copy of HEAD's tree, so an uncommitted edit, a scratch file, an ignored build output or a `.worktrees/` checkout never enters the graph, nor the file and word totals `detect` hands the report. CI's checkout holds nothing else, so this changes nothing there.
 - **A cache of its own.** graphify caches each file's parse under `graphify-out/cache/ast/`, keyed by the file's contents and path but not by the graphify or tree-sitter version. So a cache written by a `/graphify` run under older packages would be read back as if current. The script passes `extract(..., cache_root=<the environment's directory>)`, which ties the cache to the lock.
 - **Explicit stamps.** The TypeScript side passes `built_at_commit` (HEAD) to `to_json`, rather than letting graphify ask git from whatever directory it runs in.
 - **The report's date is HEAD's committer date, not the run day.** `generate` writes today's date into the report's first line, so without this a rebuild of the same commit on another day differs by that line.
@@ -60,9 +60,9 @@ Next to it, `src/graphify/graphify-requirements.txt` pins every package `==`: th
 
 A new `src/graphify/build.ts`, registered as `graphify.subs.build` in `src/cli/manifest.ts`. In order:
 
-1. **Up-to-date check.** Read `built_at_commit` from `graphify-out/graph.json`. When it names a commit and no tracked file outside `graphify-out/` differs between that commit and the working tree (`git diff --quiet <built_at_commit> -- . ':(exclude)graphify-out'`), print that the graph is already built from this tree and exit 0 without writing. Untracked files do not count, because the build never reads them (U1). `--force` skips the check. This is what makes the deletion test hold: a graph PR changes only `graphify-out/`. CI never meets it, because every merge that triggers CI changes something else.
+1. **Up-to-date check.** Read `built_at_commit` from `graphify-out/graph.json`. When it names a commit and no file outside `graphify-out/` differs between that commit and HEAD (`git diff --quiet <built_at_commit> HEAD -- . ':(exclude)graphify-out'`), print that the graph is already built from this tree and exit 0 without writing. Uncommitted and untracked changes do not count, because the build never reads them (U1). `--force` skips the check. This is what makes the deletion test hold: a graph PR changes only `graphify-out/`. CI never meets it, because every merge that triggers CI changes something else.
 2. **Environment.** The interpreter is `NOLDOR_GRAPHIFY_PYTHON`, else `python3` on `PATH`. The lock's header records the Python minor it was frozen under (`3.13` today, the version CI's `setup-python` installs); an interpreter of any other minor is refused with exit 2 and a line naming `NOLDOR_GRAPHIFY_PYTHON`, because only patch-level agreement is measured. The venv lives under the user cache (`$XDG_CACHE_HOME/noldor/graphify/<key>`, else `~/.cache/noldor/graphify/<key>`), where the key hashes the lock's bytes and the interpreter's full version. The builder installs the lock into it with that interpreter's `pip`, using `--no-deps` so no package the lock does not name can enter, then runs `pip check`, so a lock missing a dependency fails there rather than mid-build. It writes a ready marker last. A directory without the marker is incomplete and is rebuilt; one with it is reused as is. The operator's own Python is never touched.
-3. **Build.** Run `build-graph.py` with the environment's interpreter and `PYTHONHASHSEED=0`, from the root of the tracked-file copy (U1), writing its two outputs into a temporary directory. Render both `.toon` files from that `graph.json` with `graph-to-toon`'s pure functions, then move all four files into `graphify-out/`. A failed run leaves the committed graph untouched. The builder writes nothing else in `graphify-out/`.
+3. **Build.** Run `build-graph.py` with the environment's interpreter and `PYTHONHASHSEED=0`, from the root of the HEAD copy (U1), writing its two outputs into a temporary directory. Render both `.toon` files from that `graph.json` with `graph-to-toon`'s pure functions, then move all four files into `graphify-out/`. A failed build leaves the committed graph untouched. A move that fails partway exits 1 and names `git checkout -- graphify-out/`, which restores the tracked files. The builder writes nothing else in `graphify-out/`.
 
 Exit codes: 0 built or already up to date; 1 the build failed, or the directory is not a git work tree; 2 no usable Python environment (no interpreter, one of the wrong minor, or a lock pip could not install or `pip check` rejects), with the fix on stderr.
 
@@ -74,7 +74,7 @@ A consumer owns its copy — the file is scaffold-only, so `init --update` never
 
 ### U4 — The sweep and the remedy prose switch
 
-`/noldor-release-sweep` steps 1 and 5 call `pnpm noldor graphify build`, and step 2 folds into them; `--full-semantic` keeps invoking `/graphify`. The same switch lands wherever noldor tells someone to regenerate: `noldor-spec` step 1.7's stale branch, the stale remedy in `src/design/graph-context.ts` and `src/garden/garden-detect.ts`, and `docs/noldor/graph-integration.md`, `versioning.md`, `skill-catalog.md` and `worktree-discipline.md`. Every one of those has a `templates/` twin that changes with it. Two other features' FDs show the old line in their Usage — `sdd-co-tag-detector` and `graphify-plan-of-edges-nodes-for-plans-specs` — and get the same one-line swap. The `graph-integration.md` paragraph about 222 against 215 is replaced by the lock. The new subcommand gets its `script-catalog.md` entry (and twin), and the `AGENTS.md` capability index is regenerated with `pnpm noldor docs capability-index --write`.
+`/noldor-release-sweep` steps 1 and 5 call `pnpm noldor graphify build`, and step 2 folds into them; step 6's commit of refactor leftovers moves ahead of step 5, because the build reads HEAD; `--full-semantic` keeps invoking `/graphify`. The same switch lands wherever noldor tells someone to regenerate: `noldor-spec` step 1.7's stale branch, the stale remedy in `src/design/graph-context.ts` and `src/garden/garden-detect.ts`, and `docs/noldor/graph-integration.md`, `versioning.md`, `skill-catalog.md` and `worktree-discipline.md`. Every one of those has a `templates/` twin that changes with it. Two other features' FDs show the old line in their Usage — `sdd-co-tag-detector` and `graphify-plan-of-edges-nodes-for-plans-specs` — and get the same one-line swap. The `graph-integration.md` paragraph about 222 against 215 is replaced by the lock. The new subcommand gets its `script-catalog.md` entry (and twin), and the `AGENTS.md` capability index is regenerated with `pnpm noldor docs capability-index --write`.
 
 ### U5 — `manifest.json` leaves the repo
 
@@ -82,19 +82,19 @@ A consumer owns its copy — the file is scaffold-only, so `init --update` never
 
 ### Error handling
 
-A missing interpreter, one of the wrong minor, a failed venv creation, a failed pip install or a failed `pip check` exits 2 before anything under `graphify-out/` is touched. Run outside a git work tree, the builder exits 1 at once: it cannot list tracked files or stamp a commit. A recipe crash exits 1, and the temporary directory is discarded. An unreadable `graph.json` or a `built_at_commit` that does not resolve (a squash-merged sweep branch, a shallow clone) never short-circuits: it reads as "not up to date" and the builder builds.
+A missing interpreter, one of the wrong minor, a failed venv creation, a failed pip install or a failed `pip check` exits 2 before anything under `graphify-out/` is touched. Run outside a git work tree, the builder exits 1 at once: it cannot copy HEAD's tree or stamp a commit. A recipe crash exits 1, and the temporary directory is discarded. An unreadable `graph.json` or a `built_at_commit` that does not resolve (a squash-merged sweep branch, a shallow clone) never short-circuits: it reads as "not up to date" and the builder builds.
 
 ### Testing
 
-The TypeScript side takes its process runner and its git calls as injected seams, so unit tests drive it with fakes and never start Python. They cover the up-to-date decision (a graph-only change, a tracked change, an untracked file, a missing or unknown `built_at_commit`, `--force`), the environment key, the ready marker, the minor-version refusal, the exit codes, and that nothing under `graphify-out/` changes on any failure. A file-level test asserts every lock line pins an exact version. The Python half runs for real in one end-to-end test, gated on an environment variable because it needs the network and a 240 MB environment. It builds a small fixture repo twice with `--force` and asserts identical bytes. It stays out of `pnpm test`, and the implementer runs it once before shipping. After merge, CI's first graph PR is the live check: it should carry no reshuffle, because the lock pins what CI resolves today.
+The TypeScript side takes its process runner and its git calls as injected seams, so unit tests drive it with fakes and never start Python. They cover the up-to-date decision (a graph-only commit, a code commit, an uncommitted edit, a missing or unknown `built_at_commit`, `--force`), the environment key, the ready marker, the minor-version refusal, the exit codes, and that nothing under `graphify-out/` changes on any failure. A file-level test asserts every lock line pins an exact version. The Python half runs for real in one end-to-end test, gated on an environment variable because it needs the network and a 240 MB environment. It builds a small fixture repo twice with `--force` and asserts identical bytes. It stays out of `pnpm test`, and the implementer runs it once before shipping. After merge, CI's first graph PR is the live check: it should carry no reshuffle, because the lock pins what CI resolves today.
 
 ## Acceptance criteria
 
 1. `pnpm noldor graphify build` writes `graph.json`, `GRAPH_REPORT.md` and both `.toon` files, and uses `Community N` labels.
 2. Building the same commit twice with `--force` leaves `graphify-out/` byte-identical.
-3. When only `graphify-out/` differs from `built_at_commit`, the command exits 0 and writes nothing; `--force` rebuilds.
-4. A change to a tracked file outside `graphify-out/` since `built_at_commit` makes it rebuild.
-5. A file git does not track never appears in the graph or in the report's totals, and a parse cache under the repo's `graphify-out/cache/` is never read.
+3. When HEAD differs from `built_at_commit` only under `graphify-out/`, the command exits 0 and writes nothing; `--force` rebuilds.
+4. A commit that changes a file outside `graphify-out/` since `built_at_commit` makes it rebuild.
+5. An uncommitted edit or a file git does not track never appears in the graph or in the report's totals, and a parse cache under the repo's `graphify-out/cache/` is never read.
 6. Every package in the build environment is installed from the lock, and every lock line pins an exact version.
 7. With no usable interpreter, an interpreter of a Python minor other than the lock's, or a lock pip cannot install, it exits 2 and leaves `graphify-out/` unchanged.
 8. A recipe failure exits 1 and leaves `graphify-out/` unchanged.
@@ -151,3 +151,9 @@ The release sweep and the `update-knowledge-graph` workflow both run it. The fir
 
 **D8.** *Refuse, or warn, when the interpreter's minor version differs from the lock's?*
 -> Refuse, with exit 2 and a pointer to `NOLDOR_GRAPHIFY_PYTHON`. Only patch-level agreement is measured, and a warning would let a different minor split the graph differently with nothing but a log line to show for it.
+
+**D9.** *What if one of the four moves into `graphify-out/` fails after another succeeded?*
+-> Exit 1 and name `git checkout -- graphify-out/`. The four files are tracked, so git already holds the old set; a backup-and-rollback step would be code guarding a failed same-disk rename.
+
+**D10.** *Build from the working tree or from HEAD?*
+-> HEAD. `built_at_commit` then always names the tree the graph came from, so the up-to-date check cannot call a graph of since-discarded edits fresh. An operator's uncommitted edits are left out of the graph, which is the point: the committed graph describes a commit.
