@@ -42,9 +42,11 @@ interface RepoOptions {
   /**
    * Seed `docs/features/<slug>.md` whose `links.spec` / `links.plan` /
    * `links.design` name the live artifacts, so the repoint pass has a target.
-   * `planAsList` writes `plan:` as a YAML block sequence instead of a scalar.
+   * `planAsList` writes `plan:` as a YAML block sequence instead of a scalar;
+   * `specFolded` writes `spec:` as a folded scalar (`>-`, path on the next
+   * line), the shape the FD sync emits once a path passes the line width.
    */
-  fd?: { planAsList?: boolean; slug: string };
+  fd?: { planAsList?: boolean; slug: string; specFolded?: boolean };
 }
 
 function repo(options: RepoOptions = {}): string {
@@ -81,13 +83,16 @@ function repo(options: RepoOptions = {}): string {
     const planValue = fd.planAsList
       ? `\n    - ${designRoot}/plans/${PLAN}`
       : ` ${designRoot}/plans/${PLAN}`;
+    const specValue = fd.specFolded
+      ? ` >-\n    ${designRoot}/specs/${SPEC}`
+      : ` ${designRoot}/specs/${SPEC}`;
     writeFileSync(
       join(dir, 'docs/features', `${fd.slug}.md`),
       [
         '---',
         'name: Seeded',
         'links:',
-        `  spec: ${designRoot}/specs/${SPEC}`,
+        `  spec:${specValue}`,
         `  plan:${planValue}`,
         `  design: ${designRoot}/ui/2026-08-04-${KEY}.pen`,
         '---',
@@ -299,6 +304,19 @@ describe('noldor design archive', () => {
     const plan = (matter(fdRaw).data.links as { plan: string[] }).plan;
     expect(plan).toStrictEqual([`docs/design/plans/archive/${PLAN}`]);
     expect(existsSync(join(dir, plan[0]))).toBe(true);
+  });
+
+  it('repoints a links.spec written as a folded scalar', () => {
+    const dir = repo({ fd: { slug: 'seeded', specFolded: true } });
+    const r = run(dir);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('repointed links.spec: docs/features/seeded.md');
+    const fdRaw = readFileSync(join(dir, 'docs/features/seeded.md'), 'utf8');
+    // The folded style survives; only the path line under `>-` changes.
+    expect(fdRaw).toContain(`  spec: >-\n    docs/design/specs/archive/${SPEC}\n`);
+    const spec = (matter(fdRaw).data.links as { spec: string }).spec;
+    expect(spec).toBe(`docs/design/specs/archive/${SPEC}`);
+    expect(existsSync(join(dir, spec))).toBe(true);
   });
 
   it('leaves an FD that names no moved artifact byte-identical', () => {

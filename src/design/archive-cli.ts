@@ -130,6 +130,15 @@ export function rewriteArtifactLinks(
       new RegExp(`^(\\s*${key}:\\s*)(["']?)${escaped}\\2(\\s*)$`, 'm'),
       replaceValue,
     );
+    if (next === raw) {
+      // Block-scalar form (`spec: >-`, path on the next line) — the FD sync
+      // folds a value past the YAML line width. A path holds no spaces, so
+      // folding never splits it: the whole value is the one indented line.
+      next = raw.replace(
+        new RegExp(`^(\\s*${key}:\\s*[>|][+-]?[ \\t]*\\n[ \\t]+)()${escaped}([ \\t]*)$`, 'm'),
+        replaceValue,
+      );
+    }
     if (next === raw && Array.isArray(links?.[key])) {
       // Block-sequence form (`plan:` on its own line, paths as `- <path>`
       // items). The item line carries no key, so this pass is anchored on the
@@ -143,7 +152,7 @@ export function rewriteArtifactLinks(
       .join('/');
     if (next === raw) {
       // Parsed value matched but the textual form did not (exotic YAML style:
-      // folded scalar, flow mapping). Never stage-and-claim a rewrite that did
+      // flow mapping). Never stage-and-claim a rewrite that did
       // not happen — a silent dangling link is the exact failure this exists
       // to prevent.
       process.stderr.write(
