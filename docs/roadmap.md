@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Verify Whether Subagents Load CLAUDE.md
-
-- id: Q-0282
-- area: tooling
-- type: docs
-- since: 2026-09-24
-- size: XS
-- impact: low
-- confidence: med
-
-`.claude/engineering-rules.md` says "Subagents don't auto-load CLAUDE.md", and the `agent-rules-guard` hook exists on that premise. Claude Code's sub-agents doc (as summarized by a research agent on 2026-09-24, not yet read first-hand) says subagents inherit CLAUDE.md and AGENTS.md by default, with the built-in Explore and Plan agents skipping them. Verify against https://code.claude.com/docs/en/sub-agents.md; if true, the rule text and the guard's reason need rewording, and the guard may only matter for Explore/Plan dispatches. Deletion test: the rule and the guard's reason state what the doc says, with the doc cited. (found 2026-09-24 shipping Q-0252)
-
 ### Design Context Section Matching Without Backticks
 
 - id: Q-0283
