@@ -144,7 +144,7 @@ Step 4 runs the check on every path, not only on sessions that designed. A sessi
 
 ### Bootstrap
 
-This repo draws its own baseline once, through pencil MCP: the four views from `docs/architecture/*.md`, and `modules` from `listModuleDirs` plus the cruise pairs, with names set as each box is created. The check must be green on it before the slice ships. A consumer bootstraps the same way, and the FD Usage carries the recipe. SVG paste of rendered mermaid is not the route: it drops arrow tips (`<marker>`) and HTML labels (`foreignObject`), and it leaves every box unnamed.
+This repo draws its own baseline once, emitted from data: the four views from `docs/architecture/*.md`, and `modules` from `listModuleDirs` plus the cruise pairs, with names set as each box is created. A one-off script writes the `.pen` JSON directly, because the check reads the file on disk, and a page drawn through pencil MCP only reaches the disk once someone saves it in the editor; pencil MCP is used only to look at the result. The check must be green on it before the slice ships. A consumer bootstraps the same way, and the FD Usage carries the recipe. SVG paste of rendered mermaid is not the route: it drops arrow tips (`<marker>`) and HTML labels (`foreignObject`), and it leaves every box unnamed.
 
 ### Docs and twins
 
