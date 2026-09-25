@@ -33,18 +33,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Deletion tests: several processes calling `acquireLock` at the same instant leave exactly one holder; and while a claim on the dead lock's inode is held, `acquireLock` leaves the lock alone. (found 2026-09-24 in the Q-0238 spec review and fixing PR #538's review blocker)
 
-### Graph Freshness Reads Git, Not mtime
-
-- id: Q-0290
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: S
-- impact: med
-- confidence: med
-
-The graph freshness gate can read a current graph as stale after an ordinary pull. `loadFreshGraphOrWarn` compares `graph.json`'s mtime with the newest mtime under the scan roots, and a pull that brings a code merge together with its `update-knowledge-graph.yml` refresh writes files in index order — `graphify-out/` sorts before `src/`, so `graph.json` lands a few milliseconds before the code. Measured on main on 2026-09-24 after pulling #539 + #540: `src/design/design-approval.ts` was 7 ms newer than `graph.json` (that graph really was one merge behind, but the write order alone gives the same reading when it is current). Every graph consumer (the co-tag detector, detectors 9 and 10, `propose-pointers`, `features seed-test-tags`) then degrades or refuses until a local regen. Since #501 regenerates the graph after every code merge, the fitting measure is git rather than the clock: stale when a scan-root file changed in a commit after `graph.json`'s last commit, or has uncommitted changes. Deletion test: after a pull that brings code and its graph refresh together, `pnpm noldor features seed-test-tags` runs without a local regen. (found 2026-09-24 shipping PR #542)
-
 ### Geometry-Compare Lane — the Automated Half
 
 - id: Q-0180
