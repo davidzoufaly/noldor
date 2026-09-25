@@ -261,8 +261,10 @@ matching version-named `src/migrations/<x.y.z>.ts` in the same PR, or
 `pnpm noldor garden detect` flags `schema-changed-without-migration`. A change no
 existing config or FD can fail on — an added optional key — needs no migration:
 say so with a `Noldor-Migration: none` trailer on the commit that makes it, and
-the detector drops that file. Every commit in the release range that touches the
+the detector drops that file. Every PR in the release range that touches the
 file must carry the line, so a later breaking change still needs its migration.
+A squash merge folds a PR into one commit, so one declaring commit covers the
+whole PR — declare only when every schema edit in the PR is additive.
 
 ## Extension points (deferred)
 

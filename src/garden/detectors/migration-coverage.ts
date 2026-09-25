@@ -50,6 +50,11 @@ const NO_MIGRATION_LINE = /^Noldor-Migration:[ \t]*none[ \t]*$/m;
  * Schema files whose every first-parent commit in `range` carries a
  * `Noldor-Migration: none` line. One undeclared commit keeps the file in the
  * finding, so a later breaking change still needs its migration.
+ *
+ * On a squash-merged main a first-parent commit is a whole PR, and its body
+ * joins every branch commit's message, so one declaring commit speaks for the
+ * PR: a breaking edit in the same PR is excused with it. Declare only when every
+ * schema edit in the PR is additive.
  */
 function filesDeclaredNoMigration(range: string, cwd: string): Set<string> {
   const out = execFileSync(
