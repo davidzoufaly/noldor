@@ -10,6 +10,7 @@ import {
   readArtifact,
   resolveHeading,
   type ArtifactKind,
+  type ArtifactView,
 } from './artifact-locate.js';
 import {
   isReasonlessNone,
@@ -49,7 +50,7 @@ export interface LogArgs {
 const USAGE =
   'usage: noldor design log --slug <slug> [--entry <roadmap-slug>] [--scope <text>] ' +
   '[--decide <text>]... [--open <text>]... [--resolve <id>]... [--support <text>]... ' +
-  '[--because <text>] [--instead-of <text>] [--section <heading>] ' +
+  '[--because <text>] [--instead-of <text>] [--section <heading|number|prefix>] ' +
   '[--confirm-section <heading|number|prefix>] [--unconfirm-section <heading>] [--kind spec|plan] [--spec <path>]';
 
 const LOG_FLAGS = new Set([
@@ -269,6 +270,18 @@ export function applyLog(
   return next;
 }
 
+type LoadedView = { view: ArtifactView } | { none: true } | { error: string };
+
+/** Locate and read the dialogue's artifact; `none` when nothing is on disk yet. */
+function loadView(cwd: string, args: LogArgs): LoadedView {
+  const located = locateForDialogue(cwd, args);
+  if (located.status === 'rejected') return { error: `design log: ${located.reason}` };
+  if (located.status === 'none') return { none: true };
+  const read = readArtifact(located.paths);
+  if (read.status === 'rejected') return { error: `design log: ${read.reason}` };
+  return { view: read.view };
+}
+
 export function runLog(
   argv: readonly string[],
   cwd: string,
@@ -312,29 +325,58 @@ export function runLog(
     return 1;
   }
 
-  let confirmDigest: string | undefined;
-  if (parsed.confirmSection !== undefined) {
-    // The only write that reads the artifact. An approval needs the bytes it
-    // approved, so a heading that cannot be found is a hard error rather than a
-    // record with no digest — which the ledger grammar could not even serialize.
-    const located = locateForDialogue(cwd, parsed);
-    if (located.status === 'rejected') {
-      err(`design log: ${located.reason}\n`);
+  // Read the artifact at most once, and only when a heading must be resolved.
+  // `--confirm-section` needs it (the approval binds the bytes it approved);
+  // `--section` merely prefers it, so a dialogue can log decisions before the
+  // spec exists.
+  const needsView = parsed.confirmSection !== undefined || parsed.section !== undefined;
+  const loaded = needsView ? loadView(cwd, parsed) : undefined;
+
+  if (parsed.section !== undefined && loaded !== undefined && 'view' in loaded) {
+    // Stored names are what `design context` matches against, so a number or a
+    // prefix is swapped for the heading's exact name — the same resolution
+    // `--confirm-section` applies. An unmatched name stays as typed: the heading
+    // may not be written yet, and `design context` warns while it is missing.
+    const match = resolveHeading(loaded.view, parsed.section);
+    if (match.status === 'ambiguous') {
+      err(
+        `design log: --section '${parsed.section}' fits ${match.names.length} headings: ` +
+          `${match.names.join(', ')}\n`,
+      );
       return 1;
     }
-    if (located.status === 'none') {
+    if (match.status === 'none') {
+      err(
+        `design log: --section '${parsed.section}' matches no heading — stored as typed. ` +
+          `Legal: ${loaded.view.headings.map((h) => h.name).join(', ') || '(none)'}\n`,
+      );
+    } else {
+      const problem = validateHeadingName(match.name, '--section');
+      if (problem) {
+        err(`${problem}\n`);
+        return 1;
+      }
+      parsed.section = match.name;
+    }
+  }
+
+  let confirmDigest: string | undefined;
+  if (parsed.confirmSection !== undefined) {
+    // The only write that must read the artifact. An approval needs the bytes it
+    // approved, so a heading that cannot be found is a hard error rather than a
+    // record with no digest — which the ledger grammar could not even serialize.
+    if (loaded === undefined || 'error' in loaded) {
+      err(`${loaded?.error ?? 'design log: artifact not loaded'}\n`);
+      return 1;
+    }
+    if ('none' in loaded) {
       err(
         `design log: --confirm-section '${parsed.confirmSection}': no ${parsed.kind} on disk for ` +
           `slug '${parsed.slug}' — nothing to confirm.\n`,
       );
       return 1;
     }
-    const read = readArtifact(located.paths);
-    if (read.status === 'rejected') {
-      err(`design log: ${read.reason}\n`);
-      return 1;
-    }
-    const view = read.view;
+    const view = loaded.view;
     const match = resolveHeading(view, parsed.confirmSection);
     if (match.status !== 'found') {
       const legal =
