@@ -1,4 +1,5 @@
 // @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor, cr-lane-verdicts-blocked-by-serialization-not-substance, cr-re-round-cap-enforcement-and-oscillation-detector, spec-stage-cr-stopping-rule
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -565,11 +566,29 @@ describe('reviewWithCodex at kind spec (Q-0263)', () => {
     expect(stdin()).not.toContain('<!-- TODO');
   });
 
-  it('keeps handing codex the whole FD at kind plan', async () => {
-    const { spawn, stdin } = answering(CLEAN);
-    await reviewWithCodex({ kind: 'plan', artifact: 'spec.md', slug: 's' }, repo(FD), spawn);
-    expect(stdin()).toContain('THE INTENT.');
-    expect(stdin()).toContain('## Usage');
+  it('hands codex the drafted FD at kinds plan and code, minus the stubs still unfilled (Q-0284)', async () => {
+    const drafted =
+      '---\nname: X\n---\n\n## Summary\n\nTHE INTENT.\n\n## Diagram\n\n<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or\ntwo on what it shows. -->\n\n## User Story\n\nAs a user, I want X.\n\n## Usage\n\n- run `x`\n';
+    for (const kind of ['plan', 'code'] as const) {
+      const { spawn, stdin } = answering(CLEAN);
+      const dir = repo(drafted);
+      // The code kind builds its context from git, so the scratch repo needs a commit.
+      if (kind === 'code') {
+        for (const args of [
+          ['init', '-q', '-b', 'main'],
+          ['add', '.'],
+          ['commit', '-qm', 'init'],
+        ]) {
+          execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], { cwd: dir });
+        }
+      }
+      await reviewWithCodex({ kind, artifact: 'spec.md', slug: 's' }, dir, spawn);
+      expect(stdin()).toContain('THE INTENT.');
+      expect(stdin()).toContain('## User Story\n\nAs a user, I want X.');
+      expect(stdin()).toContain('## Usage\n\n- run `x`');
+      expect(stdin()).not.toContain('## Diagram');
+      expect(stdin()).not.toContain('<!-- TODO');
+    }
   });
 
   it('reviews with an empty FD section when the FD file is missing', async () => {

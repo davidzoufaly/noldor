@@ -10,7 +10,7 @@ import { isNeverBlockingMessage, isSpecBlockingBasis } from './blocking-definiti
 import type { SpecBlockingBasis } from './finding-class.js';
 import type { ArtifactKind } from './findings-schema.js';
 import type { PriorReview } from './lane-types.js';
-import { readFdSummary } from './read-fd-summary.js';
+import { readFdSummary, stripFdScaffoldStubs } from './read-fd-summary.js';
 import { isLaneFailureBlocker, laneFailureFile } from './re-round.js';
 
 export interface OutFinding {
@@ -66,12 +66,13 @@ export async function reviewWithCodex(
     const fdRel = review.slug ? `docs/features/${review.slug}.md` : featureMdPath(cwd);
     // At kind spec the FD past its Summary is scaffold stubs written after the spec on purpose,
     // so codex gets the Summary alone — the FD context the reviewer lane already gets (Q-0263).
+    // Plan and code get the whole FD minus the stubs still unfilled by then (Q-0284).
     const featureMd =
       fdRel === undefined
         ? ''
         : review.kind === 'spec'
           ? await readSpecFdSummary(cwd, fdRel)
-          : readIfExists(cwd, fdRel);
+          : stripFdScaffoldStubs(readIfExists(cwd, fdRel));
 
     let ctx: ReviewCtx;
     if (review.kind === 'code') {
