@@ -61,7 +61,7 @@ The page shows a small conforming example document and says how to read each fin
 
 A new module, `src/design/pen-layout.ts`, holds one pure function, `checkLayout(doc, opts)`, that returns `PenFinding[]`. Every finding is `red` and depends only on the file, never on the installed pen schema. The finding codes:
 
-- `duplicate-id` — an id carried by more than one node. Names each such id. A declared page id carried twice is left to coverage's `duplicate-page`, so that baseline still reads `incomplete`.
+- `duplicate-id` — an id carried by more than one node. Names each such id. The one exception is a declared page id whose every carrier is a top-level node: coverage's `duplicate-page` reports exactly that case, so that baseline still reads `incomplete`.
 - `slash-id` — an id containing `/`. Names the node.
 - `counter-id` — ten or more ids of the form `<lowercase letters><integer>` that share their letters (`n1` … `n10`). Names the prefix and a few of the ids. A counting emitter makes a run as long as the document — charuy's pre-#228 baseline had 2264 `n` ids — so ten catches it with room to spare, while real names that end in a number (states `step1`, `step2`, `step3`) and editor-generated ids (5–6 mixed-case characters, such as `T7JlYn`) never reach ten on one prefix.
 - `nested-page` — a node named `FINAL:…` below the top level. Names it and the top-level node that holds it.
@@ -101,7 +101,7 @@ charuy's committed baseline passes every rule except the title size — its labe
 
 ## Acceptance criteria
 
-1. A baseline with two nodes sharing one id fails `design capture` (no receipt written, exit 1) and reads `invalid` in `checks ui-design-freshness` (exit 1); both name the id.
+1. A baseline with two nodes sharing one id — including a declared page id carried by a page and by a node nested inside one — fails `design capture` (no receipt written, exit 1) and reads `invalid` in `checks ui-design-freshness` (exit 1); both name the id.
 2. A baseline with an id containing `/` fails both the same way, naming the node.
 3. A baseline with ten ids `n1` … `n10` fails both, naming the prefix. A document whose ids are editor-style random strings, or that holds states `step1`, `step2`, `step3`, passes.
 4. A node named `FINAL:…` below the top level fails both, naming it.
