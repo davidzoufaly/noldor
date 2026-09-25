@@ -44,7 +44,7 @@
 - Modify: `src/design/design-approval.ts`
 - Test: `src/design/__tests__/design-approval.test.ts`
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   In `src/design/__tests__/design-approval.test.ts`, inside `describe('design-approval / records by design kind', …)`, append:
 
@@ -62,12 +62,12 @@
     });
   ```
 
-- [ ] **Step 2: Run the tests to verify they fail.**
+- [x] **Step 2: Run the tests to verify they fail.**
 
   Run: `pnpm vitest run src/design/__tests__/design-approval.test.ts -t "records by design kind"`
   Expected: FAIL. The milestone path maps to `.noldor/design-approval/architecture/m1.json`, and the bound record is refused because the strict schema has no `milestone` key.
 
-- [ ] **Step 3: Name the milestone targets.**
+- [x] **Step 3: Name the milestone targets.**
 
   In `src/core/design-artifact-names.ts`, directly after `designKindOfPath`, add:
 
@@ -89,7 +89,7 @@
   }
   ```
 
-- [ ] **Step 4: Bind the record to a milestone and place it.**
+- [x] **Step 4: Bind the record to a milestone and place it.**
 
   In `src/design/design-approval.ts`:
 
@@ -147,7 +147,7 @@
     }
   ```
 
-- [ ] **Step 5: Run the tests and the typecheck to verify they pass.**
+- [x] **Step 5: Run the tests and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/design-approval.test.ts src/checks/__tests__/check-shared-files.test.ts`
   Expected: PASS.
@@ -155,7 +155,7 @@
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
   ```bash
   msg=$(mktemp)

@@ -22,9 +22,12 @@ import {
   ARCH_DESIGN_DIR,
   ARCHIVE_DIR,
   designKindOfPath,
+  milestonePenPath,
+  milestoneSlugFromPenPath,
   specSlugFromFilename,
   UI_DESIGN_DIR,
 } from '../core/design-artifact-names.js';
+import { isSlug } from '../core/slug.js';
 import { errMessage } from '../core/err-message.js';
 import { writeReceiptFile } from '../core/receipt-store.js';
 
@@ -56,6 +59,9 @@ const specBasename = z
  * `pages` and `spec` are optional because records written before they existed
  * must keep parsing (state-file-schema-additive); every reader owns the absent
  * branch. `spec` is one object so a name can never travel without its blob.
+ * `milestone` binds a milestone target to its milestone file where a feature
+ * design binds its spec; `design verdict` never writes both, because a
+ * discriminated-union member cannot carry the refinement that would refuse it.
  */
 export const designApprovalRecordSchema = z.discriminatedUnion('outcome', [
   z
@@ -70,6 +76,13 @@ export const designApprovalRecordSchema = z.discriminatedUnion('outcome', [
       reservation: nonBlank.optional(),
       pages: z.array(nonBlank).optional(),
       spec: z.object({ name: specBasename, blob: gitOid }).strict().optional(),
+      milestone: z
+        .object({
+          slug: z.string().refine((s) => isSlug(s), 'must be a milestone slug'),
+          blob: gitOid,
+        })
+        .strict()
+        .optional(),
     })
     .strict(),
   z
@@ -86,15 +99,17 @@ export type DesignApprovalRecord = z.infer<typeof designApprovalRecordSchema>;
 
 /**
  * The record directory for a design `.pen`, as repo-relative segments. A path
- * under `docs/design/architecture/` records under `architecture/`; anything
- * else — a UI path, or a bare basename (the ui-reviewer lane, older callers) —
+ * under `docs/design/architecture/` records under `architecture/` (a milestone
+ * target under `architecture/milestones/`); anything else — a UI path, or a
+ * bare basename (the ui-reviewer lane, older callers) —
  * keeps the UI root. `archive/` never enters the path: `design archive` moves
  * the `.pen` and the record stays where it is.
  */
 export function approvalDirSegments(pen: string): readonly string[] {
-  return designKindOfPath(pen) === 'architecture'
+  if (designKindOfPath(pen) !== 'architecture') return APPROVAL_DIR_SEGMENTS;
+  return milestoneSlugFromPenPath(pen) === null
     ? [...APPROVAL_DIR_SEGMENTS, 'architecture']
-    : APPROVAL_DIR_SEGMENTS;
+    : [...APPROVAL_DIR_SEGMENTS, 'architecture', 'milestones'];
 }
 
 /** Record path relative to the repo root, for git pathspecs and staged-set lookups. */
@@ -112,6 +127,11 @@ export function penCandidatesForRecord(recordRelPath: string): string[] {
   const root = `${APPROVAL_DIR_SEGMENTS.join('/')}/`;
   if (!recordRelPath.startsWith(root) || !recordRelPath.endsWith('.json')) return [];
   const rest = recordRelPath.slice(root.length, -'.json'.length);
+  const milestonesPrefix = 'architecture/milestones/';
+  if (rest.startsWith(milestonesPrefix)) {
+    const slug = rest.slice(milestonesPrefix.length);
+    return slug === '' || slug.includes('/') ? [] : [milestonePenPath(slug)];
+  }
   const archPrefix = 'architecture/';
   const [dir, stem] = rest.startsWith(archPrefix)
     ? [ARCH_DESIGN_DIR, rest.slice(archPrefix.length)]

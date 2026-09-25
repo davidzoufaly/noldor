@@ -128,6 +128,22 @@ describe('design-approval / records by design kind', () => {
     expect(readBack(cwd, `docs/design/ui/${PEN}`)).toEqual(APPROVED);
     expect(readBack(cwd, ARCH)).toEqual(ARCH_APPROVED);
   });
+
+  it('records a milestone target under architecture/milestones/, keyed by the milestone slug', () => {
+    expect(approvalRelPath('docs/design/architecture/milestones/m1.pen')).toBe(
+      '.noldor/design-approval/architecture/milestones/m1.json',
+    );
+  });
+
+  it('parses a record bound to a milestone, and refuses a malformed binding', () => {
+    const bound = { ...ARCH_APPROVED, milestone: { slug: 'm1', blob: 'f'.repeat(40) } };
+    expect(parseApprovalBytes(JSON.stringify(bound))).toEqual(bound);
+    expect(
+      parseApprovalBytes(
+        JSON.stringify({ ...ARCH_APPROVED, milestone: { slug: 'M 1', blob: 'f'.repeat(40) } }),
+      ),
+    ).toBeNull();
+  });
 });
 
 describe('design-approval / parse policy', () => {

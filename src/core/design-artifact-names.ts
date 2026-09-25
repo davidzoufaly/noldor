@@ -65,6 +65,22 @@ export function designKindOfPath(path: string): DesignKind | null {
   return null;
 }
 
+/** Directory holding milestone target-architecture `.pen` files, one per milestone: `<slug>.pen`. */
+export const ARCH_MILESTONES_DIR = `${ARCH_DESIGN_DIR}/milestones`;
+
+/** A milestone's target-architecture `.pen`. */
+export function milestonePenPath(slug: string): string {
+  return `${ARCH_MILESTONES_DIR}/${slug}.pen`;
+}
+
+/** The milestone a repo-relative `.pen` path is the target of, or `null` for any other path. */
+export function milestoneSlugFromPenPath(path: string): string | null {
+  const prefix = `${ARCH_MILESTONES_DIR}/`;
+  if (!path.startsWith(prefix) || !path.endsWith('.pen')) return null;
+  const slug = path.slice(prefix.length, -'.pen'.length);
+  return slug === '' || slug.includes('/') ? null : slug;
+}
+
 /**
  * Derive the feature slug from a plan filename.
  *
