@@ -11,9 +11,9 @@ import { readValueFlags, runIfDirect } from '../core/cli-entry.js';
 import {
   WORKSPACE_ROOT_ENV,
   autoOpenEnabled,
-  buildArtifactLink,
   isExistingDir,
   launchArtifact,
+  reportedArtifact,
   resolveArtifact,
 } from './open-artifact.js';
 
@@ -81,9 +81,11 @@ export function runOpenArtifact(argv: readonly string[], deps: OpenArtifactCliDe
   }
 
   // Print before launching: this stdout may be read by a human or a pipe before
-  // the command returns, so the deliverable goes out first.
-  deps.out(resolved.linkPath);
-  deps.out(`link: ${buildArtifactLink(resolved.linkPath)}`);
+  // the command returns, so the deliverable goes out first. In a terminal both
+  // lines are absolute — there is no workspace folder to resolve them against.
+  const reported = reportedArtifact(resolved, deps.env);
+  deps.out(reported.path);
+  deps.out(`link: ${reported.link}`);
   if (resolved.warning !== undefined) deps.err(`design open: ${resolved.warning}`);
 
   // The link is unconditional; the tab is opt-in via `design.autoOpen` or a typed

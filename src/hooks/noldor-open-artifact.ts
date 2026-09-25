@@ -15,8 +15,8 @@ import { readFileSync } from 'node:fs';
 import {
   WORKSPACE_ROOT_ENV,
   autoOpenEnabled,
-  buildArtifactLink,
   launchArtifact,
+  reportedArtifact,
   resolveArtifact,
 } from '../design/open-artifact.js';
 
@@ -50,7 +50,8 @@ export interface HookOutput {
  * say nothing (every `Write` to a source file takes that branch).
  *
  * @param payload - The parsed PostToolUse payload.
- * @param env - Process environment, read for {@link WORKSPACE_ROOT_ENV}.
+ * @param env - Process environment, read for {@link WORKSPACE_ROOT_ENV} and the
+ *   harness (`CLAUDE_CODE_ENTRYPOINT`), which picks a relative or `file://` link.
  * @param launch - Injected in tests; defaults to the real editor spawn.
  */
 export function openArtifactForPayload(
@@ -99,7 +100,7 @@ export function openArtifactForPayload(
     ? launchArtifact(resolved.absPath, cwd, launch)
     : undefined;
   const parts = [
-    `Design artifact written. Report it with this exact markdown link: ${buildArtifactLink(resolved.linkPath)}`,
+    `Design artifact written. Report it with this exact markdown link: ${reportedArtifact(resolved, env).link}`,
   ];
   if (resolved.warning !== undefined) parts.push(resolved.warning);
   if (launched?.kind === 'not-launched') parts.push(`No editor tab opened — ${launched.warning}`);

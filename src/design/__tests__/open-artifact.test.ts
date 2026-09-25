@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { OpenResult } from '../editor-launch.js';
 import {
   buildArtifactLink,
+  buildFileUrlLink,
   launchArtifact,
   resolveArtifact,
   type GitProbe,
@@ -453,5 +454,19 @@ describe('buildArtifactLink', () => {
 
   it('escapes brackets in the label', () => {
     expect(buildArtifactLink('docs/a[b].md')).toBe('[a\\[b\\].md](docs/a[b].md)');
+  });
+});
+
+describe('buildFileUrlLink', () => {
+  it('builds a file:// link to the absolute path', () => {
+    expect(buildFileUrlLink('/r/docs/design/specs/x.md')).toBe(
+      '[x.md](file:///r/docs/design/specs/x.md)',
+    );
+  });
+
+  // `pathToFileURL` leaves parentheses alone; unencoded, `)` would end the
+  // markdown destination early.
+  it('encodes parentheses and literal percent signs', () => {
+    expect(buildFileUrlLink('/r/a (1)%20.md')).toBe('[a (1)%20.md](file:///r/a%20%281%29%2520.md)');
   });
 });

@@ -626,5 +626,9 @@
   "Q-0287": {
     "slug": "step-0-lists-in-progress-worktree-sessions",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0288": {
+    "slug": "design-links-open-from-a-terminal",
+    "retiredAt": "2026-09-25"
   }
 }

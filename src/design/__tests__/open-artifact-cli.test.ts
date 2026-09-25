@@ -1,8 +1,9 @@
 // @tests: auto-open-design-artifacts
 import { execSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { WORKSPACE_ROOT_ENV } from '../open-artifact.js';
@@ -131,6 +132,28 @@ describe('design open', () => {
   it('prints the raw path first, then the ready-made link', () => {
     const { root, spec } = setupRepo();
     const r = run([spec], root);
+    expect(r.out[0]).toBe('docs/design/specs/2026-01-01-x-design.md');
+    expect(r.out[1]).toBe(
+      'link: [2026-01-01-x-design.md](docs/design/specs/2026-01-01-x-design.md)',
+    );
+  });
+
+  // Q-0288. A terminal has no workspace folder, so the relative link is dead
+  // there; both lines must name the absolute artifact path instead.
+  it('prints an absolute path and a file:// link in a terminal harness', () => {
+    const { root, spec } = setupRepo();
+    const r = run([spec], root, { CLAUDE_CODE_ENTRYPOINT: 'cli' });
+    expect(r.code).toBe(0);
+    expect(r.out[0]).toBe(spec);
+    expect(existsSync(r.out[0] ?? '')).toBe(true);
+    const target = /^link: \[2026-01-01-x-design\.md\]\((file:\/\/[^)]+)\)$/.exec(r.out[1] ?? '');
+    expect(target).not.toBeNull();
+    expect(fileURLToPath(target?.[1] ?? '')).toBe(spec);
+  });
+
+  it('keeps the workspace-relative link under the VS Code extension', () => {
+    const { root, spec } = setupRepo();
+    const r = run([spec], root, { CLAUDE_CODE_ENTRYPOINT: 'claude-vscode' });
     expect(r.out[0]).toBe('docs/design/specs/2026-01-01-x-design.md');
     expect(r.out[1]).toBe(
       'link: [2026-01-01-x-design.md](docs/design/specs/2026-01-01-x-design.md)',
