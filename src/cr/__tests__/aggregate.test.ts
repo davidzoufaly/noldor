@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer
+// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer, unvalidated-slug-path-traversal-across-cli-entry-points
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';

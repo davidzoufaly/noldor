@@ -1,4 +1,4 @@
-// @tests: doc-gardening-skill
+// @tests: doc-gardening-skill, feature-md-links-overhaul
 import { buildSlugMap as buildSlugToDocsMap } from '../projection.js';
 import { extractFeatureTags } from '../sync-doc-links.js';
 

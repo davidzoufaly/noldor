@@ -1,4 +1,4 @@
-// @tests: specs-cr-gate-multi-reviewer
+// @tests: specs-cr-gate-multi-reviewer, spec-stage-cr-stopping-rule
 import { describe, expect, it } from 'vitest';
 
 import { splitClassTag } from '../finding-class.js';

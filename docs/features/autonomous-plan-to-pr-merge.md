@@ -6,10 +6,7 @@ deps:
 links:
   code:
     - .claude/skills/noldor-gate/SKILL.md
-    - src/cr/orchestrate.ts
     - src/core/pr-flow-cli.ts
-    - src/core/pr-flow.ts
-    - src/core/session.ts
     - src/core/set-autonomous.ts
   tests:
     - src/core/__tests__/pr-flow-cli.test.ts
@@ -62,10 +59,7 @@ The autonomous flag persists for the rest of the session — there is no operato
 
 - **Code:**
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
-  - [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts)
   - [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts)
-  - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
-  - [`src/core/session.ts`](../../src/core/session.ts)
   - [`src/core/set-autonomous.ts`](../../src/core/set-autonomous.ts)
 - **Tests:**
   - [`src/core/__tests__/pr-flow-cli.test.ts`](../../src/core/__tests__/pr-flow-cli.test.ts)

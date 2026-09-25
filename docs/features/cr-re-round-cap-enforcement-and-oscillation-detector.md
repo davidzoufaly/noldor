@@ -8,35 +8,30 @@ links:
     - src/cr/autofix-ledger.ts
     - src/cr/autofix.ts
     - src/cr/autofix-cli.ts
-    - src/cr/orchestrate.ts
     - src/cr/run-codex.ts
-    - src/cr/lanes/subagent-dispatch.ts
     - src/core/structural-context-contract.ts
-    - src/cr/findings-schema.ts
-    - src/cr/lanes/subagent.ts
-    - src/cr/re-round.ts
-    - src/cr/review-with-codex.ts
-    - src/cr/lanes/codex.ts
-    - src/cr/decisions.ts
     - src/cr/fingerprint.ts
-    - src/cr/arbitration-cli.ts
-    - src/cr/arbitration.ts
-    - src/cr/receipt-trailer.ts
   tests:
     - src/cr/__tests__/amend-receipt.test.ts
     - src/cr/__tests__/arbitration-cli.test.ts
     - src/cr/__tests__/autofix-cli.test.ts
     - src/cr/__tests__/autofix-ledger.test.ts
+    - src/cr/__tests__/autofix.test.ts
+    - src/cr/__tests__/cut-scan.test.ts
     - src/cr/__tests__/decisions.test.ts
     - src/cr/__tests__/lanes/codex.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
     - src/cr/__tests__/orchestrate-decisions.test.ts
+    - src/cr/__tests__/orchestrate-judge.test.ts
     - src/cr/__tests__/orchestrate.test.ts
     - src/cr/__tests__/prior-review.test.ts
     - src/cr/__tests__/re-round.test.ts
     - src/cr/__tests__/run-codex.test.ts
     - src/cr/__tests__/settled-findings.integration.test.ts
+    - src/docs/__tests__/adr-structural-context.test.ts
+    - src/garden/detectors/__tests__/structural-context.test.ts
+    - src/prep/__tests__/formats.test.ts
 name: CR Re-Round Cap Enforcement and Oscillation Detector
 packages:
   - scripts
@@ -46,6 +41,7 @@ noldor-tier: specs-only
 introduced: 1.9.0
 updated: 1.12.0
 ---
+
 ## Summary
 
 Q-0130's re-round cap (2) is enforced in one half of the loop and asserted in the other. `AUTOFIX_ROUND_CAP` is a real bound on the auto-fix seam, but only `cr autofix record` writes the ledger it reads — an operator-driven round writes nothing, `cr orchestrate` has no round counter at all, and the combined bound is prose in a skill file. The cost is measurable: of 41 unique `Noldor-Path-Override` trailers in this repo's history, 23 name a CR round or convergence failure. The Q-0146 code CR ran 12 rounds, the reviewer finding one new med per round indefinitely while codex oscillated against its own round-4 demand and re-flagged documented `noldor:cut` sites five times.
@@ -196,34 +192,29 @@ This release adds `fingerprintBlocker` for single-finding identity (#434) and en
   - [`src/cr/autofix-ledger.ts`](../../src/cr/autofix-ledger.ts)
   - [`src/cr/autofix.ts`](../../src/cr/autofix.ts)
   - [`src/cr/autofix-cli.ts`](../../src/cr/autofix-cli.ts)
-  - [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts)
   - [`src/cr/run-codex.ts`](../../src/cr/run-codex.ts)
-  - [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts)
   - [`src/core/structural-context-contract.ts`](../../src/core/structural-context-contract.ts)
-  - [`src/cr/findings-schema.ts`](../../src/cr/findings-schema.ts)
-  - [`src/cr/lanes/subagent.ts`](../../src/cr/lanes/subagent.ts)
-  - [`src/cr/re-round.ts`](../../src/cr/re-round.ts)
-  - [`src/cr/review-with-codex.ts`](../../src/cr/review-with-codex.ts)
-  - [`src/cr/lanes/codex.ts`](../../src/cr/lanes/codex.ts)
-  - [`src/cr/decisions.ts`](../../src/cr/decisions.ts)
   - [`src/cr/fingerprint.ts`](../../src/cr/fingerprint.ts)
-  - [`src/cr/arbitration-cli.ts`](../../src/cr/arbitration-cli.ts)
-  - [`src/cr/arbitration.ts`](../../src/cr/arbitration.ts)
-  - [`src/cr/receipt-trailer.ts`](../../src/cr/receipt-trailer.ts)
 - **Tests:**
   - [`src/cr/__tests__/amend-receipt.test.ts`](../../src/cr/__tests__/amend-receipt.test.ts)
   - [`src/cr/__tests__/arbitration-cli.test.ts`](../../src/cr/__tests__/arbitration-cli.test.ts)
   - [`src/cr/__tests__/autofix-cli.test.ts`](../../src/cr/__tests__/autofix-cli.test.ts)
   - [`src/cr/__tests__/autofix-ledger.test.ts`](../../src/cr/__tests__/autofix-ledger.test.ts)
+  - [`src/cr/__tests__/autofix.test.ts`](../../src/cr/__tests__/autofix.test.ts)
+  - [`src/cr/__tests__/cut-scan.test.ts`](../../src/cr/__tests__/cut-scan.test.ts)
   - [`src/cr/__tests__/decisions.test.ts`](../../src/cr/__tests__/decisions.test.ts)
   - [`src/cr/__tests__/lanes/codex.test.ts`](../../src/cr/__tests__/lanes/codex.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
   - [`src/cr/__tests__/orchestrate-decisions.test.ts`](../../src/cr/__tests__/orchestrate-decisions.test.ts)
+  - [`src/cr/__tests__/orchestrate-judge.test.ts`](../../src/cr/__tests__/orchestrate-judge.test.ts)
   - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
   - [`src/cr/__tests__/prior-review.test.ts`](../../src/cr/__tests__/prior-review.test.ts)
   - [`src/cr/__tests__/re-round.test.ts`](../../src/cr/__tests__/re-round.test.ts)
   - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
   - [`src/cr/__tests__/settled-findings.integration.test.ts`](../../src/cr/__tests__/settled-findings.integration.test.ts)
+  - [`src/docs/__tests__/adr-structural-context.test.ts`](../../src/docs/__tests__/adr-structural-context.test.ts)
+  - [`src/garden/detectors/__tests__/structural-context.test.ts`](../../src/garden/detectors/__tests__/structural-context.test.ts)
+  - [`src/prep/__tests__/formats.test.ts`](../../src/prep/__tests__/formats.test.ts)
 
 <!-- /generated: resources -->

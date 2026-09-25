@@ -8,7 +8,6 @@ links:
     - src/indirection/detect.ts
     - src/indirection/baseline.ts
     - src/indirection/indirection-cli.ts
-    - src/cli/manifest.ts
   tests:
     - src/cli/__tests__/init-arms-indirection.test.ts
     - src/indirection/__tests__/baseline.test.ts
@@ -134,7 +133,6 @@ This release adds a feature to measure per-module transitive import closure (#41
   - [`src/indirection/detect.ts`](../../src/indirection/detect.ts)
   - [`src/indirection/baseline.ts`](../../src/indirection/baseline.ts)
   - [`src/indirection/indirection-cli.ts`](../../src/indirection/indirection-cli.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
 - **Tests:**
   - [`src/cli/__tests__/init-arms-indirection.test.ts`](../../src/cli/__tests__/init-arms-indirection.test.ts)
   - [`src/indirection/__tests__/baseline.test.ts`](../../src/indirection/__tests__/baseline.test.ts)

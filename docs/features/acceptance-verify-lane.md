@@ -4,15 +4,16 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/cr/
-    - src/core/consumer-config.ts
-    - src/autonomous/
     - src/verify/port.ts
     - src/verify/smoke.ts
     - src/verify/smoke-cli.ts
     - docs/noldor/cr-pipeline.md
     - docs/noldor/adoption-guide.md
     - .noldor/config.json
+    - src/cr/lane-mode.ts
+    - src/cr/lanes/verify-dispatch.ts
+    - src/cr/lanes/verify.ts
+    - src/cr/read-fd-summary.ts
   tests:
     - src/autonomous/__tests__/build-pool.test.ts
     - src/autonomous/__tests__/decide-next.test.ts
@@ -122,15 +123,16 @@ As an operator running autonomous paths (drain, watch, gate autonomous mode), I 
 
 - **Spec:** [`docs/design/specs/archive/2026-06-12-acceptance-verify-lane-design.md`](../../docs/design/specs/archive/2026-06-12-acceptance-verify-lane-design.md)
 - **Code:**
-  - [`src/cr/`](../../src/cr/)
-  - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
-  - [`src/autonomous/`](../../src/autonomous/)
   - [`src/verify/port.ts`](../../src/verify/port.ts)
   - [`src/verify/smoke.ts`](../../src/verify/smoke.ts)
   - [`src/verify/smoke-cli.ts`](../../src/verify/smoke-cli.ts)
   - [`docs/noldor/cr-pipeline.md`](../../docs/noldor/cr-pipeline.md)
   - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
   - [`.noldor/config.json`](../../.noldor/config.json)
+  - [`src/cr/lane-mode.ts`](../../src/cr/lane-mode.ts)
+  - [`src/cr/lanes/verify-dispatch.ts`](../../src/cr/lanes/verify-dispatch.ts)
+  - [`src/cr/lanes/verify.ts`](../../src/cr/lanes/verify.ts)
+  - [`src/cr/read-fd-summary.ts`](../../src/cr/read-fd-summary.ts)
 - **Tests:**
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
   - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)

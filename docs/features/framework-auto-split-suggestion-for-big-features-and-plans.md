@@ -6,7 +6,6 @@ links:
   code:
     - src/core/split-suggestion.ts
     - src/core/split-check-cli.ts
-    - src/cli/manifest.ts
   docs: []
   tests:
     - src/core/__tests__/split-check-cli.test.ts
@@ -21,6 +20,7 @@ noldor-tier: specs-only
 introduced: 0.5.0
 updated: 1.4.0
 ---
+
 ## Summary
 
 When a feature or plan grows past size thresholds, the framework should suggest a split rather than letting work calcify around an oversized FD or unwieldy plan. Heuristics: word count, scope-bullet count, file-touch breadth (from `links.code`), or for plans the row count. The suggestion surfaces in `/noldor-promote` (feature) and the plan skill before the operator commits to the path. Today the operator is on their own to spot oversized scope — live example: `prefix-skills-with-noldor` sat mislabeled S for weeks until a drain attempt revealed an L-sized self-referential mega-rename (now parked in backlog, re-sized).
@@ -97,7 +97,6 @@ Added split-suggestion oversize heuristics covering E1-E3, F1, and P1 (#155).
 - **Code:**
   - [`src/core/split-suggestion.ts`](../../src/core/split-suggestion.ts)
   - [`src/core/split-check-cli.ts`](../../src/core/split-check-cli.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
 - **Tests:**
   - [`src/core/__tests__/split-check-cli.test.ts`](../../src/core/__tests__/split-check-cli.test.ts)
   - [`src/core/__tests__/split-suggestion.test.ts`](../../src/core/__tests__/split-suggestion.test.ts)

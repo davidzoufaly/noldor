@@ -4,21 +4,12 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/core/config.ts
     - src/release/release-cr-gate.ts
-    - src/release/index.ts
-    - src/garden/detectors/override-audit.ts
-    - src/garden/garden-detect.ts
-    - src/garden/sdd-report.ts
-    - src/garden/garden-receipt.ts
   docs: []
   tests:
-    - src/core/__tests__/config.test.ts
+    - src/cr/__tests__/bootstrap-immunity.test.ts
+    - src/release/__tests__/release-cr-gate-e2e.test.ts
     - src/release/__tests__/release-cr-gate.test.ts
-    - src/garden/detectors/__tests__/override-audit.test.ts
-    - src/garden/__tests__/garden-detect.test.ts
-    - src/garden/__tests__/sdd-report.test.ts
-    - src/garden/__tests__/garden-receipt.test.ts
   spec: docs/design/specs/archive/2026-07-02-release-bypass-retirement-design.md
   plan: docs/design/plans/archive/2026-07-02-release-bypass-retirement.md
 name: Release Bypass Retirement
@@ -99,19 +90,10 @@ Added a `release.crGateExemptCommits` config schema (#133).
 - **Plan:**
   - [`docs/design/plans/archive/2026-07-02-release-bypass-retirement.md`](../../docs/design/plans/archive/2026-07-02-release-bypass-retirement.md)
 - **Code:**
-  - [`src/core/config.ts`](../../src/core/config.ts)
   - [`src/release/release-cr-gate.ts`](../../src/release/release-cr-gate.ts)
-  - [`src/release/index.ts`](../../src/release/index.ts)
-  - [`src/garden/detectors/override-audit.ts`](../../src/garden/detectors/override-audit.ts)
-  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
-  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
-  - [`src/garden/garden-receipt.ts`](../../src/garden/garden-receipt.ts)
 - **Tests:**
-  - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)
+  - [`src/cr/__tests__/bootstrap-immunity.test.ts`](../../src/cr/__tests__/bootstrap-immunity.test.ts)
+  - [`src/release/__tests__/release-cr-gate-e2e.test.ts`](../../src/release/__tests__/release-cr-gate-e2e.test.ts)
   - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)
-  - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
-  - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
-  - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
-  - [`src/garden/__tests__/garden-receipt.test.ts`](../../src/garden/__tests__/garden-receipt.test.ts)
 
 <!-- /generated: resources -->

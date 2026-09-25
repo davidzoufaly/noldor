@@ -8,6 +8,7 @@ links:
   docs: []
   tests:
     - src/core/__tests__/repo-paths.test.ts
+    - src/dashboard/__tests__/dashboard-data.test.ts
   spec: >-
     docs/design/specs/archive/2026-07-03-scan-roots-repo-paths-provider-design.md
 name: Scan-Roots Repo-Paths Provider
@@ -66,5 +67,6 @@ Added a repo-paths provider exposing `scanRoots` and `actualPackageNames` (#144)
   - [`src/core/repo-paths.ts`](../../src/core/repo-paths.ts)
 - **Tests:**
   - [`src/core/__tests__/repo-paths.test.ts`](../../src/core/__tests__/repo-paths.test.ts)
+  - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
 
 <!-- /generated: resources -->

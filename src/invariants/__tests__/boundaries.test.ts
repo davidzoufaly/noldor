@@ -1,4 +1,4 @@
-// @tests: framework-script-test-migration-cleanup
+// @tests: framework-script-test-migration-cleanup, architecture-invariants
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, noldor
+// @tests: acceptance-verify-lane, noldor, spec-stage-cr-stopping-rule
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

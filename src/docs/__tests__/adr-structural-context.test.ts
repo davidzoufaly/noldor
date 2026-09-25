@@ -1,4 +1,4 @@
-// @tests: architecture-decision-record-surface, graphify-plan-of-edges-nodes-for-plans-specs
+// @tests: architecture-decision-record-surface, graphify-plan-of-edges-nodes-for-plans-specs, cr-re-round-cap-enforcement-and-oscillation-detector
 import { describe, expect, it } from 'vitest';
 
 import {

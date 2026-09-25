@@ -1,4 +1,4 @@
-// @tests: dashboard-blocked-by-graph-view
+// @tests: dashboard-blocked-by-graph-view, project-tracking-dashboard
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

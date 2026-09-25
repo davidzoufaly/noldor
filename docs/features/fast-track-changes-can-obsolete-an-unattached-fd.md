@@ -7,7 +7,6 @@ links:
   code:
     - src/features/features-owners-cli.ts
     - src/garden/detectors/undeclared-doc-impact.ts
-    - src/garden/graph-fd-lookup.ts
   spec: >-
     docs/design/specs/archive/2026-09-25-fast-track-changes-can-obsolete-an-unattached-fd-design.md
   tests:
@@ -22,6 +21,7 @@ phase: done
 since: 2026-09-08T00:00:00.000Z
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 A fast-track ships without attaching to any feature MD, so when one or more fast-tracks change the business logic, files, or behaviour an FD documents, that FD silently goes stale — the doc-tracked invariant holds only for paths that scaffold an artifact. Worth exploring whether fast-track should optionally attach to an FD the way the attach paths do (carrying the parent slug, refreshing the FD's Usage on ship), or whether a detector should flag an FD whose `links.code` paths moved under a fast-track commit it never records. The first is a gate change, the second a garden detector; they are not exclusive. (surfaced 2026-09-08)
@@ -76,7 +76,6 @@ As an agent or operator shipping a fast-track, I want the gate to list the done 
 - **Code:**
   - [`src/features/features-owners-cli.ts`](../../src/features/features-owners-cli.ts)
   - [`src/garden/detectors/undeclared-doc-impact.ts`](../../src/garden/detectors/undeclared-doc-impact.ts)
-  - [`src/garden/graph-fd-lookup.ts`](../../src/garden/graph-fd-lookup.ts)
 - **Tests:**
   - [`src/features/__tests__/features-owners-cli.test.ts`](../../src/features/__tests__/features-owners-cli.test.ts)
   - [`src/garden/__tests__/fd-ownership.test.ts`](../../src/garden/__tests__/fd-ownership.test.ts)

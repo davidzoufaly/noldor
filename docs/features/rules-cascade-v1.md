@@ -13,10 +13,7 @@ links:
     - templates/.noldor/rules/error-result-types.md
     - templates/.noldor/rules/recompute-over-maintained-state.md
     - templates/.noldor/rules/concurrency-write-discipline.md
-    - src/cr/lanes/subagent-dispatch.ts
-    - src/cr/lanes/subagent.ts
     - src/core/branch-added.ts
-    - src/core/session.ts
     - src/rules/brief.ts
     - src/rules/cli-brief.ts
     - src/rules/cli-cores.ts
@@ -30,8 +27,12 @@ links:
     - src/core/rules/stage.ts
     - src/hooks/agent-rules-guard.ts
   tests:
+    - src/checks/__tests__/check-push-gates.test.ts
+    - src/core/__tests__/branch-added.test.ts
     - src/core/rules/__tests__/stage.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
+    - src/cr/__tests__/lanes/subagent.test.ts
+    - src/design/__tests__/graph-context.test.ts
     - src/hooks/__tests__/agent-rules-guard.test.ts
     - src/rules/__tests__/brief.test.ts
     - src/rules/__tests__/cli-brief.test.ts
@@ -39,6 +40,7 @@ links:
     - src/rules/__tests__/index-cache.test.ts
     - src/rules/__tests__/load.test.ts
     - src/rules/__tests__/resolve.test.ts
+    - src/rules/__tests__/sibling-scope-trailer.test.ts
     - src/rules/__tests__/types.test.ts
 name: Rules Cascade v1
 packages:
@@ -48,6 +50,7 @@ noldor-tier: full
 introduced: 0.2.0
 updated: 1.4.0
 ---
+
 ## Summary
 
 Retroactive FD for the Rules Cascade v1 substrate (PR #2, 2026-06-01) — the layered agent-rules system: rule MDs are loaded (`src/rules/load.ts`), resolved through the cascade with overrides (`src/rules/resolve.ts`), cached (`src/rules/index-cache.ts`), keyed to lifecycle stages (`src/core/rules/stage.ts` — the `Stage` union + `pathToStage` session-path projection), plus the `agent-rules-guard` hook (an Agent-dispatch prompt guard, currently unwired). Four thin CLI wrappers (`cli-cores`, `cli-list`, `cli-resolve`, `cli-validate`) expose the cascade. Shipped before FD-trailer dogfooding began, so no `Noldor-FD:` history exists; this FD backfills ownership so the code stops floating unreferenced (2026-07-03 tag judgment pass).
@@ -103,10 +106,7 @@ This release migrates the error-flow, state, and concurrency disciplines into en
   - [`templates/.noldor/rules/error-result-types.md`](../../templates/.noldor/rules/error-result-types.md)
   - [`templates/.noldor/rules/recompute-over-maintained-state.md`](../../templates/.noldor/rules/recompute-over-maintained-state.md)
   - [`templates/.noldor/rules/concurrency-write-discipline.md`](../../templates/.noldor/rules/concurrency-write-discipline.md)
-  - [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts)
-  - [`src/cr/lanes/subagent.ts`](../../src/cr/lanes/subagent.ts)
   - [`src/core/branch-added.ts`](../../src/core/branch-added.ts)
-  - [`src/core/session.ts`](../../src/core/session.ts)
   - [`src/rules/brief.ts`](../../src/rules/brief.ts)
   - [`src/rules/cli-brief.ts`](../../src/rules/cli-brief.ts)
   - [`src/rules/cli-cores.ts`](../../src/rules/cli-cores.ts)
@@ -120,8 +120,12 @@ This release migrates the error-flow, state, and concurrency disciplines into en
   - [`src/core/rules/stage.ts`](../../src/core/rules/stage.ts)
   - [`src/hooks/agent-rules-guard.ts`](../../src/hooks/agent-rules-guard.ts)
 - **Tests:**
+  - [`src/checks/__tests__/check-push-gates.test.ts`](../../src/checks/__tests__/check-push-gates.test.ts)
+  - [`src/core/__tests__/branch-added.test.ts`](../../src/core/__tests__/branch-added.test.ts)
   - [`src/core/rules/__tests__/stage.test.ts`](../../src/core/rules/__tests__/stage.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
+  - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
+  - [`src/design/__tests__/graph-context.test.ts`](../../src/design/__tests__/graph-context.test.ts)
   - [`src/hooks/__tests__/agent-rules-guard.test.ts`](../../src/hooks/__tests__/agent-rules-guard.test.ts)
   - [`src/rules/__tests__/brief.test.ts`](../../src/rules/__tests__/brief.test.ts)
   - [`src/rules/__tests__/cli-brief.test.ts`](../../src/rules/__tests__/cli-brief.test.ts)
@@ -129,6 +133,7 @@ This release migrates the error-flow, state, and concurrency disciplines into en
   - [`src/rules/__tests__/index-cache.test.ts`](../../src/rules/__tests__/index-cache.test.ts)
   - [`src/rules/__tests__/load.test.ts`](../../src/rules/__tests__/load.test.ts)
   - [`src/rules/__tests__/resolve.test.ts`](../../src/rules/__tests__/resolve.test.ts)
+  - [`src/rules/__tests__/sibling-scope-trailer.test.ts`](../../src/rules/__tests__/sibling-scope-trailer.test.ts)
   - [`src/rules/__tests__/types.test.ts`](../../src/rules/__tests__/types.test.ts)
 
 <!-- /generated: resources -->

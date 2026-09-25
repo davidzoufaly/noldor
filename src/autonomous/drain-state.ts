@@ -1,3 +1,5 @@
+// @fd: autonomous-queue-drain-runner
+
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

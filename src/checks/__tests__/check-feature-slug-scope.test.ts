@@ -1,5 +1,5 @@
 // src/checks/__tests__/check-feature-slug-scope.test.ts
-// @tests: feature-md-links-overhaul
+// @tests: feature-md-links-overhaul, noldor
 
 import { describe, expect, it } from 'vitest';
 

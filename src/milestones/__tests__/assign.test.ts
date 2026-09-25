@@ -1,4 +1,4 @@
-// @tests: milestone-membership-has-no-tagger-and-no-counter
+// @tests: milestone-membership-has-no-tagger-and-no-counter, decouple-milestones-from-semver, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering, sdd-detector-5-idea-merge-semantic-similarity
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

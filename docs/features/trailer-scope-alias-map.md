@@ -5,7 +5,6 @@ deps: []
 links:
   code:
     - src/garden/detectors/trailer-scope-mismatch.ts
-    - src/core/consumer-config.ts
   tests:
     - src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts
 name: Trailer Scope-Alias Map
@@ -56,7 +55,6 @@ _No UI, keyboard shortcut, or agent API — this is release-gate configuration._
 
 - **Code:**
   - [`src/garden/detectors/trailer-scope-mismatch.ts`](../../src/garden/detectors/trailer-scope-mismatch.ts)
-  - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
 - **Tests:**
   - [`src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts`](../../src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts)
 

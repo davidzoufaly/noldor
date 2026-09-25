@@ -4,16 +4,9 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/core/atomic-write.ts
     - src/dashboard/api/blocks.ts
-    - src/dashboard/data.ts
-    - src/dashboard/layout.ts
-    - src/dashboard/server.ts
     - src/dashboard/static/drag.ts
-    - src/dashboard/views.ts
     - src/features/migrate-features.ts
-    - src/garden/garden-detect.ts
-    - src/utils/parse-blocks.ts
     - src/utils/slugify.ts
     - src/utils/write-blocks.ts
   spec: lost-pre-extraction
@@ -98,16 +91,9 @@ This release ships drag-and-drop reordering for the dashboard roadmap and backlo
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/core/atomic-write.ts`](../../src/core/atomic-write.ts)
   - [`src/dashboard/api/blocks.ts`](../../src/dashboard/api/blocks.ts)
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
-  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
-  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
   - [`src/dashboard/static/drag.ts`](../../src/dashboard/static/drag.ts)
-  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
   - [`src/features/migrate-features.ts`](../../src/features/migrate-features.ts)
-  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
-  - [`src/utils/parse-blocks.ts`](../../src/utils/parse-blocks.ts)
   - [`src/utils/slugify.ts`](../../src/utils/slugify.ts)
   - [`src/utils/write-blocks.ts`](../../src/utils/write-blocks.ts)
 - **Tests:**

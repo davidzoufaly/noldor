@@ -7,14 +7,9 @@ links:
     - src/core/feature-schema.ts
     - src/features/validate-features.ts
     - src/garden/detectors/milestone-shipped-incomplete.ts
-    - src/garden/garden-detect.ts
-    - src/garden/garden-detect-runner.ts
-    - src/dashboard/server.ts
-    - src/dashboard/layout.ts
-    - src/dashboard/data.ts
-    - src/dashboard/views.ts
   docs: []
   tests:
+    - src/checks/__tests__/check-parent-opt-in.test.ts
     - src/core/__tests__/feature-schema-since.test.ts
     - src/core/__tests__/feature-schema.test.ts
     - src/dashboard/__tests__/dashboard-data.test.ts
@@ -104,13 +99,8 @@ feat: connect features to milestones across schema, garden, and dashboard (#108)
   - [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts)
   - [`src/features/validate-features.ts`](../../src/features/validate-features.ts)
   - [`src/garden/detectors/milestone-shipped-incomplete.ts`](../../src/garden/detectors/milestone-shipped-incomplete.ts)
-  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
-  - [`src/garden/garden-detect-runner.ts`](../../src/garden/garden-detect-runner.ts)
-  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
-  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
-  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
 - **Tests:**
+  - [`src/checks/__tests__/check-parent-opt-in.test.ts`](../../src/checks/__tests__/check-parent-opt-in.test.ts)
   - [`src/core/__tests__/feature-schema-since.test.ts`](../../src/core/__tests__/feature-schema-since.test.ts)
   - [`src/core/__tests__/feature-schema.test.ts`](../../src/core/__tests__/feature-schema.test.ts)
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)

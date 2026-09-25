@@ -5,12 +5,18 @@ deps:
   - agent-events-log-and-agents-dashboard-page
 links:
   code:
-    - src/metrics/
-    - src/cli/manifest.ts
-    - src/dashboard/
-    - src/garden/
     - docs/noldor/metrics.md
     - docs/noldor/script-catalog.md
+    - src/metrics/collect/cr-effectiveness.ts
+    - src/metrics/collect/cycle-time.ts
+    - src/metrics/collect/drain-reliability.ts
+    - src/metrics/collect/override-pressure.ts
+    - src/metrics/collect/routing-accuracy.ts
+    - src/metrics/collect/tokens-per-feature.ts
+    - src/metrics/compute-cli.ts
+    - src/metrics/compute.ts
+    - src/metrics/facts.ts
+    - src/metrics/types.ts
   tests:
     - src/core/__tests__/feature-schema-since.test.ts
     - src/core/agent-runner/usage/__tests__/adapters.test.ts
@@ -75,6 +81,7 @@ since: '2026-06-11'
 noldor-tier: full
 introduced: 0.4.0
 ---
+
 ## Summary
 
 The framework enforces process and never measures whether the process works. Every tuning decision (gate strictness, size-routing thresholds, CR lane composition, drain retry caps) is currently vibes. The raw data already exists — git trailers, FD frontmatter (`since` / `introduced` / `phase`), PR history, drain logs, and (once shipped) agent-events. Build the derivation layer.
@@ -137,12 +144,18 @@ pnpm noldor metrics compute --metric cycle-time
 - **Plan:**
   - [`docs/design/plans/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md`](../../docs/design/plans/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md)
 - **Code:**
-  - [`src/metrics/`](../../src/metrics/)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
-  - [`src/dashboard/`](../../src/dashboard/)
-  - [`src/garden/`](../../src/garden/)
   - [`docs/noldor/metrics.md`](../../docs/noldor/metrics.md)
   - [`docs/noldor/script-catalog.md`](../../docs/noldor/script-catalog.md)
+  - [`src/metrics/collect/cr-effectiveness.ts`](../../src/metrics/collect/cr-effectiveness.ts)
+  - [`src/metrics/collect/cycle-time.ts`](../../src/metrics/collect/cycle-time.ts)
+  - [`src/metrics/collect/drain-reliability.ts`](../../src/metrics/collect/drain-reliability.ts)
+  - [`src/metrics/collect/override-pressure.ts`](../../src/metrics/collect/override-pressure.ts)
+  - [`src/metrics/collect/routing-accuracy.ts`](../../src/metrics/collect/routing-accuracy.ts)
+  - [`src/metrics/collect/tokens-per-feature.ts`](../../src/metrics/collect/tokens-per-feature.ts)
+  - [`src/metrics/compute-cli.ts`](../../src/metrics/compute-cli.ts)
+  - [`src/metrics/compute.ts`](../../src/metrics/compute.ts)
+  - [`src/metrics/facts.ts`](../../src/metrics/facts.ts)
+  - [`src/metrics/types.ts`](../../src/metrics/types.ts)
 - **Tests:**
   - [`src/core/__tests__/feature-schema-since.test.ts`](../../src/core/__tests__/feature-schema-since.test.ts)
   - [`src/core/agent-runner/usage/__tests__/adapters.test.ts`](../../src/core/agent-runner/usage/__tests__/adapters.test.ts)

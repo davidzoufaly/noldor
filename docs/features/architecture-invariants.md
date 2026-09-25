@@ -10,7 +10,6 @@ links:
   spec: lost-pre-extraction
   code:
     - src/checks/check-invariants.ts
-    - src/garden/garden-detect.ts
     - src/invariants/boundaries.ts
     - src/invariants/index.ts
     - src/invariants/public-api-tsdoc.ts
@@ -26,7 +25,9 @@ links:
     - src/checks/__tests__/invariants-public-api-tsdoc.test.ts
     - src/checks/__tests__/invariants-rule-conflicts.test.ts
     - src/garden/__tests__/garden-detect.test.ts
+    - src/invariants/__tests__/boundaries.test.ts
     - src/invariants/__tests__/locale-compare-pinned.test.ts
+    - src/invariants/__tests__/rule-conflicts.test.ts
     - src/invariants/__tests__/toolchain-floor.test.ts
 introduced: 0.1.0
 updated: 1.9.0
@@ -71,7 +72,6 @@ Adding a new invariant:
 - **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/checks/check-invariants.ts`](../../src/checks/check-invariants.ts)
-  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
   - [`src/invariants/boundaries.ts`](../../src/invariants/boundaries.ts)
   - [`src/invariants/index.ts`](../../src/invariants/index.ts)
   - [`src/invariants/public-api-tsdoc.ts`](../../src/invariants/public-api-tsdoc.ts)
@@ -87,7 +87,9 @@ Adding a new invariant:
   - [`src/checks/__tests__/invariants-public-api-tsdoc.test.ts`](../../src/checks/__tests__/invariants-public-api-tsdoc.test.ts)
   - [`src/checks/__tests__/invariants-rule-conflicts.test.ts`](../../src/checks/__tests__/invariants-rule-conflicts.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/invariants/__tests__/boundaries.test.ts`](../../src/invariants/__tests__/boundaries.test.ts)
   - [`src/invariants/__tests__/locale-compare-pinned.test.ts`](../../src/invariants/__tests__/locale-compare-pinned.test.ts)
+  - [`src/invariants/__tests__/rule-conflicts.test.ts`](../../src/invariants/__tests__/rule-conflicts.test.ts)
   - [`src/invariants/__tests__/toolchain-floor.test.ts`](../../src/invariants/__tests__/toolchain-floor.test.ts)
 
 <!-- /generated: resources -->

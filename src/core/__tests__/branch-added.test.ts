@@ -1,4 +1,4 @@
-// @tests: doc-gardening-skill
+// @tests: doc-gardening-skill, rules-cascade-v1
 // The ownership-gate query. The load-bearing case is the merge-base range: a file
 // `main` deleted AFTER the branch point must not read as added on this branch —
 // which is exactly what flip-time archival does to specs on `main`.

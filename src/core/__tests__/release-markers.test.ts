@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: noldor, framework-script-test-migration-cleanup
 import { describe, it, expect } from 'vitest';
 
 import { fillNoldorMarker } from '../release-markers.js';

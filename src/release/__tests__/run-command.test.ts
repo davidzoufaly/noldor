@@ -1,4 +1,4 @@
-// @tests: test-suites-read-live-repo-state-shifting-full-suite-failures
+// @tests: test-suites-read-live-repo-state-shifting-full-suite-failures, release-sweep-process-hardening
 //
 // The seam's own contract. `preflight.test.ts` injects a fake on every call, so
 // nothing there exercises the default wiring or the normalization that makes

@@ -1,4 +1,4 @@
-// @tests: scan-roots-repo-paths-provider
+// @tests: scan-roots-repo-paths-provider, dynamic-fd-file-pointers-via-frontmatter
 
 import { describe, expect, it } from 'vitest';
 

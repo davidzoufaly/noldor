@@ -1,4 +1,4 @@
-// @tests: unvalidated-slug-path-traversal-across-cli-entry-points
+// @tests: unvalidated-slug-path-traversal-across-cli-entry-points, gate-flow-rework
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

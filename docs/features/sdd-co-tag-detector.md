@@ -14,6 +14,7 @@ links:
   tests:
     - src/features/__tests__/propose-pointers.test.ts
     - src/features/__tests__/seed-test-tags.test.ts
+    - src/garden/__tests__/fd-ownership.test.ts
     - src/garden/__tests__/graph-fd-lookup.test.ts
     - src/garden/__tests__/sdd-report.test.ts
     - src/sync/__tests__/sync-fd-resources.test.ts
@@ -47,6 +48,8 @@ A report row:
 - `packages/format/src/__tests__/tree.test.ts` — imports files owned by FDs missing from @tests: tag — add: group-node
 ```
 
+A row is only as good as `links.code`: an FD that claims a shared helper makes every test importing it owe that FD a tag. Before draining, prune claims to the files each FD is about ([ADR 0009](../adr/0009-links-code-means-what-a-file-is-about.md)); on 2026-09-25 that cut 606 proposed tags to 112.
+
 Draining the backlog, one reviewable batch at a time:
 
 ```bash
@@ -69,6 +72,7 @@ pnpm noldor sync test-links                               # propagate into FD li
 - **Tests:**
   - [`src/features/__tests__/propose-pointers.test.ts`](../../src/features/__tests__/propose-pointers.test.ts)
   - [`src/features/__tests__/seed-test-tags.test.ts`](../../src/features/__tests__/seed-test-tags.test.ts)
+  - [`src/garden/__tests__/fd-ownership.test.ts`](../../src/garden/__tests__/fd-ownership.test.ts)
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
   - [`src/sync/__tests__/sync-fd-resources.test.ts`](../../src/sync/__tests__/sync-fd-resources.test.ts)

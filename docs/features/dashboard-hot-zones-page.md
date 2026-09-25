@@ -7,11 +7,7 @@ packages:
   - scripts
 deps: []
 links:
-  code:
-    - src/dashboard/data.ts
-    - src/dashboard/views.ts
-    - src/dashboard/server.ts
-    - src/dashboard/layout.ts
+  code: []
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
@@ -63,11 +59,6 @@ As a maintainer (human or agent), I want a sortable list of the files that chang
 ## Resources
 
 - **Spec:** _lost-pre-extraction_
-- **Code:**
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
-  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
-  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
-  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
   - [`src/dashboard/__tests__/dashboard-doc-surfaces.test.ts`](../../src/dashboard/__tests__/dashboard-doc-surfaces.test.ts)

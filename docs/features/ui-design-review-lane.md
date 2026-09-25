@@ -14,25 +14,18 @@ links:
     - src/cr/lanes/render-export-dispatch.ts
     - src/cr/lanes/pen-scratch.ts
     - src/cr/lanes/prompt-parts.ts
-    - src/cr/lane-spawn.ts
     - src/cr/lane-mode.ts
     - src/cr/geometry/geometry-compare-core.ts
     - src/cr/geometry/geometry-diff-cli.ts
     - src/cr/geometry/geometry-doc.ts
     - src/cr/geometry/geometry-validate-cli.ts
-    - src/cr/extract-json.ts
-    - src/cr/findings-schema.ts
-    - src/cr/filename.ts
-    - src/cr/orchestrate.ts
     - src/core/lanes.ts
-    - src/core/agent-runner/types.ts
-    - src/core/config.ts
-    - src/core/consumer-config.ts
     - src/core/ui-boot.ts
     - src/verify/boot.ts
     - src/core/err-message.ts
   tests:
     - src/core/__tests__/err-message.test.ts
+    - src/core/__tests__/lanes.test.ts
     - src/cr/__tests__/geometry/geometry-compare-core.test.ts
     - src/cr/__tests__/geometry/geometry-diff-cli.test.ts
     - src/cr/__tests__/geometry/geometry-doc.test.ts
@@ -41,6 +34,7 @@ links:
     - src/cr/__tests__/lanes/render-compare.test.ts
     - src/cr/__tests__/lanes/ui-review-dispatch.test.ts
     - src/cr/__tests__/lanes/ui-review.test.ts
+    - src/cr/__tests__/orchestrate.test.ts
 name: UI-Design Review Lane
 packages:
   - package.json
@@ -53,6 +47,7 @@ opt-in:
 introduced: 1.4.0
 updated: 1.6.0
 ---
+
 ## Summary
 
 Second slice of Q-0144 (pen.dev UI Design Phase, shipped in PR #342): a code-stage CR lane, `ui-reviewer`, that checks the implemented UI against the feature's committed `.pen` design. It mirrors the `reviewer` lane's dispatch shape — the lane resolves the `.pen` path and the affected surfaces, and the dispatched child opens the design itself through pencil MCP (the editor owns the `.pen` format, and MCP is its write API), compares it against the diff, and returns a verdict the lane writes into a standard lane sink beside the codex and verifier lanes. Fires on the same `consumer.uiPaths` predicate the design stage uses, recomputed from the real diff; non-UI and waived sessions get an explicit `not-applicable` sink, and a session whose design cannot be read gets `cannot-review` rather than a green. Advisory by default, blocking behind one config knob. Mechanical render-compare (screenshot diff against a running app) ships as the sibling `render-compare` lane — the Q-0146 enhancement described under Usage.
@@ -180,25 +175,18 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/cr/lanes/render-export-dispatch.ts`](../../src/cr/lanes/render-export-dispatch.ts)
   - [`src/cr/lanes/pen-scratch.ts`](../../src/cr/lanes/pen-scratch.ts)
   - [`src/cr/lanes/prompt-parts.ts`](../../src/cr/lanes/prompt-parts.ts)
-  - [`src/cr/lane-spawn.ts`](../../src/cr/lane-spawn.ts)
   - [`src/cr/lane-mode.ts`](../../src/cr/lane-mode.ts)
   - [`src/cr/geometry/geometry-compare-core.ts`](../../src/cr/geometry/geometry-compare-core.ts)
   - [`src/cr/geometry/geometry-diff-cli.ts`](../../src/cr/geometry/geometry-diff-cli.ts)
   - [`src/cr/geometry/geometry-doc.ts`](../../src/cr/geometry/geometry-doc.ts)
   - [`src/cr/geometry/geometry-validate-cli.ts`](../../src/cr/geometry/geometry-validate-cli.ts)
-  - [`src/cr/extract-json.ts`](../../src/cr/extract-json.ts)
-  - [`src/cr/findings-schema.ts`](../../src/cr/findings-schema.ts)
-  - [`src/cr/filename.ts`](../../src/cr/filename.ts)
-  - [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts)
   - [`src/core/lanes.ts`](../../src/core/lanes.ts)
-  - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
-  - [`src/core/config.ts`](../../src/core/config.ts)
-  - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
   - [`src/core/ui-boot.ts`](../../src/core/ui-boot.ts)
   - [`src/verify/boot.ts`](../../src/verify/boot.ts)
   - [`src/core/err-message.ts`](../../src/core/err-message.ts)
 - **Tests:**
   - [`src/core/__tests__/err-message.test.ts`](../../src/core/__tests__/err-message.test.ts)
+  - [`src/core/__tests__/lanes.test.ts`](../../src/core/__tests__/lanes.test.ts)
   - [`src/cr/__tests__/geometry/geometry-compare-core.test.ts`](../../src/cr/__tests__/geometry/geometry-compare-core.test.ts)
   - [`src/cr/__tests__/geometry/geometry-diff-cli.test.ts`](../../src/cr/__tests__/geometry/geometry-diff-cli.test.ts)
   - [`src/cr/__tests__/geometry/geometry-doc.test.ts`](../../src/cr/__tests__/geometry/geometry-doc.test.ts)
@@ -207,5 +195,6 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/cr/__tests__/lanes/render-compare.test.ts`](../../src/cr/__tests__/lanes/render-compare.test.ts)
   - [`src/cr/__tests__/lanes/ui-review-dispatch.test.ts`](../../src/cr/__tests__/lanes/ui-review-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/ui-review.test.ts`](../../src/cr/__tests__/lanes/ui-review.test.ts)
+  - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
 
 <!-- /generated: resources -->

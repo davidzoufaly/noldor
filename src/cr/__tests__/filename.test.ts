@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer, cr-lane-verdicts-blocked-by-serialization-not-substance
+// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer, cr-lane-verdicts-blocked-by-serialization-not-substance, unvalidated-slug-path-traversal-across-cli-entry-points
 import { mkdirSync, mkdtempSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

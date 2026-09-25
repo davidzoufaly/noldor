@@ -1,4 +1,4 @@
-// @tests: gate-flow-rework
+// @tests: gate-flow-rework, rules-cascade-v1
 import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

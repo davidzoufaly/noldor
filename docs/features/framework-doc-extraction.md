@@ -6,11 +6,11 @@ links:
   spec: >-
     docs/design/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md
   code:
-    - src/core/doc-roots.ts
     - src/hooks/noldor-validate-trailer.ts
   tests:
     - src/core/__tests__/doc-roots.test.ts
     - src/dashboard/__tests__/server-static.test.ts
+    - src/hooks/__tests__/noldor-validate-trailer.test.ts
 name: Framework Doc Extraction
 packages:
   - noldor
@@ -65,10 +65,10 @@ the phased plan.
 
 - **Spec:** [`docs/design/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md`](../../docs/design/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md)
 - **Code:**
-  - [`src/core/doc-roots.ts`](../../src/core/doc-roots.ts)
   - [`src/hooks/noldor-validate-trailer.ts`](../../src/hooks/noldor-validate-trailer.ts)
 - **Tests:**
   - [`src/core/__tests__/doc-roots.test.ts`](../../src/core/__tests__/doc-roots.test.ts)
   - [`src/dashboard/__tests__/server-static.test.ts`](../../src/dashboard/__tests__/server-static.test.ts)
+  - [`src/hooks/__tests__/noldor-validate-trailer.test.ts`](../../src/hooks/__tests__/noldor-validate-trailer.test.ts)
 
 <!-- /generated: resources -->

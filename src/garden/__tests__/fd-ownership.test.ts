@@ -1,4 +1,4 @@
-// @tests: fast-track-changes-can-obsolete-an-unattached-fd
+// @tests: fast-track-changes-can-obsolete-an-unattached-fd, sdd-co-tag-detector
 
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

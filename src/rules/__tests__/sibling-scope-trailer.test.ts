@@ -1,4 +1,4 @@
-// @tests: scope-sibling-trailer-for-doc-sync-commits
+// @tests: scope-sibling-trailer-for-doc-sync-commits, rules-cascade-v1
 import { describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';

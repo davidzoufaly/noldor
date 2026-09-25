@@ -5,20 +5,7 @@ deps: []
 links:
   code:
     - src/core/agent-events.ts
-    - src/core/agent-runner/registry.ts
-    - src/core/agent-runner/types.ts
     - src/autonomous/phase-events.ts
-    - src/autonomous/queue-drain.ts
-    - src/autonomous/watch.ts
-    - src/autonomous/drain-io.ts
-    - src/autonomous/drain-loop.ts
-    - src/autonomous/escalations.ts
-    - src/autonomous/salvage.ts
-    - src/metrics/collect/drain-reliability.ts
-    - src/dashboard/data.ts
-    - src/dashboard/server.ts
-    - src/dashboard/views.ts
-    - src/dashboard/layout.ts
     - src/dashboard/static/agents.ts
   docs: []
   tests:
@@ -96,20 +83,7 @@ Agent-event vocabulary now emits paired spawned/exited rows linked by a shared `
 - **Spec:** [`docs/design/specs/archive/2026-07-03-agent-events-phase-tracking-run-ids-and-agents-dashboard-page-design.md`](../../docs/design/specs/archive/2026-07-03-agent-events-phase-tracking-run-ids-and-agents-dashboard-page-design.md)
 - **Code:**
   - [`src/core/agent-events.ts`](../../src/core/agent-events.ts)
-  - [`src/core/agent-runner/registry.ts`](../../src/core/agent-runner/registry.ts)
-  - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
   - [`src/autonomous/phase-events.ts`](../../src/autonomous/phase-events.ts)
-  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
-  - [`src/autonomous/watch.ts`](../../src/autonomous/watch.ts)
-  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
-  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
-  - [`src/autonomous/escalations.ts`](../../src/autonomous/escalations.ts)
-  - [`src/autonomous/salvage.ts`](../../src/autonomous/salvage.ts)
-  - [`src/metrics/collect/drain-reliability.ts`](../../src/metrics/collect/drain-reliability.ts)
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
-  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
-  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
-  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
   - [`src/dashboard/static/agents.ts`](../../src/dashboard/static/agents.ts)
 - **Tests:**
   - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)

@@ -4,14 +4,15 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/release/index.ts
     - src/release/sdd-report-diff.ts
     - src/garden/sdd-report.ts
     - src/garden/sdd-report-format.ts
   tests:
+    - src/features/__tests__/seed-test-tags.test.ts
     - src/garden/__tests__/graph-fd-lookup.test.ts
     - src/garden/__tests__/sdd-report-metrics.test.ts
     - src/garden/__tests__/sdd-report.test.ts
+    - src/release/__tests__/preflight-render.test.ts
     - src/release/__tests__/sdd-report-diff.test.ts
 name: 'Release Script `sdd:report` Skip-If-Only-Count-Line-Changed'
 packages:
@@ -49,14 +50,15 @@ Automatic — no manual step. During `pnpm release`, after `noldor garden sdd-re
 ## Resources
 
 - **Code:**
-  - [`src/release/index.ts`](../../src/release/index.ts)
   - [`src/release/sdd-report-diff.ts`](../../src/release/sdd-report-diff.ts)
   - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
   - [`src/garden/sdd-report-format.ts`](../../src/garden/sdd-report-format.ts)
 - **Tests:**
+  - [`src/features/__tests__/seed-test-tags.test.ts`](../../src/features/__tests__/seed-test-tags.test.ts)
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
   - [`src/garden/__tests__/sdd-report-metrics.test.ts`](../../src/garden/__tests__/sdd-report-metrics.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
+  - [`src/release/__tests__/preflight-render.test.ts`](../../src/release/__tests__/preflight-render.test.ts)
   - [`src/release/__tests__/sdd-report-diff.test.ts`](../../src/release/__tests__/sdd-report-diff.test.ts)
 
 <!-- /generated: resources -->

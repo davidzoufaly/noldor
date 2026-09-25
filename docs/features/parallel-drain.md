@@ -5,12 +5,6 @@ deps:
   - autonomous-queue-drain-runner
 links:
   code:
-    - src/autonomous/drain-loop.ts
-    - src/autonomous/drain-io.ts
-    - src/autonomous/queue-drain.ts
-    - src/autonomous/drain-state.ts
-    - src/core/pr-flow.ts
-    - src/core/pr-flow-cli.ts
     - .claude/skills/noldor-gate/SKILL.md
   tests:
     - src/autonomous/__tests__/build-pool.test.ts
@@ -70,12 +64,6 @@ As an operator draining a large queue (or a batch of designed plans), I want `--
 
 - **Spec:** [`docs/design/specs/archive/2026-06-10-parallel-drain-design.md`](../../docs/design/specs/archive/2026-06-10-parallel-drain-design.md)
 - **Code:**
-  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
-  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
-  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
-  - [`src/autonomous/drain-state.ts`](../../src/autonomous/drain-state.ts)
-  - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
-  - [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts)
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
 - **Tests:**
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)

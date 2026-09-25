@@ -1,4 +1,4 @@
-// @tests: release-sweep-process-hardening
+// @tests: release-sweep-process-hardening, pnpm-release-resume, test-suites-read-live-repo-state-shifting-full-suite-failures
 import { execFileSync } from 'node:child_process';
 import {
   cpSync,

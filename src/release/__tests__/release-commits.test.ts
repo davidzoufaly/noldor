@@ -1,4 +1,4 @@
-// @tests: feature-md-links-overhaul
+// @tests: feature-md-links-overhaul, dynamic-fd-changelog
 import { classifyCommit, classifyCommits, deriveBumpLevel } from '../release-commits.js';
 
 import type { Commit } from '../release-commits.js';

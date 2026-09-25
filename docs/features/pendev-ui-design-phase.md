@@ -7,11 +7,7 @@ links:
   code:
     - src/core/ui-predicate.ts
     - src/core/run-capture.ts
-    - src/core/consumer-config.ts
     - src/core/design-artifact-names.ts
-    - src/core/doc-roots.ts
-    - src/core/session.ts
-    - src/core/feature-schema.ts
     - src/release/ui-design-freshness.ts
     - src/checks/check-ui-design-freshness.ts
     - src/checks/check-pen-bridge.ts
@@ -20,15 +16,12 @@ links:
     - src/design/ui-capture.ts
     - src/design/ui-capture-cli.ts
     - src/design/ui-sync-cli.ts
-    - src/design/archive-resolve.ts
-    - src/design/archive-cli.ts
     - src/design/design-approval.ts
     - src/design/design-approval-cli.ts
     - src/design/pen-doc.ts
     - src/design/pen-layout.ts
     - src/design/pen-schema.ts
     - src/core/blob-id.ts
-    - src/sync/sync-fd-resources.ts
     - src/core/init-vscode-settings.ts
     - src/core/receipt-store.ts
   spec: docs/design/specs/archive/2026-08-19-pendev-ui-design-phase-design.md
@@ -45,6 +38,8 @@ links:
     - src/design/__tests__/pen-schema.test.ts
     - src/design/__tests__/ui-capture.test.ts
     - src/design/__tests__/ui-sync.test.ts
+    - src/garden/__tests__/garden-detect.test.ts
+    - src/hooks/__tests__/noldor-open-artifact.test.ts
     - src/release/__tests__/ui-design-freshness.test.ts
 name: pen.dev UI Design Phase
 packages:
@@ -125,11 +120,7 @@ Consumer config schema now accepts `uiPaths` and `uiSurfaces` (#342).
 - **Code:**
   - [`src/core/ui-predicate.ts`](../../src/core/ui-predicate.ts)
   - [`src/core/run-capture.ts`](../../src/core/run-capture.ts)
-  - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
   - [`src/core/design-artifact-names.ts`](../../src/core/design-artifact-names.ts)
-  - [`src/core/doc-roots.ts`](../../src/core/doc-roots.ts)
-  - [`src/core/session.ts`](../../src/core/session.ts)
-  - [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts)
   - [`src/release/ui-design-freshness.ts`](../../src/release/ui-design-freshness.ts)
   - [`src/checks/check-ui-design-freshness.ts`](../../src/checks/check-ui-design-freshness.ts)
   - [`src/checks/check-pen-bridge.ts`](../../src/checks/check-pen-bridge.ts)
@@ -138,15 +129,12 @@ Consumer config schema now accepts `uiPaths` and `uiSurfaces` (#342).
   - [`src/design/ui-capture.ts`](../../src/design/ui-capture.ts)
   - [`src/design/ui-capture-cli.ts`](../../src/design/ui-capture-cli.ts)
   - [`src/design/ui-sync-cli.ts`](../../src/design/ui-sync-cli.ts)
-  - [`src/design/archive-resolve.ts`](../../src/design/archive-resolve.ts)
-  - [`src/design/archive-cli.ts`](../../src/design/archive-cli.ts)
   - [`src/design/design-approval.ts`](../../src/design/design-approval.ts)
   - [`src/design/design-approval-cli.ts`](../../src/design/design-approval-cli.ts)
   - [`src/design/pen-doc.ts`](../../src/design/pen-doc.ts)
   - [`src/design/pen-layout.ts`](../../src/design/pen-layout.ts)
   - [`src/design/pen-schema.ts`](../../src/design/pen-schema.ts)
   - [`src/core/blob-id.ts`](../../src/core/blob-id.ts)
-  - [`src/sync/sync-fd-resources.ts`](../../src/sync/sync-fd-resources.ts)
   - [`src/core/init-vscode-settings.ts`](../../src/core/init-vscode-settings.ts)
   - [`src/core/receipt-store.ts`](../../src/core/receipt-store.ts)
 - **Tests:**
@@ -162,6 +150,8 @@ Consumer config schema now accepts `uiPaths` and `uiSurfaces` (#342).
   - [`src/design/__tests__/pen-schema.test.ts`](../../src/design/__tests__/pen-schema.test.ts)
   - [`src/design/__tests__/ui-capture.test.ts`](../../src/design/__tests__/ui-capture.test.ts)
   - [`src/design/__tests__/ui-sync.test.ts`](../../src/design/__tests__/ui-sync.test.ts)
+  - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/hooks/__tests__/noldor-open-artifact.test.ts`](../../src/hooks/__tests__/noldor-open-artifact.test.ts)
   - [`src/release/__tests__/ui-design-freshness.test.ts`](../../src/release/__tests__/ui-design-freshness.test.ts)
 
 <!-- /generated: resources -->

@@ -15,10 +15,12 @@ links:
     - src/utils/word-count.ts
   tests:
     - src/core/__tests__/markdown-section-scan.test.ts
+    - src/dashboard/__tests__/route-sweep.test.ts
     - src/docs/__tests__/architecture-form.test.ts
     - src/docs/__tests__/docs-architecture.test.ts
     - src/garden/detectors/__tests__/architecture.test.ts
     - src/garden/detectors/__tests__/fd-diagram.test.ts
+    - src/prep/__tests__/scaffold.test.ts
     - src/utils/__tests__/word-count.test.ts
 name: Consumer Architecture Doc Surface
 packages:
@@ -191,10 +193,12 @@ This release adds the architecture doc surface (#333).
   - [`src/utils/word-count.ts`](../../src/utils/word-count.ts)
 - **Tests:**
   - [`src/core/__tests__/markdown-section-scan.test.ts`](../../src/core/__tests__/markdown-section-scan.test.ts)
+  - [`src/dashboard/__tests__/route-sweep.test.ts`](../../src/dashboard/__tests__/route-sweep.test.ts)
   - [`src/docs/__tests__/architecture-form.test.ts`](../../src/docs/__tests__/architecture-form.test.ts)
   - [`src/docs/__tests__/docs-architecture.test.ts`](../../src/docs/__tests__/docs-architecture.test.ts)
   - [`src/garden/detectors/__tests__/architecture.test.ts`](../../src/garden/detectors/__tests__/architecture.test.ts)
   - [`src/garden/detectors/__tests__/fd-diagram.test.ts`](../../src/garden/detectors/__tests__/fd-diagram.test.ts)
+  - [`src/prep/__tests__/scaffold.test.ts`](../../src/prep/__tests__/scaffold.test.ts)
   - [`src/utils/__tests__/word-count.test.ts`](../../src/utils/__tests__/word-count.test.ts)
 
 <!-- /generated: resources -->

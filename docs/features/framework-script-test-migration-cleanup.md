@@ -4,14 +4,11 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/core/doc-roots.ts
-    - src/migrations/chain.ts
-    - src/garden/sdd-report.ts
-    - src/triage/triage-list-untriaged.ts
     - src/core/release-markers.ts
     - package.json
   docs: []
   tests:
+    - src/core/__tests__/release-markers.test.ts
     - src/invariants/__tests__/boundaries.test.ts
     - src/invariants/__tests__/rule-conflicts.test.ts
     - src/validate/__tests__/noldor-config.test.ts
@@ -55,13 +52,10 @@ As a framework maintainer, I want migration-era scripts, dead code, duplicate im
 
 - **Spec:** [`docs/design/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md`](../../docs/design/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md)
 - **Code:**
-  - [`src/core/doc-roots.ts`](../../src/core/doc-roots.ts)
-  - [`src/migrations/chain.ts`](../../src/migrations/chain.ts)
-  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
-  - [`src/triage/triage-list-untriaged.ts`](../../src/triage/triage-list-untriaged.ts)
   - [`src/core/release-markers.ts`](../../src/core/release-markers.ts)
   - [`package.json`](../../package.json)
 - **Tests:**
+  - [`src/core/__tests__/release-markers.test.ts`](../../src/core/__tests__/release-markers.test.ts)
   - [`src/invariants/__tests__/boundaries.test.ts`](../../src/invariants/__tests__/boundaries.test.ts)
   - [`src/invariants/__tests__/rule-conflicts.test.ts`](../../src/invariants/__tests__/rule-conflicts.test.ts)
   - [`src/validate/__tests__/noldor-config.test.ts`](../../src/validate/__tests__/noldor-config.test.ts)

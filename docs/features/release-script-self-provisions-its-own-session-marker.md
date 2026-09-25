@@ -5,8 +5,6 @@ deps: []
 links:
   code:
     - src/hooks/noldor-pre-commit.ts
-    - src/core/session.ts
-    - src/release/index.ts
   tests:
     - src/core/__tests__/pr-flow-cli.test.ts
     - src/core/__tests__/session.test.ts
@@ -64,8 +62,6 @@ naming the marker path and the recovery command (`rm .noldor/session.json`).
 
 - **Code:**
   - [`src/hooks/noldor-pre-commit.ts`](../../src/hooks/noldor-pre-commit.ts)
-  - [`src/core/session.ts`](../../src/core/session.ts)
-  - [`src/release/index.ts`](../../src/release/index.ts)
 - **Tests:**
   - [`src/core/__tests__/pr-flow-cli.test.ts`](../../src/core/__tests__/pr-flow-cli.test.ts)
   - [`src/core/__tests__/session.test.ts`](../../src/core/__tests__/session.test.ts)

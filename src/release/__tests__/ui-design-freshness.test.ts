@@ -1,4 +1,4 @@
-// @tests: pendev-ui-design-phase
+// @tests: pendev-ui-design-phase, release-sweep-process-hardening
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

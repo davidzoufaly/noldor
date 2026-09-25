@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { detectTrailerScopeMismatch } from '../trailer-scope-mismatch.js';
 
-// @tests: noldor, outcome-telemetry-and-effectiveness-metrics
+// @tests: noldor, outcome-telemetry-and-effectiveness-metrics, trailer-scope-alias-map
 
 function makeRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'trailer-scope-mismatch-'));

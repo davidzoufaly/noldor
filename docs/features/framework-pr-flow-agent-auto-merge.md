@@ -8,9 +8,6 @@ links:
     - src/core/phase-revert.ts
     - src/hooks/noldor-pre-push.ts
     - src/garden/detectors/branch-protection.ts
-    - src/garden/detectors/override-audit.ts
-    - src/release/index.ts
-    - src/release/release-fd-changelog.ts
     - src/release/release-markers.ts
     - src/release/release-pr-bullets.ts
     - src/release/release-find-first-pr-commit.ts
@@ -143,9 +140,6 @@ This release fixes composeBody's Feature MD link falling through to session.pare
   - [`src/core/phase-revert.ts`](../../src/core/phase-revert.ts)
   - [`src/hooks/noldor-pre-push.ts`](../../src/hooks/noldor-pre-push.ts)
   - [`src/garden/detectors/branch-protection.ts`](../../src/garden/detectors/branch-protection.ts)
-  - [`src/garden/detectors/override-audit.ts`](../../src/garden/detectors/override-audit.ts)
-  - [`src/release/index.ts`](../../src/release/index.ts)
-  - [`src/release/release-fd-changelog.ts`](../../src/release/release-fd-changelog.ts)
   - [`src/release/release-markers.ts`](../../src/release/release-markers.ts)
   - [`src/release/release-pr-bullets.ts`](../../src/release/release-pr-bullets.ts)
   - [`src/release/release-find-first-pr-commit.ts`](../../src/release/release-find-first-pr-commit.ts)

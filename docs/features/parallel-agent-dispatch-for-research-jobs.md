@@ -10,8 +10,6 @@ links:
     - src/research/fanout.ts
     - src/core/concurrency.ts
     - src/core/git-porcelain.ts
-    - src/core/agent-runner/types.ts
-    - src/cli/manifest.ts
     - .claude/skills/noldor-research/SKILL.md
     - docs/noldor/research-fanout.md
   tests:
@@ -103,8 +101,6 @@ _none — operates through the `pnpm noldor` CLI; agents invoke it via Bash._
   - [`src/research/fanout.ts`](../../src/research/fanout.ts)
   - [`src/core/concurrency.ts`](../../src/core/concurrency.ts)
   - [`src/core/git-porcelain.ts`](../../src/core/git-porcelain.ts)
-  - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
   - [`.claude/skills/noldor-research/SKILL.md`](../../.claude/skills/noldor-research/SKILL.md)
   - [`docs/noldor/research-fanout.md`](../../docs/noldor/research-fanout.md)
 - **Tests:**

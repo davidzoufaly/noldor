@@ -1,4 +1,4 @@
-// @tests: release-sweep-process-hardening
+// @tests: release-sweep-process-hardening, pnpm-release-resume
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

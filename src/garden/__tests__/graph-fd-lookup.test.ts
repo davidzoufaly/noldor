@@ -1,4 +1,4 @@
-// @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100, noldor, outcome-telemetry-and-effectiveness-metrics, release-script-sddreport-skip-if-only-count-line-changed, sdd-co-tag-detector
+// @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100, noldor, outcome-telemetry-and-effectiveness-metrics, release-script-sddreport-skip-if-only-count-line-changed, sdd-co-tag-detector, sdd-detector-5-idea-merge-semantic-similarity
 
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';

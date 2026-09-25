@@ -8,12 +8,10 @@ packages:
 deps: []
 links:
   code:
-    - src/garden/detectors/code-links-drift.ts
     - src/sync/adapters/code.ts
     - src/sync/adapters/docs.ts
     - src/sync/adapters/tests.ts
     - src/sync/projection.ts
-    - src/sync/sync-code-links.ts
     - src/sync/sync-doc-links.ts
     - src/sync/sync-test-links.ts
   tests:
@@ -34,6 +32,8 @@ links:
     - src/release/__tests__/release-commits.test.ts
     - src/release/__tests__/release-fd-commits.test.ts
     - src/sync/__tests__/projection.test.ts
+    - src/sync/__tests__/sync-code-links.test.ts
+    - src/sync/__tests__/sync-doc-links.test.ts
     - src/sync/__tests__/sync-spec-links.test.ts
     - src/sync/__tests__/sync-test-links.test.ts
   spec: lost-pre-extraction
@@ -113,12 +113,10 @@ nothing rather than silently widening back to the whole repo.
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/garden/detectors/code-links-drift.ts`](../../src/garden/detectors/code-links-drift.ts)
   - [`src/sync/adapters/code.ts`](../../src/sync/adapters/code.ts)
   - [`src/sync/adapters/docs.ts`](../../src/sync/adapters/docs.ts)
   - [`src/sync/adapters/tests.ts`](../../src/sync/adapters/tests.ts)
   - [`src/sync/projection.ts`](../../src/sync/projection.ts)
-  - [`src/sync/sync-code-links.ts`](../../src/sync/sync-code-links.ts)
   - [`src/sync/sync-doc-links.ts`](../../src/sync/sync-doc-links.ts)
   - [`src/sync/sync-test-links.ts`](../../src/sync/sync-test-links.ts)
 - **Tests:**
@@ -139,6 +137,8 @@ nothing rather than silently widening back to the whole repo.
   - [`src/release/__tests__/release-commits.test.ts`](../../src/release/__tests__/release-commits.test.ts)
   - [`src/release/__tests__/release-fd-commits.test.ts`](../../src/release/__tests__/release-fd-commits.test.ts)
   - [`src/sync/__tests__/projection.test.ts`](../../src/sync/__tests__/projection.test.ts)
+  - [`src/sync/__tests__/sync-code-links.test.ts`](../../src/sync/__tests__/sync-code-links.test.ts)
+  - [`src/sync/__tests__/sync-doc-links.test.ts`](../../src/sync/__tests__/sync-doc-links.test.ts)
   - [`src/sync/__tests__/sync-spec-links.test.ts`](../../src/sync/__tests__/sync-spec-links.test.ts)
   - [`src/sync/__tests__/sync-test-links.test.ts`](../../src/sync/__tests__/sync-test-links.test.ts)
 

@@ -1,4 +1,4 @@
-// @tests: autonomous-queue-drain-runner
+// @tests: autonomous-queue-drain-runner, plan-runner
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';

@@ -1,4 +1,4 @@
-// @tests: specs-cr-gate-multi-reviewer
+// @tests: specs-cr-gate-multi-reviewer, cr-re-round-cap-enforcement-and-oscillation-detector
 import { describe, expect, it } from 'vitest';
 
 import { decide, resolveOnBlockers } from '../autofix.js';

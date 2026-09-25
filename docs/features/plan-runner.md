@@ -6,10 +6,6 @@ deps:
 links:
   code:
     - src/autonomous/drain-source.ts
-    - src/autonomous/drain-loop.ts
-    - src/autonomous/drain-io.ts
-    - src/autonomous/queue-drain.ts
-    - src/cli/manifest.ts
     - .claude/skills/noldor-gate/SKILL.md
     - src/prep/prep-fanout.ts
     - src/prep/prep-promote.ts
@@ -24,6 +20,7 @@ links:
     - src/autonomous/__tests__/build-pool.test.ts
     - src/autonomous/__tests__/decide-next.test.ts
     - src/autonomous/__tests__/drain-reconcile.test.ts
+    - src/autonomous/__tests__/drain-selection.test.ts
     - src/autonomous/__tests__/drain-source.test.ts
     - src/autonomous/__tests__/escalations.test.ts
     - src/autonomous/__tests__/merge-classify.test.ts
@@ -98,10 +95,6 @@ This release adds a parallel prep pipeline to the noldor CLI, introducing fanout
 - **Spec:** [`docs/design/specs/archive/2026-06-10-plan-runner-design.md`](../../docs/design/specs/archive/2026-06-10-plan-runner-design.md)
 - **Code:**
   - [`src/autonomous/drain-source.ts`](../../src/autonomous/drain-source.ts)
-  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
-  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
-  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`src/prep/prep-fanout.ts`](../../src/prep/prep-fanout.ts)
   - [`src/prep/prep-promote.ts`](../../src/prep/prep-promote.ts)
@@ -116,6 +109,7 @@ This release adds a parallel prep pipeline to the noldor CLI, introducing fanout
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
   - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)
   - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
+  - [`src/autonomous/__tests__/drain-selection.test.ts`](../../src/autonomous/__tests__/drain-selection.test.ts)
   - [`src/autonomous/__tests__/drain-source.test.ts`](../../src/autonomous/__tests__/drain-source.test.ts)
   - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)
   - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)

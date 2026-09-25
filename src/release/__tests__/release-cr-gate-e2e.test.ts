@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: noldor, release-bypass-retirement
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

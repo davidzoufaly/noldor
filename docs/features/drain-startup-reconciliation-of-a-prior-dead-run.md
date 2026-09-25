@@ -5,13 +5,7 @@ deps: []
 links:
   code:
     - src/autonomous/drain-reconcile.ts
-    - src/autonomous/queue-drain.ts
-    - src/autonomous/drain-io.ts
     - src/autonomous/drain-lock.ts
-    - src/autonomous/drain-state.ts
-    - src/autonomous/drain-loop.ts
-    - src/core/agent-runner/registry.ts
-    - src/core/agent-runner/types.ts
   docs: []
   tests:
     - src/autonomous/__tests__/build-pool.test.ts
@@ -86,13 +80,7 @@ Reconcile a prior dead drain run at startup (#107).
 - **Spec:** [`docs/design/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md`](../../docs/design/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md)
 - **Code:**
   - [`src/autonomous/drain-reconcile.ts`](../../src/autonomous/drain-reconcile.ts)
-  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
-  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
   - [`src/autonomous/drain-lock.ts`](../../src/autonomous/drain-lock.ts)
-  - [`src/autonomous/drain-state.ts`](../../src/autonomous/drain-state.ts)
-  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
-  - [`src/core/agent-runner/registry.ts`](../../src/core/agent-runner/registry.ts)
-  - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
 - **Tests:**
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
   - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)

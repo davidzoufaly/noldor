@@ -1,4 +1,4 @@
-// @tests: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
+// @tests: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, project-tracking-dashboard
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';

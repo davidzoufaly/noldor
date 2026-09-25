@@ -1,4 +1,4 @@
-// @tests: sdd-co-tag-detector
+// @tests: sdd-co-tag-detector, code-clone-detector, release-script-sddreport-skip-if-only-count-line-changed, sdd-detector-5-idea-merge-semantic-similarity
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

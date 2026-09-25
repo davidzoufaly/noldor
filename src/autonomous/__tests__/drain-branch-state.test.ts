@@ -1,4 +1,4 @@
-// @tests: autonomous-queue-drain-runner
+// @tests: autonomous-queue-drain-runner, continuous-drain-daemon-and-escalation-inbox, parallel-drain-roadmapmd-conflict-auto-resolution
 import { describe, expect, it } from 'vitest';
 import { classifyDrainBranch, worktreeFor } from '../drain-branch-state.js';
 import type { GitRunner } from '../salvage.js';

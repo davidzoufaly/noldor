@@ -9,6 +9,8 @@ links:
     - src/testing/suite-lock.ts
   tests:
     - src/release/__tests__/no-probe-spawns.test.ts
+    - src/release/__tests__/preflight.test.ts
+    - src/release/__tests__/release-cr-gate.test.ts
     - src/release/__tests__/run-command.test.ts
     - src/testing/__tests__/suite-lock.test.ts
 name: Test Suites Read Live Repo State — Shifting Full-Suite Failures
@@ -19,6 +21,7 @@ since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.10.0
 ---
+
 ## Summary
 
 `npx vitest run` failed on a shifting set of files that each passed in isolation, so a green suite was a matter of timing. Q-0171 recorded two runs ten minutes apart on 2026-08-20 with disjoint failure sets across `sdd-report.test.ts`, `preflight.test.ts` and `route-sweep.test.ts`.
@@ -106,6 +109,8 @@ Preflight probes now go through one injectable command seam (#464).
   - [`src/testing/suite-lock.ts`](../../src/testing/suite-lock.ts)
 - **Tests:**
   - [`src/release/__tests__/no-probe-spawns.test.ts`](../../src/release/__tests__/no-probe-spawns.test.ts)
+  - [`src/release/__tests__/preflight.test.ts`](../../src/release/__tests__/preflight.test.ts)
+  - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)
   - [`src/release/__tests__/run-command.test.ts`](../../src/release/__tests__/run-command.test.ts)
   - [`src/testing/__tests__/suite-lock.test.ts`](../../src/testing/__tests__/suite-lock.test.ts)
 

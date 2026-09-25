@@ -7,24 +7,10 @@ packages:
   - scripts
 links:
   code:
-    - src/core/changelog.ts
-    - src/core/next-priority.ts
     - src/core/lint-plan-snippets.ts
-    - src/core/release-markers.ts
-    - src/core/validate-noldor-scope.ts
     - src/core/validate-noldor.ts
     - src/core/validate-skill-catalog.ts
-    - src/cr/codex.ts
-    - src/cr/sidecar.ts
-    - src/cr/context.ts
-    - src/cr/run-codex.ts
     - src/cr/cr-record.schema.json
-    - src/cr/cli-args.ts
-    - src/release/release-cr-gate.ts
-    - src/garden/detectors/codex-cr-override-audit.ts
-    - src/garden/detectors/override-audit.ts
-    - src/garden/sdd-report.ts
-    - src/core/pr-flow.ts
     - src/core/bump-session-marker.ts
     - src/core/noldor-cli.ts
     - src/core/overrides-log.ts
@@ -35,32 +21,25 @@ links:
     - src/cli/help.ts
     - src/cli/index.ts
     - src/features/migrate-link-rot.ts
-    - src/features/phase-flip-done-cli.ts
-    - src/features/phase-revert-cli.ts
     - src/triage/remove-block-cli.ts
-    - src/graphify/graph-to-toon.ts
     - src/templates/copy.ts
     - src/templates/diff.ts
-    - src/templates/manifest.ts
     - src/release/auto-restamp.ts
     - src/release/graph-freshness.ts
     - src/release/release-packages.ts
     - src/release/release-session.ts
     - src/release/release-version.ts
-    - src/hooks/noldor-pre-commit.ts
     - src/hooks/noldor-pre-edit-guard.ts
     - .claude/skills/noldor-gate/SKILL.md
     - .claude/skills/noldor-promote/SKILL.md
     - docs/noldor/pr-flow.md
     - src/cli/command-registry.ts
-    - src/core/cli-entry.ts
     - src/core/commit-cli.ts
     - src/core/commit-wrapper.ts
     - src/core/fmt-guard.ts
     - src/core/fmt-guard-cli.ts
     - src/core/init-gitignore.ts
     - src/core/prerequisites.ts
-    - src/core/slug.ts
     - src/hooks/pre-push-range.ts
     - src/checks/check-feature-slug-scope.ts
     - src/core/extract-touches.ts
@@ -71,6 +50,7 @@ links:
     - src/checks/check-oxfmt-ignores.ts
     - src/checks/check-parent-opt-in.ts
   tests:
+    - src/checks/__tests__/check-feature-slug-scope.test.ts
     - src/checks/__tests__/check-install-freshness.test.ts
     - src/checks/__tests__/check-oxfmt-ignores.test.ts
     - src/checks/__tests__/check-parent-opt-in.test.ts
@@ -78,11 +58,13 @@ links:
     - src/core/__tests__/changelog.test.ts
     - src/core/__tests__/commit-wrapper.test.ts
     - src/core/__tests__/config-waiver-guard.test.ts
+    - src/core/__tests__/extract-touches.test.ts
     - src/core/__tests__/fmt-guard.test.ts
     - src/core/__tests__/init-gitignore.test.ts
     - src/core/__tests__/lint-plan-snippets.test.ts
     - src/core/__tests__/next-priority.test.ts
     - src/core/__tests__/phase-flip-done.test.ts
+    - src/core/__tests__/pr-flow-cli.test.ts
     - src/core/__tests__/pr-flow.test.ts
     - src/core/__tests__/prerequisites.test.ts
     - src/core/__tests__/release-markers.test.ts
@@ -103,6 +85,7 @@ links:
     - src/cr/__tests__/run-codex.test.ts
     - src/cr/__tests__/schema-parity.test.ts
     - src/cr/__tests__/sidecar.test.ts
+    - src/features/__tests__/fill-links-code-gaps.test.ts
     - src/features/__tests__/migrate-link-rot.test.ts
     - src/features/__tests__/phase-cli.test.ts
     - src/garden/__tests__/backlog-demote.test.ts
@@ -128,8 +111,14 @@ links:
     - src/release/__tests__/release-cr-gate-e2e.test.ts
     - src/release/__tests__/release-cr-gate.test.ts
     - src/release/__tests__/release-packages.test.ts
+    - src/release/__tests__/release-session.test.ts
     - src/release/__tests__/release-version.test.ts
+    - src/sync/__tests__/sync-spec-links.test.ts
+    - src/templates/__tests__/region-managed-sync.test.ts
+    - src/templates/__tests__/templates.test.ts
     - src/testing/__tests__/drain-e2e.test.ts
+    - src/triage/__tests__/has-block.test.ts
+    - src/triage/__tests__/remove-block-cli.test.ts
   docs: []
   spec: lost-pre-extraction
 noldor-tier: full
@@ -242,24 +231,10 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/core/changelog.ts`](../../src/core/changelog.ts)
-  - [`src/core/next-priority.ts`](../../src/core/next-priority.ts)
   - [`src/core/lint-plan-snippets.ts`](../../src/core/lint-plan-snippets.ts)
-  - [`src/core/release-markers.ts`](../../src/core/release-markers.ts)
-  - [`src/core/validate-noldor-scope.ts`](../../src/core/validate-noldor-scope.ts)
   - [`src/core/validate-noldor.ts`](../../src/core/validate-noldor.ts)
   - [`src/core/validate-skill-catalog.ts`](../../src/core/validate-skill-catalog.ts)
-  - [`src/cr/codex.ts`](../../src/cr/codex.ts)
-  - [`src/cr/sidecar.ts`](../../src/cr/sidecar.ts)
-  - [`src/cr/context.ts`](../../src/cr/context.ts)
-  - [`src/cr/run-codex.ts`](../../src/cr/run-codex.ts)
   - [`src/cr/cr-record.schema.json`](../../src/cr/cr-record.schema.json)
-  - [`src/cr/cli-args.ts`](../../src/cr/cli-args.ts)
-  - [`src/release/release-cr-gate.ts`](../../src/release/release-cr-gate.ts)
-  - [`src/garden/detectors/codex-cr-override-audit.ts`](../../src/garden/detectors/codex-cr-override-audit.ts)
-  - [`src/garden/detectors/override-audit.ts`](../../src/garden/detectors/override-audit.ts)
-  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
-  - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
   - [`src/core/bump-session-marker.ts`](../../src/core/bump-session-marker.ts)
   - [`src/core/noldor-cli.ts`](../../src/core/noldor-cli.ts)
   - [`src/core/overrides-log.ts`](../../src/core/overrides-log.ts)
@@ -270,32 +245,25 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/cli/help.ts`](../../src/cli/help.ts)
   - [`src/cli/index.ts`](../../src/cli/index.ts)
   - [`src/features/migrate-link-rot.ts`](../../src/features/migrate-link-rot.ts)
-  - [`src/features/phase-flip-done-cli.ts`](../../src/features/phase-flip-done-cli.ts)
-  - [`src/features/phase-revert-cli.ts`](../../src/features/phase-revert-cli.ts)
   - [`src/triage/remove-block-cli.ts`](../../src/triage/remove-block-cli.ts)
-  - [`src/graphify/graph-to-toon.ts`](../../src/graphify/graph-to-toon.ts)
   - [`src/templates/copy.ts`](../../src/templates/copy.ts)
   - [`src/templates/diff.ts`](../../src/templates/diff.ts)
-  - [`src/templates/manifest.ts`](../../src/templates/manifest.ts)
   - [`src/release/auto-restamp.ts`](../../src/release/auto-restamp.ts)
   - [`src/release/graph-freshness.ts`](../../src/release/graph-freshness.ts)
   - [`src/release/release-packages.ts`](../../src/release/release-packages.ts)
   - [`src/release/release-session.ts`](../../src/release/release-session.ts)
   - [`src/release/release-version.ts`](../../src/release/release-version.ts)
-  - [`src/hooks/noldor-pre-commit.ts`](../../src/hooks/noldor-pre-commit.ts)
   - [`src/hooks/noldor-pre-edit-guard.ts`](../../src/hooks/noldor-pre-edit-guard.ts)
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`.claude/skills/noldor-promote/SKILL.md`](../../.claude/skills/noldor-promote/SKILL.md)
   - [`docs/noldor/pr-flow.md`](../../docs/noldor/pr-flow.md)
   - [`src/cli/command-registry.ts`](../../src/cli/command-registry.ts)
-  - [`src/core/cli-entry.ts`](../../src/core/cli-entry.ts)
   - [`src/core/commit-cli.ts`](../../src/core/commit-cli.ts)
   - [`src/core/commit-wrapper.ts`](../../src/core/commit-wrapper.ts)
   - [`src/core/fmt-guard.ts`](../../src/core/fmt-guard.ts)
   - [`src/core/fmt-guard-cli.ts`](../../src/core/fmt-guard-cli.ts)
   - [`src/core/init-gitignore.ts`](../../src/core/init-gitignore.ts)
   - [`src/core/prerequisites.ts`](../../src/core/prerequisites.ts)
-  - [`src/core/slug.ts`](../../src/core/slug.ts)
   - [`src/hooks/pre-push-range.ts`](../../src/hooks/pre-push-range.ts)
   - [`src/checks/check-feature-slug-scope.ts`](../../src/checks/check-feature-slug-scope.ts)
   - [`src/core/extract-touches.ts`](../../src/core/extract-touches.ts)
@@ -306,6 +274,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/checks/check-oxfmt-ignores.ts`](../../src/checks/check-oxfmt-ignores.ts)
   - [`src/checks/check-parent-opt-in.ts`](../../src/checks/check-parent-opt-in.ts)
 - **Tests:**
+  - [`src/checks/__tests__/check-feature-slug-scope.test.ts`](../../src/checks/__tests__/check-feature-slug-scope.test.ts)
   - [`src/checks/__tests__/check-install-freshness.test.ts`](../../src/checks/__tests__/check-install-freshness.test.ts)
   - [`src/checks/__tests__/check-oxfmt-ignores.test.ts`](../../src/checks/__tests__/check-oxfmt-ignores.test.ts)
   - [`src/checks/__tests__/check-parent-opt-in.test.ts`](../../src/checks/__tests__/check-parent-opt-in.test.ts)
@@ -313,11 +282,13 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)
   - [`src/core/__tests__/commit-wrapper.test.ts`](../../src/core/__tests__/commit-wrapper.test.ts)
   - [`src/core/__tests__/config-waiver-guard.test.ts`](../../src/core/__tests__/config-waiver-guard.test.ts)
+  - [`src/core/__tests__/extract-touches.test.ts`](../../src/core/__tests__/extract-touches.test.ts)
   - [`src/core/__tests__/fmt-guard.test.ts`](../../src/core/__tests__/fmt-guard.test.ts)
   - [`src/core/__tests__/init-gitignore.test.ts`](../../src/core/__tests__/init-gitignore.test.ts)
   - [`src/core/__tests__/lint-plan-snippets.test.ts`](../../src/core/__tests__/lint-plan-snippets.test.ts)
   - [`src/core/__tests__/next-priority.test.ts`](../../src/core/__tests__/next-priority.test.ts)
   - [`src/core/__tests__/phase-flip-done.test.ts`](../../src/core/__tests__/phase-flip-done.test.ts)
+  - [`src/core/__tests__/pr-flow-cli.test.ts`](../../src/core/__tests__/pr-flow-cli.test.ts)
   - [`src/core/__tests__/pr-flow.test.ts`](../../src/core/__tests__/pr-flow.test.ts)
   - [`src/core/__tests__/prerequisites.test.ts`](../../src/core/__tests__/prerequisites.test.ts)
   - [`src/core/__tests__/release-markers.test.ts`](../../src/core/__tests__/release-markers.test.ts)
@@ -338,6 +309,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
   - [`src/cr/__tests__/schema-parity.test.ts`](../../src/cr/__tests__/schema-parity.test.ts)
   - [`src/cr/__tests__/sidecar.test.ts`](../../src/cr/__tests__/sidecar.test.ts)
+  - [`src/features/__tests__/fill-links-code-gaps.test.ts`](../../src/features/__tests__/fill-links-code-gaps.test.ts)
   - [`src/features/__tests__/migrate-link-rot.test.ts`](../../src/features/__tests__/migrate-link-rot.test.ts)
   - [`src/features/__tests__/phase-cli.test.ts`](../../src/features/__tests__/phase-cli.test.ts)
   - [`src/garden/__tests__/backlog-demote.test.ts`](../../src/garden/__tests__/backlog-demote.test.ts)
@@ -363,8 +335,14 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/release/__tests__/release-cr-gate-e2e.test.ts`](../../src/release/__tests__/release-cr-gate-e2e.test.ts)
   - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)
   - [`src/release/__tests__/release-packages.test.ts`](../../src/release/__tests__/release-packages.test.ts)
+  - [`src/release/__tests__/release-session.test.ts`](../../src/release/__tests__/release-session.test.ts)
   - [`src/release/__tests__/release-version.test.ts`](../../src/release/__tests__/release-version.test.ts)
+  - [`src/sync/__tests__/sync-spec-links.test.ts`](../../src/sync/__tests__/sync-spec-links.test.ts)
+  - [`src/templates/__tests__/region-managed-sync.test.ts`](../../src/templates/__tests__/region-managed-sync.test.ts)
+  - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)
   - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)
+  - [`src/triage/__tests__/has-block.test.ts`](../../src/triage/__tests__/has-block.test.ts)
+  - [`src/triage/__tests__/remove-block-cli.test.ts`](../../src/triage/__tests__/remove-block-cli.test.ts)
 
 <!-- /generated: resources -->
 

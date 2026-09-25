@@ -1,4 +1,4 @@
-// @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100
+// @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100, noldor
 
 import { describe, expect, it } from 'vitest';
 

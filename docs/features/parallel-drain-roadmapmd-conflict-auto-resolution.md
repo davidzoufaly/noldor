@@ -5,10 +5,11 @@ deps: []
 links:
   code:
     - src/autonomous/salvage.ts
-    - src/autonomous/drain-io.ts
     - src/utils/write-blocks.ts
   docs: []
   tests:
+    - src/autonomous/__tests__/branch-work.test.ts
+    - src/autonomous/__tests__/drain-branch-state.test.ts
     - src/autonomous/__tests__/drain-reconcile.test.ts
     - src/autonomous/__tests__/merge-classify.test.ts
     - src/autonomous/__tests__/resolve-roadmap-conflict.test.ts
@@ -76,9 +77,10 @@ K>1 drain now auto-resolves adjacent `roadmap.md` block conflicts (#106).
 - **Spec:** [`docs/design/specs/archive/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md`](../../docs/design/specs/archive/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md)
 - **Code:**
   - [`src/autonomous/salvage.ts`](../../src/autonomous/salvage.ts)
-  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
   - [`src/utils/write-blocks.ts`](../../src/utils/write-blocks.ts)
 - **Tests:**
+  - [`src/autonomous/__tests__/branch-work.test.ts`](../../src/autonomous/__tests__/branch-work.test.ts)
+  - [`src/autonomous/__tests__/drain-branch-state.test.ts`](../../src/autonomous/__tests__/drain-branch-state.test.ts)
   - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
   - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)
   - [`src/autonomous/__tests__/resolve-roadmap-conflict.test.ts`](../../src/autonomous/__tests__/resolve-roadmap-conflict.test.ts)

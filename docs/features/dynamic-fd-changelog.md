@@ -8,9 +8,7 @@ packages:
 deps: []
 links:
   code:
-    - src/dashboard/data.ts
     - src/features/migrate-changelog-unreleased.ts
-    - src/release/index.ts
     - src/release/llm-polish-summary.ts
     - src/release/release-changelog.ts
     - src/release/release-dry-run.ts
@@ -33,6 +31,7 @@ links:
     - src/features/__tests__/migrate-changelog-unreleased.test.ts
     - src/release/__tests__/llm-polish-summary.test.ts
     - src/release/__tests__/release-changelog.test.ts
+    - src/release/__tests__/release-commits.test.ts
     - src/release/__tests__/release-fd-changelog-in-progress.test.ts
     - src/release/__tests__/release-fd-changelog-initial-release.test.ts
     - src/release/__tests__/release-fd-changelog.test.ts
@@ -79,9 +78,7 @@ As a developer or agent reading an FD detail page, I want to see every commit at
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
   - [`src/features/migrate-changelog-unreleased.ts`](../../src/features/migrate-changelog-unreleased.ts)
-  - [`src/release/index.ts`](../../src/release/index.ts)
   - [`src/release/llm-polish-summary.ts`](../../src/release/llm-polish-summary.ts)
   - [`src/release/release-changelog.ts`](../../src/release/release-changelog.ts)
   - [`src/release/release-dry-run.ts`](../../src/release/release-dry-run.ts)
@@ -104,6 +101,7 @@ As a developer or agent reading an FD detail page, I want to see every commit at
   - [`src/features/__tests__/migrate-changelog-unreleased.test.ts`](../../src/features/__tests__/migrate-changelog-unreleased.test.ts)
   - [`src/release/__tests__/llm-polish-summary.test.ts`](../../src/release/__tests__/llm-polish-summary.test.ts)
   - [`src/release/__tests__/release-changelog.test.ts`](../../src/release/__tests__/release-changelog.test.ts)
+  - [`src/release/__tests__/release-commits.test.ts`](../../src/release/__tests__/release-commits.test.ts)
   - [`src/release/__tests__/release-fd-changelog-in-progress.test.ts`](../../src/release/__tests__/release-fd-changelog-in-progress.test.ts)
   - [`src/release/__tests__/release-fd-changelog-initial-release.test.ts`](../../src/release/__tests__/release-fd-changelog-initial-release.test.ts)
   - [`src/release/__tests__/release-fd-changelog.test.ts`](../../src/release/__tests__/release-fd-changelog.test.ts)
