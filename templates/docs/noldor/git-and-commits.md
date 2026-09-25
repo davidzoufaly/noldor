@@ -147,6 +147,7 @@ Noldor-Reviewed-Subagent: <tree-hash>    # amended on the tip commit at gate Ste
 Noldor-Phase-Revert: 1                   # phase-revert scaffold commits — bypasses the spec-file existence check (attach paths and specs-only-new)
 Noldor-Sibling-Scope: <noldor scope-list>  # optional; mixed code+doc-sync commits — see "Sibling doc-sync commits"
 Noldor-Doc-Impact: none | <slug>, <slug>  # fast-track branches; which FDs it updated — see gate Step 4's doc-impact check
+Noldor-Migration: none                   # optional; a schema-surface change that needs no migration — see versioning.md "Authoring discipline"
 ```
 
 `Noldor-Doc-Impact` is checked on every path: the value must be `none` alone or slugs that each name an existing `docs/features/<slug>.md`. It records that a fast-track looked at the FDs owning its code (`pnpm noldor features owners`) and names the ones it updated; `garden detect` reports fast-tracks that carry none (`undeclaredDocImpact`), reading the line from the squash body because a squash keeps it only there.
