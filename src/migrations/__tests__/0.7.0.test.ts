@@ -1,4 +1,4 @@
-// @tests: make-noldor-agent-agnostic
+// @tests: make-noldor-agent-agnostic, version-aware-upgrade-and-migration-chain
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

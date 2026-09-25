@@ -1,4 +1,4 @@
-// @tests: scaffold-one-agent-rules-file-not-two
+// @tests: scaffold-one-agent-rules-file-not-two, version-aware-upgrade-and-migration-chain
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
