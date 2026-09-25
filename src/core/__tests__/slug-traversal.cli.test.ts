@@ -69,7 +69,7 @@ function outsideTree(): string {
   const seen: string[] = [];
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true }).sort((x, y) =>
-      x.name.localeCompare(y.name),
+      x.name.localeCompare(y.name, 'en'),
     )) {
       const full = join(dir, entry.name);
       if (full === repo) continue; // inside the repo is fair game

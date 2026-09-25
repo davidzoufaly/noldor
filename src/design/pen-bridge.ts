@@ -44,7 +44,7 @@ export function rankPenCandidates(paths: readonly string[]): string[] {
   };
   return [...paths]
     .filter((p) => p.endsWith('.pen'))
-    .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, 'en'));
 }
 
 /**

@@ -482,7 +482,7 @@ describe(collectTestInputs, () => {
       write('other/d.test.ts', '// @tests: d\n');
       process.chdir(dir);
       const inputs = await collectTestInputs();
-      expect(inputs.toSorted((l, r) => l.path.localeCompare(r.path))).toEqual([
+      expect(inputs.toSorted((l, r) => l.path.localeCompare(r.path, 'en'))).toEqual([
         { content: '// @tests: a\n', path: 'lib/a.test.ts' },
         { content: '// @tests: b\n', path: 'lib/deep/b.spec.js' },
       ]);

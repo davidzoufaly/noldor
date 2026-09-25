@@ -332,7 +332,7 @@ function renderCounter(v: string | number, l: string, href?: string): string {
 }
 
 function cmpStr(x: string | undefined, y: string | undefined): number {
-  return (x ?? '').localeCompare(y ?? '');
+  return (x ?? '').localeCompare(y ?? '', 'en');
 }
 
 /**
@@ -1105,7 +1105,7 @@ export function renderFeatures(
   const areas = Array.from(new Set(features.map((f) => f.frontmatter.area))).toSorted();
   const updates = Array.from(
     new Set(features.map((f) => f.frontmatter.updated).filter((v): v is string => Boolean(v))),
-  ).toSorted((a, b) => b.localeCompare(a));
+  ).toSorted((a, b) => b.localeCompare(a, 'en'));
   const phases = ['done', 'in-progress'];
   const form = `<form class="filters" method="get">
     <label>Phase

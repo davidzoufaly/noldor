@@ -326,7 +326,7 @@ export function generateProposal({ assignments, unassigned }: ProposalInput): st
 
   for (const [fdSlug, items] of [...byFd.entries()].toSorted()) {
     lines.push(`## ${fdSlug}`, '');
-    for (const a of items.toSorted((x, y) => x.filePath.localeCompare(y.filePath))) {
+    for (const a of items.toSorted((x, y) => x.filePath.localeCompare(y.filePath, 'en'))) {
       lines.push(`- ${a.filePath} (${a.match.confidence} — ${a.match.reason})`);
     }
     lines.push('');

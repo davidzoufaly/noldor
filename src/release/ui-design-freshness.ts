@@ -368,7 +368,9 @@ export async function evaluateUiDesignFreshness(
   const surfaces_ = surfaceMap(config);
   const surfaces: UiSurfaceFreshness[] = [];
 
-  for (const [surface, globs] of Object.entries(surfaces_).sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [surface, globs] of Object.entries(surfaces_).sort(([a], [b]) =>
+    a.localeCompare(b, 'en'),
+  )) {
     const baselineFile = `${BASELINE_DIR}/${surface}.pen`;
     // `:(glob)` magic: surface globs are minimatch patterns (predicate side);
     // plain git pathspecs use wildmatch where `*` crosses `/` and `**`

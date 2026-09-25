@@ -340,6 +340,6 @@ export async function detectSkillCodeDrift(repo: string): Promise<SkillDriftFind
       checkPaths(pathCandidates, repo, fileDir, push);
     }
   }
-  findings.sort((a, b) => a.skillPath.localeCompare(b.skillPath) || a.line - b.line);
+  findings.sort((a, b) => a.skillPath.localeCompare(b.skillPath, 'en') || a.line - b.line);
   return findings;
 }

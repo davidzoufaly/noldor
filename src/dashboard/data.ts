@@ -440,7 +440,7 @@ export async function loadFeatures(): Promise<FeatureRecord[]> {
       return { slug, frontmatter, bodyMarkdown: parsed.content };
     }),
   );
-  records.sort((a, b) => a.slug.localeCompare(b.slug));
+  records.sort((a, b) => a.slug.localeCompare(b.slug, 'en'));
   return records;
 }
 
@@ -938,7 +938,7 @@ export async function loadFrameworkPages(): Promise<FrameworkPage[]> {
   return pages.toSorted((a, b) => {
     const ai = FRAMEWORK_PAGE_ORDER.indexOf(a.slug);
     const bi = FRAMEWORK_PAGE_ORDER.indexOf(b.slug);
-    if (ai === -1 && bi === -1) return a.slug.localeCompare(b.slug);
+    if (ai === -1 && bi === -1) return a.slug.localeCompare(b.slug, 'en');
     if (ai === -1) return 1;
     if (bi === -1) return -1;
     return ai - bi;
@@ -1074,7 +1074,7 @@ export async function loadUserDocs(): Promise<UserDocsCategoryData[]> {
         return { slug, title, filePath, bodyMarkdown: parsed.content };
       }),
     );
-    result.push({ category, docs: docs.toSorted((a, b) => a.slug.localeCompare(b.slug)) });
+    result.push({ category, docs: docs.toSorted((a, b) => a.slug.localeCompare(b.slug, 'en')) });
   }
   return result;
 }
@@ -1182,7 +1182,7 @@ export async function loadSkills(): Promise<SkillPage[]> {
   );
   return skills
     .filter((s): s is SkillPage => s !== null)
-    .toSorted((a, b) => a.slug.localeCompare(b.slug));
+    .toSorted((a, b) => a.slug.localeCompare(b.slug, 'en'));
 }
 
 export interface SkillPageDetail extends SkillPage {
@@ -1705,8 +1705,8 @@ export async function loadHotZones(opts: {
   filtered.sort((a, b) => {
     if (a.changeCount !== b.changeCount) return b.changeCount - a.changeCount;
     if (a.lastCommitDate !== b.lastCommitDate)
-      return b.lastCommitDate.localeCompare(a.lastCommitDate);
-    return a.path.localeCompare(b.path);
+      return b.lastCommitDate.localeCompare(a.lastCommitDate, 'en');
+    return a.path.localeCompare(b.path, 'en');
   });
 
   const sliced = filtered.slice(0, limit);
@@ -1719,7 +1719,7 @@ export async function loadHotZones(opts: {
     changeCount: a.changeCount,
     insertions: a.insertions,
     deletions: a.deletions,
-    authors: Array.from(a.authors).toSorted((x, y) => x.localeCompare(y)),
+    authors: Array.from(a.authors).toSorted((x, y) => x.localeCompare(y, 'en')),
     lastCommitDate: a.lastCommitDate,
     lastCommitSubject: a.lastCommitSubject,
     lastCommitHash: a.lastCommitHash,
@@ -1788,7 +1788,7 @@ export async function loadWipAge(opts?: { now?: Date }): Promise<WipAgeRow[]> {
   }
   rows.sort((a, b) => {
     if (a.ageDays !== b.ageDays) return b.ageDays - a.ageDays;
-    return a.slug.localeCompare(b.slug);
+    return a.slug.localeCompare(b.slug, 'en');
   });
   return z.array(wipAgeRowSchema).parse(rows);
 }
@@ -1888,11 +1888,11 @@ export async function loadTestPyramid(): Promise<TestPyramidRow[]> {
     ratio: agg.sourceFiles > 0 ? Math.round((agg.testFiles / agg.sourceFiles) * 100) / 100 : null,
   }));
   rows.sort((a, b) => {
-    if (a.ratio === null && b.ratio === null) return a.module.localeCompare(b.module);
+    if (a.ratio === null && b.ratio === null) return a.module.localeCompare(b.module, 'en');
     if (a.ratio === null) return 1;
     if (b.ratio === null) return -1;
     if (a.ratio !== b.ratio) return a.ratio - b.ratio;
-    return a.module.localeCompare(b.module);
+    return a.module.localeCompare(b.module, 'en');
   });
   return z.array(testPyramidRowSchema).parse(rows);
 }
@@ -2498,7 +2498,7 @@ export async function loadAgentActivity(
   runs.sort((a, b) => {
     if (a.runId === NO_RUN_ID) return 1;
     if (b.runId === NO_RUN_ID) return -1;
-    return b.startTs.localeCompare(a.startTs);
+    return b.startTs.localeCompare(a.startTs, 'en');
   });
 
   // The /agents page reads the park file twice: loadDrainObservation (Parked

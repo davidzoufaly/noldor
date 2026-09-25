@@ -172,5 +172,5 @@ export async function collectFeaturesForRelease(
     });
   }
 
-  return results.toSorted((a, b) => a.name.localeCompare(b.name));
+  return results.toSorted((a, b) => a.name.localeCompare(b.name, 'en'));
 }

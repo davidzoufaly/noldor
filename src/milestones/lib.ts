@@ -324,7 +324,7 @@ function compareSequence(a: MilestoneGroupBase, b: MilestoneGroupBase): number {
     if (b.since === null) return -1;
     return a.since < b.since ? -1 : 1;
   }
-  return a.name.localeCompare(b.name);
+  return a.name.localeCompare(b.name, 'en');
 }
 
 /**

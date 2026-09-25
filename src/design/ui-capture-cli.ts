@@ -39,7 +39,7 @@ export function declaredSurfaces(ui: {
   uiPaths?: string[];
   uiSurfaces?: Record<string, string[]>;
 }): string[] {
-  return Object.keys(surfaceMap(ui)).sort((a, b) => a.localeCompare(b));
+  return Object.keys(surfaceMap(ui)).sort((a, b) => a.localeCompare(b, 'en'));
 }
 
 /** Injected so tests drive real behaviour without spawning a shell. */

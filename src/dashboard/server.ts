@@ -504,7 +504,7 @@ async function handleOverview(): Promise<RouteResult> {
   const recentDone = features
     .filter((f) => f.frontmatter.phase === 'done' && f.frontmatter.introduced)
     .toSorted((a, b) =>
-      (b.frontmatter.introduced ?? '').localeCompare(a.frontmatter.introduced ?? ''),
+      (b.frontmatter.introduced ?? '').localeCompare(a.frontmatter.introduced ?? '', 'en'),
     )
     .slice(0, 5);
   const inProgressFeatures = features.filter((f) => f.frontmatter.phase === 'in-progress');

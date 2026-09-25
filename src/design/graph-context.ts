@@ -335,7 +335,7 @@ function buildIndex(graph: GraphifyGraph): GraphIndex {
   const symbolRank = new Map<string, number>();
   [...degree.entries()]
     .filter(([id]) => byId.get(id)?.source_location !== 'L1')
-    .toSorted((a, b) => b[1] - a[1] || labelOf(byId, a[0]).localeCompare(labelOf(byId, b[0])))
+    .toSorted((a, b) => b[1] - a[1] || labelOf(byId, a[0]).localeCompare(labelOf(byId, b[0]), 'en'))
     .forEach(([id], i) => symbolRank.set(id, i + 1));
 
   return { graph, byId, l1ByFile, degree, symbolRank, containsByFile };
@@ -392,7 +392,7 @@ function coMembersOf(path: string, community: number | null, index: GraphIndex):
     .toSorted(
       (a, b) =>
         (index.degree.get(b.id) ?? 0) - (index.degree.get(a.id) ?? 0) ||
-        labelOf(index.byId, a.id).localeCompare(labelOf(index.byId, b.id)),
+        labelOf(index.byId, a.id).localeCompare(labelOf(index.byId, b.id), 'en'),
     )
     .slice(0, CO_MEMBER_CAP)
     .map((n) => n.source_file ?? n.id);
@@ -478,8 +478,8 @@ function crossEdgesOf(
     .toSorted(
       (a, b) =>
         (index.degree.get(b.otherId) ?? 0) - (index.degree.get(a.otherId) ?? 0) ||
-        a.edge.to.localeCompare(b.edge.to) ||
-        a.edge.relation.localeCompare(b.edge.relation),
+        a.edge.to.localeCompare(b.edge.to, 'en') ||
+        a.edge.relation.localeCompare(b.edge.relation, 'en'),
     )
     .slice(0, CROSS_EDGE_CAP)
     .map((r) => r.edge);
