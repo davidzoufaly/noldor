@@ -8,7 +8,10 @@ links:
   code: []
   spec: >-
     docs/design/specs/2026-09-25-feature-pen-coverage-from-acceptance-criteria-design.md
-  tests: []
+  tests:
+    - src/core/__tests__/spec-criteria.test.ts
+    - src/design/__tests__/design-approval.test.ts
+    - src/design/__tests__/feature-coverage.test.ts
 name: Feature .pen Coverage From Acceptance Criteria
 packages:
   - package.json
@@ -46,5 +49,9 @@ The same coverage hole bites a *feature's* `.pen`, not only a baseline, and the 
 ## Resources
 
 - **Spec:** [`docs/design/specs/2026-09-25-feature-pen-coverage-from-acceptance-criteria-design.md`](../../docs/design/specs/2026-09-25-feature-pen-coverage-from-acceptance-criteria-design.md)
+- **Tests:**
+  - [`src/core/__tests__/spec-criteria.test.ts`](../../src/core/__tests__/spec-criteria.test.ts)
+  - [`src/design/__tests__/design-approval.test.ts`](../../src/design/__tests__/design-approval.test.ts)
+  - [`src/design/__tests__/feature-coverage.test.ts`](../../src/design/__tests__/feature-coverage.test.ts)
 
 <!-- /generated: resources -->
