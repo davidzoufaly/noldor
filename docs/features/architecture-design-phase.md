@@ -17,9 +17,11 @@ links:
     - src/core/__tests__/session.test.ts
     - src/design/__tests__/arch-check.test.ts
     - src/design/__tests__/arch-pen.test.ts
+    - src/design/__tests__/arch-route.test.ts
     - src/design/__tests__/archive-cli.test.ts
     - src/design/__tests__/archive-resolve.test.ts
     - src/design/__tests__/design-approval.test.ts
+    - src/design/__tests__/pen-bridge.test.ts
     - src/indirection/__tests__/module-pairs.test.ts
     - src/indirection/__tests__/trees/modules/src/b/y.spec.ts
     - src/sync/__tests__/sync-fd-resources.test.ts
@@ -29,6 +31,7 @@ packages:
 phase: in-progress
 noldor-tier: full
 ---
+
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->
@@ -67,3 +70,31 @@ As an operator designing a new milestone, feature or package, I want an as-built
 <!-- @prs-since-last-release: architecture-design-phase -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/design/specs/2026-09-24-architecture-design-phase-design.md`](../../docs/design/specs/2026-09-24-architecture-design-phase-design.md)
+- **Code:**
+  - [`src/checks/check-arch-baseline.ts`](../../src/checks/check-arch-baseline.ts)
+  - [`src/design/arch-baseline.ts`](../../src/design/arch-baseline.ts)
+  - [`src/design/arch-check.ts`](../../src/design/arch-check.ts)
+  - [`src/design/arch-pen.ts`](../../src/design/arch-pen.ts)
+  - [`src/indirection/module-pairs.ts`](../../src/indirection/module-pairs.ts)
+- **Tests:**
+  - [`src/checks/__tests__/check-arch-baseline.test.ts`](../../src/checks/__tests__/check-arch-baseline.test.ts)
+  - [`src/core/__tests__/feature-schema.test.ts`](../../src/core/__tests__/feature-schema.test.ts)
+  - [`src/core/__tests__/session.test.ts`](../../src/core/__tests__/session.test.ts)
+  - [`src/design/__tests__/arch-check.test.ts`](../../src/design/__tests__/arch-check.test.ts)
+  - [`src/design/__tests__/arch-pen.test.ts`](../../src/design/__tests__/arch-pen.test.ts)
+  - [`src/design/__tests__/arch-route.test.ts`](../../src/design/__tests__/arch-route.test.ts)
+  - [`src/design/__tests__/archive-cli.test.ts`](../../src/design/__tests__/archive-cli.test.ts)
+  - [`src/design/__tests__/archive-resolve.test.ts`](../../src/design/__tests__/archive-resolve.test.ts)
+  - [`src/design/__tests__/design-approval.test.ts`](../../src/design/__tests__/design-approval.test.ts)
+  - [`src/design/__tests__/pen-bridge.test.ts`](../../src/design/__tests__/pen-bridge.test.ts)
+  - [`src/indirection/__tests__/module-pairs.test.ts`](../../src/indirection/__tests__/module-pairs.test.ts)
+  - [`src/indirection/__tests__/trees/modules/src/b/y.spec.ts`](../../src/indirection/__tests__/trees/modules/src/b/y.spec.ts)
+  - [`src/sync/__tests__/sync-fd-resources.test.ts`](../../src/sync/__tests__/sync-fd-resources.test.ts)
+
+<!-- /generated: resources -->

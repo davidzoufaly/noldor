@@ -33,7 +33,7 @@ Moved boxes need no save; a newly drawn arrow does, because matching reads the d
 - Create: `src/design/arch-route.ts`
 - Test: `src/design/__tests__/arch-route.test.ts`
 
-- [ ] **Step 1: Write the failing test file.**
+- [x] **Step 1: Write the failing test file.**
 
   Create `src/design/__tests__/arch-route.test.ts`:
 
@@ -172,12 +172,12 @@ Moved boxes need no save; a newly drawn arrow does, because matching reads the d
   });
   ```
 
-- [ ] **Step 2: Run the test to verify it fails.**
+- [x] **Step 2: Run the test to verify it fails.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-route.test.ts`
   Expected: FAIL — `Failed to resolve import "../arch-route.js"`.
 
-- [ ] **Step 3: Write the resolver, the snippet and the CLI.**
+- [x] **Step 3: Write the resolver, the snippet and the CLI.**
 
   Create `src/design/arch-route.ts`:
 
@@ -329,7 +329,7 @@ Moved boxes need no save; a newly drawn arrow does, because matching reads the d
   runIfDirect('arch-route', 'design arch-route', async (argv) => main(argv));
   ```
 
-- [ ] **Step 4: Run the test and the typecheck to verify they pass.**
+- [x] **Step 4: Run the test and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-route.test.ts`
   Expected: PASS — `Tests  4 passed (4)`.
@@ -337,7 +337,7 @@ Moved boxes need no save; a newly drawn arrow does, because matching reads the d
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
   ```bash
   msg=$(mktemp)
