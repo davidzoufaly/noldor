@@ -1,4 +1,4 @@
-// @tests: pendev-ui-design-phase
+// @tests: pendev-ui-design-phase, architecture-design-phase
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -64,6 +64,30 @@ describe('rankPenCandidates', () => {
     expect(
       rankPenCandidates(['docs/design/ui/b.pen', 'README.md', 'docs/design/ui/a.pen']),
     ).toEqual(['docs/design/ui/a.pen', 'docs/design/ui/b.pen']);
+  });
+
+  it('ranks live designs of either kind, then baselines, then archived designs and milestone targets', () => {
+    expect(
+      rankPenCandidates([
+        'vendor/misc.pen',
+        'docs/design/architecture/milestones/m1.pen',
+        'docs/design/architecture/archive/2026-01-01-old.pen',
+        'docs/design/ui/archive/2026-01-02-older.pen',
+        'docs/design/architecture/baseline.pen',
+        'docs/design/ui/baseline/app.pen',
+        'docs/design/architecture/2026-09-24-bar.pen',
+        'docs/design/ui/2026-08-25-foo.pen',
+      ]),
+    ).toEqual([
+      'docs/design/architecture/2026-09-24-bar.pen',
+      'docs/design/ui/2026-08-25-foo.pen',
+      'docs/design/architecture/baseline.pen',
+      'docs/design/ui/baseline/app.pen',
+      'docs/design/architecture/archive/2026-01-01-old.pen',
+      'docs/design/architecture/milestones/m1.pen',
+      'docs/design/ui/archive/2026-01-02-older.pen',
+      'vendor/misc.pen',
+    ]);
   });
 });
 

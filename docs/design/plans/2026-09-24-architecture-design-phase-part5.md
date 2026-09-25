@@ -522,7 +522,7 @@ A bare `design pen-bridge` wakes the editor with the best-ranked tracked `.pen`.
 
 Without the third rank, `architecture/archive/…` would sort ahead of a live `ui/…` design and open a dead canvas.
 
-- [ ] **Step 1: Write the failing test.**
+- [x] **Step 1: Write the failing test.**
 
   In `src/design/__tests__/pen-bridge.test.ts`, inside `describe('rankPenCandidates', …)`, append:
 
@@ -552,12 +552,12 @@ Without the third rank, `architecture/archive/…` would sort ahead of a live `u
     });
   ```
 
-- [ ] **Step 2: Run the test to verify it fails.**
+- [x] **Step 2: Run the test to verify it fails.**
 
   Run: `pnpm vitest run src/design/__tests__/pen-bridge.test.ts -t "live designs of either kind"`
   Expected: FAIL. The architecture design and baseline sort among "anything else", and the UI archive entry ranks with the live designs.
 
-- [ ] **Step 3: Rank both kinds.**
+- [x] **Step 3: Rank both kinds.**
 
   In `src/design/pen-bridge.ts`:
 
@@ -590,7 +590,7 @@ Without the third rank, `architecture/archive/…` would sort ahead of a live `u
 
   3. Replace its doc comment's first sentence with `A `.pen` to open, ranked: live designs of either kind first, then either kind's baseline, then archived designs and milestone targets, then anything else.`
 
-- [ ] **Step 4: Run the tests and the typecheck to verify they pass.**
+- [x] **Step 4: Run the tests and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/pen-bridge.test.ts`
   Expected: PASS.
@@ -598,7 +598,7 @@ Without the third rank, `architecture/archive/…` would sort ahead of a live `u
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
   ```bash
   msg=$(mktemp)

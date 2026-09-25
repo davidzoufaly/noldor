@@ -13,9 +13,12 @@
 // lane prompt string; the recipe below is the shared source.
 
 import {
+  ARCH_BASELINE_PATH,
+  ARCH_DESIGN_DIR,
   PENCIL_EXTENSION_ID,
   PENCIL_VIEW_TYPE,
   UI_BASELINE_DIR,
+  UI_DESIGN_DIR,
 } from '../core/design-artifact-names.js';
 
 // Re-exported so `.pen` callers reach the editor's identity through the module
@@ -31,16 +34,21 @@ export const BRIDGE_DOWN_MESSAGE = 'A file needs to be open in the editor';
 export const BRIDGE_BOOTSTRAP_PATH = 'docs/design/ui/bridge-scratch.pen';
 
 /**
- * A `.pen` to open, ranked. Feature designs first (a session's own artifact is
- * the most likely thing the operator wants on screen), then baselines, then
- * anything else — the bridge only needs *a* file, so a far-away match is still
- * a win over waiving.
+ * A `.pen` to open, ranked: live designs of either kind first, then either
+ * kind's baseline, then archived designs and milestone targets, then anything
+ * else. A session's own artifact is the most likely thing the operator wants on
+ * screen — and the bridge only needs *a* file, so a far-away match is still a
+ * win over waiving.
  */
 export function rankPenCandidates(paths: readonly string[]): string[] {
   const rank = (p: string): number => {
-    if (p.startsWith(`${UI_BASELINE_DIR}/`)) return 1;
-    if (p.startsWith('docs/design/ui/')) return 0;
-    return 2;
+    if (p.startsWith(`${UI_BASELINE_DIR}/`) || p === ARCH_BASELINE_PATH) return 1;
+    for (const dir of [UI_DESIGN_DIR, ARCH_DESIGN_DIR]) {
+      if (!p.startsWith(`${dir}/`)) continue;
+      // A live design sits directly in its kind's directory; `archive/` and `milestones/` rank below baselines.
+      return p.slice(dir.length + 1).includes('/') ? 2 : 0;
+    }
+    return 3;
   };
   return [...paths]
     .filter((p) => p.endsWith('.pen'))
