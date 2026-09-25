@@ -733,5 +733,10 @@
   "Q-0255": {
     "slug": "milestone-membership-has-no-tagger-and-no-counter",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0323": {
+    "slug": "drain-the-incomplete-test-co-tags",
+    "retiredInto": "sdd-co-tag-detector",
+    "retiredAt": "2026-09-25"
   }
 }

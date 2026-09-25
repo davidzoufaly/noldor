@@ -1,6 +1,6 @@
 ---
 name: SDD Co-Tag Detector
-phase: done
+phase: in-progress
 area: tooling
 category: Tooling
 packages:
