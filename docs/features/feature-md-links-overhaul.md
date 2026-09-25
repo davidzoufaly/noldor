@@ -8,12 +8,10 @@ packages:
 deps: []
 links:
   code:
-    - src/garden/detectors/code-links-drift.ts
     - src/sync/adapters/code.ts
     - src/sync/adapters/docs.ts
     - src/sync/adapters/tests.ts
     - src/sync/projection.ts
-    - src/sync/sync-code-links.ts
     - src/sync/sync-doc-links.ts
     - src/sync/sync-test-links.ts
   tests:
@@ -113,12 +111,10 @@ nothing rather than silently widening back to the whole repo.
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/garden/detectors/code-links-drift.ts`](../../src/garden/detectors/code-links-drift.ts)
   - [`src/sync/adapters/code.ts`](../../src/sync/adapters/code.ts)
   - [`src/sync/adapters/docs.ts`](../../src/sync/adapters/docs.ts)
   - [`src/sync/adapters/tests.ts`](../../src/sync/adapters/tests.ts)
   - [`src/sync/projection.ts`](../../src/sync/projection.ts)
-  - [`src/sync/sync-code-links.ts`](../../src/sync/sync-code-links.ts)
   - [`src/sync/sync-doc-links.ts`](../../src/sync/sync-doc-links.ts)
   - [`src/sync/sync-test-links.ts`](../../src/sync/sync-test-links.ts)
 - **Tests:**

@@ -1,3 +1,5 @@
+// @fd: autonomous-queue-drain-runner
+
 import { execFileSync, spawnSync } from 'node:child_process';
 import { spawnAgent } from '../core/agent-runner/registry.js';
 import { makeRoadmapConflictResolver, spawnRunner, type GitRunner } from './salvage.js';

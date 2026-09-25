@@ -10,9 +10,6 @@ links:
     - src/clones/diff-scope.ts
     - src/clones/baseline.ts
     - src/clones/clones-cli.ts
-    - src/core/config.ts
-    - src/core/repo-paths.ts
-    - src/cli/manifest.ts
     - src/garden/sdd-report.ts
   tests:
     - src/clones/__tests__/baseline.test.ts
@@ -31,6 +28,7 @@ noldor-tier: full
 introduced: 1.0.0
 updated: 1.10.0
 ---
+
 ## Summary
 
 Token/AST-based Type-1/2/3 clone detection (copy-paste dups, à la `jscpd`). Deterministic corpus over `scanPaths`, no LLM. Surface duplicate blocks as a new signal in `sdd-report` + feed `/refactor`; optional CR-gate block above a configurable clone threshold. Fits the "deterministic detector + optional LLM triage" pattern (same shape as detector-5 idea-merge). Distinct from existing pieces: `/refactor` finds consolidation opportunities from god-nodes/cohesion but doesn't do line/token clone matching; `graphify` AST graph has structural similarity signal but no clone report. Semantic (Type-4) clones out of scope — that's the embeddings-infra entry.
@@ -83,9 +81,6 @@ Duplication detection no longer counts import headers and pure delegations (#453
   - [`src/clones/diff-scope.ts`](../../src/clones/diff-scope.ts)
   - [`src/clones/baseline.ts`](../../src/clones/baseline.ts)
   - [`src/clones/clones-cli.ts`](../../src/clones/clones-cli.ts)
-  - [`src/core/config.ts`](../../src/core/config.ts)
-  - [`src/core/repo-paths.ts`](../../src/core/repo-paths.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
   - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
 - **Tests:**
   - [`src/clones/__tests__/baseline.test.ts`](../../src/clones/__tests__/baseline.test.ts)

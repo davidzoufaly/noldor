@@ -6,7 +6,6 @@ entry-id: Q-0124
 links:
   code:
     - src/core/summary-body-contract.ts
-    - src/core/pr-flow.ts
   tests:
     - src/core/__tests__/pr-flow.test.ts
     - src/prep/__tests__/formats.test.ts
@@ -80,7 +79,6 @@ Noldor now rejects a code commit whose body does not explain the change (#321).
 
 - **Code:**
   - [`src/core/summary-body-contract.ts`](../../src/core/summary-body-contract.ts)
-  - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
 - **Tests:**
   - [`src/core/__tests__/pr-flow.test.ts`](../../src/core/__tests__/pr-flow.test.ts)
   - [`src/prep/__tests__/formats.test.ts`](../../src/prep/__tests__/formats.test.ts)

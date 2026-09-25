@@ -10,7 +10,6 @@ links:
     - src/graphify/build.ts
     - src/graphify/graph-to-toon.ts
     - src/graphify/graphify-requirements.txt
-    - src/templates/manifest.ts
     - templates/.github/workflows/update-knowledge-graph.yml
     - src/core/scratch-dir.ts
   spec: >-
@@ -138,7 +137,6 @@ This release ships a knowledge-graph refresh workflow (#501).
   - [`src/graphify/build.ts`](../../src/graphify/build.ts)
   - [`src/graphify/graph-to-toon.ts`](../../src/graphify/graph-to-toon.ts)
   - [`src/graphify/graphify-requirements.txt`](../../src/graphify/graphify-requirements.txt)
-  - [`src/templates/manifest.ts`](../../src/templates/manifest.ts)
   - [`templates/.github/workflows/update-knowledge-graph.yml`](../../templates/.github/workflows/update-knowledge-graph.yml)
   - [`src/core/scratch-dir.ts`](../../src/core/scratch-dir.ts)
 - **Tests:**

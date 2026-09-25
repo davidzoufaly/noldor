@@ -3,8 +3,7 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code:
-    - src/core/consumer-config.ts
+  code: []
   docs: []
   tests:
     - src/core/__tests__/consumer-config-boundaries.test.ts
@@ -58,8 +57,6 @@ refactor relocating repo config loader, review profiles, and stdin prompts out o
 ## Resources
 
 - **Spec:** [`docs/design/specs/archive/2026-07-03-self-boundaries-declaration-and-cycle-break-design.md`](../../docs/design/specs/archive/2026-07-03-self-boundaries-declaration-and-cycle-break-design.md)
-- **Code:**
-  - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
 - **Tests:**
   - [`src/core/__tests__/consumer-config-boundaries.test.ts`](../../src/core/__tests__/consumer-config-boundaries.test.ts)
 

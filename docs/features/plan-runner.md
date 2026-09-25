@@ -6,10 +6,6 @@ deps:
 links:
   code:
     - src/autonomous/drain-source.ts
-    - src/autonomous/drain-loop.ts
-    - src/autonomous/drain-io.ts
-    - src/autonomous/queue-drain.ts
-    - src/cli/manifest.ts
     - .claude/skills/noldor-gate/SKILL.md
     - src/prep/prep-fanout.ts
     - src/prep/prep-promote.ts
@@ -98,10 +94,6 @@ This release adds a parallel prep pipeline to the noldor CLI, introducing fanout
 - **Spec:** [`docs/design/specs/archive/2026-06-10-plan-runner-design.md`](../../docs/design/specs/archive/2026-06-10-plan-runner-design.md)
 - **Code:**
   - [`src/autonomous/drain-source.ts`](../../src/autonomous/drain-source.ts)
-  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
-  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
-  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`src/prep/prep-fanout.ts`](../../src/prep/prep-fanout.ts)
   - [`src/prep/prep-promote.ts`](../../src/prep/prep-promote.ts)

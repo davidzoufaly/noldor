@@ -6,9 +6,6 @@ links:
   code:
     - src/core/prefix-skills-codemod.ts
     - src/migrations/0.6.0.ts
-    - src/migrations/0.5.0.ts
-    - src/autonomous/gate-prompt.ts
-    - src/core/allowlist.ts
   tests:
     - src/core/__tests__/prefix-skills-codemod.test.ts
   spec: docs/design/specs/archive/2026-07-10-prefix-skills-with-noldor-design.md
@@ -50,9 +47,6 @@ As a Noldor operator (human or agent) working across multiple repos, I want ever
 - **Code:**
   - [`src/core/prefix-skills-codemod.ts`](../../src/core/prefix-skills-codemod.ts)
   - [`src/migrations/0.6.0.ts`](../../src/migrations/0.6.0.ts)
-  - [`src/migrations/0.5.0.ts`](../../src/migrations/0.5.0.ts)
-  - [`src/autonomous/gate-prompt.ts`](../../src/autonomous/gate-prompt.ts)
-  - [`src/core/allowlist.ts`](../../src/core/allowlist.ts)
 - **Tests:**
   - [`src/core/__tests__/prefix-skills-codemod.test.ts`](../../src/core/__tests__/prefix-skills-codemod.test.ts)
 

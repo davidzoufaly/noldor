@@ -1,5 +1,3 @@
-// @fd: feature-pen-coverage-from-acceptance-criteria, architecture-design-phase
-
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

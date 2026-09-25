@@ -6,21 +6,25 @@ links:
   docs:
     - docs/noldor/agent-runtimes.md
   code:
-    - src/core/agent-runner/
-    - src/core/agent-events.ts
     - src/templates/agent-filter.ts
-    - src/cr/deep-review-spawn.ts
-    - src/cr/run-codex.ts
-    - src/autonomous/drain-io.ts
-    - src/prep/spawn.ts
-    - src/cr/lanes/subagent-dispatch.ts
-    - src/release/llm-polish-summary.ts
-    - src/cli/commands/init.ts
     - src/cli/commands/doctor.ts
     - src/checks/check-template-sync.ts
     - templates/.opencode/
     - templates/AGENTS.md
     - templates/opencode.json
+    - src/core/agent-runner/doctor-runners.ts
+    - src/core/agent-runner/opencode-events.ts
+    - src/core/agent-runner/registry.ts
+    - src/core/agent-runner/runners/claude.ts
+    - src/core/agent-runner/runners/opencode.ts
+    - src/core/agent-runner/runners/stub.ts
+    - src/core/agent-runner/types.ts
+    - src/core/agent-runner/usage/claude.ts
+    - src/core/agent-runner/usage/codex.ts
+    - src/core/agent-runner/usage/index.ts
+    - src/core/agent-runner/usage/opencode.ts
+    - src/core/agent-runner/usage/stub.ts
+    - src/core/agent-runner/usage/types.ts
   tests:
     - src/autonomous/__tests__/drain-reconcile.test.ts
     - src/autonomous/__tests__/merge-classify.test.ts
@@ -102,21 +106,25 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
 
 - **Spec:** [`docs/design/specs/archive/2026-06-11-make-noldor-agent-agnostic-design.md`](../../docs/design/specs/archive/2026-06-11-make-noldor-agent-agnostic-design.md)
 - **Code:**
-  - [`src/core/agent-runner/`](../../src/core/agent-runner/)
-  - [`src/core/agent-events.ts`](../../src/core/agent-events.ts)
   - [`src/templates/agent-filter.ts`](../../src/templates/agent-filter.ts)
-  - [`src/cr/deep-review-spawn.ts`](../../src/cr/deep-review-spawn.ts)
-  - [`src/cr/run-codex.ts`](../../src/cr/run-codex.ts)
-  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
-  - [`src/prep/spawn.ts`](../../src/prep/spawn.ts)
-  - [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts)
-  - [`src/release/llm-polish-summary.ts`](../../src/release/llm-polish-summary.ts)
-  - [`src/cli/commands/init.ts`](../../src/cli/commands/init.ts)
   - [`src/cli/commands/doctor.ts`](../../src/cli/commands/doctor.ts)
   - [`src/checks/check-template-sync.ts`](../../src/checks/check-template-sync.ts)
   - [`templates/.opencode/`](../../templates/.opencode/)
   - [`templates/AGENTS.md`](../../templates/AGENTS.md)
   - [`templates/opencode.json`](../../templates/opencode.json)
+  - [`src/core/agent-runner/doctor-runners.ts`](../../src/core/agent-runner/doctor-runners.ts)
+  - [`src/core/agent-runner/opencode-events.ts`](../../src/core/agent-runner/opencode-events.ts)
+  - [`src/core/agent-runner/registry.ts`](../../src/core/agent-runner/registry.ts)
+  - [`src/core/agent-runner/runners/claude.ts`](../../src/core/agent-runner/runners/claude.ts)
+  - [`src/core/agent-runner/runners/opencode.ts`](../../src/core/agent-runner/runners/opencode.ts)
+  - [`src/core/agent-runner/runners/stub.ts`](../../src/core/agent-runner/runners/stub.ts)
+  - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
+  - [`src/core/agent-runner/usage/claude.ts`](../../src/core/agent-runner/usage/claude.ts)
+  - [`src/core/agent-runner/usage/codex.ts`](../../src/core/agent-runner/usage/codex.ts)
+  - [`src/core/agent-runner/usage/index.ts`](../../src/core/agent-runner/usage/index.ts)
+  - [`src/core/agent-runner/usage/opencode.ts`](../../src/core/agent-runner/usage/opencode.ts)
+  - [`src/core/agent-runner/usage/stub.ts`](../../src/core/agent-runner/usage/stub.ts)
+  - [`src/core/agent-runner/usage/types.ts`](../../src/core/agent-runner/usage/types.ts)
 - **Tests:**
   - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
   - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)

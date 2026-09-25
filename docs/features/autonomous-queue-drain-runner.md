@@ -7,6 +7,10 @@ links:
   code:
     - .claude/skills/noldor-gate/SKILL.md
     - src/autonomous/drain-branch-state.ts
+    - src/autonomous/drain-io.ts
+    - src/autonomous/drain-loop.ts
+    - src/autonomous/drain-state.ts
+    - src/autonomous/queue-drain.ts
   tests:
     - src/autonomous/__tests__/branch-work.test.ts
     - src/autonomous/__tests__/build-pool.test.ts
@@ -92,6 +96,10 @@ a merged PR (not merely a clean child exit).
 - **Code:**
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`src/autonomous/drain-branch-state.ts`](../../src/autonomous/drain-branch-state.ts)
+  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
+  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
+  - [`src/autonomous/drain-state.ts`](../../src/autonomous/drain-state.ts)
+  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
 - **Tests:**
   - [`src/autonomous/__tests__/branch-work.test.ts`](../../src/autonomous/__tests__/branch-work.test.ts)
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)

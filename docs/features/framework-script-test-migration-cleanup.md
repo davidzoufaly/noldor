@@ -4,10 +4,6 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/core/doc-roots.ts
-    - src/migrations/chain.ts
-    - src/garden/sdd-report.ts
-    - src/triage/triage-list-untriaged.ts
     - src/core/release-markers.ts
     - package.json
   docs: []
@@ -55,10 +51,6 @@ As a framework maintainer, I want migration-era scripts, dead code, duplicate im
 
 - **Spec:** [`docs/design/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md`](../../docs/design/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md)
 - **Code:**
-  - [`src/core/doc-roots.ts`](../../src/core/doc-roots.ts)
-  - [`src/migrations/chain.ts`](../../src/migrations/chain.ts)
-  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
-  - [`src/triage/triage-list-untriaged.ts`](../../src/triage/triage-list-untriaged.ts)
   - [`src/core/release-markers.ts`](../../src/core/release-markers.ts)
   - [`package.json`](../../package.json)
 - **Tests:**

@@ -10,7 +10,6 @@ links:
   spec: lost-pre-extraction
   code:
     - src/checks/check-invariants.ts
-    - src/garden/garden-detect.ts
     - src/invariants/boundaries.ts
     - src/invariants/index.ts
     - src/invariants/public-api-tsdoc.ts
@@ -71,7 +70,6 @@ Adding a new invariant:
 - **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/checks/check-invariants.ts`](../../src/checks/check-invariants.ts)
-  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
   - [`src/invariants/boundaries.ts`](../../src/invariants/boundaries.ts)
   - [`src/invariants/index.ts`](../../src/invariants/index.ts)
   - [`src/invariants/public-api-tsdoc.ts`](../../src/invariants/public-api-tsdoc.ts)

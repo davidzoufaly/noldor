@@ -1,4 +1,4 @@
-// @fd: dynamic-fd-file-pointers-via-frontmatter, feature-md-links-overhaul
+// @fd: dynamic-fd-file-pointers-via-frontmatter
 
 import { basename, isAbsolute, join, relative } from 'node:path';
 

@@ -5,7 +5,6 @@ deps: []
 links:
   code:
     - src/core/review-profile.ts
-    - src/core/config.ts
   docs: []
   tests:
     - src/core/__tests__/review-profile.test.ts
@@ -81,7 +80,6 @@ Added a review-profile schema along with built-in profiles (#98).
   - [`docs/design/plans/archive/2026-06-13-code-reviewer-20.md`](../../docs/design/plans/archive/2026-06-13-code-reviewer-20.md)
 - **Code:**
   - [`src/core/review-profile.ts`](../../src/core/review-profile.ts)
-  - [`src/core/config.ts`](../../src/core/config.ts)
 - **Tests:**
   - [`src/core/__tests__/review-profile.test.ts`](../../src/core/__tests__/review-profile.test.ts)
   - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)

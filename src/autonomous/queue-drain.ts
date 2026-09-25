@@ -1,3 +1,5 @@
+// @fd: autonomous-queue-drain-runner
+
 import { existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 

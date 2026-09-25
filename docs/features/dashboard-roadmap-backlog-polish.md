@@ -4,11 +4,7 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/dashboard/data.ts
-    - src/dashboard/layout.ts
-    - src/dashboard/server.ts
     - src/dashboard/static/drag.ts
-    - src/dashboard/views.ts
     - src/lib/area-category.ts
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
@@ -99,11 +95,7 @@ This release unifies filter widths across the roadmap, backlog, and features vie
 ## Resources
 
 - **Code:**
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
-  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
-  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
   - [`src/dashboard/static/drag.ts`](../../src/dashboard/static/drag.ts)
-  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
   - [`src/lib/area-category.ts`](../../src/lib/area-category.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)

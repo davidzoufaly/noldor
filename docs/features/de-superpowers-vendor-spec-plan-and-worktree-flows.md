@@ -6,10 +6,8 @@ links:
   code:
     - .claude/skills/noldor-spec/
     - .claude/skills/noldor-plan/
-    - src/design/
     - src/utils/markdown-sections.ts
     - src/utils/tally.ts
-    - src/worktrees/
     - src/prep/draft.ts
     - src/prep/formats.ts
     - src/prep/print-format.ts
@@ -19,6 +17,13 @@ links:
     - docs/noldor/complexity-gating.md
     - docs/noldor/workflow.md
     - docs/noldor/skill-catalog.md
+    - src/design/artifact-locate.ts
+    - src/design/context-cli.ts
+    - src/design/log-cli.ts
+    - src/design/render.ts
+    - src/design/support-check-cli.ts
+    - src/worktrees/create-worktree.ts
+    - src/worktrees/worktree-conflicts.ts
   tests:
     - src/design/__tests__/artifact-locate.test.ts
     - src/design/__tests__/cli-fields.test.ts
@@ -95,10 +100,8 @@ Draft-first dialogues with a decision-context digest (#362).
 - **Code:**
   - [`.claude/skills/noldor-spec/`](../../.claude/skills/noldor-spec/)
   - [`.claude/skills/noldor-plan/`](../../.claude/skills/noldor-plan/)
-  - [`src/design/`](../../src/design/)
   - [`src/utils/markdown-sections.ts`](../../src/utils/markdown-sections.ts)
   - [`src/utils/tally.ts`](../../src/utils/tally.ts)
-  - [`src/worktrees/`](../../src/worktrees/)
   - [`src/prep/draft.ts`](../../src/prep/draft.ts)
   - [`src/prep/formats.ts`](../../src/prep/formats.ts)
   - [`src/prep/print-format.ts`](../../src/prep/print-format.ts)
@@ -108,6 +111,13 @@ Draft-first dialogues with a decision-context digest (#362).
   - [`docs/noldor/complexity-gating.md`](../../docs/noldor/complexity-gating.md)
   - [`docs/noldor/workflow.md`](../../docs/noldor/workflow.md)
   - [`docs/noldor/skill-catalog.md`](../../docs/noldor/skill-catalog.md)
+  - [`src/design/artifact-locate.ts`](../../src/design/artifact-locate.ts)
+  - [`src/design/context-cli.ts`](../../src/design/context-cli.ts)
+  - [`src/design/log-cli.ts`](../../src/design/log-cli.ts)
+  - [`src/design/render.ts`](../../src/design/render.ts)
+  - [`src/design/support-check-cli.ts`](../../src/design/support-check-cli.ts)
+  - [`src/worktrees/create-worktree.ts`](../../src/worktrees/create-worktree.ts)
+  - [`src/worktrees/worktree-conflicts.ts`](../../src/worktrees/worktree-conflicts.ts)
 - **Tests:**
   - [`src/design/__tests__/artifact-locate.test.ts`](../../src/design/__tests__/artifact-locate.test.ts)
   - [`src/design/__tests__/cli-fields.test.ts`](../../src/design/__tests__/cli-fields.test.ts)

@@ -5,9 +5,6 @@ deps: []
 links:
   code:
     - src/release/release-publish.ts
-    - src/release/index.ts
-    - src/core/config.ts
-    - src/cli/manifest.ts
     - .github/workflows/publish.yml
   docs: []
   tests:
@@ -99,9 +96,6 @@ Added a `release.publish` config block that ships default-off for consumer safet
 - **Spec:** [`docs/design/specs/archive/2026-07-03-registry-distribution-for-the-noldor-package-design.md`](../../docs/design/specs/archive/2026-07-03-registry-distribution-for-the-noldor-package-design.md)
 - **Code:**
   - [`src/release/release-publish.ts`](../../src/release/release-publish.ts)
-  - [`src/release/index.ts`](../../src/release/index.ts)
-  - [`src/core/config.ts`](../../src/core/config.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
   - [`.github/workflows/publish.yml`](../../.github/workflows/publish.yml)
 - **Tests:**
   - [`src/release/__tests__/publish-workflow.test.ts`](../../src/release/__tests__/publish-workflow.test.ts)

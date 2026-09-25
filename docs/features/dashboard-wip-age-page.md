@@ -7,11 +7,7 @@ packages:
   - scripts
 deps: []
 links:
-  code:
-    - src/dashboard/data.ts
-    - src/dashboard/layout.ts
-    - src/dashboard/server.ts
-    - src/dashboard/views.ts
+  code: []
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
@@ -54,11 +50,6 @@ As the founder reviewing what's actually moving, I want to see every in-progress
 
 ## Resources
 
-- **Code:**
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
-  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
-  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
-  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
   - [`src/dashboard/__tests__/dashboard-doc-surfaces.test.ts`](../../src/dashboard/__tests__/dashboard-doc-surfaces.test.ts)

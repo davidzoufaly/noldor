@@ -7,7 +7,6 @@ links:
     - src/triage/merge-candidates.ts
     - src/triage/merge-candidates-cli.ts
     - src/core/fd-load.ts
-    - src/cli/manifest.ts
     - .claude/skills/noldor-triage/SKILL.md
   tests:
     - src/core/__tests__/fd-load.test.ts
@@ -63,7 +62,6 @@ As an operator (or triage agent) running `/noldor-triage`, I want the merge-cand
   - [`src/triage/merge-candidates.ts`](../../src/triage/merge-candidates.ts)
   - [`src/triage/merge-candidates-cli.ts`](../../src/triage/merge-candidates-cli.ts)
   - [`src/core/fd-load.ts`](../../src/core/fd-load.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
   - [`.claude/skills/noldor-triage/SKILL.md`](../../.claude/skills/noldor-triage/SKILL.md)
 - **Tests:**
   - [`src/core/__tests__/fd-load.test.ts`](../../src/core/__tests__/fd-load.test.ts)

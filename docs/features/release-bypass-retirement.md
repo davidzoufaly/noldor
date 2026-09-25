@@ -4,13 +4,7 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/core/config.ts
     - src/release/release-cr-gate.ts
-    - src/release/index.ts
-    - src/garden/detectors/override-audit.ts
-    - src/garden/garden-detect.ts
-    - src/garden/sdd-report.ts
-    - src/garden/garden-receipt.ts
   docs: []
   tests:
     - src/core/__tests__/config.test.ts
@@ -99,13 +93,7 @@ Added a `release.crGateExemptCommits` config schema (#133).
 - **Plan:**
   - [`docs/design/plans/archive/2026-07-02-release-bypass-retirement.md`](../../docs/design/plans/archive/2026-07-02-release-bypass-retirement.md)
 - **Code:**
-  - [`src/core/config.ts`](../../src/core/config.ts)
   - [`src/release/release-cr-gate.ts`](../../src/release/release-cr-gate.ts)
-  - [`src/release/index.ts`](../../src/release/index.ts)
-  - [`src/garden/detectors/override-audit.ts`](../../src/garden/detectors/override-audit.ts)
-  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
-  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
-  - [`src/garden/garden-receipt.ts`](../../src/garden/garden-receipt.ts)
 - **Tests:**
   - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)
   - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)

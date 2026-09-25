@@ -5,14 +5,21 @@ deps:
   - registry-distribution
 links:
   code:
-    - src/migrations/
-    - src/cli/manifest.ts
     - src/cli/commands/init.ts
     - src/cli/commands/upgrade.ts
-    - src/core/consumer-config.ts
     - docs/noldor/adoption-guide.md
     - docs/noldor/versioning.md
     - src/core/framework-skew.ts
+    - src/migrations/0.4.0.ts
+    - src/migrations/0.5.0.ts
+    - src/migrations/0.6.0.ts
+    - src/migrations/0.7.0.ts
+    - src/migrations/1.0.0.ts
+    - src/migrations/1.13.0.ts
+    - src/migrations/chain.ts
+    - src/migrations/pkg-version.ts
+    - src/migrations/registry.ts
+    - src/migrations/types.ts
   docs: []
   tests:
     - src/cli/commands/__tests__/upgrade.test.ts
@@ -114,14 +121,21 @@ Added semver parse and compare helpers (#104).
 - **Plan:**
   - [`docs/design/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md`](../../docs/design/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md)
 - **Code:**
-  - [`src/migrations/`](../../src/migrations/)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
   - [`src/cli/commands/init.ts`](../../src/cli/commands/init.ts)
   - [`src/cli/commands/upgrade.ts`](../../src/cli/commands/upgrade.ts)
-  - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
   - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
   - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
   - [`src/core/framework-skew.ts`](../../src/core/framework-skew.ts)
+  - [`src/migrations/0.4.0.ts`](../../src/migrations/0.4.0.ts)
+  - [`src/migrations/0.5.0.ts`](../../src/migrations/0.5.0.ts)
+  - [`src/migrations/0.6.0.ts`](../../src/migrations/0.6.0.ts)
+  - [`src/migrations/0.7.0.ts`](../../src/migrations/0.7.0.ts)
+  - [`src/migrations/1.0.0.ts`](../../src/migrations/1.0.0.ts)
+  - [`src/migrations/1.13.0.ts`](../../src/migrations/1.13.0.ts)
+  - [`src/migrations/chain.ts`](../../src/migrations/chain.ts)
+  - [`src/migrations/pkg-version.ts`](../../src/migrations/pkg-version.ts)
+  - [`src/migrations/registry.ts`](../../src/migrations/registry.ts)
+  - [`src/migrations/types.ts`](../../src/migrations/types.ts)
 - **Tests:**
   - [`src/cli/commands/__tests__/upgrade.test.ts`](../../src/cli/commands/__tests__/upgrade.test.ts)
   - [`src/core/__tests__/consumer-config.test.ts`](../../src/core/__tests__/consumer-config.test.ts)

@@ -8,10 +8,6 @@ packages:
 deps: []
 links:
   code:
-    - src/dashboard/data.ts
-    - src/dashboard/views.ts
-    - src/dashboard/server.ts
-    - src/dashboard/layout.ts
     - src/worktrees/worktree-status.ts
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
@@ -70,10 +66,6 @@ As a developer working in a parallel-worktree workflow, I want to view live work
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
-  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
-  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
-  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
   - [`src/worktrees/worktree-status.ts`](../../src/worktrees/worktree-status.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)

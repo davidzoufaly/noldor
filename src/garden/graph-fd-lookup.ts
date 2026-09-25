@@ -1,4 +1,4 @@
-// @fd: sdd-co-tag-detector, fast-track-changes-can-obsolete-an-unattached-fd
+// @fd: sdd-co-tag-detector
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';

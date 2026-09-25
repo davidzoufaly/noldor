@@ -5,7 +5,6 @@ deps: []
 links:
   code:
     - src/utils/parse-blocks.ts
-    - src/dashboard/data.ts
     - src/triage/validate-triage.ts
   tests:
     - src/core/__tests__/next-priority.test.ts
@@ -76,7 +75,6 @@ This release tightens the schema discipline across the roadmap and backlog pipel
 
 - **Code:**
   - [`src/utils/parse-blocks.ts`](../../src/utils/parse-blocks.ts)
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
   - [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts)
 - **Tests:**
   - [`src/core/__tests__/next-priority.test.ts`](../../src/core/__tests__/next-priority.test.ts)

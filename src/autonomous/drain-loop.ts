@@ -1,3 +1,5 @@
+// @fd: autonomous-queue-drain-runner
+
 import { sizeToTimeoutMs } from '../core/size-routing.js';
 import type { DrainSource, DrainCandidate } from './drain-source.js';
 import type { MergeOutcome } from './drain-io.js';

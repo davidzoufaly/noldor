@@ -8,9 +8,7 @@ packages:
 deps: []
 links:
   code:
-    - src/dashboard/data.ts
     - src/features/migrate-changelog-unreleased.ts
-    - src/release/index.ts
     - src/release/llm-polish-summary.ts
     - src/release/release-changelog.ts
     - src/release/release-dry-run.ts
@@ -79,9 +77,7 @@ As a developer or agent reading an FD detail page, I want to see every commit at
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
   - [`src/features/migrate-changelog-unreleased.ts`](../../src/features/migrate-changelog-unreleased.ts)
-  - [`src/release/index.ts`](../../src/release/index.ts)
   - [`src/release/llm-polish-summary.ts`](../../src/release/llm-polish-summary.ts)
   - [`src/release/release-changelog.ts`](../../src/release/release-changelog.ts)
   - [`src/release/release-dry-run.ts`](../../src/release/release-dry-run.ts)

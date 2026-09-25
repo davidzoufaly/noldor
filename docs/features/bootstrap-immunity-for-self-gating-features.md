@@ -7,11 +7,7 @@ links:
     - src/cr/gate-registry.ts
     - src/cr/bootstrap-immunity.ts
     - src/cr/bootstrap-cli.ts
-    - src/core/feature-schema.ts
-    - src/cli/manifest.ts
     - src/garden/detectors/bootstrap-override-audit.ts
-    - src/garden/detectors/codex-cr-override-audit.ts
-    - src/garden/garden-detect.ts
   docs: []
   tests:
     - src/core/__tests__/feature-schema-since.test.ts
@@ -106,11 +102,7 @@ This release adds bootstrap-immunity for self-gating features (#110), allowing f
   - [`src/cr/gate-registry.ts`](../../src/cr/gate-registry.ts)
   - [`src/cr/bootstrap-immunity.ts`](../../src/cr/bootstrap-immunity.ts)
   - [`src/cr/bootstrap-cli.ts`](../../src/cr/bootstrap-cli.ts)
-  - [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
   - [`src/garden/detectors/bootstrap-override-audit.ts`](../../src/garden/detectors/bootstrap-override-audit.ts)
-  - [`src/garden/detectors/codex-cr-override-audit.ts`](../../src/garden/detectors/codex-cr-override-audit.ts)
-  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
 - **Tests:**
   - [`src/core/__tests__/feature-schema-since.test.ts`](../../src/core/__tests__/feature-schema-since.test.ts)
   - [`src/core/__tests__/feature-schema.test.ts`](../../src/core/__tests__/feature-schema.test.ts)

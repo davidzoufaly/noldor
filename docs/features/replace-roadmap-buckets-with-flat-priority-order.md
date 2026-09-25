@@ -7,7 +7,6 @@ links:
     - .claude/skills/noldor-promote/SKILL.md
     - .claude/skills/noldor-triage/SKILL.md
     - docs/roadmap.md
-    - src/dashboard/data.ts
     - src/triage/validate-triage.ts
     - src/utils/parse-blocks.ts
   tests:
@@ -75,7 +74,6 @@ This release consolidates the dashboard roadmap around a flat, priority-ordered 
   - [`.claude/skills/noldor-promote/SKILL.md`](../../.claude/skills/noldor-promote/SKILL.md)
   - [`.claude/skills/noldor-triage/SKILL.md`](../../.claude/skills/noldor-triage/SKILL.md)
   - [`docs/roadmap.md`](../../docs/roadmap.md)
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
   - [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts)
   - [`src/utils/parse-blocks.ts`](../../src/utils/parse-blocks.ts)
 - **Tests:**

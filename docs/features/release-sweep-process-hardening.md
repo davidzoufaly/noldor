@@ -11,8 +11,6 @@ links:
     - src/hooks/noldor-enforce-review-receipt.ts
     - src/hooks/noldor-inject-trailers.ts
     - src/core/allowlist.ts
-    - src/core/session.ts
-    - src/release/index.ts
     - src/release/preflight.ts
     - src/release/preflight-fix.ts
     - src/release/preflight-probes.ts
@@ -107,8 +105,6 @@ As an operator preparing a release, I want `/noldor-release-sweep` to run end-to
   - [`src/hooks/noldor-enforce-review-receipt.ts`](../../src/hooks/noldor-enforce-review-receipt.ts)
   - [`src/hooks/noldor-inject-trailers.ts`](../../src/hooks/noldor-inject-trailers.ts)
   - [`src/core/allowlist.ts`](../../src/core/allowlist.ts)
-  - [`src/core/session.ts`](../../src/core/session.ts)
-  - [`src/release/index.ts`](../../src/release/index.ts)
   - [`src/release/preflight.ts`](../../src/release/preflight.ts)
   - [`src/release/preflight-fix.ts`](../../src/release/preflight-fix.ts)
   - [`src/release/preflight-probes.ts`](../../src/release/preflight-probes.ts)
