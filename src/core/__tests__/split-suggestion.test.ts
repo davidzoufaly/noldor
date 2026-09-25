@@ -1,4 +1,4 @@
-// @tests: framework-auto-split-suggestion-for-big-features-and-plans
+// @tests: framework-auto-split-suggestion-for-big-features-and-plans, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 import { describe, expect, it } from 'vitest';
 
 import {

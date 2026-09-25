@@ -1,4 +1,4 @@
-// @tests: dashboard-broken-pages-audit
+// @tests: dashboard-broken-pages-audit, make-noldor-agent-agnostic
 // logSink tee: child output is forwarded to the parent's stdio AND appended to
 // the sink file, without ever accumulating into AgentResult.stdout — and the
 // no-logSink stdio tuples stay byte-for-byte what they were before the tee.

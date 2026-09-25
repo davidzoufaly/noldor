@@ -1,4 +1,4 @@
-// @tests: unvalidated-slug-path-traversal-across-cli-entry-points
+// @tests: unvalidated-slug-path-traversal-across-cli-entry-points, state-file-fail-open-hardening
 import {
   chmodSync,
   lstatSync,

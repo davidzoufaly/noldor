@@ -9,7 +9,7 @@ import {
   withMandatoryReviewer,
 } from '../lanes.js';
 
-// @tests: make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer
+// @tests: make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, ui-design-review-lane
 
 describe('lane vocabulary (canonical + legacy aliases)', () => {
   it('accepts the canonical role-ref names', () => {
