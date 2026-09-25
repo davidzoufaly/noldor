@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Design Archive Repoints a Folded links.spec
-
-- id: Q-0309
-- area: tooling
-- type: fix
-- since: 2026-09-25
-- size: S
-- impact: med
-- confidence: med
-
-`design archive` cannot repoint a folded `links.spec`. The pre-commit FD sync rewrote a new FD's long spec path as a folded YAML scalar (`spec: >-`, path on the next line), and the archive's textual rewrite only matches the one-line form: it moved the spec, printed `its YAML form could not be rewritten textually; repoint it … by hand` and exited 1. Any slug long enough to push `links.spec` past the YAML line width hits this at gate Step 4. What worked: edit the path under `>-` by hand, then `sync fd-resources`. Wanted: the archive rewrites the key through the YAML parser, or matches the folded form. Deletion test: archiving a spec whose FD holds `links.spec` as a folded scalar repoints it and exits 0. (found 2026-09-25, Q-0297)
-
 ### Lane-Error Rounds and the Round Cap
 
 - id: Q-0310
