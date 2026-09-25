@@ -164,6 +164,22 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** any time you want to know whether the UI design baseline still reflects the shipped UI. Remediation depends on the row: `unverified` and a receipt-backed `stale` are cleared by `pnpm noldor design capture`, which is the only command that advances the receipt; `uninitialized`, and a surface still on the pre-receipt read, are repaired by hand with `pnpm noldor design ui-sync`. An `indeterminate` row has no remediation — re-run it once git can answer. The report names the right one per surface.
 - **Source:** [`src/checks/check-ui-design-freshness.ts`](../../src/checks/check-ui-design-freshness.ts)
 
+### `check:arch-baseline`
+
+- **Trigger:** `pnpm noldor checks arch-baseline`. Run by `/noldor-gate` Step 4 (advisory — the exit code never blocks `pr-flow`) and by release preflight (the `arch-baseline` row, blocking when the baseline exists).
+- **Inputs:** `docs/design/architecture/baseline.pen` and the module set (`listModuleDirs` over `consumer.scanPaths`).
+- **Outputs:** one row per finding:
+  - `unreadable` — a view page missing or doubled, or a file that is not a `.pen` document;
+  - `missing-module`, `unknown-module`, `duplicate-module`;
+  - `dangling-edge`.
+
+  Exit 0 when the baseline is absent (nothing is checked) or clean, 1 on any finding.
+- **When to use:** after drawing or editing the baseline, and whenever a change adds, removes or renames a module. Repair by redrawing the named box or arrow. The layer names are the contract:
+  - a module box is named by its path: `src/cr`, or `src/a + src/b` for a box that covers two;
+  - a group frame is named `group: <Name>`;
+  - an arrow is named `<from> -> <to>`.
+- **Source:** [`src/checks/check-arch-baseline.ts`](../../src/checks/check-arch-baseline.ts)
+
 ### `check:readme`
 
 - **Trigger:** `pnpm noldor checks readme`. Run advisorily by the `pre-push` hook (`|| true`) and by release preflight (`warn`, never blocking).

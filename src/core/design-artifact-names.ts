@@ -38,6 +38,20 @@ export const UI_BASELINE_DIR = 'docs/design/ui/baseline';
 export const UI_DESIGN_DIR = 'docs/design/ui';
 
 /**
+ * Directory holding architecture-design `.pen` files: the baseline, the dated
+ * per-session designs and their `archive/`, and milestone targets under
+ * `milestones/`. Parallel to {@link UI_DESIGN_DIR}; see ADR 0007.
+ */
+export const ARCH_DESIGN_DIR = 'docs/design/architecture';
+
+/**
+ * The as-built architecture baseline: one `.pen`, one top-level page per
+ * architecture view. Its presence is the opt-in — every architecture check is
+ * inert while it is absent.
+ */
+export const ARCH_BASELINE_PATH = `${ARCH_DESIGN_DIR}/baseline.pen`;
+
+/**
  * Derive the feature slug from a plan filename.
  *
  * @param filename - The basename, e.g. `2026-04-19-tooltips.md` or

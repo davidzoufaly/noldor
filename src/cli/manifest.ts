@@ -364,6 +364,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'checks/check-ui-design-freshness.ts',
         desc: 'UI baseline freshness per surface; exit 1 on stale/uninitialized — callers choose whether that blocks',
       },
+      'arch-baseline': {
+        src: 'checks/check-arch-baseline.ts',
+        desc: 'Architecture baseline .pen held to the code; exit 1 on findings, 0 when absent or clean',
+      },
       'push-gates': {
         src: 'checks/check-push-gates.ts',
         desc: 'Replay the real pre-push hook chain author-side, minus the review-receipt job',

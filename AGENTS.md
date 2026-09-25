@@ -69,7 +69,7 @@ outputs and exit codes: `docs/noldor/script-catalog.md`.
 - `validate` — Validators (noldor config + skill catalog + scope): noldor, noldor-config, noldor-scope, skill-catalog, script-catalog, features, milestones, triage, feature-slug-scope
 - `release` — Release pipeline: run, publish
 - `hooks` — Lefthook entrypoints (pre-commit / commit-msg / pre-push): pre-commit, inject-trailers, validate-trailer, enforce-review-receipt, enforce-arbitration, pre-push, pre-edit-guard, open-artifact
-- `checks` — Invariant + shared-file checks: invariants, shared-files, feature-slug-scope, template-sync, ui-design-freshness, push-gates, readme, skill-portability, pen-bridge
+- `checks` — Invariant + shared-file checks: invariants, shared-files, feature-slug-scope, template-sync, ui-design-freshness, arch-baseline, push-gates, readme, skill-portability, pen-bridge
 - `graphify` — Graphify runner + helpers: graph-to-toon, enrich-docs, refactor-precondition
 - `dashboard` — Dev dashboard: server, ensure, status
 - `docs` — Docs builders + checks: api, howto, check, transclude, adr, architecture, capability-index
