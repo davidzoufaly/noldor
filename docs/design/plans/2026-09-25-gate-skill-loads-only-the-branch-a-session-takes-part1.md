@@ -777,11 +777,11 @@ index 1a61395..2e4df8e 100644
 - Test: `src/core/__tests__/allowlist.test.ts`
 - Create: `.noldor/skill-size-baseline.json`
 
-- [ ] **Step 1: Brief the rules.**
+- [x] **Step 1: Brief the rules.**
 
   Run: `pnpm noldor rules brief --file src/core/allowlist.ts --file src/core/__tests__/allowlist.test.ts --file lefthook.yml --stage code`
 
-- [ ] **Step 2: Write the failing test.** In `src/core/__tests__/allowlist.test.ts`, add after the `accepts lefthook.yml mixed with .claude/**` case:
+- [x] **Step 2: Write the failing test.** In `src/core/__tests__/allowlist.test.ts`, add after the `accepts lefthook.yml mixed with .claude/**` case:
 
   ```ts
   it('accepts a skill edit with its re-recorded skill-size baseline', () => {
@@ -795,13 +795,13 @@ index 1a61395..2e4df8e 100644
   });
   ```
 
-- [ ] **Step 3: Run to verify FAIL.**
+- [x] **Step 3: Run to verify FAIL.**
 
   Run: `pnpm vitest run src/core/__tests__/allowlist.test.ts`
 
   Expected: FAIL on the new case — `expected false to be true`.
 
-- [ ] **Step 4: Implement.** In `src/core/allowlist.ts`, insert into `MICRO_CHORE_GLOBS` directly after `'.noldor/retired-entry-ids.json',`:
+- [x] **Step 4: Implement.** In `src/core/allowlist.ts`, insert into `MICRO_CHORE_GLOBS` directly after `'.noldor/retired-entry-ids.json',`:
 
   ```ts
   // The skill-size ratchet's baseline. A micro-chore is the one lane that edits a
@@ -810,13 +810,13 @@ index 1a61395..2e4df8e 100644
   '.noldor/skill-size-baseline.json',
   ```
 
-- [ ] **Step 5: Run to verify PASS.**
+- [x] **Step 5: Run to verify PASS.**
 
   Run: `pnpm vitest run src/core/__tests__/allowlist.test.ts`
 
   Expected: all cases pass.
 
-- [ ] **Step 6: Wire the self-host pre-push job.** Append to `lefthook.yml` (the root file, never `lefthook/noldor.yml`):
+- [x] **Step 6: Wire the self-host pre-push job.** Append to `lefthook.yml` (the root file, never `lefthook/noldor.yml`):
 
   ```yaml
 
@@ -829,19 +829,19 @@ index 1a61395..2e4df8e 100644
         run: pnpm noldor skill-size check
   ```
 
-- [ ] **Step 7: Record the first baseline.**
+- [x] **Step 7: Record the first baseline.**
 
   Run: `pnpm noldor skill-size baseline && pnpm noldor skill-size check`
 
   Expected: `skill-size: recorded 15 skill files to .noldor/skill-size-baseline.json` with one `new` line per skill, then `skill-size: 15 skill files within their baseline` (exit 0). Part 3 re-records after the split.
 
-- [ ] **Step 8: Verify lefthook runs the job and consumers do not.**
+- [x] **Step 8: Verify lefthook runs the job and consumers do not.**
 
   Run: `pnpm exec lefthook dump | grep -A2 "name: skill-size"` then `grep -c skill-size lefthook/noldor.yml`
 
   Expected: the dump shows the `skill-size` job under `pre-push`; the grep over `lefthook/noldor.yml` prints `0`.
 
-- [ ] **Step 9: Commit.**
+- [x] **Step 9: Commit.**
 
   ```bash
   msg=$(mktemp)

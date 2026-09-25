@@ -19,3 +19,11 @@ pre-commit:
   jobs:
     - name: build
       run: node bin/build.mjs
+
+# Self-host only: the skill-size ratchet guards the skills this repo ships. A
+# consumer's skill files are framework copies that change on every
+# `init --update`, so the job lives here rather than in lefthook/noldor.yml.
+pre-push:
+  jobs:
+    - name: skill-size
+      run: pnpm noldor skill-size check

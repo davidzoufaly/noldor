@@ -1,0 +1,21 @@
+{
+  "algorithmVersion": 1,
+  "recordedAt": "2026-09-25T21:33:45.444Z",
+  "files": {
+    ".claude/skills/noldor-absorb/SKILL.md": 677,
+    ".claude/skills/noldor-debug/SKILL.md": 1039,
+    ".claude/skills/noldor-draft-feature-md/SKILL.md": 1605,
+    ".claude/skills/noldor-garden/SKILL.md": 1655,
+    ".claude/skills/noldor-gate/SKILL.md": 13690,
+    ".claude/skills/noldor-milestone/SKILL.md": 867,
+    ".claude/skills/noldor-new-feature/SKILL.md": 593,
+    ".claude/skills/noldor-plan/SKILL.md": 1866,
+    ".claude/skills/noldor-promote/SKILL.md": 2775,
+    ".claude/skills/noldor-refactor/SKILL.md": 2164,
+    ".claude/skills/noldor-release-sweep/SKILL.md": 3290,
+    ".claude/skills/noldor-research/SKILL.md": 350,
+    ".claude/skills/noldor-spec/SKILL.md": 5898,
+    ".claude/skills/noldor-triage/SKILL.md": 3548,
+    ".claude/skills/noldor-verify/SKILL.md": 860
+  }
+}
