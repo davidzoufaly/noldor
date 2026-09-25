@@ -146,12 +146,15 @@ Noldor-Enhancement: <slug>               # required for attach paths (specs-only
 Noldor-Reviewed-Subagent: <tree-hash>    # amended on the tip commit at gate Step 4 — validated pre-push, NOT at commit-msg
 Noldor-Phase-Revert: 1                   # phase-revert scaffold commits — bypasses the spec-file existence check (attach paths and specs-only-new)
 Noldor-Sibling-Scope: <noldor scope-list>  # optional; mixed code+doc-sync commits — see "Sibling doc-sync commits"
+Noldor-Doc-Impact: none | <slug>, <slug>  # fast-track branches; which FDs it updated — see gate Step 4's doc-impact check
 ```
+
+`Noldor-Doc-Impact` is checked on every path: the value must be `none` alone or slugs that each name an existing `docs/features/<slug>.md`. It records that a fast-track looked at the FDs owning its code (`pnpm noldor features owners`) and names the ones it updated; `garden detect` reports fast-tracks that carry none (`undeclaredDocImpact`), reading the line from the squash body because a squash keeps it only there.
 
 Per-path `commit-msg` validation (what the hook actually checks):
 
 - `micro-chore` / `release-sweep` — re-validates the staged diff against the matching allowlist (`src/core/allowlist.ts`), so a hand-typed trailer can't launder a code change.
-- `fast-track` — path trailer only; no FD, no review receipt at commit time.
+- `fast-track` — path trailer only (plus the `Noldor-Doc-Impact` value when present); no FD, no review receipt at commit time.
 - `specs-only-new` / `full-new` — `Noldor-FD` must resolve to an existing FD whose `noldor-tier` matches the path; `full-new` additionally requires `links.spec` in the FD frontmatter; `specs-only-new` requires a spec file on disk at `docs/design/specs/<date>-<slug>-design.md` (existence check only — the hook doesn't verify it's committed). `Noldor-Phase-Revert: 1` bypasses the spec check on `specs-only-new`.
 - `specs-only-attach` / `full-attach` — require `Noldor-Enhancement` and a spec file on disk at `docs/design/specs/<date>-<parent>-<enhancement>-design.md`. A `Noldor-Phase-Revert: 1` commit bypasses both (the revert scaffold commits before the spec exists).
 - `release-automation` — validated separately (release pipeline commits).

@@ -734,6 +734,7 @@ FD phase + pointer maintenance used by `/noldor-gate` Step 4 and `/noldor-draft-
 | `pnpm noldor features attach-milestone` | [`src/features/attach-milestone-cli.ts`](../../src/features/attach-milestone-cli.ts) | Attach verdict for an entry vs its parent FD (exit 0 noop/adopt, 1 conflict). |
 | `pnpm noldor features propose-pointers`   | [`src/features/propose-pointers.ts`](../../src/features/propose-pointers.ts) | Propose initial `// @fd:` pointers for a new FD.              |
 | `pnpm noldor features seed-test-tags`     | [`src/features/seed-test-tags.ts`](../../src/features/seed-test-tags.ts) | Add the `// @tests:` co-tags the SDD report names as missing, from the graph. Dry run by default; `--apply` writes, repeatable `--path` scopes a batch. Exit 1 on a stale or missing graph (regenerate between batches), 2 on a `--path` that selects nothing. |
+| `pnpm noldor features owners`             | [`src/features/features-owners-cli.ts`](../../src/features/features-owners-cli.ts) | The FDs whose `links.code` owns a file changed since `--base` (default `origin/main`, three-dot), or owns a repeatable `--path`; each marked `candidate` (`phase: done`, written `## Usage`) or skipped with its reason, most owned files first. `--json` for the same data. Gate Step 4's fast-track doc-impact check reads it. Exit 0 (including no owners), 2 on a bad flag, `--base` with `--path`, an unresolvable ref, a git failure, or an FD whose frontmatter does not parse. |
 
 ## Dev surfaces
 

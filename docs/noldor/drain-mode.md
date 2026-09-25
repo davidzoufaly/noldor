@@ -102,6 +102,14 @@ dependency, so the prompt stays a thin pointer.
 
 - Mark the session autonomous immediately after the session marker exists:
   `pnpm noldor noldor set-autonomous` — never ask autonomous-vs-interactive.
+- Doc-impact check (fast-track entries), before the push-gate preflight:
+  `pnpm noldor features owners --base origin/main` lists the FDs owning the
+  changed files; a `candidate` is done with a written Usage. For each candidate
+  whose User Story or Usage this change alters, refresh its Usage (in Claude
+  Code: `/noldor-draft-feature-md <slug> --refresh --scope <its owned files> --usage-only --yes`)
+  or edit it by hand, and commit it with `Noldor-Doc-Impact: <slug>, …`. When
+  none changed, amend `Noldor-Doc-Impact: none` onto the tip — message only.
+  Exit 2 means the owner list could not be built, never "no owners".
 - Preflight the push-range gates **before** the code-stage CR, while no receipt
   exists to lose: `pnpm noldor checks push-gates`. It replays the real hook —
   lefthook runs its own `pre-push` job list over the stdin ref line git will
