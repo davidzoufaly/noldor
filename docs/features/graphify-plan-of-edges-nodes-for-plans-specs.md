@@ -64,7 +64,8 @@ in `src/garden/plan-resolution.ts` returns `ResolvedOwner | null`.
 pnpm noldor design graph-context --path src/foo.ts --path src/bar.ts
 
 #   exit 0  "skipped"  -> repo tracks no graph; record a noldor:cut and continue
-#   exit 1  "stale"    -> pnpm noldor graphify build, then retry ONCE
+#   exit 1  "stale"    -> pnpm noldor graphify build, then retry ONCE (commit first
+#                         when the detail says the scan roots hold uncommitted changes)
 #   exit 0  digest     -> write ### Structural context from it
 #   exit 2             -> usage error (unknown arg, or a --path escaping the repo)
 
