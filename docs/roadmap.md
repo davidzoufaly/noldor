@@ -16,21 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### One Graph Builder for the Sweep and CI
-
-- id: Q-0293
-- area: tooling
-- type: refactor
-- since: 2026-09-24
-- size: M
-- impact: med
-- confidence: low
-- parent: self-refreshing-compact-knowledge-graph
-
-The release sweep and the `update-knowledge-graph` workflow build the committed graph two different ways, so they fight over community ids. Both extract the same nodes and edges (0 diffs, rebuilt from 140ff63), but the sweep's `/graphify --ast-only` clusters with no fixed hash seed and names communities with an LLM, while the workflow pins `PYTHONHASHSEED=0`, sorts its input and writes `Community N`. Two unseeded runs on one tree gave 205 and then 204 communities. So the first graph PR after every release reshuffles every community id and relabels the report. Wanted: one builder both call — a `pnpm noldor graphify build` running the workflow's heredoc (clean AST pass over code files, seeded, sorted, `parallel=False`) — with release-sweep steps 1 and 5 switched to it. Deletion test: the sweep's graph step, run right after a graph PR merges, leaves `graphify-out/` byte-identical. (found 2026-09-23 shipping Q-0260 part 3, PR #501)
-
-- A shared recipe alone will not make the sweep byte-identical to CI. The v1.13.0 sweep ran the workflow's exact recipe on the operator Mac (`PYTHONHASHSEED=0`, sorted input, `parallel=False`, graphifyy 0.7.8 on both sides) and rebuilt 48415a0 with the same 3885 nodes and 10328 edges as CI, but found 222 communities where CI found 215. The rest of the dependency set (networkx, the Leiden backend, the Python patch version) has to match too — so either the builder pins those, or the sweep keeps CI's committed graph whenever the extraction matches (the current workaround, in `docs/noldor/graph-integration.md` → Pre-release sweep). (2026-09-24, PR #537)
-
 ### Drain Child Waits for Its Background Tasks
 
 - id: Q-0299

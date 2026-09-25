@@ -656,5 +656,10 @@
     "slug": "ui-baseline-pen-layout-and-id-contract",
     "retiredInto": "pendev-ui-design-phase",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0293": {
+    "slug": "one-graph-builder-for-the-sweep-and-ci",
+    "retiredInto": "self-refreshing-compact-knowledge-graph",
+    "retiredAt": "2026-09-25"
   }
 }

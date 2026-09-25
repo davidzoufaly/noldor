@@ -17,7 +17,7 @@ links:
 name: 'Self-Refreshing, Compact Knowledge Graph'
 packages:
   - scripts
-phase: done
+phase: in-progress
 noldor-tier: full
 introduced: 1.12.0
 ---
