@@ -1,6 +1,7 @@
 // @tests: autonomous-queue-drain-runner, dashboard-roadmap-drag-drop, gate-flow-rework, noldor, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 import { describe, expect, it } from 'vitest';
 
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,6 +12,7 @@ import {
   isWritePendingDeprecated,
   loadInProgressFds,
   loadMilestoneGate,
+  loadWorktreeSessions,
   parseSkip,
 } from '../next-priority.js';
 import { parseRoadmap } from '../../utils/parse-blocks.js';
@@ -713,5 +715,112 @@ Body of ${name}.
 
   it('is empty when the queue holds no type: fix entry', () => {
     expect(getSuggestions(fillers.join('\n'), input).bugfixes).toEqual([]);
+  });
+});
+
+describe(loadWorktreeSessions, () => {
+  const FD = `---
+name: Parent Feature
+phase: in-progress
+area: tooling
+category: Tooling
+packages: [scripts]
+noldor-tier: full
+links:
+  code: []
+  tests: []
+---
+# body
+`;
+
+  function repoWithAttachWorktree(startedAt: string): { root: string; worktree: string } {
+    const root = mkdtempSync(join(tmpdir(), 'wt-sessions-'));
+    const g = (cwd: string, ...args: string[]): void => {
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+        cwd,
+        stdio: 'ignore',
+      });
+    };
+    g(root, 'init', '-q', '-b', 'main');
+    g(root, 'commit', '-q', '--allow-empty', '-m', 'init');
+    const worktree = join(root, '.worktrees', 'parent');
+    g(root, 'worktree', 'add', '-q', '-b', 'feat/parent', worktree);
+    mkdirSync(join(worktree, 'docs/features'), { recursive: true });
+    writeFileSync(join(worktree, 'docs/features/parent.md'), FD);
+    g(worktree, 'add', '.');
+    g(worktree, 'commit', '-q', '-m', 'docs(features:parent): add spec for parent');
+    mkdirSync(join(worktree, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(worktree, '.noldor/session.json'),
+      JSON.stringify({ path: 'full-attach', parent: 'parent', enhancement: 'x', startedAt }),
+    );
+    return { root, worktree };
+  }
+
+  it('surfaces an attach session that lives only on a worktree branch', () => {
+    const { root, worktree } = repoWithAttachWorktree('2026-09-24T10:00:00.000Z');
+    try {
+      expect(loadInProgressFds(root)).toEqual([]);
+      const sessions = loadWorktreeSessions(root, Date.parse('2026-09-24T12:00:00.000Z'));
+      const result = getSuggestions('', {
+        inProgressFds: [],
+        worktreeSessions: sessions,
+        milestoneGate: '',
+      });
+      expect(result.inProgress).toEqual([
+        {
+          slug: 'parent',
+          name: 'Parent Feature',
+          tier: 'full',
+          deps: [],
+          worktree: {
+            worktree: expect.stringContaining(join('.worktrees', 'parent')),
+            branch: 'feat/parent',
+            path: 'full-attach',
+            startedAt: '2026-09-24T10:00:00.000Z',
+            lastCommit: 'docs(features:parent): add spec for parent',
+            stale: false,
+          },
+        },
+      ]);
+      // Read from inside the worktree, the session is its own checkout and is skipped.
+      expect(loadWorktreeSessions(worktree)).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('flags a marker past the 24h expiry as stale', () => {
+    const { root } = repoWithAttachWorktree('2026-09-20T10:00:00.000Z');
+    try {
+      const [session] = loadWorktreeSessions(root, Date.parse('2026-09-24T12:00:00.000Z'));
+      expect(session?.stale).toBeTruthy();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rides a session on the matching in-progress FD instead of listing it twice', () => {
+    const { root } = repoWithAttachWorktree('2026-09-24T10:00:00.000Z');
+    try {
+      const result = getSuggestions('', {
+        inProgressFds: [{ slug: 'parent', name: 'Parent Feature', tier: 'full', deps: [] }],
+        worktreeSessions: loadWorktreeSessions(root),
+        milestoneGate: '',
+      });
+      expect(result.inProgress).toHaveLength(1);
+      expect(result.inProgress[0]?.worktree?.branch).toBe('feat/parent');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('returns nothing outside a git repository', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'no-git-'));
+    try {
+      expect(loadWorktreeSessions(dir)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -1,14 +1,17 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { loadConfigSync, resolveSessionTtlHours } from './config.js';
 import { loadDocRoots, milestonePath, readQueueFile } from './doc-roots.js';
 import { pathErrorMessage, readFileNoFollow } from './slug-paths.js';
 import { parseSlug } from './slug.js';
 import { entryToPath, type GatePath } from './size-routing.js';
 import { extractTouches } from './extract-touches.js';
 import { FeatureFrontmatterSchema } from './feature-schema.js';
+import { readSession, type Path as SessionPath } from './session.js';
 import { parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 
 /**
@@ -163,8 +166,50 @@ export interface InProgressFd {
   deps: string[];
 }
 
+/**
+ * A gate session open in another worktree, read from that worktree's
+ * `.noldor/session.json`. Its FD phase lives only on the feature branch, so the
+ * checkout `next-priority` runs in cannot see it through {@link loadInProgressFds}.
+ */
+export interface WorktreeSession {
+  /** Absolute path of the worktree. */
+  worktree: string;
+  /** Short branch name, or `null` on a detached HEAD. */
+  branch: string | null;
+  /** The marker's gate path. */
+  path: SessionPath;
+  startedAt: string;
+  /** Subject of the branch tip — the last stage the session committed (spec, plan, code…). */
+  lastCommit: string;
+  /** True when `startedAt` is older than `gate.sessionTtlHours` (default 24h). */
+  stale: boolean;
+}
+
+/**
+ * One row of the in-progress bucket: an in-progress FD of this checkout, a
+ * worktree session, or both (an FD whose session runs in a worktree). `tier` is
+ * absent only for a worktree session with no FD (fast-track, micro-chore).
+ */
+export interface InProgressEntry {
+  slug: string;
+  name: string;
+  tier?: InProgressFd['tier'];
+  deps: string[];
+  worktree?: WorktreeSession;
+}
+
+/** A {@link WorktreeSession} keyed by the FD it works on, plus that FD's name/tier when found. */
+export interface WorktreeSessionEntry extends WorktreeSession {
+  /** The marker's `slug`, or `parent` on attach paths. */
+  slug: string;
+  name: string;
+  tier?: InProgressFd['tier'];
+}
+
 export interface SuggestionsInput {
   inProgressFds: ReadonlyArray<InProgressFd>;
+  /** Sessions open in other worktrees ({@link loadWorktreeSessions}); merged into `inProgress`. */
+  worktreeSessions?: ReadonlyArray<WorktreeSessionEntry>;
   milestoneGate: string;
   /**
    * Slug of the active milestone, or `null` when none resolves.
@@ -187,7 +232,7 @@ export interface SuggestedEntry extends BacklogEntry {
 }
 
 export interface Suggestions {
-  inProgress: ReadonlyArray<InProgressFd>;
+  inProgress: ReadonlyArray<InProgressEntry>;
   topPriority: ReadonlyArray<SuggestedEntry>;
   smallHighImpact: ReadonlyArray<SuggestedEntry>;
   milestoneAligned: SuggestedEntry | null;
@@ -280,13 +325,31 @@ export function getSuggestions(
     .slice(0, 3);
 
   return {
-    inProgress: input.inProgressFds,
+    inProgress: mergeInProgress(input.inProgressFds, input.worktreeSessions ?? []),
     topPriority: topPriority.map(withRouting),
     smallHighImpact: smallHighImpact.map(withRouting),
     milestoneAligned: milestoneAligned === null ? null : withRouting(milestoneAligned),
     bugfixes: bugfixes.map(withRouting),
     blocked: held,
   };
+}
+
+/**
+ * Join this checkout's in-progress FDs with the worktree sessions: a session on
+ * an FD already listed rides on that row, any other session becomes its own row
+ * after the FDs.
+ */
+function mergeInProgress(
+  fds: ReadonlyArray<InProgressFd>,
+  sessions: ReadonlyArray<WorktreeSessionEntry>,
+): InProgressEntry[] {
+  const rows: InProgressEntry[] = fds.map((fd) => ({ ...fd }));
+  for (const { slug, name, tier, ...worktree } of sessions) {
+    const row = rows.find((r) => r.slug === slug && r.worktree === undefined);
+    if (row !== undefined) row.worktree = worktree;
+    else rows.push({ slug, name, ...(tier === undefined ? {} : { tier }), deps: [], worktree });
+  }
+  return rows;
 }
 
 /**
@@ -401,6 +464,81 @@ export function loadInProgressFds(cwd: string): InProgressFd[] {
   return out;
 }
 
+function git(cwd: string, args: readonly string[]): string | null {
+  try {
+    return execFileSync('git', args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function realpathOrSelf(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+
+/**
+ * Read the gate session of every other worktree of `cwd`'s repository. The
+ * worktree `cwd` sits in is skipped — its own FDs are what
+ * {@link loadInProgressFds} reads. A worktree with no marker holds no session
+ * and is skipped; an unreadable marker is skipped loudly (it is the corrupt
+ * state an operator most needs to see). Returns `[]` outside a git repository.
+ *
+ * @param cwd - Any checkout of the repository.
+ * @param nowMs - Clock for the staleness flag; injected for tests.
+ */
+export function loadWorktreeSessions(
+  cwd: string,
+  nowMs: number = Date.now(),
+): WorktreeSessionEntry[] {
+  const porcelain = git(cwd, ['worktree', 'list', '--porcelain']);
+  if (porcelain === null) return [];
+  const self = realpathOrSelf(git(cwd, ['rev-parse', '--show-toplevel']) ?? cwd);
+  let ttlHours = resolveSessionTtlHours(null);
+  try {
+    ttlHours = resolveSessionTtlHours(loadConfigSync(join(cwd, '.noldor/config.json')));
+  } catch {
+    // A malformed config is reported by its own validators; staleness keeps the default.
+  }
+  const out: WorktreeSessionEntry[] = [];
+  for (const block of porcelain.split(/\n\n+/)) {
+    const worktree = /^worktree (.+)$/m.exec(block)?.[1];
+    if (worktree === undefined || realpathOrSelf(worktree) === self) continue;
+    let marker;
+    try {
+      marker = readSession(worktree);
+    } catch (e) {
+      process.stderr.write(
+        `next-priority: skipping ${worktree}/.noldor/session.json — ${e instanceof Error ? e.message : String(e)}\n`,
+      );
+      continue;
+    }
+    if (marker === null) continue;
+    const slug = marker.slug ?? marker.parent ?? basename(worktree);
+    const fd = loadInProgressFds(worktree).find((f) => f.slug === slug);
+    const startedMs = Date.parse(marker.startedAt);
+    out.push({
+      slug,
+      name: fd?.name ?? slug,
+      ...(fd === undefined ? {} : { tier: fd.tier }),
+      worktree,
+      branch: /^branch refs\/heads\/(.+)$/m.exec(block)?.[1] ?? null,
+      path: marker.path,
+      startedAt: marker.startedAt,
+      lastCommit: git(worktree, ['log', '-1', '--format=%s']) ?? '',
+      stale: !Number.isNaN(startedMs) && nowMs - startedMs > ttlHours * 3_600_000,
+    });
+  }
+  return out;
+}
+
 /**
  * The active milestone, as much of it as the gate's bucketing needs.
  *
@@ -482,11 +620,17 @@ async function main(): Promise<void> {
 
   if (argv.has('--suggestions')) {
     const inProgressFds = loadInProgressFds(cwd);
+    const worktreeSessions = loadWorktreeSessions(cwd);
     const active = loadMilestoneGate(cwd);
     const skip = parseSkip(process.argv.slice(2));
     const suggestions = getSuggestions(
       roadmapRaw,
-      { inProgressFds, milestoneGate: active.gate, activeMilestone: active.slug },
+      {
+        inProgressFds,
+        worktreeSessions,
+        milestoneGate: active.gate,
+        activeMilestone: active.slug,
+      },
       skip,
     );
     warnBlocked(suggestions.blocked);
