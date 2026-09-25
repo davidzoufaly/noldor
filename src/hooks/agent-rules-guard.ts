@@ -1,8 +1,11 @@
 // scripts/hooks/agent-rules-guard.ts
 // PreToolUse hook for the Agent tool. Enforces that every Agent dispatch
 // prompt references docs/noldor/engineering-principles.md so subagents
-// inherit the engineering rules (they don't auto-load CLAUDE.md). See
-// docs/noldor/engineering-principles.md §"Subagent guidance".
+// inherit the engineering rules. Subagents do load CLAUDE.md / AGENTS.md
+// (Explore and Plan skip them — https://code.claude.com/docs/en/sub-agents.md
+// § What loads at startup), but neither rule file is part of that hierarchy,
+// so the prompt must name them. See .claude/engineering-rules.md
+// §"Subagent guidance".
 import { z } from 'zod';
 import { isEntrypoint } from '../core/cli-entry.js';
 
@@ -60,8 +63,9 @@ export function runAgentRulesGuard(opts: { stdin: string }): AgentRulesGuardResu
     reason:
       `Agent prompt missing required reference to "${REQUIRED_REF}". ` +
       `Add the line: "Follow engineering principles in docs/noldor/engineering-principles.md ` +
-      `and project overlays in .claude/engineering-rules.md." per ` +
-      `docs/noldor/engineering-principles.md §"Subagent guidance".`,
+      `and project overlays in .claude/engineering-rules.md." Subagents load CLAUDE.md / AGENTS.md, ` +
+      `not these rule files (Explore and Plan load neither) — see .claude/engineering-rules.md ` +
+      `§"Subagent guidance".`,
   };
 }
 

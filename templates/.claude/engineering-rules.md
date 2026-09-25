@@ -239,7 +239,11 @@ When delegating to a subagent (Agent tool), include this line in the prompt:
 
 > Follow engineering principles in `docs/noldor/engineering-principles.md` and project overlays in `.claude/engineering-rules.md`.
 
-Subagents don't auto-load CLAUDE.md, so the parent must reference the files explicitly.
+Subagents load the same CLAUDE.md / AGENTS.md hierarchy as the main conversation, except the built-in
+Explore and Plan agents (they skip it) and any agent whose definition sets `omitClaudeMd`
+([sub-agents doc](https://code.claude.com/docs/en/sub-agents.md) § What loads at startup). Neither rule
+file above is part of that hierarchy — AGENTS.md only points at them — so the parent names them in the
+prompt either way.
 
 ### Implementer scope-guard
 

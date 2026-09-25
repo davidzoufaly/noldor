@@ -606,5 +606,9 @@
   "Q-0281": {
     "slug": "design-verdict-check-edge-cases",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0282": {
+    "slug": "verify-whether-subagents-load-claudemd",
+    "retiredAt": "2026-09-25"
   }
 }
