@@ -92,9 +92,10 @@ A new optional config key in `src/core/consumer-config.ts`:
 
 Keys follow the same rule `uiCapture` keys do: a declared `uiSurfaces` surface, or the implicit `app` when `uiSurfaces` is absent. An orphan key is a config error. `modes` is optional; without it each state stands alone.
 
-The declared set expands to page ids: `<state>-<mode>` for every pair, or `<state>` when there are no modes. That is the page-id grammar charuy already emits (`pageId` in its `scripts/design/states.ts`) and that Q-0292 proposes for every baseline. `checkCoverage(pages, declared, surface)` reports two red findings:
+The declared set expands to page ids: `<state>-<mode>` for every pair, or `<state>` when there are no modes. That is the page-id grammar charuy already emits (`pageId` in its `scripts/design/states.ts`) and that Q-0292 proposes for every baseline. `checkCoverage(pages, declared, surface)` reports three red findings:
 
 - `missing-page`: a declared id with no top-level frame carrying it.
+- `duplicate-page`: a declared id carried by more than one top-level frame.
 - `undeclared-page`: a top-level `FINAL:<surface>:` frame whose id is not declared. This is the page for a deleted state that charuy carried.
 
 A surface without a `uiCoverage` entry gets no coverage findings at all. Adoption is opt-in, so no existing consumer gains a new block from this unit.
@@ -140,7 +141,7 @@ Every probe keeps the module's existing posture: report, never throw, and never 
 1. A committed baseline whose pages bind a `$variable` the `variables` block does not declare makes `checks ui-design-freshness` report that surface `invalid`, naming the variable, and exit 1.
 2. A committed baseline that is not JSON, or has no top-level `children` array, reports `invalid` and exits 1.
 3. With `uiCoverage` declaring states × modes for a surface, a baseline missing one of the expanded page ids reports `incomplete`, naming the id, and exits 1.
-4. A top-level `FINAL:<surface>:` page whose id the surface does not declare reports `incomplete`, naming the page.
+4. A top-level `FINAL:<surface>:` page whose id the surface does not declare, or a declared id carried by two top-level frames, reports `incomplete`, naming the id.
 5. A surface with no `uiCoverage` entry never reports `incomplete`.
 6. With a pen schema found, a baseline whose `version` differs from it is reported as an advisory and the check still exits 0 when nothing else is wrong. With no schema found, the check reports no schema finding at all.
 7. Release preflight blocks on `invalid` and `incomplete`, and warns rather than reporting ok when the only findings are advisories.
@@ -173,7 +174,7 @@ As an operator whose release gate trusts the UI baseline, I want `checks ui-desi
 1. *Should `invalid` and `incomplete` block the release, or only warn?* → Block, like `stale` (D1). Both are defects in the committed artifact, not adoption debt; `incomplete` is opt-in, and `invalid` rests only on machine-independent findings.
 2. *How deep should "validates against the installed schema" go?* → Envelope plus bindings: parse, required keys, variable resolution, plus version and top-level-key advisories (D2). It needs no new dependency and catches every failure charuy hit. Full node validation stays with the capture harness.
 3. *How does a page match a declared state and mode?* → By the top-level frame's `id`, shaped `<state>-<mode>` (D3). An id is stable where a display name is not, and charuy already emits this shape.
-4. *Presence only, or an exact match?* → Exact: a declared id must exist, and an undeclared `FINAL:<surface>:` page is reported (D4). A leftover page is what misled charuy's capture.
+4. *Presence only, or an exact match?* → Exact: a declared id must be carried by exactly one top-level frame, and an undeclared `FINAL:<surface>:` page is reported (D4). A leftover page is what misled charuy's capture.
 5. *Should `design capture` run the same checks?* → Yes, and refuse the receipt (D5). The receipt is what makes a surface read fresh, so it is the one place a broken baseline must be stopped.
 6. *Where is the installed schema found?* → `NOLDOR_PEN_SCHEMA`, then the newest pen.dev VS Code extension under `~/.vscode/extensions` (D6). The desktop app is no longer a noldor editor.
 7. *What happens when no schema is installed, as in CI?* → The schema advisories are skipped and nothing reds on schema grounds (D7). The red findings run everywhere because they need no schema.
