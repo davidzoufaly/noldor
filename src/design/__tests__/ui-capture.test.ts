@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CaptureResult } from '../../core/run-capture.js';
 import { main as captureMain, declaredSurfaces } from '../ui-capture-cli.js';
@@ -21,12 +21,27 @@ import { blobIdOfWorktreeFile, readReceipt, receiptPath, receiptRelPath } from '
 /** Module-level so two runners in one test never write identical bytes. */
 let captureSeq = 0;
 
-function scriptedRunner(script: Record<string, Partial<CaptureResult>>, cwd?: () => string) {
+/**
+ * A minimal valid `.pen` whose one page carries `label`. `design capture` now
+ * refuses to vouch for a baseline that is not a usable document, so every
+ * fixture a success case vouches for must be one.
+ */
+const validPen = (label: string): string =>
+  JSON.stringify({
+    version: '2.19',
+    children: [{ type: 'frame', id: 'page', name: label, children: [] }],
+  });
+
+/** `writes` replaces the valid document a scripted capture would otherwise produce. */
+type ScriptedCapture = Partial<CaptureResult> & { writes?: string };
+
+function scriptedRunner(script: Record<string, ScriptedCapture>, cwd?: () => string) {
   const ran: string[] = [];
   const run = async (command: string): Promise<CaptureResult> => {
     ran.push(command);
     const hit = Object.entries(script).find(([prefix]) => command.startsWith(prefix));
-    const result = { code: 0, timedOut: false, stderrTail: '', ...hit?.[1] };
+    const { writes, ...scripted } = hit?.[1] ?? {};
+    const result = { code: 0, timedOut: false, stderrTail: '', ...scripted };
     // A real capture rewrites the surface's baseline, and the wrapper now
     // refuses to vouch when the file is byte-identical to what it was before —
     // a command that exits 0 having written nothing is a failed capture. The
@@ -36,7 +51,7 @@ function scriptedRunner(script: Record<string, Partial<CaptureResult>>, cwd?: ()
       const abs = join(cwd(), 'docs/design/ui/baseline', `${surface}.pen`);
       if (existsSync(abs)) {
         captureSeq += 1;
-        writeFileSync(abs, `CAPTURED-${surface}-${captureSeq}`);
+        writeFileSync(abs, writes ?? validPen(`CAPTURED-${surface}-${captureSeq}`));
       }
     }
     return result;
@@ -104,13 +119,17 @@ describe('design capture', () => {
     );
   }
 
-  async function writeBaseline(surface: string, content: string): Promise<void> {
+  async function writeRawBaseline(surface: string, content: string): Promise<void> {
     const abs = join(cwd, 'docs/design/ui/baseline', `${surface}.pen`);
     await mkdir(join(cwd, 'docs/design/ui/baseline'), { recursive: true });
     await writeFile(abs, content, 'utf8');
   }
 
-  const deps = (script: Record<string, Partial<CaptureResult>>) => {
+  /** A valid baseline labelled `label`, so tests can tell one version of it from another. */
+  const writeBaseline = (surface: string, label: string): Promise<void> =>
+    writeRawBaseline(surface, validPen(label));
+
+  const deps = (script: Record<string, ScriptedCapture>) => {
     const s = scriptedRunner(script, () => cwd);
     return { deps: { run: s.run, now: () => '2026-08-29T00:00:00.000Z' }, ran: s.ran };
   };
@@ -171,7 +190,7 @@ describe('design capture', () => {
     expect(await captureMain([], cwd, d)).toBe(1);
     expect(readReceipt(cwd, 'app')).toBeNull();
     expect(await readFile(join(cwd, 'docs/design/ui/baseline/app.pen'), 'utf8')).toBe(
-      'STALE-FROM-LAST-TIME',
+      validPen('STALE-FROM-LAST-TIME'),
     );
   });
 
@@ -255,7 +274,7 @@ describe('design capture', () => {
 
     expect(ran).toEqual([]);
     expect(await readFile(join(cwd, 'docs/design/ui/baseline/app.pen'), 'utf8')).toBe(
-      'HAND-EDITED-BY-PENCIL',
+      validPen('HAND-EDITED-BY-PENCIL'),
     );
     expect(readReceipt(cwd, 'app')?.baselineBlob).toBe(
       blobIdOfWorktreeFile(cwd, 'docs/design/ui/baseline/app.pen'),
@@ -374,5 +393,89 @@ describe('design capture', () => {
 
     expect(await captureMain([], cwd, d)).toBe(1);
     expect(readReceipt(cwd, 'a')).not.toBeNull();
+  });
+
+  describe('the baseline it vouches for', () => {
+    const page = (id: string, extra: Record<string, unknown> = {}) => ({
+      type: 'frame',
+      id,
+      name: `FINAL:app: ${id}`,
+      children: [],
+      ...extra,
+    });
+
+    /** Run capture with console output collected, so a test can read why a surface failed. */
+    async function run(argv: string[], d: Parameters<typeof captureMain>[2]) {
+      const lines: string[] = [];
+      const spy = vi.spyOn(console, 'log').mockImplementation((...a: unknown[]) => {
+        lines.push(a.map(String).join(' '));
+      });
+      try {
+        return { code: await captureMain(argv, cwd, d), out: lines.join('\n') };
+      } finally {
+        spy.mockRestore();
+      }
+    }
+
+    it('writes no receipt when the command produced a baseline binding an undeclared variable', async () => {
+      await writeConfig({ uiPaths: ['src/**'], uiCapture: { app: { command: 'capture-app' } } });
+      await writeBaseline('app', 'PEN-BYTES');
+      const broken = JSON.stringify({
+        version: '2.19',
+        variables: {},
+        children: [page('rest', { fill: '$gone' })],
+      });
+      const { deps: d } = deps({ 'capture-app': { code: 0, writes: broken } });
+
+      const r = await run([], d);
+      expect(r.code).toBe(1);
+      expect(readReceipt(cwd, 'app')).toBeNull();
+      expect(r.out).toContain('$gone');
+    });
+
+    it('writes no receipt when the captured baseline misses a page its surface declares', async () => {
+      await writeConfig({
+        uiPaths: ['src/**'],
+        uiCapture: { app: { command: 'capture-app' } },
+        uiCoverage: { app: { states: ['rest'], modes: ['light', 'dark'] } },
+      });
+      await writeBaseline('app', 'PEN-BYTES');
+      const darkOnly = JSON.stringify({ version: '2.19', children: [page('rest-dark')] });
+      const { deps: d } = deps({ 'capture-app': { code: 0, writes: darkOnly } });
+
+      const r = await run([], d);
+      expect(r.code).toBe(1);
+      expect(readReceipt(cwd, 'app')).toBeNull();
+      expect(r.out).toContain('rest-light');
+    });
+
+    it('writes the receipt when the captured baseline holds every declared page', async () => {
+      await writeConfig({
+        uiPaths: ['src/**'],
+        uiCapture: { app: { command: 'capture-app' } },
+        uiCoverage: { app: { states: ['rest'], modes: ['light', 'dark'] } },
+      });
+      await writeBaseline('app', 'PEN-BYTES');
+      const both = JSON.stringify({
+        version: '2.19',
+        children: [page('rest-light'), page('rest-dark')],
+      });
+      const { deps: d } = deps({ 'capture-app': { code: 0, writes: both } });
+
+      expect((await run([], d)).code).toBe(0);
+      expect(readReceipt(cwd, 'app')).not.toBeNull();
+    });
+
+    it('refuses to vouch for a hand edit that left the baseline unparseable', async () => {
+      await writeConfig({ uiPaths: ['src/**'], uiCapture: { app: { command: 'capture-app' } } });
+      await writeRawBaseline('app', '{ half an edit');
+      const { deps: d, ran } = deps({});
+
+      const r = await run(['--surface', 'app', '--vouch-only'], d);
+      expect(r.code).toBe(1);
+      expect(ran).toEqual([]);
+      expect(readReceipt(cwd, 'app')).toBeNull();
+      expect(r.out).toContain('not a .pen document');
+    });
   });
 });

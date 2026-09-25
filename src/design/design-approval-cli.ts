@@ -24,8 +24,6 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 
-import { z } from 'zod';
-
 import { blobIdOfBytes, blobIdOfWorktreeFile } from '../core/blob-id.js';
 import { runIfDirect } from '../core/cli-entry.js';
 import {
@@ -50,6 +48,7 @@ import {
   type DesignApprovalRecord,
 } from './design-approval.js';
 import { ARCH_VIEWS } from './arch-pen.js';
+import { parsePenDocument, topLevelPages } from './pen-doc.js';
 
 const USAGE =
   'usage: design verdict --pen <path> --approve --surface <s> [--surface <s>...] (--spec <path> | --milestone <slug>)\n' +
@@ -314,9 +313,6 @@ function resolveFeatureSpec(
   return { ok: true, rel: relative(repoRoot, found.abs).split(sep).join('/'), name };
 }
 
-/** Top-level children are the pages; nothing else in the document is read. */
-const penPagesSchema = z.object({ children: z.array(z.object({ name: z.string() })) });
-
 /**
  * The page names a `.pen` holds, in file order. The file is plain JSON (see
  * docs/noldor/gotchas.md). A name argv cannot carry as an `--editor-page` value
@@ -324,15 +320,19 @@ const penPagesSchema = z.object({ children: z.array(z.object({ name: z.string() 
  * a page the agent had no way to name.
  */
 function readPenPages(bytes: Buffer): { ok: true; pages: string[] } | { ok: false; error: string } {
-  let doc: unknown;
-  try {
-    doc = JSON.parse(bytes.toString('utf8'));
-  } catch (err) {
-    return { ok: false, error: `not JSON (${errMessage(err)})` };
+  const parsed = parsePenDocument(bytes);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error:
+        parsed.reason === 'not-json' ? parsed.error : 'no top-level children array of named pages',
+    };
   }
-  const parsed = penPagesSchema.safeParse(doc);
-  if (!parsed.success) return { ok: false, error: 'no top-level children array of named pages' };
-  const pages = parsed.data.children.map((page) => page.name);
+  const named = topLevelPages(parsed.doc).map((page) => page.name);
+  if (named.some((name) => name === undefined)) {
+    return { ok: false, error: 'no top-level children array of named pages' };
+  }
+  const pages = named as string[];
   const unpassable = pages.find((name) => name.trim() === '' || name.startsWith('--'));
   if (unpassable !== undefined) {
     return {

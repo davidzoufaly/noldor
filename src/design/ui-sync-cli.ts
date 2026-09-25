@@ -40,12 +40,14 @@ export function renderSurfaceReport(s: UiSurfaceFreshness): string {
         ? `create ${file} in a pencil-capable session (bootstrap)`
         : s.status === 'stale'
           ? `edit ${file} in a pencil-capable session to match the code at ${s.uiCommit?.slice(0, 8) ?? 'HEAD'}`
-          : // An indeterminate row is not clean and is not remediable here: the
-            // freshness check could not run for it, so `no action` would read as
-            // "checked, nothing wrong" over a surface nothing checked.
-            s.status === 'indeterminate'
-            ? 'nothing to remediate here — the check could not run for this surface; re-run once git can answer'
-            : 'no action';
+          : s.status === 'invalid' || s.status === 'incomplete'
+            ? `fix ${file} in a pencil-capable session so the problems above are gone`
+            : // An indeterminate row is not clean and is not remediable here: the
+              // freshness check could not run for it, so `no action` would read as
+              // "checked, nothing wrong" over a surface nothing checked.
+              s.status === 'indeterminate'
+              ? 'nothing to remediate here — the check could not run for this surface; re-run once git can answer'
+              : 'no action';
   return `${s.surface}: ${s.status}\n  ${s.detail}\n  → ${action}`;
 }
 
@@ -129,7 +131,12 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
       pending += 1;
       continue;
     }
-    if (s.status === 'stale' || s.status === 'uninitialized') {
+    if (
+      s.status === 'stale' ||
+      s.status === 'uninitialized' ||
+      s.status === 'invalid' ||
+      s.status === 'incomplete'
+    ) {
       const rel = `${BASELINE_DIR}/${s.surface}.pen`;
       // Plain `git add` (never --intent-to-add: a no-op on tracked files and
       // invisible to `diff --cached`, which would make the ✓ path unreachable).

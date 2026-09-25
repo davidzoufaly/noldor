@@ -182,6 +182,25 @@ export const uiCaptureRecipeSchema = z
 export type UiCaptureRecipe = z.infer<typeof uiCaptureRecipeSchema>;
 
 /**
+ * The pages one surface's baseline must hold: one top-level page per state,
+ * times each mode when modes are declared, with page id `<state>-<mode>`
+ * (`<state>` alone without modes). `noldor checks ui-design-freshness` reports a
+ * baseline that misses one, carries one twice, or holds an undeclared `FINAL:`
+ * page. A mode is a single segment so that `<state>-<mode>` splits one way.
+ */
+export const uiCoverageSchema = z
+  .object({
+    states: z.array(z.string().regex(SURFACE_NAME_RE)).min(1),
+    modes: z
+      .array(z.string().regex(/^[a-z0-9]+$/))
+      .min(1)
+      .optional(),
+  })
+  .strict();
+
+export type UiCoverage = z.infer<typeof uiCoverageSchema>;
+
+/**
  * A declined toolchain-floor requirement. `id` is the floor check's id (see
  * `src/invariants/toolchain-floor.ts`); `reason` is why this repo does not meet
  * it. A waiver does not silence the finding — it downgrades it to a `warn` that
@@ -205,6 +224,51 @@ export const ToolchainFloorSchema = z
   .strict();
 
 export type ToolchainFloor = z.infer<typeof ToolchainFloorSchema>;
+
+/**
+ * A surface-keyed block's keys must each name a declared `uiSurfaces` surface,
+ * or the implicit `app` when `uiSurfaces` is absent: an orphan key is never
+ * reached by a verdict, so it is rejected rather than silently ignored. The
+ * block also needs `uiPaths`, because nothing is UI-bearing without it, and a
+ * config that validates while being permanently unreachable is worse than one
+ * that fails to parse.
+ */
+function checkSurfaceKeys(
+  cfg: {
+    uiPaths?: string[];
+    uiSurfaces?: Record<string, string[]>;
+    uiCapture?: Record<string, unknown>;
+    uiCoverage?: Record<string, unknown>;
+  },
+  ctx: z.RefinementCtx,
+  block: 'uiCapture' | 'uiCoverage',
+  unreachable: string,
+): void {
+  const keyed = cfg[block];
+  if (keyed === undefined) return;
+  const surfaces = Object.keys(keyed);
+  if ((cfg.uiPaths ?? []).length === 0 && surfaces.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [block],
+      message: `${block} is declared but uiPaths is absent or empty — nothing is UI-bearing, so ${unreachable}`,
+    });
+  }
+  for (const surface of surfaces) {
+    const declared = Object.hasOwn(cfg.uiSurfaces ?? {}, surface);
+    const implicitApp = cfg.uiSurfaces === undefined && surface === IMPLICIT_SURFACE;
+    if (!declared && !implicitApp) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [block, surface],
+        message:
+          cfg.uiSurfaces === undefined
+            ? `${block} surface '${surface}' is not '${IMPLICIT_SURFACE}'; with no uiSurfaces block the only surface is the implicit '${IMPLICIT_SURFACE}'`
+            : `${block} surface '${surface}' is not declared in uiSurfaces`,
+      });
+    }
+  }
+}
 
 export const ConsumerConfigSchema = z
   .object({
@@ -276,6 +340,11 @@ export const ConsumerConfigSchema = z
      */
     uiCapture: z.record(z.string().regex(SURFACE_NAME_RE), uiCaptureRecipeSchema).optional(),
     /**
+     * Per-surface page coverage each baseline is held to. Keys follow the
+     * `uiCapture` rule: a declared `uiSurfaces` surface, or the implicit `app`.
+     */
+    uiCoverage: z.record(z.string().regex(SURFACE_NAME_RE), uiCoverageSchema).optional(),
+    /**
      * Floor requirements this repo deliberately does not meet, each with a
      * reason. Read by the `toolchain-floor` invariant. Absent ⇒ the full floor
      * applies.
@@ -311,43 +380,14 @@ export const ConsumerConfigSchema = z
         ...Object.keys(cfg.uiSurfaces ?? {}),
         ...Object.keys(cfg.uiBoot ?? {}),
         ...Object.keys(cfg.uiCapture ?? {}),
+        ...Object.keys(cfg.uiCoverage ?? {}),
       ]),
     ];
     for (const issue of sanitizationIssues(surfaceNames)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['uiSurfaces'], message: issue });
     }
-    // `uiCapture` keys: a declared `uiSurfaces` surface, or the implicit `app`
-    // surface when `uiSurfaces` is absent. Anything else is an orphan whose
-    // capture could never be reached by a verdict, so it is rejected rather
-    // than silently ignored.
-    if (cfg.uiCapture !== undefined) {
-      // Nothing is UI-bearing without `uiPaths`, so `design capture` would
-      // refuse every surface and the declared commands could never run. A
-      // config that validates while being permanently unreachable is worse than
-      // one that fails to parse.
-      if ((cfg.uiPaths ?? []).length === 0 && Object.keys(cfg.uiCapture).length > 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['uiCapture'],
-          message:
-            'uiCapture is declared but uiPaths is absent or empty — nothing is UI-bearing, so no capture could ever run',
-        });
-      }
-      for (const surface of Object.keys(cfg.uiCapture)) {
-        const declared = Object.hasOwn(cfg.uiSurfaces ?? {}, surface);
-        const implicitApp = cfg.uiSurfaces === undefined && surface === IMPLICIT_SURFACE;
-        if (!declared && !implicitApp) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['uiCapture', surface],
-            message:
-              cfg.uiSurfaces === undefined
-                ? `uiCapture surface '${surface}' is not '${IMPLICIT_SURFACE}'; with no uiSurfaces block the only surface is the implicit '${IMPLICIT_SURFACE}'`
-                : `uiCapture surface '${surface}' is not declared in uiSurfaces`,
-          });
-        }
-      }
-    }
+    checkSurfaceKeys(cfg, ctx, 'uiCapture', 'no capture could ever run');
+    checkSurfaceKeys(cfg, ctx, 'uiCoverage', 'no coverage could ever be checked');
 
     if (cfg.uiBoot === undefined) return;
     for (const [surface, recipe] of Object.entries(cfg.uiBoot)) {
@@ -389,6 +429,7 @@ export function loadUiConfig(cwd: string): {
   uiPaths?: string[];
   uiSurfaces?: Record<string, string[]>;
   uiCapture?: Record<string, UiCaptureRecipe>;
+  uiCoverage?: Record<string, UiCoverage>;
 } | null {
   if (!existsSync(join(cwd, CONFIG_FILE))) return null;
   const consumer = loadConsumerConfig(cwd);
@@ -396,6 +437,7 @@ export function loadUiConfig(cwd: string): {
     uiPaths: consumer.uiPaths,
     uiSurfaces: consumer.uiSurfaces,
     uiCapture: consumer.uiCapture,
+    uiCoverage: consumer.uiCoverage,
   };
 }
 

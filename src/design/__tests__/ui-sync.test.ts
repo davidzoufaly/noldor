@@ -69,6 +69,20 @@ describe('renderSurfaceReport — capture remediation', () => {
     expect(out).toContain('pencil-capable session');
     expect(out).not.toContain('design capture');
   });
+
+  it.each(['invalid', 'incomplete'] as const)(
+    'tells a %s row with no capture command to fix the baseline by hand, never "no action"',
+    (status) => {
+      const out = renderSurfaceReport({
+        surface: 'app',
+        status,
+        remediation: 'ui-sync',
+        detail: 'docs/design/ui/baseline/app.pen: binds $gone that the document does not declare',
+      });
+      expect(out).toContain('fix docs/design/ui/baseline/app.pen in a pencil-capable session');
+      expect(out).not.toContain('no action');
+    },
+  );
 });
 
 describe('validateBaselineFile', () => {
@@ -169,7 +183,7 @@ describe('ui-sync main — a surface the freshness check could not evaluate', ()
     // reader would take as "checked, all clear".
     write('src/app/page.tsx', 'ui');
     commit('feat: ui');
-    write('docs/design/ui/baseline/app.pen', 'pen');
+    write('docs/design/ui/baseline/app.pen', JSON.stringify({ version: '2.19', children: [] }));
     commit('docs: baseline');
     const blob = blobIdOfWorktreeFile(cwd, 'docs/design/ui/baseline/app.pen');
     write(
@@ -193,5 +207,40 @@ describe('ui-sync main — a surface the freshness check could not evaluate', ()
     expect(out).toContain('app: indeterminate');
     expect(out).toContain('the check could not run');
     expect(out).toMatch(/1 surface\(s\) could not be checked/);
+  });
+
+  it('keeps a freshly captured but invalid baseline pending until it is fixed', async () => {
+    write('src/app/page.tsx', 'ui');
+    commit('feat: ui');
+    write(
+      'docs/design/ui/baseline/app.pen',
+      JSON.stringify({
+        version: '2.19',
+        variables: {},
+        children: [
+          { type: 'frame', id: 'rest', name: 'FINAL:app: rest', fill: '$gone', children: [] },
+        ],
+      }),
+    );
+    commit('docs: baseline');
+    const blob = blobIdOfWorktreeFile(cwd, 'docs/design/ui/baseline/app.pen');
+    write(
+      receiptRelPath('app'),
+      JSON.stringify({ capturedAt: '2026-08-29T00:00:00.000Z', baselineBlob: blob, command: 'c' }),
+    );
+    commit('chore: capture');
+
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...a: unknown[]) => {
+      lines.push(a.map(String).join(' '));
+    });
+    try {
+      expect(await main([], cwd)).toBe(1);
+    } finally {
+      spy.mockRestore();
+    }
+    const out = lines.join('\n');
+    expect(out).toContain('app: invalid');
+    expect(out).toContain('fix docs/design/ui/baseline/app.pen in a pencil-capable session');
   });
 });

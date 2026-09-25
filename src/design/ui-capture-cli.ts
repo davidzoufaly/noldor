@@ -10,16 +10,18 @@
 // the false-fresh with no diagnostic. Owning the exit-code branch here is what
 // makes "receipt advanced" and "capture succeeded" the same thing.
 
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
 import { loadUiConfig } from '../core/consumer-config.js';
+import { errMessage } from '../core/err-message.js';
 import type { UiCaptureRecipe } from '../core/consumer-config.js';
 import { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.js';
 import { runCapture } from '../core/run-capture.js';
 import type { CaptureResult } from '../core/run-capture.js';
 import { surfaceMap } from '../core/ui-predicate.js';
+import { inspectBaseline, type CoverageDeclaration } from './pen-doc.js';
 import { blobIdOfWorktreeFile, receiptRelPath, writeReceipt } from './ui-capture.js';
 
 /** One surface's outcome, so the aggregate exit code is derived, not maintained. */
@@ -61,6 +63,7 @@ export async function captureSurface(
   run: CaptureRunner,
   now: () => string,
   vouchOnly = false,
+  coverage?: CoverageDeclaration,
 ): Promise<SurfaceCaptureOutcome> {
   // `--vouch-only` exists for the gate's sanctioned baseline write-back
   // (Step 4, `NOLDOR_ALLOW_PEN_WRITE=1`), which pencil-edits the baseline by
@@ -127,6 +130,29 @@ export async function captureSurface(
       surface,
       ok: false,
       detail: `could not compute a git object id for ${rel} — receipt unchanged`,
+    };
+  }
+  // The receipt is what makes a surface read fresh, so it must never vouch for
+  // a baseline the freshness check would call invalid or incomplete. Only red
+  // findings refuse: advisories come from whichever pen schema this machine has.
+  let bytes: Buffer;
+  try {
+    bytes = readFileSync(baseline);
+  } catch (err) {
+    return {
+      surface,
+      ok: false,
+      detail: `could not read ${rel} (${errMessage(err)}) — receipt unchanged`,
+    };
+  }
+  const red = inspectBaseline(bytes, { schema: null, coverage, surface }).filter(
+    (f) => f.severity === 'red',
+  );
+  if (red.length > 0) {
+    return {
+      surface,
+      ok: false,
+      detail: `${rel} is not a baseline the freshness check accepts: ${red.map((f) => f.message).join('; ')} — receipt unchanged`,
     };
   }
   const written = writeReceipt(cwd, surface, {
@@ -257,7 +283,18 @@ async function runCaptureCommand(argv: string[], cwd: string, deps: CaptureDeps)
     const declared = Object.hasOwn(capture, surface) ? capture[surface] : undefined;
     const recipe = declared ?? (vouchOnly ? VOUCH_ONLY_RECIPE : undefined);
     if (recipe === undefined) continue;
-    const outcome = await captureSurface(cwd, surface, recipe, deps.run, deps.now, vouchOnly);
+    const coverage = Object.hasOwn(ui.uiCoverage ?? {}, surface)
+      ? ui.uiCoverage![surface]
+      : undefined;
+    const outcome = await captureSurface(
+      cwd,
+      surface,
+      recipe,
+      deps.run,
+      deps.now,
+      vouchOnly,
+      coverage,
+    );
     outcomes.push(outcome);
     console.log(`${outcome.surface}: ${outcome.ok ? 'ok' : 'FAILED'} — ${outcome.detail}`);
   }
