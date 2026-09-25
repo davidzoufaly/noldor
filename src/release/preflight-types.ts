@@ -26,6 +26,7 @@ export type PreflightRowId =
   | 'validate-features'
   | 'gate-compliance'
   | 'architecture'
+  | 'arch-baseline'
   | 'adr'
   | 'readme'
   | 'cr-gate'

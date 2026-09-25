@@ -11,6 +11,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { loadConfigSync, resolveSessionTtlHours, type NoldorConfig } from '../core/config.js';
+import { ARCH_BASELINE_PATH } from '../core/design-artifact-names.js';
+import { checkArchBaseline } from '../design/arch-baseline.js';
 import { checkAdr } from '../docs/docs-adr.js';
 import { checkArchitecture } from '../docs/docs-architecture.js';
 import { checkReadme } from '../docs/readme-content.js';
@@ -61,6 +63,7 @@ export const ALL_ROW_IDS: readonly PreflightRowId[] = [
   'validate-features',
   'gate-compliance',
   'architecture',
+  'arch-baseline',
   'adr',
   'readme',
   'cr-gate',
@@ -749,6 +752,20 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       ok: 'architecture pages complete',
       blocking: 'architecture pages incomplete',
       fix: 'Run `pnpm noldor docs architecture --check` and fill in each reported page.',
+    }),
+
+  /**
+   * The architecture baseline must match the code before a release — but only
+   * in a repo that drew one. `checkArchBaseline` reports `absent` when the file
+   * does not exist, so a consumer that never opted in is never blocked. Advisory
+   * `undrawn-edge` rows never reach `findings`, so they never block either.
+   */
+  'arch-baseline': (ctx) =>
+    docSurfaceRow('arch-baseline', 'RELEASE_SKIP_ARCH_BASELINE', () => checkArchBaseline(ctx.cwd), {
+      absent: `no ${ARCH_BASELINE_PATH}`,
+      ok: 'architecture baseline matches the code',
+      blocking: 'architecture baseline disagrees with the code',
+      fix: 'Run `pnpm noldor checks arch-baseline` and redraw each reported box or arrow in the baseline (the gate Step 4 write-back path).',
     }),
 
   /**

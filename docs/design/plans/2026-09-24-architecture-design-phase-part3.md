@@ -38,7 +38,7 @@ The row reuses `docSurfaceRow`, the helper the `architecture` row uses:
 - it reads the override first (`RELEASE_SKIP_ARCH_BASELINE=1` → `skipped`, carried on the row as `override` so the release path audit-logs it);
 - then maps `absent` → `skipped`, `ok` → `ok`, anything else → `blocking` with the first finding as the detail.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   In `src/release/__tests__/preflight-probes.test.ts`:
 
@@ -78,16 +78,16 @@ The row reuses `docSurfaceRow`, the helper the `architecture` row uses:
   });
   ```
 
-- [ ] **Step 2: Run the tests to verify they fail.**
+- [x] **Step 2: Run the tests to verify they fail.**
 
   Run: `pnpm vitest run src/release/__tests__/preflight-probes.test.ts src/release/__tests__/preflight.test.ts`
   Expected: FAIL. The length assertion reports `expected 17 to be 18`, and the new row cases fail because `runProbe('arch-baseline', …)` finds no probe.
 
-- [ ] **Step 3: Add the row id.**
+- [x] **Step 3: Add the row id.**
 
   In `src/release/preflight-types.ts`, in the `PreflightRowId` union, add `| 'arch-baseline'` directly after `| 'architecture'`.
 
-- [ ] **Step 4: Add the probe.**
+- [x] **Step 4: Add the probe.**
 
   In `src/release/preflight-probes.ts`:
 
@@ -117,7 +117,7 @@ The row reuses `docSurfaceRow`, the helper the `architecture` row uses:
       }),
   ```
 
-- [ ] **Step 5: Run the tests and the typecheck to verify they pass.**
+- [x] **Step 5: Run the tests and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/release/__tests__/preflight-probes.test.ts src/release/__tests__/preflight.test.ts`
   Expected: PASS — no failures.
@@ -125,7 +125,7 @@ The row reuses `docSurfaceRow`, the helper the `architecture` row uses:
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 6: List the row in the versioning doc (both twins).**
+- [x] **Step 6: List the row in the versioning doc (both twins).**
 
   In `docs/noldor/versioning.md`, directly after the `checkArchitecture(repo)` bullet (the one ending ``pnpm release` is the logged break-glass hatch.``), insert:
 
@@ -143,7 +143,7 @@ The row reuses `docSurfaceRow`, the helper the `architecture` row uses:
 
   Run: `cp docs/noldor/versioning.md templates/docs/noldor/versioning.md`
 
-- [ ] **Step 7: Commit.**
+- [x] **Step 7: Commit.**
 
   ```bash
   msg=$(mktemp)
