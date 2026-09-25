@@ -386,6 +386,7 @@ Should `noUncheckedIndexedAccess: true` join the graded compiler settings in the
 A third clone-ratchet noise class past the two Q-0214 dropped. A comments-and-one-field change to three sibling object literals moved the ratchet by -126: Q-0213 touched only `detect.ts` / `baseline.ts` / `clones-cli.ts` and added no copied logic, yet whole-corpus `duplicatedTokens` fell 28967 → 28841 and the group count 290 → 289 — because adding `compared: false` to three neighbouring `return {...}` literals in `ratchetOutcome` changed how they structurally match. Q-0214 dropped import headers and pure delegations; structural matching of sibling literals is untouched, and it is the same sensitivity that forced two hand re-records. Parked rather than roadmapped because it went unnoticed only by moving in the *helpful* direction, and no policy is obvious — suppressing sibling-literal matches would also hide genuinely copied literal blocks. Deletion test: adding a field to neighbouring return literals with no copied logic leaves the ratchet unmoved. (raised 2026-09-08 from an untriaged ideas bullet)
 
 - Second instance, diff-scope verdict (2026-09-23, Q-0250 / PR #492): four CR lanes on one answer seam each declare an answer-shape string, a repair-prompt function, a `LaneAnswerContract` object and a `createAnswerSeam` call; pre-push `noldor-clones` flagged two runs (62 and 52 tokens) as duplication the change wrote while total duplicated tokens fell by 240. Type-2 normalization folds same-key object literals and collapses each prompt template to one `LIT`, so declarations of one interface always match, and only perturbation clears it. The push skipped the step once via `LEFTHOOK_EXCLUDE=noldor-clones`, recorded only in a PR comment. Likelier fix than suppressing the match: an audited override for the diff-scope verdict, like `Noldor-Path-Override` for commits.
+- Third instance, the CLI manifest (2026-09-25, `architecture-design-phase`): the ratchet counts `src/cli/manifest.ts` entries as duplication. Three new `{ src, desc }` entries added +51 tokens, and re-recording is the precedent (#462, #556, and that branch). Candidate: exclude the manifest table, as Q-0214 excluded import headers. Separately, two conditional spreads made token-identical (Type-2) by a review cleanup crossed the floor at 69 tokens; extracting one helper cleared it. Deletion test for the manifest half: adding a manifest entry leaves the clones baseline unchanged.
 
 ### Swallowed-Error Spawns Over Config-Supplied Args
 
@@ -459,3 +460,27 @@ The DOM→`.pen` capture harness is consumer code, but nothing in it is charuy-s
 - confidence: low
 
 Q-0244's lane rule only fires when an entry declares `Touches:`, and no entry in the roadmap or backlog does today, so it stays dormant until one does. `/noldor-triage` proposes area, size and impact per bullet but never a `Touches:` clause; for an XS/S bullet that names a skill or a doc page it could propose one, and that clause is what routes the entry to `micro-chore` at `/noldor-gate` Step 0. The catch: `isDrainEligible` (`src/autonomous/drain-eligibility.ts`) refuses every Touches-bearing entry as multi-scope residue, so writing the clause on a small *code* entry would also pull it out of the drain. Either triage writes it only when every path is on the micro-chore lane (those entries cannot drain anyway), or the drain rule learns to accept a single-scope clause. (found 2026-09-24 shipping Q-0244)
+
+### Review the Architecture Baseline .pen on the Canvas
+
+- id: Q-0311
+- area: tooling
+- type: chore
+- since: 2026-09-25
+- size: XS
+- impact: low
+- confidence: med
+
+Nobody has looked at `docs/design/architecture/baseline.pen` on the canvas yet. It was emitted as schema-2.19 JSON by a generator while the operator was away; `pen-bridge` requested an open, but pencil MCP never answered. Still owed, and operator-only (it needs a human at the pen.dev canvas, so it stays off the roadmap the drain reads): open it in VS Code, confirm it renders, tidy the layout, then run `design arch-route` for each view. (found 2026-09-25, architecture-design-phase)
+
+### Architecture-Design-Phase Review Lows
+
+- id: Q-0312
+- area: tooling
+- type: refactor
+- since: 2026-09-25
+- size: XS
+- impact: low
+- confidence: low
+
+Code-review lows declined on `architecture-design-phase`, filed so they are not lost: (a) `src/indirection/module-pairs.ts` imports `pairKey` from `src/design/arch-pen.ts`, an upward edge — moving it would either pull dependency-cruiser into the pure check or add a `src/core` file for one line; (b) `design arch-progress` compares arrows by their end text, not by the refs they resolve to — revisit if a target and its baseline name the same arrow differently. (found 2026-09-25)

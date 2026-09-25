@@ -605,6 +605,14 @@ persisted diff image before arguing with the ratio.
   signal, not a pass. The prior-run gate above narrows the blast radius — a lane
   with no sink, or a red one, re-runs instead of synthesizing — but a lane whose
   earlier round went green still short-circuits on the bogus empty diff.
+- **`--artifact <one file>` on a code-stage delta re-round synthetic-OKs lanes
+  when the delta touches other files.** After a test-only commit,
+  `cr orchestrate --kind code --artifact src/design/pen-layout.ts --base-sha <green tip>`
+  printed `synthetic OK (empty delta): reviewer, verifier`: the pathspec
+  narrowed the delta to a file the commit did not touch, so only codex read the
+  new test. `--artifact .` made all three lanes review it. Same mechanism as the
+  comma-join trap above — on a delta round, pass `.` unless every changed file
+  sits under the artifact. (Q-0292)
 - **`phase: done` does NOT mean code-stage CR ran.** An in-progress FD whose
   implementation is "done" and phase flipped can still have never run code-stage
   CR (empty `.noldor/cr/`, no `Noldor-Reviewed-Subagent` trailer) — seen on
@@ -782,6 +790,15 @@ Two traps in how a round's result is read:
   receipt produced three new lows, all about the fix itself. Fix the lows that
   cite a binding rule once, then file the rest as a follow-up instead of
   re-rounding. (PR #540)
+- **A skill edit is not a change with no runtime surface — keep the
+  verifier.** A drain child ran `gate-skill-leftovers-from-q-0192`'s closing
+  code round reviewer-only, reasoning that a skill wording change "gives the
+  verifier nothing to run" (PR #549). The new text,
+  `Noldor-Sibling-Scope: <noldor scope-list>`, read as a `noldor scope-list`
+  command to the skill-code-drift detector, so `skill-code-drift.test.ts`'s
+  real-tree self-scan redded main until PR #577 reworded it. Skill and doc prose
+  is input to detectors the suite runs over the real tree, and the verifier's
+  test run is what catches that.
 
 ## Round budget
 

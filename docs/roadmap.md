@@ -16,6 +16,165 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### One Graph Builder for the Sweep and CI
+
+- id: Q-0293
+- area: tooling
+- type: refactor
+- since: 2026-09-24
+- size: M
+- impact: med
+- confidence: low
+- parent: self-refreshing-compact-knowledge-graph
+
+The release sweep and the `update-knowledge-graph` workflow build the committed graph two different ways, so they fight over community ids. Both extract the same nodes and edges (0 diffs, rebuilt from 140ff63), but the sweep's `/graphify --ast-only` clusters with no fixed hash seed and names communities with an LLM, while the workflow pins `PYTHONHASHSEED=0`, sorts its input and writes `Community N`. Two unseeded runs on one tree gave 205 and then 204 communities. So the first graph PR after every release reshuffles every community id and relabels the report. Wanted: one builder both call — a `pnpm noldor graphify build` running the workflow's heredoc (clean AST pass over code files, seeded, sorted, `parallel=False`) — with release-sweep steps 1 and 5 switched to it. Deletion test: the sweep's graph step, run right after a graph PR merges, leaves `graphify-out/` byte-identical. (found 2026-09-23 shipping Q-0260 part 3, PR #501)
+
+- A shared recipe alone will not make the sweep byte-identical to CI. The v1.13.0 sweep ran the workflow's exact recipe on the operator Mac (`PYTHONHASHSEED=0`, sorted input, `parallel=False`, graphifyy 0.7.8 on both sides) and rebuilt 48415a0 with the same 3885 nodes and 10328 edges as CI, but found 222 communities where CI found 215. The rest of the dependency set (networkx, the Leiden backend, the Python patch version) has to match too — so either the builder pins those, or the sweep keeps CI's committed graph whenever the extraction matches (the current workaround, in `docs/noldor/graph-integration.md` → Pre-release sweep). (2026-09-24, PR #537)
+
+### Drain Child Waits for Its Background Tasks
+
+- id: Q-0299
+- area: tooling
+- type: fix
+- since: 2026-09-25
+- size: XS
+- impact: med
+- confidence: high
+
+`claude --print` kills a drain child's background tasks 600 s after its turn ends. The first `gate-skill-leftovers-from-q-0192` attempt ends in the drain log with `Background tasks still running after 600s; terminating. Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 to wait indefinitely.`, with no PR; its code-stage `cr orchestrate` had been running under a Bash tool call minutes earlier. The drain-mode contract already forbids backgrounding these commands, and the child did it anyway. Options: the supervisor sets `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` in the child env, or reads that line as its own failure reason instead of a plain no-PR exit. Deletion test: a child killed this way is reported with that reason in the drain log and the escalation inbox. (found 2026-09-25)
+
+### Design Log Section Resolves on Decide and Open
+
+- id: Q-0300
+- area: tooling
+- type: fix
+- since: 2026-09-25
+- size: XS
+- impact: med
+- confidence: high
+
+`design log --section` on `--decide` / `--open` stores its value verbatim — only `--confirm-section` resolves a heading number or prefix (#561) — and a heading that contains backticks cannot pass through `pnpm noldor` at all (`sh: inspectBaseline: command not found`). A decision logged with a prefix binds to no heading (`⚠ D1 section 'Unit 3' matches no heading` in `design context`), and the only repair is deleting the gitignored ledger and logging again. What worked: plain-text H3 headings in the spec, and `node bin/noldor.mjs design log …`. Wanted: `--section` on `--decide` / `--open` resolves a number or prefix the way `--confirm-section` does. Deletion test: `design log --decide --section 3` binds to the spec's third H3. (found 2026-09-25, Q-0292)
+
+### Gate Skill Rebase Base-Sha Qualifier
+
+- id: Q-0301
+- area: tooling
+- type: docs
+- since: 2026-09-25
+- size: XS
+- impact: med
+- confidence: high
+
+Gate Step 4's green-tip recovery prose (`.claude/skills/noldor-gate/SKILL.md` and its `templates/` twin) says `git rev-parse <branch>@{1}` after a rebase. That holds only for a rebase onto the same base; after rebasing onto a moved `origin/main` it is the pre-rebase tip, whose merge-base is the OLD fork point, so every lane reviews main's new commits as part of the branch. `docs/noldor/drain-mode.md` now carries the qualifier (pass the rebased twin of the last reviewed head, or `--base-sha origin/main` for the whole branch); the skill needs the same one — a micro-chore from main. Deletion test: the skill's recovery paragraph and `drain-mode.md` give the same recipe. (found 2026-09-25, Q-0292)
+
+### Sync fd-resources Honours --slug
+
+- id: Q-0302
+- area: tooling
+- type: fix
+- since: 2026-09-25
+- size: XS
+- impact: med
+- confidence: high
+
+`noldor sync fd-resources` has no `--slug`: `sync fd-resources --slug <slug>` synced all 95 FDs and updated 15 (`src/sync/sync-fd-resources.ts` never reads the flag), while `sync code-links` / `test-links` / `doc-links` honour it. From a feature worktree that drags unrelated Resources churn (`sdd-co-tag-detector.md`) into the tree; the workaround is `git checkout --` the unrelated FDs. Wanted: `fd-resources` takes `--slug` like its siblings, or refuses a flag it ignores. Deletion test: `sync fd-resources --slug <a>` writes only `docs/features/<a>.md`. (found 2026-09-25, Q-0297)
+
+### Module Map Drops Arrows No Import Backs
+
+- id: Q-0303
+- area: tooling
+- type: docs
+- since: 2026-09-25
+- size: XS
+- impact: med
+- confidence: med
+
+`docs/architecture/modules.md` draws 4 arrows that no import backs, found by `checks arch-baseline` on its first run: `src/autonomous -> src/cr`; `src/cli -> Workflow` and `src/cli -> Projection and reporting` (the CLI reaches them through a computed `import(path)` off the manifest, which a static graph cannot see); `src/hooks -> Quality gates`. They were left out of the architecture baseline, but the mermaid page still draws them. Correct `modules.md`, or generate it from the baseline (the architecture-design-phase spec's follow-up slice). Deletion test: every arrow `modules.md` draws is one `checks arch-baseline` accepts. (found 2026-09-25)
+
+### Validate Flags a Queue Id Carried Twice
+
+- id: Q-0304
+- area: tooling
+- type: fix
+- since: 2026-09-25
+- size: S
+- impact: med
+- confidence: high
+
+Nothing catches a queue id carried twice. Two ways it happened on 2026-09-25: (1) `architecture-design-phase` minted Q-0274 for its FD `entry-id` on its branch while main spent Q-0274 on `fd-resources-hook-skips-flat-feature-docs` (retired in PR #545) — the rebase showed only an `.noldor/id-counter.json` conflict, and it was re-minted as Q-0296; (2) `pendev-ui-design-phase-baseline-validity` then minted Q-0296 for a split-out roadmap block from the same counter the same day, and after #578 merged the rebase had no conflict at all (both sides moved the counter from 296 to 297), `validate triage` stayed green, and only a `git grep Q-0296` showed the FD `entry-id` and the roadmap `- id:` sharing it (re-minted as Q-0297). Wanted: `validate triage` / `validate features` flag an id carried by two live blocks or FDs, or equal to a retired id in `.noldor/retired-entry-ids.json`. Deletion test: a roadmap block and an FD `entry-id` with the same `Q-NNNN` fail validation naming both. (found 2026-09-25)
+
+### Unknown-Command Message Echoes Its Argv
+
+- id: Q-0305
+- area: tooling
+- type: fix
+- since: 2026-09-25
+- size: XS
+- impact: low
+- confidence: high
+
+The unknown-command message (`src/core/framework-skew.ts`) should echo the argv it received. Under zsh, `pnpm noldor $c` with `c="checks template-sync"` passes one argument, and the reply blames framework version skew and prescribes `noldor upgrade`, which points the wrong way (the trap itself is in `docs/noldor/gotchas.md` → Shell & tooling traps). Deletion test: an unknown command whose one argument contains a space is reported with that argument quoted, and without the upgrade advice. (found 2026-09-25)
+
+### Resync sdd-co-tag-detector Resources
+
+- id: Q-0306
+- area: tooling
+- type: chore
+- since: 2026-09-25
+- size: XS
+- impact: low
+- confidence: high
+
+Main's `docs/features/sdd-co-tag-detector.md` has a stale Resources block since #542: the `src/features/seed-test-tags.ts` code link and its test links are missing, plus a blank line after the frontmatter. So the fd-resources hook rewrites it on every commit in a worktree, and the rewrite has to be discarded each time. Commit the resync on main. Still true on 2026-09-25 at b790f51. Deletion test: `pnpm noldor sync fd-resources` on a clean main changes no file. (found 2026-09-25)
+
+### Drain-Lock Readers Share readHolder
+
+- id: Q-0307
+- area: tooling
+- type: refactor
+- since: 2026-09-25
+- size: XS
+- impact: low
+- confidence: high
+
+Code-review low declined on Q-0286 (PR #582), filed so it is not lost: `liveLockPid` and `releaseLock` in `src/autonomous/drain-lock.ts` still hand-parse the lock payload with `JSON.parse`, though the file now exports `readHolder`, which requires a positive-integer pid. Moving them onto it would stop the three readers drifting on what counts as a valid pid. `releaseLock` must keep swallowing read errors, since it runs in crash handlers. Deletion test: `drain-lock.ts` parses the payload in one place. (found 2026-09-25)
+
+### Load-Timeout Tests in Dashboard and sdd-report
+
+- id: Q-0308
+- area: testing
+- type: fix
+- since: 2026-09-25
+- size: S
+- impact: med
+- confidence: med
+
+Two full-suite reds are load timeouts that plain `origin/main` shows too, so a branch that hits them has not broken anything. `src/dashboard/__tests__/dashboard-server.test.ts` → `GET /wip-age?limit=999 clamps to 100…` timed out at 10 s in two full runs of the Q-0286 branch and in two full runs after rebasing Q-0292 onto 26665b4; alone it passes in 3.9 s (three sequential `/wip-age` requests over the live repo history). One `src/garden/__tests__/sdd-report.test.ts` case also timed out; a detached `origin/main` at 519e461 redded the same dashboard case and a different `sdd-report.test.ts` case. Each file passes alone. Same family as Q-0171 (suites that read live repo state). Raise those tests' budgets or cut their cost; until then, compare against an `origin/main` run before blaming the branch. Deletion test: both files pass in three concurrent full-suite runs. (found 2026-09-25 shipping Q-0286 and Q-0292)
+
+### Design Archive Repoints a Folded links.spec
+
+- id: Q-0309
+- area: tooling
+- type: fix
+- since: 2026-09-25
+- size: S
+- impact: med
+- confidence: med
+
+`design archive` cannot repoint a folded `links.spec`. The pre-commit FD sync rewrote a new FD's long spec path as a folded YAML scalar (`spec: >-`, path on the next line), and the archive's textual rewrite only matches the one-line form: it moved the spec, printed `its YAML form could not be rewritten textually; repoint it … by hand` and exited 1. Any slug long enough to push `links.spec` past the YAML line width hits this at gate Step 4. What worked: edit the path under `>-` by hand, then `sync fd-resources`. Wanted: the archive rewrites the key through the YAML parser, or matches the folded form. Deletion test: archiving a spec whose FD holds `links.spec` as a folded scalar repoints it and exits 0. (found 2026-09-25, Q-0297)
+
+### Lane-Error Rounds and the Round Cap
+
+- id: Q-0310
+- area: tooling
+- type: feat
+- since: 2026-09-25
+- size: S
+- impact: med
+- confidence: low
+
+Decide whether a CR round whose only blockers are lane errors (timeouts) counts against the round cap, and whether the drain supervisor should take the no-sleep assertion itself (`caffeinate -is -w <pid>`). On the 2026-09-24 overnight drain a sleeping Mac turned three code rounds red on timeouts alone, and `gate-skill-leftovers-from-q-0192` stopped at the cap without one finding about the change; it shipped on its last retry (PR #549). The operator workaround is in `docs/noldor/autonomy.md` → Operator gotchas. Deletion test: a round red only on lane timeouts leaves the round count unchanged. (found 2026-09-25)
+
 ### Geometry-Compare Lane — the Automated Half
 
 - id: Q-0180
@@ -109,31 +268,3 @@ Milestone membership rots by omission at both ends of the chain, so an active mi
 - confidence: med
 
 `blocked-by` is all-or-nothing, so a partial dependency degrades into prose the scorer cannot see. Several entries in a real consumer can start, and two-thirds ship, while one part waits — a bar whose five sections are independently blocked; a panel where one row needs a concept that does not exist yet. Marking the whole entry `blocked-by` divides its score by `1 + unshipped_dep_count` for work that is mostly doable today; leaving it off loses the dependency from the graph entirely, so `/noldor-garden` cannot see it and a reader has to find it in a paragraph. Wanted: a `partially-blocked-by:` that joins the blocked-by graph for cycle detection and `show` output but is **excluded from the dependency factor** in `scoreEntry()` — the semantics being "cannot finish" rather than "cannot start". Open question for the spec: whether `/noldor-gate` should surface the partial blocker at pickup so the agent knows which slice to leave alone, or whether that belongs in the entry body. Deletion test: an entry with only `partially-blocked-by` refs scores as unblocked while still appearing in the dependency graph. (found 2026-09-22)
-
-### Huge View Titles on the Architecture .pen
-
-- id: Q-0298
-- area: tooling
-- type: feat
-- since: 2026-09-25
-- size: S
-- impact: low
-- split-from: Q-0292
-- recovered: 2026-09-25
-
-The UI baseline contract (Q-0292) makes every row label at least 200 px, so each app area reads at zoom-to-fit. The architecture baseline, `docs/design/architecture/baseline.pen` (Q-0296), has no titles at all: its four views (`context`, `containers`, `modules`, `flows`) are top-level frames whose names show only as the editor's small frame captions, and its ids are counters (`p31`, `g5`, `a23`) that shift when a box is added. Wanted: one title of at least 200 px above each view, as a top-level text sibling — `readArchPen` in `src/design/arch-pen.ts` already skips a top-level node whose name is no view — written into the baseline, required by `checks arch-baseline`, and ids that are not counters. Writing the baseline needs a live pencil bridge (terminal Claude Code). Deletion test: an architecture baseline with a view that has no title of at least 200 px fails `checks arch-baseline`, naming the view. (split out of Q-0292 on 2026-09-25: the operator asked for huge section titles on "other `.pen` files too")
-
-### One Graph Builder for the Sweep and CI
-
-- id: Q-0293
-- area: tooling
-- type: refactor
-- since: 2026-09-24
-- size: M
-- impact: med
-- confidence: low
-- parent: self-refreshing-compact-knowledge-graph
-
-The release sweep and the `update-knowledge-graph` workflow build the committed graph two different ways, so they fight over community ids. Both extract the same nodes and edges (0 diffs, rebuilt from 140ff63), but the sweep's `/graphify --ast-only` clusters with no fixed hash seed and names communities with an LLM, while the workflow pins `PYTHONHASHSEED=0`, sorts its input and writes `Community N`. Two unseeded runs on one tree gave 205 and then 204 communities. So the first graph PR after every release reshuffles every community id and relabels the report. Wanted: one builder both call — a `pnpm noldor graphify build` running the workflow's heredoc (clean AST pass over code files, seeded, sorted, `parallel=False`) — with release-sweep steps 1 and 5 switched to it. Deletion test: the sweep's graph step, run right after a graph PR merges, leaves `graphify-out/` byte-identical. (found 2026-09-23 shipping Q-0260 part 3, PR #501)
-
-- A shared recipe alone will not make the sweep byte-identical to CI. The v1.13.0 sweep ran the workflow's exact recipe on the operator Mac (`PYTHONHASHSEED=0`, sorted input, `parallel=False`, graphifyy 0.7.8 on both sides) and rebuilt 48415a0 with the same 3885 nodes and 10328 edges as CI, but found 222 communities where CI found 215. The rest of the dependency set (networkx, the Leiden backend, the Python patch version) has to match too — so either the builder pins those, or the sweep keeps CI's committed graph whenever the extraction matches (the current workaround, in `docs/noldor/graph-integration.md` → Pre-release sweep). (2026-09-24, PR #537)

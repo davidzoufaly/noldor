@@ -238,6 +238,17 @@ detach needed. A systemd `OnCalendar=` timer wrapping the same command works the
   `cr orchestrate`/`cr aggregate` run from the main workspace writes a bogus
   sink into MAIN's `.noldor/cr/` (or returns a false `ok=true` with no matching
   sink). Delete any sink written to the wrong tree.
+- **A drain on a sleeping Mac burns its CR round cap on timeouts.** A
+  lid-closed laptop on battery sits in Maintenance Sleep with DarkWakes every
+  10–17 min (`pmset -g log`), so every lane runs on wall-clock time it does not
+  get. On the 2026-09-24 overnight drain every code round for one entry came
+  back red on timeouts alone: the reviewer dispatch hit `exit -1 (timeout)`, and
+  the verifier's `doctor` smoke floor reported pnpm missing because
+  `makeDefaultProbe` (`src/core/prerequisites.ts`) gives `pnpm --version` 5 s.
+  The cap counted all three rounds as red, so the entry stopped at the cap
+  without one finding about the change. Keep the machine awake for the run:
+  `caffeinate -is -w <drain-pid>` ends with the drain; `-s` holds only on AC
+  power, and a closed lid on battery sleeps regardless. (PR #549)
 
 ## Salvaging a leftover branch
 
