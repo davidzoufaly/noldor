@@ -3,6 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import {
   appendFileSync,
+  chmodSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -562,29 +563,60 @@ describe('design verdict CLI / --check', () => {
     expect(out).not.toContain('@@');
   });
 
-  it('names a failed diff as a failed diff, not as missing text', async () => {
+  /**
+   * Run `--check` over a drifted spec with a `git` on PATH whose `git diff` runs
+   * `diffBody` instead, passing everything else to the real binary — the
+   * subprocess edge, faked at the edge.
+   */
+  async function checkWithFakeDiff(diffBody: string): Promise<{ code: number; out: string }> {
     const cwd = gitRepo();
     await run(cwd, approveArgv());
     appendFileSync(join(cwd, specRel), 'A change.\n');
-    // A `git` on PATH that fails only `git diff`, passing everything else to
-    // the real binary — the subprocess edge, faked at the edge.
     const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
     const bin = join(tempRepo(), 'bin');
     mkdirSync(bin);
     writeFileSync(
       join(bin, 'git'),
-      `#!/bin/sh\nif [ "$1" = diff ]; then echo diff-broke >&2; exit 2; fi\nexec "${realGit}" "$@"\n`,
+      `#!/bin/sh\nif [ "$1" = diff ]; then ${diffBody}; fi\nexec "${realGit}" "$@"\n`,
       { mode: 0o755 },
     );
     const savedPath = process.env.PATH;
     process.env.PATH = `${bin}:${savedPath ?? ''}`;
     try {
-      const { code, out } = await run(cwd, check);
-      expect(code).toBe(1);
-      expect(out).toContain('diff-broke');
-      expect(out).not.toContain('object store');
+      return await run(cwd, check);
     } finally {
       process.env.PATH = savedPath;
+    }
+  }
+
+  it('names a failed diff as a failed diff, not as missing text', async () => {
+    const { code, out } = await checkWithFakeDiff('echo diff-broke >&2; exit 2');
+    expect(code).toBe(1);
+    expect(out).toContain('diff-broke');
+    expect(out).not.toContain('object store');
+  });
+
+  it('names the signal that killed the diff, not a null exit status', async () => {
+    const { code, out } = await checkWithFakeDiff('kill -KILL $$');
+    expect(code).toBe(1);
+    expect(out).toContain('git diff was killed by SIGKILL');
+    expect(out).not.toContain('exited null');
+  });
+
+  it('reports a scratch dir it cannot make as a failed diff, not a crash', async () => {
+    const cwd = gitRepo();
+    await run(cwd, approveArgv());
+    appendFileSync(join(cwd, specRel), 'A change.\n');
+    // os.tmpdir() reads TMPDIR on every call, so a missing one fails mkdtempSync.
+    const savedTmp = process.env.TMPDIR;
+    process.env.TMPDIR = join(cwd, 'no-such-tmp');
+    try {
+      const { code, out } = await run(cwd, check);
+      expect(code).toBe(1);
+      expect(out).toContain('could not diff the spec');
+      expect(out).toContain('ENOENT');
+    } finally {
+      process.env.TMPDIR = savedTmp;
     }
   });
 
@@ -597,6 +629,25 @@ describe('design verdict CLI / --check', () => {
     expect(code).toBe(2);
     expect(err).toContain('EISDIR');
   });
+
+  // Root reads through a mode-000 directory, so the arrangement proves nothing there.
+  it.skipIf(process.getuid?.() === 0)(
+    'reports a record under an unreadable directory as a read failure, not as no record',
+    async () => {
+      const cwd = gitRepo();
+      await run(cwd, approveArgv());
+      const dir = join(cwd, '.noldor', 'design-approval');
+      chmodSync(dir, 0o000);
+      try {
+        const { code, err } = await run(cwd, check);
+        expect(code).toBe(2);
+        expect(err).toContain('cannot read the record');
+        expect(err).toContain('EACCES');
+      } finally {
+        chmodSync(dir, 0o755);
+      }
+    },
+  );
 
   it.each([
     ['there is no record', (_cwd: string) => {}],

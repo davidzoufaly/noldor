@@ -485,24 +485,26 @@ function specDiff(
   const old = spawnSync('git', ['cat-file', 'blob', oldBlob], { cwd, timeout: GIT_TIMEOUT_MS });
   if (old.error !== undefined) return { kind: 'failed', error: errMessage(old.error) };
   if (old.status !== 0) return { kind: 'missing' };
-  using scratch = scratchDir();
   try {
+    using scratch = scratchDir();
     mkdirSync(join(scratch.path, 'approved'));
     mkdirSync(join(scratch.path, 'current'));
     writeFileSync(join(scratch.path, 'approved', name), old.stdout);
     copyFileSync(currentAbs, join(scratch.path, 'current', name));
+    const diff = spawnSync(
+      'git',
+      ['diff', '--no-index', '--no-color', `approved/${name}`, `current/${name}`],
+      { cwd: scratch.path, encoding: 'utf8', timeout: GIT_TIMEOUT_MS },
+    );
+    if (diff.error !== undefined) return { kind: 'failed', error: errMessage(diff.error) };
+    // `git diff --no-index` exits 1 when the files differ — the expected case.
+    if (diff.status === 0 || diff.status === 1) return { kind: 'diff', text: diff.stdout };
+    // A killed process has no status — name the signal instead of printing `null`.
+    const how = diff.signal !== null ? `was killed by ${diff.signal}` : `exited ${diff.status}`;
+    return { kind: 'failed', error: `git diff ${how}: ${diff.stderr.trim()}` };
   } catch (err) {
     return { kind: 'failed', error: errMessage(err) };
   }
-  const diff = spawnSync(
-    'git',
-    ['diff', '--no-index', '--no-color', `approved/${name}`, `current/${name}`],
-    { cwd: scratch.path, encoding: 'utf8', timeout: GIT_TIMEOUT_MS },
-  );
-  if (diff.error !== undefined) return { kind: 'failed', error: errMessage(diff.error) };
-  // `git diff --no-index` exits 1 when the files differ — the expected case.
-  if (diff.status === 0 || diff.status === 1) return { kind: 'diff', text: diff.stdout };
-  return { kind: 'failed', error: `git diff exited ${diff.status}: ${diff.stderr.trim()}` };
 }
 
 /** The working-tree record and the spec it binds, located — or why no verb can act on it. */
