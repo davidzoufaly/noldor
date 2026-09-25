@@ -47,7 +47,7 @@
 
 The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `src/**/__tests__/**/*.test.ts`, so a fixture named `.test.ts` would run as a suite; the cruise excludes both suffixes.
 
-- [ ] **Step 1: Write the fixture tree.**
+- [x] **Step 1: Write the fixture tree.**
 
   Create each file with exactly this content. Every path is under `src/indirection/__tests__/trees/modules/`.
 
@@ -94,7 +94,7 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
   export const main = x;
   ```
 
-- [ ] **Step 2: Write the failing test file.**
+- [x] **Step 2: Write the failing test file.**
 
   Create `src/indirection/__tests__/module-pairs.test.ts`:
 
@@ -144,12 +144,12 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
   });
   ```
 
-- [ ] **Step 3: Run the test to verify it fails.**
+- [x] **Step 3: Run the test to verify it fails.**
 
   Run: `pnpm vitest run src/indirection/__tests__/module-pairs.test.ts`
   Expected: FAIL — `Failed to resolve import "../module-pairs.js"`.
 
-- [ ] **Step 4: Add `pairKey` to the reader.**
+- [x] **Step 4: Add `pairKey` to the reader.**
 
   In `src/design/arch-pen.ts`, directly after `arrowEndsOf`, add:
 
@@ -160,11 +160,11 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
   }
   ```
 
-- [ ] **Step 5: Export the cruise shapes.**
+- [x] **Step 5: Export the cruise shapes.**
 
   In `src/indirection/detect.ts`, put `export` in front of `interface CruiseDep` and `interface CruiseModule`. Leave their bodies unchanged.
 
-- [ ] **Step 6: Move the cruise-and-verify head into `cruiseFileGraph`.**
+- [x] **Step 6: Move the cruise-and-verify head into `cruiseFileGraph`.**
 
   In `src/indirection/detect.ts`, make these edits in order.
 
@@ -233,12 +233,12 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
 
   4. Further down in `measureIndirection`, delete its own `const unresolvedInScope: string[] = [];` declaration and the `for (const m of measured) { … }` loop that fills it — that loop now lives in `cruiseFileGraph`, and the measured result keeps returning `unresolvedInScope` from the destructure.
 
-- [ ] **Step 7: Run the indirection regression tests to verify the move preserved behaviour.**
+- [x] **Step 7: Run the indirection regression tests to verify the move preserved behaviour.**
 
   Run: `pnpm vitest run src/indirection/__tests__/detect.test.ts src/indirection/__tests__/baseline.test.ts src/indirection/__tests__/indirection-cli.test.ts`
   Expected: PASS, with the same test count as before the move and no failures.
 
-- [ ] **Step 8: Write the pair builder.**
+- [x] **Step 8: Write the pair builder.**
 
   Create `src/indirection/module-pairs.ts`:
 
@@ -305,7 +305,7 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
   }
   ```
 
-- [ ] **Step 9: Run the new tests, the typecheck and the indirection ratchet.**
+- [x] **Step 9: Run the new tests, the typecheck and the indirection ratchet.**
 
   Run: `pnpm vitest run src/indirection/__tests__/module-pairs.test.ts`
   Expected: PASS — `Tests  5 passed (5)`.
@@ -332,7 +332,7 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
   git commit -F "$msg"
   ```
 
-- [ ] **Step 10: Commit.**
+- [x] **Step 10: Commit.**
 
   ```bash
   msg=$(mktemp)
@@ -373,7 +373,7 @@ The spec's arrow rules, applied after expansion to modules:
 
 When the cruise cannot build the graph, the result is an `unreadable` finding. Skipping the arrows would mint a green the check never earned.
 
-- [ ] **Step 1: Replace the rule tests.**
+- [x] **Step 1: Replace the rule tests.**
 
   Replace the contents of `src/design/__tests__/arch-check.test.ts` with:
 
@@ -467,12 +467,12 @@ When the cruise cannot build the graph, the result is an `unreadable` finding. S
   });
   ```
 
-- [ ] **Step 2: Run the tests to verify they fail.**
+- [x] **Step 2: Run the tests to verify they fail.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-check.test.ts`
   Expected: FAIL. `result.advisories` is `undefined` (`Cannot read properties of undefined (reading 'map')`), and the phantom-arrow case finds no `phantom-edge`.
 
-- [ ] **Step 3: Replace the rules.**
+- [x] **Step 3: Replace the rules.**
 
   Replace the contents of `src/design/arch-check.ts` with:
 
@@ -634,12 +634,12 @@ When the cruise cannot build the graph, the result is an `unreadable` finding. S
   }
   ```
 
-- [ ] **Step 4: Run the rule tests to verify they pass.**
+- [x] **Step 4: Run the rule tests to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-check.test.ts`
   Expected: PASS — `Tests  8 passed (8)`.
 
-- [ ] **Step 5: Add the failing end-to-end case.**
+- [x] **Step 5: Add the failing end-to-end case.**
 
   In `src/checks/__tests__/check-arch-baseline.test.ts`, add this case inside `describe('checks arch-baseline', …)`, directly after the `'exits 0 on a baseline that covers every module'` case:
 
@@ -656,7 +656,7 @@ When the cruise cannot build the graph, the result is an `unreadable` finding. S
   Run: `pnpm vitest run src/checks/__tests__/check-arch-baseline.test.ts`
   Expected: FAIL. `pnpm typecheck` would already flag `checkArchDoc` missing its third argument in `arch-baseline.ts`, and the new case exits 0 because the pairs are not read yet.
 
-- [ ] **Step 6: Replace the IO seam.**
+- [x] **Step 6: Replace the IO seam.**
 
   Replace the contents of `src/design/arch-baseline.ts` with:
 
@@ -721,7 +721,7 @@ When the cruise cannot build the graph, the result is an `unreadable` finding. S
   }
   ```
 
-- [ ] **Step 7: Replace the CLI so it renders the advisories.**
+- [x] **Step 7: Replace the CLI so it renders the advisories.**
 
   Replace the contents of `src/checks/check-arch-baseline.ts` with:
 
@@ -764,7 +764,7 @@ When the cruise cannot build the graph, the result is an `unreadable` finding. S
   runIfDirect('check-arch-baseline', 'checks arch-baseline', async () => main());
   ```
 
-- [ ] **Step 8: Run the tests and the typecheck to verify they pass.**
+- [x] **Step 8: Run the tests and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/checks/__tests__/check-arch-baseline.test.ts src/design/__tests__/arch-check.test.ts`
   Expected: PASS — `Tests  13 passed (13)`.
@@ -772,7 +772,7 @@ When the cruise cannot build the graph, the result is an `unreadable` finding. S
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 9: Update the catalog entry (both twins).**
+- [x] **Step 9: Update the catalog entry (both twins).**
 
   In `docs/noldor/script-catalog.md`, replace the `- **Inputs:**` and `- **Outputs:**` bullets of the `### \`check:arch-baseline\`` entry with:
 
@@ -790,7 +790,7 @@ When the cruise cannot build the graph, the result is an `unreadable` finding. S
 
   Run: `cp docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md`
 
-- [ ] **Step 10: Commit.**
+- [x] **Step 10: Commit.**
 
   ```bash
   msg=$(mktemp)

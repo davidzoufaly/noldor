@@ -107,6 +107,18 @@ describe('checks arch-baseline', () => {
     expect(r.out).toContain('ok');
   });
 
+  it('exits 1 and names an arrow the imports do not back', async () => {
+    const root = await makeRepo();
+    await writeBaseline(root, [
+      node('frame', 'src/a'),
+      node('frame', 'src/b'),
+      node('path', 'src/b -> src/a'),
+    ]);
+    const r = await run(root);
+    expect(r.code).toBe(1);
+    expect(r.out).toMatch(/phantom-edge.*src\/b -> src\/a/);
+  });
+
   it('exits 1 and names a module the baseline leaves out', async () => {
     const root = await makeRepo();
     await writeBaseline(root, [node('frame', 'src/a')]);

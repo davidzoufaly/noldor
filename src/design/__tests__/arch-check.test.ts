@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { checkArchDoc } from '../arch-check.js';
-import { readArchPen, type ArchDoc } from '../arch-pen.js';
+import { pairKey, readArchPen, type ArchDoc } from '../arch-pen.js';
 
 interface Node {
   id: string;
@@ -18,6 +18,8 @@ const node = (type: string, name: string, children: Node[] = []): Node => ({
   children,
 });
 const box = (name: string): Node => node('frame', name, [node('text', 'Label')]);
+const group = (name: string, ...children: Node[]): Node =>
+  node('frame', `group: ${name}`, children);
 const arrow = (name: string): Node => node('path', name);
 
 function doc(...pages: Node[]): ArchDoc {
@@ -25,7 +27,6 @@ function doc(...pages: Node[]): ArchDoc {
   if (!read.ok) throw new Error(read.error);
   return read.doc;
 }
-/** A baseline with the three other views present and empty, and `children` on `modules`. */
 const baseline = (...children: Node[]): ArchDoc =>
   doc(
     node('frame', 'context'),
@@ -35,16 +36,11 @@ const baseline = (...children: Node[]): ArchDoc =>
   );
 
 const MODULES = ['src/core', 'src/cr', 'src/utils'];
+const PAIRS = new Set([pairKey('src/cr', 'src/core'), pairKey('src/core', 'src/utils')]);
 const found = (d: ArchDoc): string[][] =>
-  checkArchDoc(d, MODULES).findings.map((f) => [f.kind, f.subject]);
+  checkArchDoc(d, MODULES, PAIRS).findings.map((f) => [f.kind, f.subject]);
 
 describe('arch-check / module coverage', () => {
-  it('passes a view that covers every module once', () => {
-    expect(
-      found(baseline(box('src/core'), box('src/cr + src/utils'), arrow('src/cr -> src/core'))),
-    ).toEqual([]);
-  });
-
   it('names an uncovered module', () => {
     expect(found(baseline(box('src/core'), box('src/cr')))).toEqual([
       ['missing-module', 'src/utils'],
@@ -69,36 +65,63 @@ describe('arch-check / module coverage', () => {
       ),
     ).toEqual([['dangling-edge', 'src/cr -> src/nowhere']]);
   });
-});
 
-describe('arch-check / the file and the other views', () => {
   it('needs exactly one page per view', () => {
     expect(
-      checkArchDoc(doc(node('frame', 'modules'), node('frame', 'modules')), []).findings.map(
-        (f) => [f.kind, f.subject],
-      ),
-    ).toEqual([
-      ['unreadable', 'context'],
-      ['unreadable', 'containers'],
-      ['unreadable', 'modules'],
-      ['unreadable', 'flows'],
+      checkArchDoc(
+        doc(node('frame', 'modules'), node('frame', 'modules')),
+        [],
+        new Set(),
+      ).findings.map((f) => f.subject),
+    ).toEqual(['context', 'containers', 'modules', 'flows']);
+  });
+});
+
+describe('arch-check / arrows', () => {
+  it('passes real arrows and advises on an import no arrow draws', () => {
+    const result = checkArchDoc(
+      baseline(box('src/core'), box('src/cr'), box('src/utils'), arrow('src/cr -> src/core')),
+      MODULES,
+      PAIRS,
+    );
+    expect(result.findings).toEqual([]);
+    expect(result.advisories.map((a) => [a.kind, a.subject])).toEqual([
+      ['undrawn-edge', 'src/core -> src/utils'],
     ]);
   });
 
-  it('checks only that arrow ends resolve on the views with no code truth', () => {
-    const d = doc(
-      node('frame', 'context', [
-        box('noldor CLI'),
-        box('git'),
-        arrow('noldor CLI -> git'),
-        arrow('git -> gh'),
-      ]),
-      node('frame', 'containers'),
-      node('frame', 'modules', [box('src/core'), box('src/cr'), box('src/utils')]),
-      node('frame', 'flows'),
+  it('names an arrow no import backs, and passes a group arrow one import backs', () => {
+    expect(
+      found(
+        baseline(
+          box('src/core'),
+          group('Work', box('src/cr')),
+          box('src/utils'),
+          arrow('src/utils -> src/cr'),
+          arrow('group: Work -> src/core'),
+        ),
+      ),
+    ).toEqual([['phantom-edge', 'src/utils -> src/cr']]);
+  });
+
+  it('passes a multi-module arrow when any expanded pair imports', () => {
+    expect(
+      found(
+        baseline(
+          box('src/core + src/utils'),
+          box('src/cr'),
+          arrow('src/cr -> src/core + src/utils'),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('never advises on an import between two modules that share one box', () => {
+    const result = checkArchDoc(
+      baseline(box('src/core + src/utils'), box('src/cr'), arrow('src/cr -> src/core')),
+      MODULES,
+      PAIRS,
     );
-    expect(checkArchDoc(d, MODULES).findings.map((f) => [f.kind, f.view, f.subject])).toEqual([
-      ['dangling-edge', 'context', 'git -> gh'],
-    ]);
+    expect(result.advisories).toEqual([]);
   });
 });

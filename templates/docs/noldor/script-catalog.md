@@ -167,13 +167,15 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 ### `check:arch-baseline`
 
 - **Trigger:** `pnpm noldor checks arch-baseline`. Run by `/noldor-gate` Step 4 (advisory — the exit code never blocks `pr-flow`) and by release preflight (the `arch-baseline` row, blocking when the baseline exists).
-- **Inputs:** `docs/design/architecture/baseline.pen` and the module set (`listModuleDirs` over `consumer.scanPaths`).
-- **Outputs:** one row per finding:
-  - `unreadable` — a view page missing or doubled, or a file that is not a `.pen` document;
-  - `missing-module`, `unknown-module`, `duplicate-module`;
-  - `dangling-edge`.
+- **Inputs:** `docs/design/architecture/baseline.pen`; the module set (`listModuleDirs` over `consumer.scanPaths`); module-to-module import pairs from dependency-cruiser (`moduleImportPairs` — tests excluded, tsconfig aliases resolved, the indirection ratchet's completeness guard).
+- **Outputs:** one row per finding, then advisory rows.
+  - Findings:
+    - `unreadable`: a view page missing or doubled, a file that is not a `.pen` document, or an import graph that could not be built.
+    - `missing-module`, `unknown-module`, `duplicate-module`, `dangling-edge`.
+    - `phantom-edge`: an arrow no import backs after group and multi-module expansion.
+  - Advisory: `undrawn-edge`, an import between two boxed modules that no arrow shows.
 
-  Exit 0 when the baseline is absent (nothing is checked) or clean, 1 on any finding.
+  Exit 0 when the baseline is absent (nothing is checked) or clean; exit 1 on any finding. Advisories never change the exit code.
 - **When to use:** after drawing or editing the baseline, and whenever a change adds, removes or renames a module. Repair by redrawing the named box or arrow. The layer names are the contract:
   - a module box is named by its path: `src/cr`, or `src/a + src/b` for a box that covers two;
   - a group frame is named `group: <Name>`;
