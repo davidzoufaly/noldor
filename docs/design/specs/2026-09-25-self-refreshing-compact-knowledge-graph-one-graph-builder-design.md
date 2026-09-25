@@ -86,7 +86,7 @@ A missing interpreter, one of the wrong minor, a failed venv creation, a failed 
 
 ### Testing
 
-The TypeScript side takes its process runner and its git calls as injected seams, so unit tests drive it with fakes and never start Python. They cover the up-to-date decision (a graph-only commit, a code commit, an uncommitted edit, a missing or unknown `built_at_commit`, `--force`), the environment key, the ready marker, the minor-version refusal, the exit codes, and that nothing under `graphify-out/` changes on any failure. A file-level test asserts every lock line pins an exact version. The Python half runs for real in one end-to-end test, gated on an environment variable because it needs the network and a 240 MB environment. It builds a small fixture repo twice with `--force` and asserts identical bytes. It stays out of `pnpm test`, and the implementer runs it once before shipping. After merge, CI's first graph PR is the live check: it should carry no reshuffle, because the lock pins what CI resolves today.
+The TypeScript side takes its process runner and its git calls as injected seams, so unit tests drive it with fakes and never start Python. They cover the up-to-date decision (a graph-only commit, a code commit, an uncommitted edit, a missing or unknown `built_at_commit`, `--force`), the environment key, the ready marker, the minor-version refusal, the exit codes, that nothing under `graphify-out/` changes on a failed build, and that a move failing partway exits 1 naming the restore command. A file-level test asserts every lock line pins an exact version. The Python half runs for real in one end-to-end test, gated on an environment variable because it needs the network and a 240 MB environment. It builds a small fixture repo twice with `--force` and asserts identical bytes. It stays out of `pnpm test`, and the implementer runs it once before shipping. After merge, CI's first graph PR is the live check: it should carry no reshuffle, because the lock pins what CI resolves today.
 
 ## Acceptance criteria
 
@@ -97,7 +97,7 @@ The TypeScript side takes its process runner and its git calls as injected seams
 5. An uncommitted edit or a file git does not track never appears in the graph or in the report's totals, and a parse cache under the repo's `graphify-out/cache/` is never read.
 6. Every package in the build environment is installed from the lock, and every lock line pins an exact version.
 7. With no usable interpreter, an interpreter of a Python minor other than the lock's, or a lock pip cannot install, it exits 2 and leaves `graphify-out/` unchanged.
-8. A recipe failure exits 1 and leaves `graphify-out/` unchanged.
+8. A recipe failure exits 1 and leaves `graphify-out/` unchanged; a move into `graphify-out/` that fails partway exits 1 and names `git checkout -- graphify-out/`.
 9. Both workflow twins build through `pnpm noldor graphify build` and contain no inline Python and no `pip install`.
 10. Both release-sweep twins call `pnpm noldor graphify build` in steps 1 and 5, and invoke `/graphify` only under `--full-semantic`.
 11. The stale remedies in `graph-context` and `garden detect` name `pnpm noldor graphify build`.
