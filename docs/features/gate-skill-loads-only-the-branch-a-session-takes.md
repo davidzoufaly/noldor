@@ -19,6 +19,7 @@ links:
   tests:
     - src/checks/__tests__/gate-skill-drain-contract.test.ts
     - src/checks/__tests__/gate-skill-layout.test.ts
+    - src/checks/__tests__/skill-router.test.ts
     - src/checks/__tests__/skill-size.test.ts
 name: Gate Skill Loads Only the Branch a Session Takes
 packages:
@@ -71,6 +72,7 @@ As an agent running `/noldor-gate` (interactive, or as a headless drain child), 
 - **Tests:**
   - [`src/checks/__tests__/gate-skill-drain-contract.test.ts`](../../src/checks/__tests__/gate-skill-drain-contract.test.ts)
   - [`src/checks/__tests__/gate-skill-layout.test.ts`](../../src/checks/__tests__/gate-skill-layout.test.ts)
+  - [`src/checks/__tests__/skill-router.test.ts`](../../src/checks/__tests__/skill-router.test.ts)
   - [`src/checks/__tests__/skill-size.test.ts`](../../src/checks/__tests__/skill-size.test.ts)
 
 <!-- /generated: resources -->

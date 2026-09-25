@@ -406,7 +406,7 @@ index 2e4df8e..d271b34 100644
 **Files:**
 - Test: `src/checks/__tests__/check-template-sync.test.ts`, `src/garden/detectors/__tests__/skill-code-drift.test.ts`, `src/checks/__tests__/gate-skill-drain-contract.test.ts`
 
-- [ ] **Step 1: Add the coverage tests.** Apply both changes:
+- [x] **Step 1: Add the coverage tests.** Apply both changes:
 
 ~~~diff
 diff --git a/src/checks/__tests__/check-template-sync.test.ts b/src/checks/__tests__/check-template-sync.test.ts
@@ -482,7 +482,7 @@ index 1e00fc1..079898b 100644
 +});
 ~~~
 
-- [ ] **Step 2: Drop the Part 2 case that Part 3's parity case covers.** `gate-skill-drain-contract.test.ts` hard-codes the three close-out commands that `gate-skill-layout.test.ts` derives from `fd-close.md` and checks on the Resume path, so the stronger case keeps the contract alone. Apply:
+- [x] **Step 2: Drop the Part 2 case that Part 3's parity case covers.** `gate-skill-drain-contract.test.ts` hard-codes the three close-out commands that `gate-skill-layout.test.ts` derives from `fd-close.md` and checks on the Resume path, so the stronger case keeps the contract alone. Apply:
 
 ~~~diff
 diff --git a/src/checks/__tests__/gate-skill-drain-contract.test.ts b/src/checks/__tests__/gate-skill-drain-contract.test.ts
@@ -506,19 +506,19 @@ index f2b3df4..143db36 100644
  });
 ~~~
 
-- [ ] **Step 3: Run them.**
+- [x] **Step 3: Run them.**
 
   Run: `pnpm vitest run src/checks/__tests__/check-template-sync.test.ts src/garden/detectors/__tests__/skill-code-drift.test.ts src/checks/__tests__/gate-skill-drain-contract.test.ts src/checks/__tests__/gate-skill-layout.test.ts`
 
   Expected: all four files pass on the first run — the new coverage cases pin behavior that already exists (see Architecture), and the layout test's parity case still guards the Resume path. To see them bite, temporarily add `&& entry.name === 'SKILL.md'` to the `.md` test in `collectSkillMd` (`src/garden/detectors/skill-code-drift.ts`), re-run, watch the drift case fail, and revert the edit.
 
-- [ ] **Step 4: Verify everything.**
+- [x] **Step 4: Verify everything.**
 
   Run: `pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test && pnpm noldor skill-size check && pnpm noldor checks skill-portability && pnpm noldor checks template-sync && pnpm noldor checks push-gates`
 
   Expected: all exit 0 — `checks push-gates` replays the whole pre-push chain, the root `skill-size` job included. `pnpm test` runs `init --update` first, which rewrites `.claude/skills/**` from `templates/` — `git status --short` must still be clean afterwards, proving every twin matches.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
   ```bash
   msg=$(mktemp)

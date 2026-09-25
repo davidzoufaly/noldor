@@ -43,15 +43,4 @@ describe('the drain contract lives on one page', () => {
       'pnpm noldor checks arch-baseline',
     );
   });
-
-  it('the Resume path archives, flips and bootstraps the FD', () => {
-    const resume = section(DRAIN_PAGE, 'Resume path');
-    for (const command of [
-      'pnpm noldor design archive',
-      'pnpm noldor features phase-flip-done',
-      'pnpm noldor cr bootstrap',
-    ]) {
-      expect(resume).toContain(command);
-    }
-  });
 });
