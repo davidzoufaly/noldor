@@ -13,7 +13,7 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
-import { readJsonState, writeJsonState } from '../core/state-file.js';
+import { readCheckedState, writeJsonState } from '../core/state-file.js';
 import type { MeasuredIndirection } from './detect.js';
 
 /** Baseline location, relative to the repo root. Tracked, not transient. */
@@ -99,19 +99,9 @@ export type BaselineRead =
   | { readonly kind: 'unreadable'; readonly message: string };
 
 export function readBaseline(path: string): BaselineRead {
-  let raw: unknown;
-  try {
-    raw = readJsonState(path);
-  } catch (e) {
-    // readJsonState throws StateFileCorruptError on unparseable content; the
-    // file is an external boundary, so convert rather than propagate.
-    return { kind: 'unreadable', message: e instanceof Error ? e.message : String(e) };
-  }
-  if (raw === undefined) return { kind: 'absent' };
-  const parsed = indirectionBaselineSchema.safeParse(raw);
-  return parsed.success
-    ? { kind: 'ok', baseline: parsed.data }
-    : { kind: 'unreadable', message: parsed.error.message };
+  const read = readCheckedState(path, indirectionBaselineSchema);
+  if (read.kind === 'ok') return { kind: 'ok', baseline: read.value };
+  return read.kind === 'absent' ? read : { kind: 'unreadable', message: read.reason };
 }
 
 export function writeBaseline(path: string, baseline: IndirectionBaseline): void {

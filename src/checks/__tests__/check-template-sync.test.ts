@@ -138,3 +138,42 @@ describe('checkTemplateSync', () => {
     }
   });
 });
+
+describe('checkTemplateSync — branch files beside a skill SKILL.md', () => {
+  it('flags a branch file whose templates/ twin differs, and passes it once they match', () => {
+    const fork = '.claude/skills/demo/fork.md';
+    const drifted = makeRoots(
+      { '.claude/skills/demo/SKILL.md': 'a\n', [fork]: 'b\n' },
+      { '.claude/skills/demo/SKILL.md': 'a\n', [fork]: 'c\n' },
+    );
+    const matched = makeRoots(
+      { '.claude/skills/demo/SKILL.md': 'a\n', [fork]: 'b\n' },
+      { '.claude/skills/demo/SKILL.md': 'a\n', [fork]: 'b\n' },
+    );
+    try {
+      expect(
+        checkTemplateSync({
+          cwd: drifted.cwd,
+          templatesRoot: drifted.templatesRoot,
+          changedFiles: [fork],
+        }),
+      ).toEqual({
+        ok: false,
+        offenders: [{ path: fork, status: 'drifted' }],
+      });
+      expect(
+        checkTemplateSync({
+          cwd: matched.cwd,
+          templatesRoot: matched.templatesRoot,
+          changedFiles: [fork],
+        }),
+      ).toEqual({
+        ok: true,
+        offenders: [],
+      });
+    } finally {
+      drifted.cleanup();
+      matched.cleanup();
+    }
+  });
+});

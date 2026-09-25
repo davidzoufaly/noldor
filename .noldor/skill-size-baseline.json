@@ -1,0 +1,30 @@
+{
+  "algorithmVersion": 1,
+  "recordedAt": "2026-09-25T21:48:32.497Z",
+  "files": {
+    ".claude/skills/noldor-absorb/SKILL.md": 677,
+    ".claude/skills/noldor-debug/SKILL.md": 1039,
+    ".claude/skills/noldor-draft-feature-md/SKILL.md": 1605,
+    ".claude/skills/noldor-garden/SKILL.md": 1655,
+    ".claude/skills/noldor-gate/artifact-review.md": 1458,
+    ".claude/skills/noldor-gate/attach.md": 737,
+    ".claude/skills/noldor-gate/autonomous.md": 457,
+    ".claude/skills/noldor-gate/blockers.md": 1912,
+    ".claude/skills/noldor-gate/code-review.md": 1569,
+    ".claude/skills/noldor-gate/design-writeback.md": 1082,
+    ".claude/skills/noldor-gate/fast-track.md": 756,
+    ".claude/skills/noldor-gate/fd-close.md": 667,
+    ".claude/skills/noldor-gate/micro-chore.md": 741,
+    ".claude/skills/noldor-gate/SKILL.md": 2735,
+    ".claude/skills/noldor-milestone/SKILL.md": 867,
+    ".claude/skills/noldor-new-feature/SKILL.md": 593,
+    ".claude/skills/noldor-plan/SKILL.md": 1866,
+    ".claude/skills/noldor-promote/SKILL.md": 2775,
+    ".claude/skills/noldor-refactor/SKILL.md": 2164,
+    ".claude/skills/noldor-release-sweep/SKILL.md": 3290,
+    ".claude/skills/noldor-research/SKILL.md": 350,
+    ".claude/skills/noldor-spec/SKILL.md": 5898,
+    ".claude/skills/noldor-triage/SKILL.md": 3548,
+    ".claude/skills/noldor-verify/SKILL.md": 860
+  }
+}

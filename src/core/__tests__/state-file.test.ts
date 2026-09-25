@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { mkdtempSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readJsonState, writeJsonState } from '../state-file.js';
+import { z } from 'zod';
+
+import { readCheckedState, readJsonState, writeJsonState } from '../state-file.js';
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'sf-'));
 
@@ -50,5 +52,31 @@ describe('writeJsonState', () => {
     writeJsonState(target, { n: 1 });
 
     expect(readdirSync(dir).filter((f) => f.includes('.tmp.'))).toEqual([]);
+  });
+});
+
+describe('readCheckedState', () => {
+  const schema = z.object({ n: z.number() }).strict();
+
+  it('returns the checked value', () => {
+    const target = join(scratch(), 'state.json');
+    writeJsonState(target, { n: 3 });
+    expect(readCheckedState(target, schema)).toEqual({ kind: 'ok', value: { n: 3 } });
+  });
+
+  it('reports a missing file as absent', () => {
+    expect(readCheckedState(join(scratch(), 'none.json'), schema)).toEqual({ kind: 'absent' });
+  });
+
+  it('reports unparseable JSON and a schema miss as unreadable, never throwing', () => {
+    const broken = join(scratch(), 'broken.json');
+    writeFileSync(broken, '{ nope');
+    expect(readCheckedState(broken, schema).kind).toBe('unreadable');
+    const wrong = join(scratch(), 'wrong.json');
+    writeJsonState(wrong, { n: 'three' });
+    expect(readCheckedState(wrong, schema)).toMatchObject({
+      kind: 'unreadable',
+      reason: expect.stringMatching(/^n: /),
+    });
   });
 });

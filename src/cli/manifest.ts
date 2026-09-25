@@ -546,6 +546,12 @@ export const MANIFEST: Record<string, Group> = {
       },
     },
   },
+  'skill-size': {
+    desc: 'Per-file word-count ratchet over .claude/skills (this repo only)',
+    subs: {
+      '': { src: 'checks/skill-size.ts', desc: 'skill-size <check|baseline>' },
+    },
+  },
   wait: {
     desc: 'Poll a state file until a predicate matches',
     subs: {

@@ -38,6 +38,15 @@ describe('micro-chore allowlist', () => {
   it('accepts lefthook.yml mixed with .claude/**', () => {
     expect(isMicroChoreAllowed(['lefthook.yml', '.claude/skills/noldor-gate/SKILL.md'])).toBe(true);
   });
+  it('accepts a skill edit with its re-recorded skill-size baseline', () => {
+    expect(
+      isMicroChoreAllowed([
+        '.claude/skills/noldor-gate/SKILL.md',
+        'templates/.claude/skills/noldor-gate/SKILL.md',
+        '.noldor/skill-size-baseline.json',
+      ]),
+    ).toBe(true);
+  });
   it('rejects lefthook.yml + code file (tainted)', () => {
     expect(isMicroChoreAllowed(['lefthook.yml', 'packages/web/src/foo.ts'])).toBe(false);
   });

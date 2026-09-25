@@ -1,5 +1,8 @@
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+
+import type { z } from 'zod';
+
 import { atomicWriteFileSync } from './atomic-write.js';
 
 /**
@@ -69,4 +72,34 @@ export function readJsonState<T>(path: string): T | undefined {
 export function writeJsonState(path: string, value: unknown): void {
   mkdirSync(dirname(path), { recursive: true });
   atomicWriteFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+/** Outcome of reading a schema-checked state file. */
+export type CheckedStateRead<T> =
+  | { kind: 'ok'; value: T }
+  | { kind: 'absent' }
+  | { kind: 'unreadable'; reason: string };
+
+/**
+ * Read a JSON state file and check it against `schema`, never throwing: a
+ * missing file is `absent`; an unreadable file, unparseable JSON or a schema
+ * miss is `unreadable` with the reason, so a ratchet can fail closed on it.
+ */
+export function readCheckedState<T>(path: string, schema: z.ZodType<T>): CheckedStateRead<T> {
+  let raw: unknown;
+  try {
+    raw = readJsonState<unknown>(path);
+  } catch (err) {
+    return { kind: 'unreadable', reason: err instanceof Error ? err.message : String(err) };
+  }
+  if (raw === undefined) return { kind: 'absent' };
+  const parsed = schema.safeParse(raw);
+  if (parsed.success) return { kind: 'ok', value: parsed.data };
+  const issue = parsed.error.issues[0];
+  return {
+    kind: 'unreadable',
+    reason: issue
+      ? `${issue.path.join('.') || '(root)'}: ${issue.message}`
+      : 'does not match its schema',
+  };
 }

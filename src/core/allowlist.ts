@@ -15,6 +15,10 @@ export const MICRO_CHORE_GLOBS = [
   // own paperwork — can only land through a `Noldor-Path-Override`.
   '.noldor/id-counter.json',
   '.noldor/retired-entry-ids.json',
+  // The skill-size ratchet's baseline. A micro-chore is the one lane that edits a
+  // skill without an override, and it is single-commit, so a skill edit that grows
+  // a file has to carry its re-recorded baseline in that same commit.
+  '.noldor/skill-size-baseline.json',
   // A milestone's target architecture and its approval record: drafting a
   // milestone is a micro-chore, and the target lands in the same commit as the
   // milestone file. The `.pen` guard still demands the record, so the lane

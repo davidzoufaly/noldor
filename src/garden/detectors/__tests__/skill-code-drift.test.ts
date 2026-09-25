@@ -273,3 +273,20 @@ describe('detectSkillCodeDrift — real-tree self-scan', () => {
     expect(await detectSkillCodeDrift(repoRoot)).toEqual([]);
   });
 });
+
+describe('detectSkillCodeDrift — branch files beside SKILL.md', () => {
+  it('scans a branch file in a skill folder the way it scans SKILL.md', async () => {
+    const fork = '.claude/skills/demo/fork.md';
+    const repo = fixtureRepo({
+      files: { [SKILL]: '# demo\n', [fork]: 'Run `pnpm nope-script`.\n' },
+    });
+    const findings = await detectSkillCodeDrift(repo);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      kind: 'pnpm-script',
+      token: 'nope-script',
+      skillPath: fork,
+      line: 1,
+    });
+  });
+});
