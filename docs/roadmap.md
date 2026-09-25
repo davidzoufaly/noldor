@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Move noldor-refactor Phase 6 onto graphify build
-
-- id: Q-0317
-- area: tooling
-- type: refactor
-- since: 2026-09-25
-- size: S
-- impact: med
-- confidence: med
-
-`/noldor-refactor` Phase 6 still regenerates with `/graphify` and reads `graphify-out/.graphify_python` for its before/after comparison, so its graph differs from the one `graphify build` commits. Moving Phase 6 onto the builder needs the comparison script rewritten, and the refactor committed before it builds (the build reads HEAD). (PR #589)
-
 ### Gate Skill Loads Only the Branch a Session Takes
 
 - id: Q-0320

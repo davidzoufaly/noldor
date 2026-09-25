@@ -30,8 +30,9 @@ Refactoring without structure leads to silent breakage — a renamed export brea
 
    Record pass/fail counts and any pre-existing failures. This is your "before" snapshot.
 
-5. **Save graph baseline** — snapshot current graph metrics for post-refactor comparison:
+5. **Save graph baseline** — build the graph of HEAD, then snapshot it for post-refactor comparison. Build first: the committed `graphify-out/` can lag HEAD, and Phase 6 compares against a fresh build, so a stale baseline would credit the refactor with every change since the last graph refresh.
    ```bash
+   pnpm noldor graphify build
    cp graphify-out/graph.json graphify-out/.graphify_pre_refactor.json
    ```
    Also note from `GRAPH_REPORT.md`: god node edge counts, community cohesion scores for affected communities, and any cross-package bridges touching the refactoring target.
@@ -185,41 +186,43 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 After the refactoring is verified and the report generated, regenerate the knowledge graph and evaluate structural impact. This closes the loop — you see not just "did tests pass" but "did the architecture actually improve."
 
-#### Step 1 — Regenerate the graph
+#### Step 1 — Commit, then rebuild the graph
 
-Run `/graphify` on the project root. This rebuilds AST extraction (picks up renamed/moved/split functions), re-clusters, and produces a fresh `GRAPH_REPORT.md`.
+Commit the refactor first. `pnpm noldor graphify build` reads HEAD's tree, never the working tree, so an uncommitted refactor is invisible to it — the build would describe the code before the change. Then:
+
+```bash
+pnpm noldor graphify build
+```
+
+It rebuilds AST extraction (picks up renamed/moved/split functions), re-clusters, and writes a fresh `graphify-out/` — `graph.json` and `GRAPH_REPORT.md` included — with the same pinned packages the committed graph is built with, so before and after differ only by the refactor.
 
 #### Step 2 — Compare before vs after
 
-Load the pre-refactor snapshot and the new graph. Evaluate these metrics:
+Load the pre-refactor snapshot and the new graph. Both are node-link JSON, so plain Node reads them — no Python needed:
 
 ```bash
-$(cat graphify-out/.graphify_python) -c "
-import json
-from pathlib import Path
-from networkx.readwrite import json_graph
+node -e "
+const fs = require('fs');
+const load = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
+const old = load('graphify-out/.graphify_pre_refactor.json');
+const cur = load('graphify-out/graph.json');
 
-old = json.loads(Path('graphify-out/.graphify_pre_refactor.json').read_text())
-new = json.loads(Path('graphify-out/graph.json').read_text())
+console.log('Nodes:', old.nodes.length, '->', cur.nodes.length);
+console.log('Edges:', old.links.length, '->', cur.links.length);
 
-G_old = json_graph.node_link_graph(old, edges='links')
-G_new = json_graph.node_link_graph(new, edges='links')
-
-print(f'Nodes: {G_old.number_of_nodes()} -> {G_new.number_of_nodes()}')
-print(f'Edges: {G_old.number_of_edges()} -> {G_new.number_of_edges()}')
-
-# God node comparison
-from collections import Counter
-old_deg = Counter({n: G_old.degree(n) for n in G_old.nodes()})
-new_deg = Counter({n: G_new.degree(n) for n in G_new.nodes()})
-top_old = sorted(old_deg.items(), key=lambda x: -x[1])[:5]
-top_new = sorted(new_deg.items(), key=lambda x: -x[1])[:5]
-print('Top 5 god nodes (before):', [(G_old.nodes[n].get('label',n), d) for n,d in top_old])
-print('Top 5 god nodes (after):', [(G_new.nodes[n].get('label',n), d) for n,d in top_new])
+// God nodes: top 5 by degree (undirected, so an edge counts at both ends).
+const top = (g) => {
+  const deg = new Map();
+  for (const l of g.links) for (const n of [l.source, l.target]) deg.set(n, (deg.get(n) ?? 0) + 1);
+  const label = new Map(g.nodes.map((n) => [n.id, n.label ?? n.id]));
+  return [...deg].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([n, d]) => [label.get(n) ?? n, d]);
+};
+console.log('Top 5 god nodes (before):', top(old));
+console.log('Top 5 god nodes (after):', top(cur));
 "
-````
+```
 
-Clean up: `rm -f graphify-out/.graphify_pre_refactor.json`
+Clean up: `rm -f graphify-out/.graphify_pre_refactor.json`. The rebuilt `graphify-out/` is the graph of the refactor commit — commit it with the refactor, or `git restore graphify-out` when the repo refreshes its graph some other way.
 
 #### Step 3 — Evaluate and report
 
@@ -254,7 +257,7 @@ If the graph shows the refactoring made things worse (higher god node degree, lo
 
 - **Rename-only refactors** (no structural change): skip — the graph shape won't change meaningfully.
 - **TSDoc/comment-only changes**: skip — AST extraction ignores comments.
-- **If `/graphify` is not installed**: skip with a note recommending install for future refactors.
+- **If `pnpm noldor graphify build` reports `noldor: exit code 2`** (no usable Python environment): skip with a note naming the fix it printed — install the Python version it names, or point `NOLDOR_GRAPHIFY_PYTHON` at one.
 
 For all other refactors (extract, split, move, consolidate, decompose), Phase 6 is mandatory.
 
