@@ -411,7 +411,9 @@ The move reuses the pen collector unchanged: dialogue-key match, the branch-adde
   - In `loadDocRoots`'s returned object, directly after the `designUi:` line, add:
 
   ```ts
-      designArch: resolveDesignSubdir(cwd, 'architecture'),
+      // No legacy `docs/superpowers/` alias: this directory postdates the 1.0.0
+      // rename, and `resolveDesignSubdir` knows only `plans` / `specs` / `ui`.
+      designArch: join(cwd, 'docs', 'design', 'architecture'),
   ```
 
 - [ ] **Step 4: Collect architecture designs.**
@@ -512,17 +514,26 @@ The move reuses the pen collector unchanged: dialogue-key match, the branch-adde
 - Modify: `src/design/pen-bridge.ts`
 - Test: `src/design/__tests__/pen-bridge.test.ts`
 
-A bare `design pen-bridge` wakes the editor with the best-ranked tracked `.pen`. Until now an architecture design ranked with "anything else", behind a UI baseline. After this task, designs of either kind rank first, and baselines of either kind rank second.
+A bare `design pen-bridge` wakes the editor with the best-ranked tracked `.pen`. Until now an architecture design ranked with "anything else", behind a UI baseline. After this task the order is:
+1. live designs of either kind — a file directly in its kind's directory;
+2. baselines of either kind;
+3. archived designs and milestone targets;
+4. anything else.
+
+Without the third rank, `architecture/archive/…` would sort ahead of a live `ui/…` design and open a dead canvas.
 
 - [ ] **Step 1: Write the failing test.**
 
   In `src/design/__tests__/pen-bridge.test.ts`, inside `describe('rankPenCandidates', …)`, append:
 
   ```ts
-    it('ranks architecture designs with UI designs, and the architecture baseline with baselines', () => {
+    it('ranks live designs of either kind, then baselines, then archived designs and milestone targets', () => {
       expect(
         rankPenCandidates([
           'vendor/misc.pen',
+          'docs/design/architecture/milestones/m1.pen',
+          'docs/design/architecture/archive/2026-01-01-old.pen',
+          'docs/design/ui/archive/2026-01-02-older.pen',
           'docs/design/architecture/baseline.pen',
           'docs/design/ui/baseline/app.pen',
           'docs/design/architecture/2026-09-24-bar.pen',
@@ -533,6 +544,9 @@ A bare `design pen-bridge` wakes the editor with the best-ranked tracked `.pen`.
         'docs/design/ui/2026-08-25-foo.pen',
         'docs/design/architecture/baseline.pen',
         'docs/design/ui/baseline/app.pen',
+        'docs/design/architecture/archive/2026-01-01-old.pen',
+        'docs/design/architecture/milestones/m1.pen',
+        'docs/design/ui/archive/2026-01-02-older.pen',
         'vendor/misc.pen',
       ]);
     });
@@ -541,7 +555,7 @@ A bare `design pen-bridge` wakes the editor with the best-ranked tracked `.pen`.
 - [ ] **Step 2: Run the test to verify it fails.**
 
   Run: `pnpm vitest run src/design/__tests__/pen-bridge.test.ts -t "architecture designs"`
-  Expected: FAIL. The architecture design and baseline sort last, among "anything else".
+  Expected: FAIL. The architecture design and baseline sort among "anything else", and the UI archive entry ranks with the live designs.
 
 - [ ] **Step 3: Rank both kinds.**
 
@@ -565,12 +579,16 @@ A bare `design pen-bridge` wakes the editor with the best-ranked tracked `.pen`.
   ```ts
     const rank = (p: string): number => {
       if (p.startsWith(`${UI_BASELINE_DIR}/`) || p === ARCH_BASELINE_PATH) return 1;
-      if (p.startsWith(`${UI_DESIGN_DIR}/`) || p.startsWith(`${ARCH_DESIGN_DIR}/`)) return 0;
-      return 2;
+      for (const dir of [UI_DESIGN_DIR, ARCH_DESIGN_DIR]) {
+        if (!p.startsWith(`${dir}/`)) continue;
+        // A live design sits directly in its kind's directory; `archive/` and `milestones/` rank below baselines.
+        return p.slice(dir.length + 1).includes('/') ? 2 : 0;
+      }
+      return 3;
     };
   ```
 
-  3. In its doc comment, change `Feature designs first` to `Feature designs of either kind first` and `then baselines,` to `then either kind's baseline,`.
+  3. Replace its doc comment's first sentence with `A `.pen` to open, ranked: live designs of either kind first, then either kind's baseline, then archived designs and milestone targets, then anything else.`
 
 - [ ] **Step 4: Run the tests and the typecheck to verify they pass.**
 
@@ -587,9 +605,10 @@ A bare `design pen-bridge` wakes the editor with the best-ranked tracked `.pen`.
   cat > "$msg" <<'EOF'
   feat(design): design pen-bridge ranks architecture designs beside UI ones
 
-  A bare pen-bridge now prefers a design of either kind, then either kind's
-  baseline, then anything else — an architecture design no longer ranks
-  behind a UI baseline.
+  A bare pen-bridge now prefers a live design of either kind, then either
+  kind's baseline, then archived designs and milestone targets, then
+  anything else — an architecture design no longer ranks behind a UI
+  baseline, and no archived design outranks a live one.
 
   Noldor-FD: architecture-design-phase
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -409,7 +409,7 @@ This task turns the spec's "Tag contract" into one pure function.
 - [ ] **Step 4: Run the test and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-pen.test.ts`
-  Expected: PASS — `Tests  15 passed (15)`.
+  Expected: PASS — `Tests  16 passed (16)`.
 
   Run: `pnpm typecheck`
   Expected: exit 0, no output.

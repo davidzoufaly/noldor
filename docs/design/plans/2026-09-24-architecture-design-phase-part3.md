@@ -32,7 +32,7 @@
 - Modify: `src/release/preflight-types.ts`
 - Modify: `src/release/preflight-probes.ts`
 - Modify: `docs/noldor/versioning.md`, `templates/docs/noldor/versioning.md`
-- Test: `src/release/__tests__/preflight-probes.test.ts`
+- Test: `src/release/__tests__/preflight-probes.test.ts`, `src/release/__tests__/preflight.test.ts`
 
 The row reuses `docSurfaceRow`, the helper the `architecture` row uses:
 - it reads the override first (`RELEASE_SKIP_ARCH_BASELINE=1` → `skipped`, carried on the row as `override` so the release path audit-logs it);

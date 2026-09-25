@@ -6,7 +6,7 @@
 - An arrow with no import behind it is a `phantom-edge` finding (exit 1).
 - An import that no arrow shows is an advisory `undrawn-edge` row (exit unchanged).
 
-**Architecture:** the pairs come from the same file graph the indirection ratchet measures, so there is one corpus rule for both: tests excluded, tsconfig aliases resolved, partial cruises refused.
+**Architecture:** the pairs come from the same file graph the indirection ratchet measures, so there is one corpus rule for both: tests excluded, tsconfig aliases resolved, partial cruises refused. The graph also carries the in-repo imports cruise could not resolve. The ratchet only reports them, but `moduleImportPairs` refuses the graph instead, because a broken import silently drops a real pair and would turn a correctly drawn arrow into a `phantom-edge`.
 - **`cruiseFileGraph`:** the cruise-and-verify head of `measureIndirection` in `src/indirection/detect.ts` moves, unchanged, into this exported function.
 - **`moduleImportPairs`:** `src/indirection/module-pairs.ts` maps that graph to `from -> to` module pairs.
 - **The arrow rules:** `src/design/arch-check.ts` gains them.
@@ -129,6 +129,14 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
     it('reports a graph it cannot build rather than an empty one', async () => {
       expect(await moduleImportPairs(FIXTURE, ['no-such-root'], MODULES)).toMatchObject({ kind: 'unmeasurable' });
     });
+
+    it('refuses a graph with an in-repo import it could not resolve', async () => {
+      const unresolved = join(import.meta.dirname, 'trees', 'unresolved');
+      expect(await moduleImportPairs(unresolved, ['.'], [])).toMatchObject({
+        kind: 'unmeasurable',
+        message: expect.stringContaining('does-not-exist'),
+      });
+    });
   });
   ```
 
@@ -176,8 +184,8 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
         /** The requested roots that exist, deduplicated. */
         readonly roots: readonly string[];
         readonly files: readonly CruiseModule[];
-        /** Declared tsconfig alias namespaces (see `isInScopeSpecifier`). */
-        readonly aliasPrefixes: readonly string[];
+        /** In-repo imports cruise could not resolve (see `isInScopeSpecifier`), as `<file> -> <specifier>`. */
+        readonly unresolvedInScope: readonly string[];
       }
     | Extract<IndirectionResult, { kind: 'no-parser' | 'unmeasurable' }>;
 
@@ -194,7 +202,15 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
      - After the pasted block, close the function with:
 
   ```ts
-    return { kind: 'graph', base, roots, files: measured, aliasPrefixes: aliases.prefixes };
+    const unresolvedInScope: string[] = [];
+    for (const m of measured) {
+      for (const d of m.dependencies) {
+        if (d.couldNotResolve === true && isInScopeSpecifier(d.module, aliases.prefixes)) {
+          unresolvedInScope.push(`${m.source} -> ${d.module ?? d.resolved}`);
+        }
+      }
+    }
+    return { kind: 'graph', base, roots, files: measured, unresolvedInScope };
   }
   ```
 
@@ -206,12 +222,12 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
     const graph = await cruiseFileGraph(opts);
     if (graph.kind === 'empty') return { kind: 'empty', threshold };
     if (graph.kind !== 'graph') return graph;
-    const { base, roots, files: measured, aliasPrefixes } = graph;
+    const { base, roots, files: measured, unresolvedInScope } = graph;
 
     const byId = new Map(measured.map((m) => [m.source, m]));
   ```
 
-  4. Further down in `measureIndirection`, change `isInScopeSpecifier(d.module, aliases.prefixes)` to `isInScopeSpecifier(d.module, aliasPrefixes)`.
+  4. Further down in `measureIndirection`, delete its own `const unresolvedInScope: string[] = [];` declaration and the `for (const m of measured) { … }` loop that fills it — that loop now lives in `cruiseFileGraph`, and the measured result keeps returning `unresolvedInScope` from the destructure.
 
 - [ ] **Step 7: Run the indirection regression tests to verify the move preserved behaviour.**
 
@@ -262,8 +278,9 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
 
   /**
    * The import pairs between `modules`, read off one cruise of `roots`. An empty
-   * corpus has no pairs; a graph the cruise cannot build is `unmeasurable` —
-   * never an empty set, which would read every arrow as phantom.
+   * corpus has no pairs; a graph the cruise cannot build — or one holding an
+   * in-repo import it could not resolve — is `unmeasurable`, never a set missing
+   * pairs, which would read correctly drawn arrows as phantom.
    */
   export async function moduleImportPairs(
     cwd: string,
@@ -273,6 +290,13 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
     const graph = await cruiseFileGraph({ cwd, roots });
     if (graph.kind === 'empty') return { kind: 'pairs', pairs: new Set() };
     if (graph.kind !== 'graph') return { kind: 'unmeasurable', message: graph.message };
+    if (graph.unresolvedInScope.length > 0) {
+      const shown = graph.unresolvedInScope.slice(0, 5).join(', ');
+      return {
+        kind: 'unmeasurable',
+        message: `${graph.unresolvedInScope.length} in-repo import(s) could not be resolved, so module pairs are unknown: ${shown}`,
+      };
+    }
     return { kind: 'pairs', pairs: pairsFromFiles(graph.files, modules) };
   }
   ```
@@ -280,7 +304,7 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
 - [ ] **Step 9: Run the new tests, the typecheck and the indirection ratchet.**
 
   Run: `pnpm vitest run src/indirection/__tests__/module-pairs.test.ts`
-  Expected: PASS — `Tests  4 passed (4)`.
+  Expected: PASS — `Tests  5 passed (5)`.
 
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
@@ -313,8 +337,10 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
 
   measureIndirection's cruise-and-verify head moves, unchanged, into
   cruiseFileGraph so a second reader shares the same graph — tests excluded,
-  aliases resolved, a partial cruise refused. moduleImportPairs maps it to
-  `from -> to` module pairs, spelled by pairKey, for the architecture check.
+  aliases resolved, a partial cruise refused — together with the in-repo
+  imports cruise could not resolve. moduleImportPairs maps it to `from -> to`
+  module pairs, spelled by pairKey, and refuses a graph with an unresolved
+  in-repo import rather than silently dropping its pair.
 
   Noldor-FD: architecture-design-phase
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
