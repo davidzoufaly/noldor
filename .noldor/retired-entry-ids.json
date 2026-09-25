@@ -709,5 +709,9 @@
   "Q-0310": {
     "slug": "lane-error-rounds-and-the-round-cap",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0314": {
+    "slug": "gate-exit-11-record-prose-misstates-deferred",
+    "retiredAt": "2026-09-25"
   }
 }
