@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Migration Coverage Fires on Additive-Only Schema Changes
-
-- id: Q-0322
-- area: tooling
-- type: fix
-- since: 2026-09-25
-- size: S
-- impact: med
-- confidence: high
-
-`garden detect`'s `migrationCoverage` demands a `src/migrations/<x.y.z>.ts` whenever `src/core/consumer-config.ts` or `docs/noldor/feature-md-schema.md` changes in the release range — even when the change only adds an optional key no existing config can fail on (`uiCoverage`, since v1.13.0). The honest outcome is "no migration needed", but the only way to silence the finding today is a no-op migration module. Teach `evaluateCoverage` an explicit declaration that a schema change needs no migration (a commit trailer is the natural carrier), so the gate still catches an unmigrated breaking change without forcing noise migrations. (found 2026-09-25, garden pass)
-
 ### Move noldor-refactor Phase 6 onto graphify build
 
 - id: Q-0317

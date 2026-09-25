@@ -1,6 +1,11 @@
 // @tests: outcome-telemetry-and-effectiveness-metrics
-import { describe, it, expect } from 'vitest';
-import { evaluateCoverage } from '../migration-coverage.js';
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+
+import { afterEach, describe, it, expect } from 'vitest';
+import { detectMigrationCoverage, evaluateCoverage } from '../migration-coverage.js';
 
 describe('evaluateCoverage', () => {
   it('flags a schema change with no migration', () => {
@@ -38,5 +43,91 @@ describe('evaluateCoverage', () => {
     expect(
       evaluateCoverage(['src/core/consumer-config.ts', 'src/migrations/0.10.0.ts']),
     ).toBeNull();
+  });
+});
+
+describe('evaluateCoverage with a no-migration declaration', () => {
+  it('drops a declared schema file from the finding', () => {
+    const declared = new Set(['src/core/consumer-config.ts']);
+    expect(evaluateCoverage(['src/core/consumer-config.ts'], declared)).toBeNull();
+  });
+  it('still flags an undeclared schema file next to a declared one', () => {
+    const declared = new Set(['src/core/consumer-config.ts']);
+    const f = evaluateCoverage(
+      ['src/core/consumer-config.ts', 'docs/noldor/feature-md-schema.md'],
+      declared,
+    );
+    expect(f?.schemaFiles).toEqual(['docs/noldor/feature-md-schema.md']);
+  });
+});
+
+describe('detectMigrationCoverage', () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  function repo(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'migration-coverage-'));
+    dirs.push(dir);
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir });
+    execFileSync('git', ['config', 'user.email', 't@example.com'], { cwd: dir });
+    execFileSync('git', ['config', 'user.name', 'T'], { cwd: dir });
+    commit(dir, 'chore: base', ['src/core/consumer-config.ts', 'README.md']);
+    execFileSync('git', ['tag', 'v1.0.0'], { cwd: dir });
+    return dir;
+  }
+
+  function commit(dir: string, message: string, files: string[]): void {
+    for (const file of files) {
+      mkdirSync(dirname(join(dir, file)), { recursive: true });
+      appendFileSync(join(dir, file), `${message}\n`);
+    }
+    execFileSync('git', ['add', '-A'], { cwd: dir });
+    execFileSync('git', ['commit', '-q', '-m', message], { cwd: dir });
+  }
+
+  it('flags a schema change with no migration and no declaration', () => {
+    const dir = repo();
+    commit(dir, 'feat: add a key', ['src/core/consumer-config.ts']);
+    expect(detectMigrationCoverage('v1.0.0..HEAD', dir)?.schemaFiles).toEqual([
+      'src/core/consumer-config.ts',
+    ]);
+  });
+
+  it('is silent when every commit touching the schema declares no migration', () => {
+    const dir = repo();
+    commit(dir, 'feat: add an optional key\n\nNoldor-Migration: none', [
+      'src/core/consumer-config.ts',
+    ]);
+    commit(dir, 'fix: unrelated', ['README.md']);
+    expect(detectMigrationCoverage('v1.0.0..HEAD', dir)).toBeNull();
+  });
+
+  it('reads the declaration from a squash body, where it is not a trailer', () => {
+    const dir = repo();
+    commit(
+      dir,
+      'feat: add an optional key (#9)\n\n* feat: add it\n\nNoldor-Migration: none\n\n---------\n\nCo-authored-by: T <t@example.com>',
+      ['src/core/consumer-config.ts'],
+    );
+    expect(detectMigrationCoverage('v1.0.0..HEAD', dir)).toBeNull();
+  });
+
+  it('flags the file again once a later undeclared commit changes it', () => {
+    const dir = repo();
+    commit(dir, 'feat: add an optional key\n\nNoldor-Migration: none', [
+      'src/core/consumer-config.ts',
+    ]);
+    commit(dir, 'feat: rename a key', ['src/core/consumer-config.ts']);
+    expect(detectMigrationCoverage('v1.0.0..HEAD', dir)?.schemaFiles).toEqual([
+      'src/core/consumer-config.ts',
+    ]);
+  });
+
+  it('does not accept a declaration value other than none', () => {
+    const dir = repo();
+    commit(dir, 'feat: add a key\n\nNoldor-Migration: later', ['src/core/consumer-config.ts']);
+    expect(detectMigrationCoverage('v1.0.0..HEAD', dir)).not.toBeNull();
   });
 });
