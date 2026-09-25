@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { blobIdOfWorktreeFile, receiptRelPath } from '../../design/ui-capture.js';
 import { PROBE_TIMEOUT_MS, runProbe, type ProbeContext } from '../preflight-probes.js';
@@ -43,12 +43,35 @@ async function commitAt(repo: Repo, msg: string): Promise<void> {
   });
 }
 
+/**
+ * The baseline's content is checked too, so a `.pen` fixture is a real (if
+ * minimal) document. Its one page carries `msg`, so every commit changes it.
+ */
+const validPen = (msg: string): string =>
+  `${JSON.stringify({ version: '2.19', children: [{ type: 'frame', id: 'page', name: msg, children: [] }] })}\n`;
+
 async function commitFiles(repo: Repo, paths: string[], msg: string): Promise<void> {
   for (const path of paths) {
     const abs = join(repo.cwd, path);
     await mkdir(dirname(abs), { recursive: true });
-    await writeFile(abs, `${msg}\n`, 'utf8');
+    await writeFile(abs, path.endsWith('.pen') ? validPen(msg) : `${msg}\n`, 'utf8');
   }
+  await commitAt(repo, msg);
+}
+
+const frame = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
+  type: 'frame',
+  id,
+  name,
+  children: [],
+  ...extra,
+});
+
+/** Commit `doc` as `surface`'s baseline; a string is written verbatim, anything else as JSON. */
+async function commitPen(repo: Repo, surface: string, doc: unknown, msg: string): Promise<void> {
+  const abs = join(repo.cwd, `docs/design/ui/baseline/${surface}.pen`);
+  await mkdir(dirname(abs), { recursive: true });
+  await writeFile(abs, typeof doc === 'string' ? doc : `${JSON.stringify(doc)}\n`, 'utf8');
   await commitAt(repo, msg);
 }
 
@@ -57,6 +80,7 @@ async function writeUiConfig(
   cwd: string,
   uiPaths: string[],
   uiSurfaces?: Record<string, string[]>,
+  extra: Record<string, unknown> = {},
 ): Promise<void> {
   await mkdir(join(cwd, '.noldor'), { recursive: true });
   await writeFile(
@@ -72,6 +96,7 @@ async function writeUiConfig(
         appPathPrefix: 'apps/',
         uiPaths,
         ...(uiSurfaces === undefined ? {} : { uiSurfaces }),
+        ...extra,
       },
     }),
     'utf8',
@@ -443,6 +468,155 @@ describe('evaluateUiDesignFreshness', () => {
     ]);
     expect(v.overall).toBe('stale');
   });
+
+  describe('baseline content', () => {
+    const APP = { uiPaths: ['src/app/**'] };
+    const unresolved = {
+      version: '2.19',
+      variables: {},
+      children: [frame('rest', 'FINAL:app: rest', { fill: '$viewport-bg' })],
+    };
+    const SCHEMA = {
+      path: '/ext/pen.schema.json',
+      version: '2.19',
+      required: ['version', 'children'],
+      topLevelKeys: ['version', 'variables', 'children'],
+    };
+
+    it('reads invalid when a freshly captured baseline binds a variable it does not declare', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', unresolved, 'docs: baseline');
+      await commitReceipt('app', 'chore: capture');
+      const v = await evaluateUiDesignFreshness(cwd, APP);
+      expect(v.overall).toBe('invalid');
+      expect(v.surfaces[0]).toMatchObject({
+        surface: 'app',
+        status: 'invalid',
+        remediation: 'ui-sync',
+      });
+      expect(v.surfaces[0].detail).toContain('$viewport-bg');
+    });
+
+    it('points an invalid surface that declares a capture command at design capture', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', unresolved, 'docs: baseline');
+      await commitReceipt('app', 'chore: capture');
+      const v = await evaluateUiDesignFreshness(cwd, {
+        ...APP,
+        uiCapture: { app: { command: 'capture', timeoutMs: 1000 } },
+      });
+      expect(v.surfaces[0]).toMatchObject({ status: 'invalid', remediation: 'capture' });
+    });
+
+    it('reads a committed baseline that is not JSON as invalid', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', 'docs: baseline\n', 'docs: baseline');
+      await commitReceipt('app', 'chore: capture');
+      expect((await evaluateUiDesignFreshness(cwd, APP)).surfaces[0].status).toBe('invalid');
+    });
+
+    it('validates a baseline that has never had a receipt', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', unresolved, 'docs: baseline');
+      expect((await evaluateUiDesignFreshness(cwd, APP)).surfaces[0].status).toBe('invalid');
+    });
+
+    it('reads incomplete when a declared mode has no page', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(
+        repo,
+        'app',
+        { version: '2.19', children: [frame('rest-dark', 'FINAL:app: rest — dark')] },
+        'docs: baseline',
+      );
+      await commitReceipt('app', 'chore: capture');
+      const v = await evaluateUiDesignFreshness(cwd, {
+        ...APP,
+        uiCoverage: { app: { states: ['rest'], modes: ['light', 'dark'] } },
+      });
+      expect(v.overall).toBe('incomplete');
+      expect(v.surfaces[0].detail).toContain('rest-light');
+    });
+
+    it('keeps a valid, fully covered baseline at its freshness verdict', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(
+        repo,
+        'app',
+        {
+          version: '2.19',
+          children: [
+            frame('rest-light', 'FINAL:app: rest — light'),
+            frame('rest-dark', 'FINAL:app: rest — dark'),
+          ],
+        },
+        'docs: baseline',
+      );
+      await commitReceipt('app', 'chore: capture');
+      const v = await evaluateUiDesignFreshness(cwd, {
+        ...APP,
+        uiCoverage: { app: { states: ['rest'], modes: ['light', 'dark'] } },
+      });
+      expect(v.overall).toBe('fresh');
+      expect(v.surfaces[0].advisories).toBeUndefined();
+    });
+
+    it('ranks invalid above stale and names both problems in the detail', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', unresolved, 'docs: baseline');
+      await commitReceipt('app', 'chore: capture');
+      await commit(['src/app/page.tsx'], 'feat: ui drift');
+      const row = (await evaluateUiDesignFreshness(cwd, APP)).surfaces[0];
+      expect(row.status).toBe('invalid');
+      expect(row.detail).toContain('$viewport-bg');
+      expect(row.detail).toContain('newer than capture receipt');
+    });
+
+    it('reports schema advisories without changing the verdict', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', { version: '2.13', children: [] }, 'docs: baseline');
+      await commitReceipt('app', 'chore: capture');
+      const v = await evaluateUiDesignFreshness(cwd, APP, { penSchema: SCHEMA });
+      expect(v.overall).toBe('fresh');
+      expect(v.surfaces[0].advisories).toHaveLength(1);
+      expect(v.surfaces[0].advisories![0]).toContain('2.13');
+    });
+
+    it('reports no advisory when no schema is passed', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', { version: '2.13', children: [] }, 'docs: baseline');
+      await commitReceipt('app', 'chore: capture');
+      const v = await evaluateUiDesignFreshness(cwd, APP);
+      expect(v.surfaces[0].advisories).toBeUndefined();
+    });
+
+    it('reads indeterminate, never invalid, when the committed baseline cannot be read', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', unresolved, 'docs: baseline');
+      await commitReceipt('app', 'chore: capture');
+      // A missing object is a real git failure: the tree still names the blob,
+      // so the receipt binding holds, but its bytes cannot be read.
+      const blob = (
+        await exec('git', ['rev-parse', 'HEAD:docs/design/ui/baseline/app.pen'], cwd)
+      ).trim();
+      await rm(join(cwd, '.git/objects', blob.slice(0, 2), blob.slice(2)));
+      const row = (await evaluateUiDesignFreshness(cwd, APP)).surfaces[0];
+      expect(row.status).toBe('indeterminate');
+      expect(row.detail).toContain('content unchecked');
+    });
+
+    it('keeps a stale verdict when the baseline bytes cannot be read', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', unresolved, 'docs: baseline');
+      await commitReceipt('app', 'chore: capture');
+      await commit(['src/app/page.tsx'], 'feat: ui drift');
+      const blob = (
+        await exec('git', ['rev-parse', 'HEAD:docs/design/ui/baseline/app.pen'], cwd)
+      ).trim();
+      await rm(join(cwd, '.git/objects', blob.slice(0, 2), blob.slice(2)));
+      expect((await evaluateUiDesignFreshness(cwd, APP)).surfaces[0].status).toBe('stale');
+    });
+  });
 });
 
 describe('release preflight — ui-design-freshness row', () => {
@@ -589,5 +763,96 @@ describe('release preflight — ui-design-freshness row', () => {
     expect(row.detail).toContain('app');
     // No receipt was ever written, so this one IS repaired by hand.
     expect(row.fix).toContain('design ui-sync');
+  });
+
+  describe('baseline content', () => {
+    let schemaDir: string;
+
+    beforeEach(async () => {
+      schemaDir = await mkdtemp(join(tmpdir(), 'ui-probe-schema-'));
+    });
+    afterEach(async () => {
+      vi.unstubAllEnvs();
+      await rm(schemaDir, { recursive: true, force: true });
+    });
+
+    /** Pin the schema the probe finds, so no row depends on the pen.dev install of the machine running it. */
+    async function useSchema(version: string): Promise<void> {
+      const path = join(schemaDir, 'pen.schema.json');
+      await writeFile(
+        path,
+        JSON.stringify({
+          required: ['version', 'children'],
+          properties: { version: { const: version }, variables: {}, children: {} },
+        }),
+        'utf8',
+      );
+      vi.stubEnv('NOLDOR_PEN_SCHEMA', path);
+    }
+
+    async function captured(doc: unknown): Promise<void> {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', doc, 'docs: baseline');
+      const blob = blobIdOfWorktreeFile(cwd, 'docs/design/ui/baseline/app.pen');
+      const abs = join(cwd, receiptRelPath('app'));
+      await mkdir(dirname(abs), { recursive: true });
+      await writeFile(
+        abs,
+        `${JSON.stringify({ capturedAt: '2026-09-25T00:00:00.000Z', baselineBlob: blob, command: 'c' })}\n`,
+        'utf8',
+      );
+      await commitAt(repo, 'chore: capture');
+    }
+
+    it('blocks a release on an invalid baseline', async () => {
+      await useSchema('2.19');
+      await captured({
+        version: '2.19',
+        variables: {},
+        children: [frame('rest', 'FINAL:app: rest', { fill: '$gone' })],
+      });
+      await writeUiConfig(cwd, ['src/app/**']);
+      const row = await runProbe('ui-design-freshness', ctx());
+      expect(row.status).toBe('blocking');
+      expect(row.detail).toContain('$gone');
+    });
+
+    it('blocks a release on an incomplete baseline', async () => {
+      await useSchema('2.19');
+      await captured({ version: '2.19', children: [frame('rest-dark', 'FINAL:app: rest — dark')] });
+      await writeUiConfig(cwd, ['src/app/**'], undefined, {
+        uiCoverage: { app: { states: ['rest'], modes: ['light', 'dark'] } },
+      });
+      const row = await runProbe('ui-design-freshness', ctx());
+      expect(row.status).toBe('blocking');
+      expect(row.detail).toContain('rest-light');
+    });
+
+    it('warns rather than reporting ok when a fresh baseline carries only schema advisories', async () => {
+      await useSchema('2.20');
+      await captured({ version: '2.19', children: [] });
+      await writeUiConfig(cwd, ['src/app/**']);
+      const row = await runProbe('ui-design-freshness', ctx());
+      expect(row.status).toBe('warn');
+      expect(row.detail).toContain('2.20');
+    });
+
+    it('names schema advisories in the warning even when another status is the reason for it', async () => {
+      await useSchema('2.20');
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(repo, 'app', { version: '2.19', children: [] }, 'docs: baseline');
+      await writeUiConfig(cwd, ['src/app/**']);
+      const row = await runProbe('ui-design-freshness', ctx());
+      expect(row.status).toBe('warn');
+      expect(row.detail).toContain('app (unverified)');
+      expect(row.detail).toContain('2.20');
+    });
+
+    it('reports ok for a fresh baseline the installed schema agrees with', async () => {
+      await useSchema('2.19');
+      await captured({ version: '2.19', children: [] });
+      await writeUiConfig(cwd, ['src/app/**']);
+      expect((await runProbe('ui-design-freshness', ctx())).status).toBe('ok');
+    });
   });
 });

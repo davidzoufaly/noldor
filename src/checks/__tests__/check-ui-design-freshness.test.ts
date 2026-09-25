@@ -19,6 +19,10 @@ describe('exitCodeFor', () => {
     expect(exitCodeFor('stale')).toBe(1);
     expect(exitCodeFor('uninitialized')).toBe(1);
   });
+  it('non-zero on a baseline that is not a usable document or misses a declared page', () => {
+    expect(exitCodeFor('invalid')).toBe(1);
+    expect(exitCodeFor('incomplete')).toBe(1);
+  });
   it('0 when a surface could not be checked at all', () => {
     // A git failure may never mint a red: `indeterminate` means the check did
     // not run, which is not evidence of drift. It stays visible through the
@@ -44,5 +48,22 @@ describe('renderRows', () => {
   });
   it('explains the empty case', () => {
     expect(renderRows([])).toContain('no uiPaths');
+  });
+  it('prints each advisory under the row it belongs to', () => {
+    const out = renderRows([
+      {
+        surface: 'app',
+        status: 'fresh',
+        detail: 'capture receipt at/after UI',
+        advisories: ['declares version "2.13"; the installed pen schema is 2.19'],
+      },
+      { surface: 'other', status: 'fresh', detail: 'capture receipt at/after UI' },
+    ]);
+    const lines = out.split('\n');
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toContain('app');
+    expect(lines[1]).toContain('advisory');
+    expect(lines[1]).toContain('2.13');
+    expect(lines[2]).toContain('other');
   });
 });

@@ -32,7 +32,10 @@ import {
 import { checkOxfmtIgnores } from '../../checks/check-oxfmt-ignores.js';
 import { checkParentOptIn, renderParentOptInRow } from '../../checks/check-parent-opt-in.js';
 import { loadUiConfig } from '../../core/consumer-config.js';
-import { evaluateUiDesignFreshness } from '../../release/ui-design-freshness.js';
+import {
+  evaluateUiDesignFreshness,
+  type UiSurfaceFreshness,
+} from '../../release/ui-design-freshness.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
 import { checkRunners } from '../../core/agent-runner/doctor-runners.js';
@@ -173,11 +176,30 @@ if (skew !== null) console.log(`warn         framework skew: ${skew}`);
 // UI-design baseline freshness: advisory only (does NOT affect exit code).
 // The blocking enforcement point is release preflight; doctor just surfaces
 // the debt early. Absent consumer config / uiPaths ⇒ silent (not adopted).
+const doctorWarnsOn = (status: UiSurfaceFreshness['status']): boolean => {
+  switch (status) {
+    case 'stale':
+    case 'uninitialized':
+    case 'unverified':
+    case 'invalid':
+    case 'incomplete':
+      return true;
+    case 'fresh':
+    case 'skipped':
+    case 'indeterminate':
+      return false;
+    default: {
+      // A new status is a typecheck error here, not a row doctor silently drops.
+      const never: never = status;
+      return never;
+    }
+  }
+};
 const uiConfig = loadUiConfig(process.cwd());
 if (uiConfig !== null) {
   const uiVerdict = await evaluateUiDesignFreshness(process.cwd(), uiConfig);
   for (const s of uiVerdict.surfaces) {
-    if (s.status === 'stale' || s.status === 'uninitialized' || s.status === 'unverified') {
+    if (doctorWarnsOn(s.status)) {
       console.log(`warn         ui-design: ${s.surface} ${s.status} — ${s.detail}`);
     }
   }

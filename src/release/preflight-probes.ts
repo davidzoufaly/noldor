@@ -24,6 +24,7 @@ import {
   readGardenReceipt,
 } from '../garden/garden-receipt.js';
 import { loadUiConfig } from '../core/consumer-config.js';
+import { findInstalledPenSchema } from '../design/pen-schema.js';
 import { inspectTreeState, type TreeState } from './clean-tree.js';
 import { evaluateGraphFreshness } from './graph-freshness.js';
 import { captureRemediation, evaluateUiDesignFreshness } from './ui-design-freshness.js';
@@ -176,6 +177,14 @@ function warnWorthyNames(verdict: UiFreshnessVerdict): string {
     .filter((s) => s.status !== 'fresh' && s.status !== 'skipped')
     .map((s) => `${s.surface} (${s.status})`)
     .join(', ');
+}
+
+/** Every surface's pen schema advisories as one clause, or `''` when there are none. */
+function schemaAdvisoryDetail(verdict: UiFreshnessVerdict): string {
+  const advised = verdict.surfaces.filter((s) => (s.advisories ?? []).length > 0);
+  return advised.length === 0
+    ? ''
+    : `pen schema advisories: ${advised.map((s) => `${s.surface}: ${s.advisories!.join('; ')}`).join('; ')}`;
 }
 
 /** Shared tail for both unevaluated-probe fix lines — one string, so they cannot drift. */
@@ -536,7 +545,9 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     if (ui === null) {
       return { id: 'ui-design-freshness', status: 'skipped', detail: 'no consumer config' };
     }
-    const verdict = await evaluateUiDesignFreshness(ctx.cwd, ui);
+    const verdict = await evaluateUiDesignFreshness(ctx.cwd, ui, {
+      penSchema: findInstalledPenSchema(),
+    });
     if (verdict.overall === 'skipped') {
       return {
         id: 'ui-design-freshness',
@@ -544,8 +555,14 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
         detail: 'no uiPaths configured / no surface history',
       };
     }
+    // Advisories never block — the schema behind them differs between machines
+    // — but every row that reports on the baselines names them, so no status
+    // can hide them.
+    const advisories = schemaAdvisoryDetail(verdict);
     if (verdict.overall === 'fresh') {
-      return { id: 'ui-design-freshness', status: 'ok', detail: 'all UI baselines fresh' };
+      return advisories === ''
+        ? { id: 'ui-design-freshness', status: 'ok', detail: 'all UI baselines fresh' }
+        : { id: 'ui-design-freshness', status: 'warn', detail: advisories };
     }
     // The non-blocking verdicts are advisory — adoption must not brick a
     // release, and a git failure may never mint a red — and each must be an
@@ -562,7 +579,9 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       return {
         id: 'ui-design-freshness',
         status: 'warn',
-        detail: `baseline surface(s) needing attention: ${warnWorthyNames(verdict)}`,
+        detail: [`baseline surface(s) needing attention: ${warnWorthyNames(verdict)}`, advisories]
+          .filter((part) => part !== '')
+          .join('; '),
         // Derived, not assumed: an `indeterminate` overall can be the
         // synthetic `(unmapped)` row, whose problem is a failed git probe and
         // which carries no `remediation` — telling that operator to declare a
@@ -577,11 +596,15 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       };
     }
     // Exhaustive by construction. The fall-through below renders `blocking`
-    // with a `stale`-filtered detail, so a status that reaches it unhandled
-    // blocks every consumer with an empty reason. Naming `stale` explicitly and
-    // asserting `never` on the rest makes a new status a typecheck error here
-    // instead of a silent release block.
-    if (verdict.overall !== 'stale') {
+    // with a detail filtered to the blocking statuses, so a status that reaches
+    // it unhandled blocks every consumer with an empty reason. Naming them
+    // explicitly and asserting `never` on the rest makes a new status a
+    // typecheck error here instead of a silent release block.
+    if (
+      verdict.overall !== 'stale' &&
+      verdict.overall !== 'invalid' &&
+      verdict.overall !== 'incomplete'
+    ) {
       const never: never = verdict.overall;
       return never;
     }
@@ -591,13 +614,17 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     // repaired by re-capturing, and `design ui-sync` explicitly refuses those
     // rows — it stages nothing and exits 1 — so a hardcoded ui-sync line would
     // send the operator to a command that cannot clear the block.
-    const blocking = verdict.surfaces.filter((s) => s.status === 'stale');
+    const blocking = verdict.surfaces.filter(
+      (s) => s.status === 'stale' || s.status === 'invalid' || s.status === 'incomplete',
+    );
     const needsCapture = blocking.some((s) => s.remediation === 'capture');
     const needsSync = blocking.some((s) => s.remediation !== 'capture');
     return {
       id: 'ui-design-freshness',
       status: 'blocking',
-      detail: blocking.map((s) => `${s.surface}: ${s.detail}`).join('; '),
+      detail: [...blocking.map((s) => `${s.surface}: ${s.detail}`), advisories]
+        .filter((part) => part !== '')
+        .join('; '),
       fix: [
         needsCapture ? capitalize(captureRemediation(captureSurfaceName(verdict))) : '',
         needsSync

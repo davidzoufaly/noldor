@@ -463,3 +463,80 @@ describe('screenshotCommand quoting rule', () => {
     });
   });
 });
+
+describe('consumer.uiCoverage', () => {
+  const messages = (r: ReturnType<typeof ConsumerConfigSchema.safeParse>) =>
+    r.success ? [] : r.error.issues.map((i) => i.message);
+
+  it('accepts states and modes for the implicit app surface', () => {
+    const cfg = ConsumerConfigSchema.parse({
+      ...MINIMAL_CONSUMER,
+      uiPaths: ['src/**'],
+      uiCoverage: { app: { states: ['rest', 'model-pane'], modes: ['light', 'dark'] } },
+    });
+    expect(cfg.uiCoverage).toEqual({
+      app: { states: ['rest', 'model-pane'], modes: ['light', 'dark'] },
+    });
+  });
+
+  it('accepts states alone for a declared surface', () => {
+    const r = ConsumerConfigSchema.safeParse({
+      ...MINIMAL_CONSUMER,
+      uiPaths: ['src/**'],
+      uiSurfaces: { dashboard: ['src/**'] },
+      uiCoverage: { dashboard: { states: ['rest'] } },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects a key that names no declared surface', () => {
+    const r = ConsumerConfigSchema.safeParse({
+      ...MINIMAL_CONSUMER,
+      uiPaths: ['src/**'],
+      uiSurfaces: { dashboard: ['src/**'] },
+      uiCoverage: { app: { states: ['rest'] } },
+    });
+    expect(r.success).toBe(false);
+    expect(messages(r).some((m) => m.includes("uiCoverage surface 'app'"))).toBe(true);
+  });
+
+  it("rejects a key other than 'app' when there is no uiSurfaces block", () => {
+    const r = ConsumerConfigSchema.safeParse({
+      ...MINIMAL_CONSUMER,
+      uiPaths: ['src/**'],
+      uiCoverage: { dashboard: { states: ['rest'] } },
+    });
+    expect(r.success).toBe(false);
+    expect(messages(r).some((m) => m.includes("uiCoverage surface 'dashboard'"))).toBe(true);
+  });
+
+  it('rejects a coverage block when nothing is UI-bearing', () => {
+    const r = ConsumerConfigSchema.safeParse({
+      ...MINIMAL_CONSUMER,
+      uiCoverage: { app: { states: ['rest'] } },
+    });
+    expect(r.success).toBe(false);
+    expect(messages(r).some((m) => m.includes('nothing is UI-bearing'))).toBe(true);
+  });
+
+  it.each([
+    ['a state with a space', { states: ['model pane'] }],
+    ['an uppercase state', { states: ['Rest'] }],
+    [
+      'a hyphenated mode, which would make <state>-<mode> ambiguous',
+      { states: ['rest'], modes: ['high-contrast'] },
+    ],
+    ['no states', { states: [] }],
+    ['an empty mode list', { states: ['rest'], modes: [] }],
+  ])('rejects %s', (_label, coverage) => {
+    const r = ConsumerConfigSchema.safeParse({
+      ...MINIMAL_CONSUMER,
+      uiPaths: ['src/**'],
+      uiCoverage: { app: coverage },
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues.map((i) => i.path.slice(0, 2).join('.'))).toContain('uiCoverage.app');
+    }
+  });
+});

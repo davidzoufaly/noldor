@@ -5,6 +5,7 @@
 
 import { runIfDirect } from '../core/cli-entry.js';
 import { loadUiConfig } from '../core/consumer-config.js';
+import { findInstalledPenSchema } from '../design/pen-schema.js';
 import {
   evaluateUiDesignFreshness,
   type UiFreshnessVerdict,
@@ -31,6 +32,8 @@ export function exitCodeFor(overall: UiFreshnessVerdict['overall']): number {
       return 0;
     case 'stale':
     case 'uninitialized':
+    case 'invalid':
+    case 'incomplete':
       return 1;
     default: {
       // Exhaustive by construction: a new status becomes a typecheck error
@@ -44,7 +47,10 @@ export function exitCodeFor(overall: UiFreshnessVerdict['overall']): number {
 export function renderRows(surfaces: readonly UiSurfaceFreshness[]): string {
   if (surfaces.length === 0) return 'ui-design-freshness: skipped (no uiPaths configured)';
   return surfaces
-    .map((s) => `  ${s.surface.padEnd(20)} ${s.status.padEnd(14)} ${s.detail}`)
+    .flatMap((s) => [
+      `  ${s.surface.padEnd(20)} ${s.status.padEnd(14)} ${s.detail}`,
+      ...(s.advisories ?? []).map((a) => `  ${''.padEnd(20)} ${'advisory'.padEnd(14)} ${a}`),
+    ])
     .join('\n');
 }
 
@@ -54,7 +60,7 @@ export async function main(cwd: string = process.cwd()): Promise<number> {
     console.log('ui-design-freshness: skipped (no consumer config)');
     return 0;
   }
-  const verdict = await evaluateUiDesignFreshness(cwd, ui);
+  const verdict = await evaluateUiDesignFreshness(cwd, ui, { penSchema: findInstalledPenSchema() });
   console.log(`ui-design-freshness: ${verdict.overall}`);
   console.log(renderRows(verdict.surfaces));
   return exitCodeFor(verdict.overall);
