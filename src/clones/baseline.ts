@@ -16,7 +16,7 @@
  */
 import { z } from 'zod';
 
-import { readJsonState, writeJsonState } from '../core/state-file.js';
+import { readCheckedState, writeJsonState } from '../core/state-file.js';
 import type { CloneOptions, CloneReport } from './detect.js';
 
 /** Baseline location, relative to the repo root. Tracked, not transient. */
@@ -121,18 +121,8 @@ export type BaselineRead =
   | { readonly kind: 'unreadable'; readonly reason: string };
 
 export function readBaseline(path: string): BaselineRead {
-  // `readJsonState` owns the absent-vs-corrupt split (its throw covers both an
-  // unreadable file and unparseable JSON); only schema validity is left here.
-  let json: unknown;
-  try {
-    json = readJsonState<unknown>(path);
-  } catch (err) {
-    return { kind: 'unreadable', reason: err instanceof Error ? err.message : String(err) };
-  }
-  if (json === undefined) return { kind: 'absent' };
-  const parsed = cloneBaselineSchema.safeParse(json);
-  if (!parsed.success) return { kind: 'unreadable', reason: 'not a valid clones baseline' };
-  return { kind: 'ok', baseline: parsed.data };
+  const read = readCheckedState(path, cloneBaselineSchema);
+  return read.kind === 'ok' ? { kind: 'ok', baseline: read.value } : read;
 }
 
 /** Write `baseline` atomically, creating its parent directory if needed. */

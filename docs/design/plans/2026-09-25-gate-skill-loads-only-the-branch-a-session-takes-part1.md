@@ -39,13 +39,13 @@
 - Modify: `src/core/state-file.ts`, `src/clones/baseline.ts`, `src/indirection/baseline.ts`
 - Test: `src/core/__tests__/state-file.test.ts`
 
-- [ ] **Step 1: Brief the rules for these files.**
+- [x] **Step 1: Brief the rules for these files.**
 
   Run: `pnpm noldor rules brief --file src/core/state-file.ts --file src/core/__tests__/state-file.test.ts --file src/clones/baseline.ts --file src/indirection/baseline.ts --stage code`
 
   Expected: an `ENFORCE` section that includes `error-result-types`, `state-file-schema-additive` and `test-real-behavior`. It is binding.
 
-- [ ] **Step 2: Write the failing test.** Apply this change to `src/core/__tests__/state-file.test.ts` (it adds the `zod` and `readCheckedState` imports and a `readCheckedState` block):
+- [x] **Step 2: Write the failing test.** Apply this change to `src/core/__tests__/state-file.test.ts` (it adds the `zod` and `readCheckedState` imports and a `readCheckedState` block):
 
 ~~~diff
 diff --git a/src/core/__tests__/state-file.test.ts b/src/core/__tests__/state-file.test.ts
@@ -89,13 +89,13 @@ index 6c7341e..05fed73 100644
 +});
 ~~~
 
-- [ ] **Step 3: Run to verify FAIL.**
+- [x] **Step 3: Run to verify FAIL.**
 
   Run: `pnpm vitest run src/core/__tests__/state-file.test.ts`
 
   Expected: FAIL — `readCheckedState` is not exported by `../state-file.js` (`TypeError: readCheckedState is not a function`).
 
-- [ ] **Step 4: Implement.** Apply this change to `src/core/state-file.ts`:
+- [x] **Step 4: Implement.** Apply this change to `src/core/state-file.ts`:
 
 ~~~diff
 diff --git a/src/core/state-file.ts b/src/core/state-file.ts
@@ -142,7 +142,7 @@ index 0d16a44..35431d3 100644
 +}
 ~~~
 
-- [ ] **Step 5: Route the two existing baselines through it.** Apply both changes:
+- [x] **Step 5: Route the two existing baselines through it.** Apply both changes:
 
 ~~~diff
 diff --git a/src/clones/baseline.ts b/src/clones/baseline.ts
@@ -214,19 +214,19 @@ index d25e92d..21aae53 100644
 
   A clones schema miss now reports zod's first issue instead of the fixed `not a valid clones baseline`; only the `kind` is asserted anywhere, and the reason is more useful to the reader of the refusal.
 
-- [ ] **Step 6: Run to verify PASS.**
+- [x] **Step 6: Run to verify PASS.**
 
   Run: `pnpm vitest run src/core/__tests__/state-file.test.ts src/clones src/indirection`
 
   Expected: every file passes; the three new `readCheckedState` cases are among them.
 
-- [ ] **Step 7: Typecheck, lint, format.**
+- [x] **Step 7: Typecheck, lint, format.**
 
   Run: `pnpm typecheck && pnpm exec oxlint src/core/state-file.ts src/clones/baseline.ts src/indirection/baseline.ts && pnpm noldor fmt src/core/state-file.ts src/core/__tests__/state-file.test.ts src/clones/baseline.ts src/indirection/baseline.ts`
 
   Expected: all exit 0, no lint findings.
 
-- [ ] **Step 8: Commit.** This is the branch's first code-bearing commit, so its body carries the PR Summary sections.
+- [x] **Step 8: Commit.** This is the branch's first code-bearing commit, so its body carries the PR Summary sections.
 
   ```bash
   msg=$(mktemp)
