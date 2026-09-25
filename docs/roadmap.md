@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Drain-Lock Readers Share readHolder
-
-- id: Q-0307
-- area: tooling
-- type: refactor
-- since: 2026-09-25
-- size: XS
-- impact: low
-- confidence: high
-
-Code-review low declined on Q-0286 (PR #582), filed so it is not lost: `liveLockPid` and `releaseLock` in `src/autonomous/drain-lock.ts` still hand-parse the lock payload with `JSON.parse`, though the file now exports `readHolder`, which requires a positive-integer pid. Moving them onto it would stop the three readers drifting on what counts as a valid pid. `releaseLock` must keep swallowing read errors, since it runs in crash handlers. Deletion test: `drain-lock.ts` parses the payload in one place. (found 2026-09-25)
-
 ### Load-Timeout Tests in Dashboard and sdd-report
 
 - id: Q-0308
