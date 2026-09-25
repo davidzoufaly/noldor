@@ -266,9 +266,16 @@ describe('renderRoadmap', () => {
 
   it('renders the entry ID under the name, omitting it when absent', async () => {
     const html = await renderRoadmap(populated, noFilters);
-    expect(html).toContain('<strong>Live Feature</strong><span class="entry-id">Q-0042</span>');
+    expect(html).toContain('<strong>Live Feature</strong><span class="entry-id">Q-0042<button');
     // Entries without an ID render the bare name — no empty entry-id span.
     expect(html).toContain('<strong>Edge Beveling</strong></td>');
+  });
+
+  it('renders a copy button next to the entry ID, hidden until drag.js wires it', async () => {
+    const html = await renderRoadmap(populated, noFilters);
+    expect(html).toContain(
+      '<button type="button" class="entry-id-copy" data-copy="Q-0042" aria-label="Copy Q-0042" title="Copy ID" hidden>',
+    );
   });
 
   it('renders area + type + category filter forms', async () => {
@@ -497,7 +504,7 @@ describe('renderBacklog', () => {
     expect(html).toContain('class="badge type-feat">feat</span>');
     expect(html).toContain('2026-05-04');
     expect(html).toContain('A reasonably long description of why this matters.');
-    expect(html).toContain('<strong>Sample Feat</strong><span class="entry-id">Q-0007</span>');
+    expect(html).toContain('<strong>Sample Feat</strong><span class="entry-id">Q-0007<button');
     // Entry without an ID renders the bare name.
     expect(html).toContain('<strong>Sample Fix</strong></td>');
   });

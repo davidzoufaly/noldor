@@ -308,6 +308,28 @@ function wireDescriptionToggles(): void {
   });
 }
 
+// Copy an entry ID (Q-NNNN) to the clipboard. The buttons render `hidden` so
+// a page whose script never loads shows no dead control; unhide them only once
+// the delegate is live. Brief `is-copied` flash + label swap confirms the copy.
+function wireEntryIdCopy(): void {
+  document.addEventListener('click', (ev) => {
+    const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>('button.entry-id-copy');
+    const text = btn?.dataset.copy;
+    if (!btn || !text) return;
+    void navigator.clipboard.writeText(text).then(() => {
+      btn.classList.add('is-copied');
+      btn.title = 'Copied';
+      setTimeout(() => {
+        btn.classList.remove('is-copied');
+        btn.title = 'Copy ID';
+      }, 1200);
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>('button.entry-id-copy').forEach((btn) => {
+    btn.hidden = false;
+  });
+}
+
 // Width changes (window resize, container reflow) re-wrap clamped text →
 // overflow state can flip. ResizeObserver on each cell keeps the has-overflow
 // class in sync with the actual rendered geometry. Font swaps that change
@@ -372,6 +394,7 @@ function init(): void {
   wireButtons();
   wireDescriptionToggles();
   wireDescriptionOverflow();
+  wireEntryIdCopy();
 }
 
 // Guard the auto-init so this module can be imported from non-DOM contexts
