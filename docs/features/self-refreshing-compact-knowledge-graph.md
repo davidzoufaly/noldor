@@ -22,11 +22,10 @@ links:
 name: 'Self-Refreshing, Compact Knowledge Graph'
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 introduced: 1.12.0
 ---
-
 ## Summary
 
 The committed knowledge graph refreshes itself: a merged `feat`, `fix` or
@@ -99,11 +98,15 @@ Reading one community means taking its line range from the `toc` block at the to
   c85: 1204-1231
 ```
 
-**Agent/Programmatic API** — all in `src/graphify/graph-to-toon.ts`:
+**Agent/Programmatic API**:
 
-- `buildContext(data)` turns a parsed `graph.json` into the context both renderers read.
-- `renderBrainstormToon(ctx)` and `renderBrainstormSummary(ctx)` return the two `.toon`
-  texts without touching disk; the CLI reads the file, calls them, and writes the results.
+- `buildContext(data)` in `src/graphify/graph-to-toon.ts` turns a parsed `graph.json` into
+  the context both renderers read.
+- `renderBrainstormToon(ctx)` and `renderBrainstormSummary(ctx)` (same file) return the two
+  `.toon` texts without touching disk; the CLI reads the file, calls them, and writes the results.
+- `buildGraph(force, deps)` in `src/graphify/build.ts` builds `graphify-out/` from HEAD and
+  returns the exit code; `deps` carries the subprocess runner (`spawnRunner` in production),
+  the environment, the working directory and the two log sinks.
 
 ## PRs
 
