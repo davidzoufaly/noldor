@@ -125,6 +125,10 @@ const STYLE = `
   tbody tr:hover td { background: rgba(37,99,235,0.05); }
   td { max-width: 40rem; word-break: break-word; }
   .entry-id { display: block; margin-top: 0.15rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; color: var(--muted); }
+  .entry-id-copy { margin-left: 0.3rem; padding: 0.05rem 0.2rem; border: 1px solid transparent; border-radius: 3px; background: none; color: inherit; font: inherit; line-height: 1; vertical-align: middle; cursor: pointer; opacity: 0.6; }
+  .entry-id-copy:hover { opacity: 1; border-color: var(--line); }
+  .entry-id-copy:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 1px; }
+  .entry-id-copy.is-copied { opacity: 1; color: var(--accent); }
   td.description { font-size: 0.88rem; vertical-align: top; }
   td.description .body { font-size: inherit; }
   td.description .body > :first-child { margin-top: 0; }

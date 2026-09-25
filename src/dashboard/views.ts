@@ -728,13 +728,19 @@ export function renderUserDoc(category: string, doc: UserDocDetail): string {
 
 const DRAG_GRIP_SVG = `<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg>`;
 
+const COPY_SVG = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>`;
+
 /**
- * Render the stable entry ID (Q-NNNN) as a muted line under the entry name.
- * Empty string when the entry carries no ID (consumer repos that haven't run
- * `triage backfill-ids`).
+ * Render the stable entry ID (Q-NNNN) as a muted line under the entry name,
+ * with a copy-to-clipboard button. The button ships `hidden`; drag.js unhides
+ * it once its click delegate is wired, so a page whose script never loads
+ * shows no dead control. Empty string when the entry carries no ID (consumer
+ * repos that haven't run `triage backfill-ids`).
  */
 function renderEntryId(id: string | undefined): string {
-  return id ? `<span class="entry-id">${escapeHtml(id)}</span>` : '';
+  if (!id) return '';
+  const safe = escapeHtml(id);
+  return `<span class="entry-id">${safe}<button type="button" class="entry-id-copy" data-copy="${safe}" aria-label="Copy ${safe}" title="Copy ID" hidden>${COPY_SVG}</button></span>`;
 }
 
 async function renderRoadmapRows(entries: RoadmapEntry[], dragEnabled: boolean): Promise<string> {
