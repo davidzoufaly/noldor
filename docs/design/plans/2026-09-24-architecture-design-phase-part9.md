@@ -353,7 +353,7 @@
 
 The record binds the milestone file's blob, so the verdict is always the last edit. It comes after the body sections are filled and after the `## Architecture target` section is added. `activate` rewrites `status:` in two milestone files, so it reconfirms both targets' records afterwards. The skill still never commits: the operator's micro-chore commit carries the milestone file, the target and its record, which Part 8 put on the lane.
 
-- [ ] **Step 1: Add the target step to `draft` and `edit`.**
+- [x] **Step 1: Add the target step to `draft` and `edit`.**
 
   In `.claude/skills/noldor-milestone/SKILL.md`, in `### /noldor-milestone draft [<slug>]`, directly after step `4. Tell the operator: … Edit it to fill in ## Gate, ## Success Criteria, ## Out of Scope.`, insert:
 
@@ -372,7 +372,7 @@ The record binds the milestone file's blob, so the verdict is always the last ed
   4.5. When the milestone has a target (`docs/design/architecture/milestones/<slug>.pen`): a target sketched now follows `draft` step 4.5, and a revised target is an edit to the `.pen` plus a fresh verdict (step 4.5's step 4 — it overwrites the record); an edit to the milestone file alone shows as drift in `pnpm noldor design verdict --pen docs/design/architecture/milestones/<slug>.pen --check` — re-take the verdict, or `--reconfirm` when the target still stands.
   ```
 
-- [ ] **Step 2: Reconfirm and report at `activate`.**
+- [x] **Step 2: Reconfirm and report at `activate`.**
 
   In `### /noldor-milestone activate <slug>`, directly before step `1. Run tsx src/milestones/cli.ts activate <slug> from the repo root.`, insert:
 
@@ -387,7 +387,7 @@ The record binds the milestone file's blob, so the verdict is always the last ed
   2.6. When the milestone step 0 read has a target, run `pnpm noldor design arch-progress --milestone <that slug>` and surface its report. Advisory — it never blocks the activation; `to-build` rows are what the shipped milestone left undone.
   ```
 
-- [ ] **Step 3: Name the milestone signal in spec step 1.6.**
+- [x] **Step 3: Name the milestone signal in spec step 1.6.**
 
   In `.claude/skills/noldor-spec/SKILL.md`, inside step 1.6's `**Verdict — asked, never inferred.**` bullet, replace `a new cross-module import the design introduces.` with:
 
@@ -395,7 +395,7 @@ The record binds the milestone file's blob, so the verdict is always the last ed
   a new cross-module import the design introduces, or the FD's `milestone:` having a target at `docs/design/architecture/milestones/<milestone>.pen` — then show `pnpm noldor design arch-progress --milestone <milestone>` so the design moves the baseline toward it.
   ```
 
-- [ ] **Step 4: Mirror the twins, check and commit.**
+- [x] **Step 4: Mirror the twins, check and commit.**
 
   Run:
 
