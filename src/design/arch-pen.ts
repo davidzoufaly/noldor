@@ -136,6 +136,11 @@ export function arrowEndsOf(name: string): { from: string; to: string } | null {
   return from === '' || to === '' ? null : { from, to };
 }
 
+/** `from -> to` — the one spelling arrow names and module import pairs share. */
+export function pairKey(from: string, to: string): string {
+  return `${from} -> ${to}`;
+}
+
 /** `group: <Name>` in canonical spacing, or `null` for a name that is not a group. */
 function groupNameOf(name: string): string | null {
   const trimmed = name.trim();

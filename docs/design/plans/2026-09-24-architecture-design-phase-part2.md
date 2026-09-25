@@ -69,8 +69,12 @@ The fixture's spec file is named `.spec.ts` on purpose. vitest collects every `s
   export const y = (): string => 'y';
   ```
 
-  `src/b/y.spec.ts`:
+  `src/b/y.spec.ts` (the `// @tests:` tag is required: the test-tag gate matches every `*.spec.ts`):
   ```ts
+  // @tests: architecture-design-phase
+  // Fixture, not a real test: a spec file the cruise must exclude, so its import
+  // never becomes a `src/b -> src/c` pair. The tag is required because the
+  // test-tag gate matches on the filename pattern, which this file must keep.
   import { w } from '../c/w.js';
 
   export const probe = w;

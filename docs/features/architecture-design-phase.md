@@ -7,8 +7,11 @@ links:
   code: []
   spec: docs/design/specs/2026-09-24-architecture-design-phase-design.md
   tests:
+    - src/checks/__tests__/check-arch-baseline.test.ts
     - src/design/__tests__/arch-check.test.ts
     - src/design/__tests__/arch-pen.test.ts
+    - src/indirection/__tests__/module-pairs.test.ts
+    - src/indirection/__tests__/trees/modules/src/b/y.spec.ts
 name: pen.dev Architecture Design Phase
 packages:
   - package.json

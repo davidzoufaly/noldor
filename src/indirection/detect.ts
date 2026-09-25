@@ -83,13 +83,13 @@ export interface MeasureOptions {
   readonly extensions?: ReadonlyArray<{ readonly extension: string; readonly available: boolean }>;
 }
 
-interface CruiseDep {
+export interface CruiseDep {
   readonly resolved: string;
   readonly couldNotResolve?: boolean;
   readonly module?: string;
 }
 
-interface CruiseModule {
+export interface CruiseModule {
   readonly source: string;
   readonly dependencies: readonly CruiseDep[];
 }
@@ -487,9 +487,34 @@ function isMeasurable(source: string): boolean {
   );
 }
 
-export async function measureIndirection(opts: MeasureOptions): Promise<IndirectionResult> {
-  const threshold = opts.threshold ?? INDIRECTION_CLOSURE_THRESHOLD;
+/** What {@link cruiseFileGraph} reads — {@link MeasureOptions} minus the threshold. */
+export type FileGraphOptions = Pick<MeasureOptions, 'roots' | 'cwd' | 'extensions'>;
 
+/**
+ * The verified in-repo file graph, or why there is none. `files` is complete by
+ * construction: a cruise that reports fewer files than the walker offers is
+ * `unmeasurable`, never a partial graph.
+ */
+export type FileGraphResult =
+  | { readonly kind: 'empty' }
+  | {
+      readonly kind: 'graph';
+      /** `cwd` with symlinks resolved — every `source` is relative to it. */
+      readonly base: string;
+      /** The requested roots that exist, deduplicated. */
+      readonly roots: readonly string[];
+      readonly files: readonly CruiseModule[];
+      /** In-repo imports cruise could not resolve (see `isInScopeSpecifier`), as `<file> -> <specifier>`. */
+      readonly unresolvedInScope: readonly string[];
+    }
+  | Extract<IndirectionResult, { kind: 'no-parser' | 'unmeasurable' }>;
+
+/**
+ * Cruise the scan roots into the verified file graph every whole-corpus reader
+ * shares: the indirection ratchet below, and the architecture baseline's
+ * module pairs (`src/indirection/module-pairs.ts`).
+ */
+export async function cruiseFileGraph(opts: FileGraphOptions): Promise<FileGraphResult> {
   // Resolve symlinks before anything else. cruise emits paths relative to
   // `baseDir`, and when `baseDir` is a symlink (every macOS `tmpdir()` is) it
   // resolves imports through the real path and emits an escaped
@@ -547,7 +572,7 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   const candidateAbs = roots
     .flatMap((r) => walkCodeFiles(resolve(base, r), { includeTests: false }))
     .filter((f) => !f.endsWith('.d.ts'));
-  if (candidateAbs.length === 0) return { kind: 'empty', threshold };
+  if (candidateAbs.length === 0) return { kind: 'empty' };
 
   // The measured set is the INTERSECTION of what cruise reported and what the
   // walker admits. Without it, a file under a `WALK_EXCLUDED_DIRS` directory
@@ -623,15 +648,6 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
     };
   }
 
-  const byId = new Map(measured.map((m) => [m.source, m]));
-
-  // A workspace sibling is a published boundary, not an in-repo hop: the edge
-  // into it counts once, but its own closure is not inherited. Without this a
-  // monorepo's ordinary cross-package import inflates every closure upstream of
-  // it and reds the gate on a normal layout.
-  const packageRoots = findPackageRoots(base, roots);
-  const pkgOf = new Map(measured.map((m) => [m.source, packageOf(m.source, packageRoots)]));
-
   const unresolvedInScope: string[] = [];
   for (const m of measured) {
     for (const d of m.dependencies) {
@@ -640,6 +656,24 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
       }
     }
   }
+  return { kind: 'graph', base, roots, files: measured, unresolvedInScope };
+}
+
+export async function measureIndirection(opts: MeasureOptions): Promise<IndirectionResult> {
+  const threshold = opts.threshold ?? INDIRECTION_CLOSURE_THRESHOLD;
+  const graph = await cruiseFileGraph(opts);
+  if (graph.kind === 'empty') return { kind: 'empty', threshold };
+  if (graph.kind !== 'graph') return graph;
+  const { base, roots, files: measured, unresolvedInScope } = graph;
+
+  const byId = new Map(measured.map((m) => [m.source, m]));
+
+  // A workspace sibling is a published boundary, not an in-repo hop: the edge
+  // into it counts once, but its own closure is not inherited. Without this a
+  // monorepo's ordinary cross-package import inflates every closure upstream of
+  // it and reds the gate on a normal layout.
+  const packageRoots = findPackageRoots(base, roots);
+  const pkgOf = new Map(measured.map((m) => [m.source, packageOf(m.source, packageRoots)]));
 
   const closureOf = (id: string): number => {
     const home = pkgOf.get(id);

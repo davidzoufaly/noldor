@@ -47,7 +47,7 @@ This task turns the spec's "Tag contract" into one pure function.
 - **Groups and arrows:** a frame named `group: <Name>` is a group, and a path named `<from> -> <to>` is an arrow.
 - **Endpoint resolution:** an end resolves to the one group with that name, or to the one box whose full name or covered module matches it. An end that matches no box, or several, stays unresolved.
 
-- [ ] **Step 1: Write the failing test file.**
+- [x] **Step 1: Write the failing test file.**
 
   Create `src/design/__tests__/arch-pen.test.ts`:
 
@@ -186,12 +186,12 @@ This task turns the spec's "Tag contract" into one pure function.
   });
   ```
 
-- [ ] **Step 2: Run the test to verify it fails.**
+- [x] **Step 2: Run the test to verify it fails.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-pen.test.ts`
   Expected: FAIL — `Failed to resolve import "../arch-pen.js"`, because the module does not exist yet.
 
-- [ ] **Step 3: Write the reader.**
+- [x] **Step 3: Write the reader.**
 
   Create `src/design/arch-pen.ts`:
 
@@ -406,7 +406,7 @@ This task turns the spec's "Tag contract" into one pure function.
   }
   ```
 
-- [ ] **Step 4: Run the test and the typecheck to verify they pass.**
+- [x] **Step 4: Run the test and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-pen.test.ts`
   Expected: PASS — `Tests  16 passed (16)`.
@@ -414,7 +414,7 @@ This task turns the spec's "Tag contract" into one pure function.
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
   This is the first code-bearing commit, so its body carries the PR Summary's three sections.
 
@@ -463,7 +463,7 @@ These are the spec's "Honesty check" findings that need nothing but the module l
 
 Part 2 adds the import-backed arrow rules to the same function.
 
-- [ ] **Step 1: Write the failing test file.**
+- [x] **Step 1: Write the failing test file.**
 
   Create `src/design/__tests__/arch-check.test.ts`:
 
@@ -549,12 +549,12 @@ Part 2 adds the import-backed arrow rules to the same function.
   });
   ```
 
-- [ ] **Step 2: Run the test to verify it fails.**
+- [x] **Step 2: Run the test to verify it fails.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-check.test.ts`
   Expected: FAIL — `Failed to resolve import "../arch-check.js"`.
 
-- [ ] **Step 3: Write the rules.**
+- [x] **Step 3: Write the rules.**
 
   Create `src/design/arch-check.ts`:
 
@@ -651,7 +651,7 @@ Part 2 adds the import-backed arrow rules to the same function.
   }
   ```
 
-- [ ] **Step 4: Run the test and the typecheck to verify they pass.**
+- [x] **Step 4: Run the test and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-check.test.ts`
   Expected: PASS — `Tests  6 passed (6)`.
@@ -659,7 +659,7 @@ Part 2 adds the import-backed arrow rules to the same function.
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
   ```bash
   msg=$(mktemp)
@@ -693,7 +693,7 @@ Part 2 adds the import-backed arrow rules to the same function.
 
 When the file does not exist, `checkArchBaseline` reports `absent` and reads nothing else. That is what keeps the surface inert in a repo that never opted in. Every read failure becomes an `unreadable` finding rather than a throw.
 
-- [ ] **Step 1: Add the location constants.**
+- [x] **Step 1: Add the location constants.**
 
   In `src/core/design-artifact-names.ts`, directly after the `UI_DESIGN_DIR` export, add:
 
@@ -713,7 +713,7 @@ When the file does not exist, `checkArchBaseline` reports `absent` and reads not
   export const ARCH_BASELINE_PATH = `${ARCH_DESIGN_DIR}/baseline.pen`;
   ```
 
-- [ ] **Step 2: Write the failing test file.**
+- [x] **Step 2: Write the failing test file.**
 
   Create `src/checks/__tests__/check-arch-baseline.test.ts`:
 
@@ -827,12 +827,12 @@ When the file does not exist, `checkArchBaseline` reports `absent` and reads not
   });
   ```
 
-- [ ] **Step 3: Run the test to verify it fails.**
+- [x] **Step 3: Run the test to verify it fails.**
 
   Run: `pnpm vitest run src/checks/__tests__/check-arch-baseline.test.ts`
   Expected: FAIL — `Failed to resolve import "../check-arch-baseline.js"`.
 
-- [ ] **Step 4: Write the IO seam.**
+- [x] **Step 4: Write the IO seam.**
 
   Create `src/design/arch-baseline.ts`:
 
@@ -878,7 +878,7 @@ When the file does not exist, `checkArchBaseline` reports `absent` and reads not
   }
   ```
 
-- [ ] **Step 5: Write the CLI.**
+- [x] **Step 5: Write the CLI.**
 
   Create `src/checks/check-arch-baseline.ts`:
 
@@ -916,7 +916,7 @@ When the file does not exist, `checkArchBaseline` reports `absent` and reads not
   runIfDirect('check-arch-baseline', 'checks arch-baseline', async () => main());
   ```
 
-- [ ] **Step 6: Run the test and the typecheck to verify they pass.**
+- [x] **Step 6: Run the test and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/checks/__tests__/check-arch-baseline.test.ts`
   Expected: PASS — `Tests  4 passed (4)`.
@@ -924,7 +924,7 @@ When the file does not exist, `checkArchBaseline` reports `absent` and reads not
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 7: Register and document the command.**
+- [x] **Step 7: Register and document the command.**
 
   In `src/cli/manifest.ts`, inside `checks.subs`, directly after the `'ui-design-freshness'` entry, add:
 
@@ -967,7 +967,7 @@ When the file does not exist, `checkArchBaseline` reports `absent` and reads not
   - `capability-index --write` exits 0, and the `checks` line in both `AGENTS.md` and `templates/AGENTS.md` now lists `arch-baseline`.
   - `validate script-catalog` exits 0 and prints `Validated script-catalog: … all cited …`.
 
-- [ ] **Step 8: Commit.**
+- [x] **Step 8: Commit.**
 
   The commit mixes code with a `docs/noldor/` page, so it carries a `Noldor-Sibling-Scope` trailer in the same trailer paragraph.
 
