@@ -33019,7 +33019,7 @@
       "label": "commit()",
       "file_type": "code",
       "source_file": "src/templates/__tests__/templates.test.ts",
-      "source_location": "L498",
+      "source_location": "L521",
       "id": "tests_templates_test_commit",
       "community": 107,
       "norm_label": "commit()"
@@ -142309,7 +142309,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/templates/__tests__/templates.test.ts",
-      "source_location": "L498",
+      "source_location": "L521",
       "weight": 1.0,
       "source": "src_templates_tests_templates_test_ts",
       "target": "tests_templates_test_commit",
@@ -142386,7 +142386,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/templates/__tests__/templates.test.ts",
-      "source_location": "L503",
+      "source_location": "L526",
       "weight": 1.0,
       "source": "tests_templates_test_commit",
       "target": "tests_templates_test_git",
@@ -148682,5 +148682,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "74d42f8c486e7591878dc0a400cb6c9a51713306"
+  "built_at_commit": "052c2d4651a9aadd3df9c84ce0fe76197cea4b03"
 }
