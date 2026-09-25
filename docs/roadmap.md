@@ -28,6 +28,18 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 seed-test-tags' "Every --apply leaves the graph older than the files it wrote, so regenerate between batches" predates Q-0290's git leg, which ignores test-only edits: an apply no longer stales the graph. The message and the sdd-co-tag-detector FD's Usage both still claim it does. (PR #589)
 
+### Migration Coverage Fires on Additive-Only Schema Changes
+
+- id: Q-0322
+- area: tooling
+- type: fix
+- since: 2026-09-25
+- size: S
+- impact: med
+- confidence: high
+
+`garden detect`'s `migrationCoverage` demands a `src/migrations/<x.y.z>.ts` whenever `src/core/consumer-config.ts` or `docs/noldor/feature-md-schema.md` changes in the release range — even when the change only adds an optional key no existing config can fail on (`uiCoverage`, since v1.13.0). The honest outcome is "no migration needed", but the only way to silence the finding today is a no-op migration module. Teach `evaluateCoverage` an explicit declaration that a schema change needs no migration (a commit trailer is the natural carrier), so the gate still catches an unmigrated breaking change without forcing noise migrations. (found 2026-09-25, garden pass)
+
 ### Move noldor-refactor Phase 6 onto graphify build
 
 - id: Q-0317
@@ -146,3 +158,15 @@ Milestone membership rots by omission at both ends of the chain, so an active mi
 - blocked-by: Q-0320
 
 `.claude/skills/noldor-spec/SKILL.md` is 5,899 words (~8k tokens) in 123 lines, and most of it is step 1.5 (UI design) and step 1.6 (architecture design): pen.dev hazards, seeding, iteration and ratification that every spec session reads in full, even when both verdicts come back `skip`, as Q-0233's did. Apply the router pattern Q-0320 sets: the verdict questions stay in `SKILL.md`, and each `required` procedure moves to its own file (`ui-design.md`, `arch-design.md`) read only on `required`; then re-record the skill-size baseline down. Deletion test: a spec session with both verdicts `skip` never loads the UI or architecture procedure, and every rule in today's steps 1.5 and 1.6 lives in exactly one file. (found 2026-09-25 shipping Q-0233)
+
+### Drain the Incomplete Test Co-Tags
+
+- id: Q-0323
+- area: tooling
+- type: chore
+- since: 2026-09-25
+- size: M
+- impact: low
+- confidence: med
+
+With a fresh graph, `garden detect` lists ~200 "Tests with incomplete co-tag" rows — tests whose `// @tests:` line misses an FD that owns a file they import. They used to hide behind one degraded-mode row. `pnpm noldor features seed-test-tags` names each row; the work is applying its proposals, one PR per file family (autonomous, cr, dashboard, design, garden, release, …). Follow-up to Q-0172, which built the seeder but filed no drain. Deletion test: the co-tag category reads empty in `garden detect`. (found 2026-09-25, garden pass)
