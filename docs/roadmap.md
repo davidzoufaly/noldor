@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Unknown-Command Message Echoes Its Argv
-
-- id: Q-0305
-- area: tooling
-- type: fix
-- since: 2026-09-25
-- size: XS
-- impact: low
-- confidence: high
-
-The unknown-command message (`src/core/framework-skew.ts`) should echo the argv it received. Under zsh, `pnpm noldor $c` with `c="checks template-sync"` passes one argument, and the reply blames framework version skew and prescribes `noldor upgrade`, which points the wrong way (the trap itself is in `docs/noldor/gotchas.md` → Shell & tooling traps). Deletion test: an unknown command whose one argument contains a space is reported with that argument quoted, and without the upgrade advice. (found 2026-09-25)
-
 ### Resync sdd-co-tag-detector Resources
 
 - id: Q-0306
