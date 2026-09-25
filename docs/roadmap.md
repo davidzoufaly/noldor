@@ -62,18 +62,6 @@ Deletion test: a file added under `src/` that derives direct invocation from `im
 
 (descoped from Q-0126 on 2026-09-08 after three red code-stage rounds; the 14 findings above are the input)
 
-### Fast-Track Changes Can Obsolete an Unattached FD
-
-- id: Q-0233
-- area: tooling
-- type: feat
-- since: 2026-09-08
-- size: M
-- impact: med
-- confidence: low
-
-A fast-track ships without attaching to any feature MD, so when one or more fast-tracks change the business logic, files, or behaviour an FD documents, that FD silently goes stale — the doc-tracked invariant holds only for paths that scaffold an artifact. Worth exploring whether fast-track should optionally attach to an FD the way the attach paths do (carrying the parent slug, refreshing the FD's Usage on ship), or whether a detector should flag an FD whose `links.code` paths moved under a fast-track commit it never records. The first is a gate change, the second a garden detector; they are not exclusive. (surfaced 2026-09-08)
-
 ### Extract the Shared tsconfig Reader
 
 - id: Q-0234
