@@ -23,7 +23,7 @@ docs/ideas.md
 .noldor/design/
 .noldor/drain-state.json
 .noldor/drain.lock
-.noldor/drain.lock.reclaim.*
+.noldor/drain.lock.*
 .noldor/drain-stop
 .noldor/drain.pause
 .noldor/*drain*.log

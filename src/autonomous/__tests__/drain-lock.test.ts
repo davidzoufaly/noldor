@@ -1,9 +1,24 @@
 // @tests: acceptance-verify-lane, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, drain-startup-reconciliation-of-a-prior-dead-run
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import {
+  mkdtempSync,
+  mkdirSync,
+  rmSync,
+  writeFileSync,
+  existsSync,
+  linkSync,
+  readFileSync,
+  statSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { acquireLock, releaseLock } from '../drain-lock.js';
+
+const REPO_ROOT = resolve(import.meta.dirname, '../../..');
+const MODULE_URL = pathToFileURL(join(REPO_ROOT, 'src/autonomous/drain-lock.ts')).href;
 
 let dir: string;
 beforeEach(() => {
@@ -33,6 +48,32 @@ describe('drain lock', () => {
     expect(acquireLock(dir).ok).toBe(true);
   });
 
+  it('refuses a lock another live process holds and leaves it untouched', () => {
+    const held = JSON.stringify({ pid: process.ppid, startedAt: 'other' });
+    mkdirSync(join(dir, '.noldor'), { recursive: true });
+    writeFileSync(join(dir, '.noldor/drain.lock'), held);
+    expect(acquireLock(dir)).toEqual({ ok: false, reason: 'held by live pid' });
+    expect(readFileSync(join(dir, '.noldor/drain.lock'), 'utf8')).toBe(held);
+  });
+
+  it('leaves a dead lock alone while another supervisor holds the claim on it', () => {
+    const lock = join(dir, '.noldor/drain.lock');
+    const dead = JSON.stringify({ pid: 2147483646, startedAt: 'dead' }); // pid that cannot exist
+    mkdirSync(join(dir, '.noldor'), { recursive: true });
+    writeFileSync(lock, dead);
+    const claim = `${lock}.reclaim.${statSync(lock, { bigint: true }).ino}`;
+    linkSync(lock, claim);
+
+    const refused = acquireLock(dir, 'T1');
+    expect(refused.ok).toBe(false);
+    expect(refused.reason).toContain(claim);
+    expect(readFileSync(lock, 'utf8')).toBe(dead);
+
+    rmSync(claim);
+    expect(acquireLock(dir, 'T1')).toEqual({ ok: true });
+    expect(JSON.parse(readFileSync(lock, 'utf8'))).toEqual({ pid: process.pid, startedAt: 'T1' });
+  });
+
   it('releaseLock removes the lock', () => {
     acquireLock(dir);
     releaseLock(dir);
@@ -57,4 +98,63 @@ describe('drain lock', () => {
     releaseLock(dir, { startedAt: 'T1' }); // matching token → removed
     expect(existsSync(join(dir, '.noldor/drain.lock'))).toBe(false);
   });
+});
+
+function contender(
+  script: string,
+  env: NodeJS.ProcessEnv,
+): { child: ChildProcessWithoutNullStreams; verdict: Promise<string> } & Disposable {
+  const child = spawn(process.execPath, ['--import', 'tsx', script], { cwd: REPO_ROOT, env });
+  const verdict = new Promise<string>((resolveVerdict, reject) => {
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (chunk: Buffer) => {
+      out += chunk.toString();
+      if (out.includes('\n')) resolveVerdict(out.split('\n')[0]!);
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      err += chunk.toString();
+    });
+    child.once('close', (code) => reject(new Error(`contender exited ${code} unheard: ${err}`)));
+  });
+  return { child, verdict, [Symbol.dispose]: () => child.kill('SIGKILL') };
+}
+
+describe('drain lock across processes', () => {
+  it.each([
+    ['a free lock', false],
+    ["a dead holder's lock", true],
+  ])(
+    'leaves exactly one holder when several supervisors start at the same instant on %s',
+    async (_lock, deadHolder) => {
+      mkdirSync(join(dir, '.noldor'), { recursive: true });
+      if (deadHolder)
+        writeFileSync(
+          join(dir, '.noldor/drain.lock'),
+          JSON.stringify({ pid: 2147483646, startedAt: 'dead' }),
+        );
+      const script = join(dir, 'contender.mts');
+      writeFileSync(
+        script,
+        [
+          `import { acquireLock } from ${JSON.stringify(MODULE_URL)};`,
+          'await new Promise((r) => setTimeout(r, Math.max(0, Number(process.env.START) - Date.now())));',
+          "const { ok } = acquireLock(process.env.DIR!, 'contender');",
+          'process.stdout.write(`${ok}\\n`);',
+          'if (ok) setInterval(() => {}, 1000);',
+        ].join('\n'),
+      );
+      const env = { ...process.env, DIR: dir, START: String(Date.now() + 1000) };
+      using a = contender(script, env);
+      using b = contender(script, env);
+      using c = contender(script, env);
+      const verdicts = await Promise.all([a, b, c].map(({ verdict }) => verdict));
+      expect(verdicts.toSorted()).toEqual(['false', 'false', 'true']);
+      const winner = [a, b, c][verdicts.indexOf('true')]!;
+      expect(JSON.parse(readFileSync(join(dir, '.noldor/drain.lock'), 'utf8'))).toEqual({
+        pid: winner.child.pid,
+        startedAt: 'contender',
+      });
+    },
+  );
 });
