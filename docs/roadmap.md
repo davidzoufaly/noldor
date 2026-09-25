@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Module Map Drops Arrows No Import Backs
-
-- id: Q-0303
-- area: tooling
-- type: docs
-- since: 2026-09-25
-- size: XS
-- impact: med
-- confidence: med
-
-`docs/architecture/modules.md` draws 4 arrows that no import backs, found by `checks arch-baseline` on its first run: `src/autonomous -> src/cr`; `src/cli -> Workflow` and `src/cli -> Projection and reporting` (the CLI reaches them through a computed `import(path)` off the manifest, which a static graph cannot see); `src/hooks -> Quality gates`. They were left out of the architecture baseline, but the mermaid page still draws them. Correct `modules.md`, or generate it from the baseline (the architecture-design-phase spec's follow-up slice). Deletion test: every arrow `modules.md` draws is one `checks arch-baseline` accepts. (found 2026-09-25)
-
 ### Validate Flags a Queue Id Carried Twice
 
 - id: Q-0304

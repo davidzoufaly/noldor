@@ -677,5 +677,9 @@
   "Q-0302": {
     "slug": "sync-fd-resources-honours-slug",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0303": {
+    "slug": "module-map-drops-arrows-no-import-backs",
+    "retiredAt": "2026-09-25"
   }
 }
