@@ -9,12 +9,12 @@ introduced: 0.5.0
 The runner-neutral contract for one headless gate child spawned by the
 autonomous drain supervisor (`pnpm noldor autonomous run` / `noldor autonomous
 watch`). The supervisor owns the loop, retries, skips, and the lock; each child
-ships exactly one entry and exits. Claude children receive `/noldor-gate --drain
-<slug>` and follow the gate skill's drain-mode section; prose-dispatch runners
-(codex, opencode — see the [flag mapping](agent-runtimes.md)) receive a
-self-contained directive that points here. This page is that directive's
-canonical referent: it restates the drain contract without any slash-command
-dependency, so the prompt stays a thin pointer.
+ships exactly one entry and exits. Every runner follows this page: claude
+children receive `/noldor-gate --drain <slug>`, whose entry check sends them
+here; prose-dispatch runners (codex, opencode — see the
+[flag mapping](agent-runtimes.md)) receive a self-contained directive that
+points here. It is the whole drain contract, with no slash-command dependency,
+so the prompt stays a thin pointer and no second rendering exists to drift.
 
 ## Entry binding
 
@@ -24,6 +24,9 @@ dependency, so the prompt stays a thin pointer.
   set, else the top entry from `pnpm noldor next-priority --suggestions --json`.
 - Honor `NOLDOR_DRAIN_SKIP` (comma-separated slugs the supervisor already
   skipped): never pick a listed entry.
+- The roadmap path ships `fast-track` entries only. If the entry's
+  `suggestedPath` is not `fast-track`, exit without scaffolding — the
+  supervisor pre-filters scope, so this is a defensive check.
 - **Oversize guard:** before scaffolding anything, run
   `pnpm noldor noldor split-check --entry <slug>` and capture stdout, stderr
   and the exit code. `pnpm` reports every failure as 1, so take the code from
@@ -74,9 +77,15 @@ dependency, so the prompt stays a thin pointer.
   not deliverable) or its PR was closed unmerged — the rebuild is right either
   way, but echo the verdict's `reason` (it names the dirty path and the
   `git log origin/main..fast/<slug>` range) before discarding. This
-  per-slug removal is the only worktree a drain child deletes.
-- Do the work on that branch and run every noldor command from inside its
-  checkout/worktree.
+  per-slug removal is the only worktree a drain child deletes — the
+  supervisor never blanket-wipes `.worktrees/*`.
+- **Scaffold.** Create the worktree with
+  `pnpm noldor worktrees create <slug> --branch fast/<slug>`, change into it,
+  and write the session marker `.noldor/session.json` there:
+  `{ "path": "fast-track", "slug": "<slug>", "startedAt": "<ISO timestamp>" }`.
+  Do the work on that branch and run every noldor command — the session
+  marker, `set-autonomous` and `pr-flow` included — from inside that
+  worktree.
 
 ## Rule brief before editing
 
@@ -88,15 +97,21 @@ dependency, so the prompt stays a thin pointer.
   so a stage-only brief reports "no rules match" however full the store is.
 - Nothing blocks a skipped brief — but the code-stage CR resolves the same rules
   from the changed files, so skipping it converts guidance into findings.
-- This is the runner-neutral half of rule injection: a codex/opencode
-  implementer child gets it from this page, a claude child from
-  `/noldor-gate` Step 3.5. Keep the two renderings in sync.
+- Every drain child gets rule injection from this page; an interactive gate
+  session gets it from `/noldor-gate` Step 3.5. Keep the two renderings in
+  sync.
 
 ## Roadmap retirement
 
-- Implement the entry, then remove its roadmap block **on the branch**:
-  `pnpm noldor roadmap remove-block <slug>`. Absence of the block on `main`
-  after merge is the supervisor's success oracle.
+- Right after the scaffold, remove the entry's roadmap block **on the
+  branch**: `pnpm noldor roadmap remove-block <slug>`. Absence of the block on
+  `main` after merge is the supervisor's success oracle.
+- Commit the removal with `.noldor/retired-entry-ids.json` whenever the CLI
+  wrote it: when the block carried an `- id:`, the CLI records it there so
+  `blocked-by:` references keep resolving, and an unstaged map never reaches
+  `main`. `git add .noldor/retired-entry-ids.json` exits 128 when the file
+  does not exist, so let that `add` fail and gate the commit on
+  `git diff --cached --quiet -- docs/roadmap.md .noldor/retired-entry-ids.json`.
 
 ## Autonomous end-of-flow
 
@@ -110,6 +125,12 @@ dependency, so the prompt stays a thin pointer.
   or edit it by hand, and commit it with `Noldor-Doc-Impact: <slug>, …`. When
   none changed, amend `Noldor-Doc-Impact: none` onto the tip — message only.
   Exit 2 means the owner list could not be built, never "no owners".
+- Design debt: when `docs/design/architecture/baseline.pen` exists, run
+  `pnpm noldor checks arch-baseline`; then run
+  `pnpm noldor checks ui-design-freshness` after the last commit. Print both
+  checks' rows. A headless child cannot drive the pen.dev editor to write a
+  baseline back, so the rows are debt, never a reason to stop — release
+  preflight holds the line.
 - Preflight the push-range gates **before** the code-stage CR, while no receipt
   exists to lose: `pnpm noldor checks push-gates`. It replays the real hook —
   lefthook runs its own `pre-push` job list over the stdin ref line git will
@@ -153,6 +174,11 @@ dependency, so the prompt stays a thin pointer.
   the rebased twin of the last reviewed head instead (see
   [`worktree-discipline.md`](worktree-discipline.md#resuming-a-parked-or-dead-session)),
   or `--base-sha origin/main` to review the whole branch. (Q-0292)
+- Once the code-stage aggregate is green, remove this slug's review state so
+  stale failure context cannot leak into a later retry:
+  `rm -f .noldor/cr/<slug>-escalation-context.md .noldor/cr/autofix/<slug>-{spec,plan,code}.json{,.bad} .noldor/cr/decisions/<slug>-{spec,plan,code}.json`
+  (enumerate the files; a `<slug>-*` glob would also match a sibling slug that
+  shares the prefix).
 - Ship via `pnpm noldor pr-flow` (auto-merge; polls until the PR merges).
   Under parallel drain the supervisor sets `NOLDOR_DRAIN_OPEN_ONLY=1`:
   `pr-flow` then pushes + opens the PR and returns at PR-open — the
@@ -187,7 +213,10 @@ dependency, so the prompt stays a thin pointer.
   `pnpm noldor cr escalate --autonomous` (config `autonomous.onFailure` governs)
   and exit non-zero — the supervisor retries from clean or skips.
 - Commit and push gates run unchanged: hooks inject the `Noldor-*` trailers
-  from the session marker; drain mode never bypasses them.
+  from the session marker; drain mode never bypasses them. A commit that mixes
+  code with `docs/noldor/` pages keeps its code scope only with a
+  `Noldor-Sibling-Scope: noldor:<page>, …` trailer naming every staged page
+  (see [`git-and-commits.md`](git-and-commits.md)).
 - **Never background these commands, and never end the run before the PR
   exists.** Run each in the foreground and wait for it to exit. Committed work
   plus a clean exit plus a "waiting on the reviewer lane" sign-off is
@@ -257,10 +286,36 @@ Differences from the roadmap path:
   no force-recreate of prior plan work.
 - Preconditions: `docs/design/specs/<date>-<slug>-design.md` AND
   `docs/design/plans/<date>-<slug>.md` must exist. If either is missing,
-  exit non-zero immediately — never improvise a design.
-- Execute the plan task-by-task inline, then the same autonomous end-of-flow
-  as above plus the FD seams: refresh the FD's Usage section and flip the
-  phase before merge (`pnpm noldor features phase-flip-done <slug>`).
+  print the missing path to stderr and exit non-zero immediately — never
+  improvise a design.
+- Write the session marker inside the worktree:
+  `{ "path": "full-new", "slug": "<slug>", "startedAt": "<ISO timestamp>" }`
+  (an FD with a plan is full-tier).
+- Mark the session autonomous (`pnpm noldor noldor set-autonomous`), then
+  execute the plan task-by-task inline: read the plan, do each task with your
+  normal tools, commit at each task's Commit step, tick `- [ ]` → `- [x]`.
+  Never start a spec or plan dialogue, and never pause at a review
+  continue-dialog.
+- Before the push-gate preflight, close the FD, in this order:
+  1. Refresh the FD body — User Story and Usage from the spec, the code and
+     the tests (in Claude Code:
+     `/noldor-draft-feature-md <slug> --refresh --yes`; elsewhere by hand).
+     Stage nothing yet.
+  2. Assert the index is empty (`git diff --cached --quiet`), then run
+     `pnpm noldor design archive`: it moves this session's spec and plan into
+     `archive/` and leaves the moves staged.
+  3. Design write-backs: a headless child cannot drive the pen.dev editor, so
+     print the debt instead — the rows of `pnpm noldor checks arch-baseline`
+     when `docs/design/architecture/baseline.pen` exists, and the
+     `pnpm noldor design ui-sync` debt when the diff touches
+     `consumer.uiPaths`.
+  4. `pnpm noldor features phase-flip-done <slug>`, then
+     `git add docs/features/<slug>.md` and commit the index as one commit
+     (`docs(features:<slug>): mark phase=done + archive design artifacts`).
+- Then the autonomous end-of-flow above, without `--profile fast-track`. After
+  the green code-stage review and before `pr-flow`, run
+  `pnpm noldor cr bootstrap --slug <slug>` — a no-op unless the FD declares
+  `introduces-gate`.
 - Never pause for a lane picker or PR approval.
 
 ## Exit-code contract
@@ -271,11 +326,11 @@ Differences from the roadmap path:
   supervisor's retry-from-clean (its salvage rebuilds a stale `fast/<slug>`
   from fresh `main`).
 
-Drain mode is stricter than plain autonomous mode: it requires the
+Print no next-priority handoff and ask for no `/clear`: the supervisor is the
+loop. Drain mode is stricter than plain autonomous mode: it requires the
 headless-safe config set (`autonomous.onFailure: "abort"`,
 `skipLanePicker: true`, `requireHumanPrApproval: false`) — the supervisor
-refuses to start otherwise. The Claude-path rendering of this contract lives
-in the gate skill's Drain-mode section; keep the two in sync.
+refuses to start otherwise.
 
 ## Double-skip salvage
 

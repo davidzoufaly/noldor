@@ -31,13 +31,13 @@
 - Test: `src/checks/__tests__/gate-skill-drain-contract.test.ts`
 - Modify: `docs/noldor/drain-mode.md`, `templates/docs/noldor/drain-mode.md`, `.claude/skills/noldor-gate/SKILL.md`, `templates/.claude/skills/noldor-gate/SKILL.md`
 
-- [ ] **Step 1: Brief the rules.**
+- [x] **Step 1: Brief the rules.**
 
   Run: `pnpm noldor rules brief --file docs/noldor/drain-mode.md --file .claude/skills/noldor-gate/SKILL.md --file src/checks/__tests__/gate-skill-drain-contract.test.ts --stage code`
 
   Expected: `sibling-scope-trailer` is named for the page.
 
-- [ ] **Step 2: Write the failing test.** Create `src/checks/__tests__/gate-skill-drain-contract.test.ts`:
+- [x] **Step 2: Write the failing test.** Create `src/checks/__tests__/gate-skill-drain-contract.test.ts`:
 
   ```ts
   // @tests: gate-skill-loads-only-the-branch-a-session-takes
@@ -99,13 +99,13 @@
   });
   ```
 
-- [ ] **Step 3: Run to verify FAIL.**
+- [x] **Step 3: Run to verify FAIL.**
 
   Run: `pnpm vitest run src/checks/__tests__/gate-skill-drain-contract.test.ts`
 
   Expected: `Tests  4 failed (4)` — the skill still has its `## Drain mode` and `#### Finish mode` headings and no read-now line, and the page has no Scaffold bullet, no retired-ID staging, no design-debt line and a two-command Resume path.
 
-- [ ] **Step 4: Rewrite the page.** Apply this change to `docs/noldor/drain-mode.md`, then mirror it: `cp docs/noldor/drain-mode.md templates/docs/noldor/drain-mode.md`.
+- [x] **Step 4: Rewrite the page.** Apply this change to `docs/noldor/drain-mode.md`, then mirror it: `cp docs/noldor/drain-mode.md templates/docs/noldor/drain-mode.md`.
 
 ~~~diff
 --- a/docs/noldor/drain-mode.md
@@ -245,7 +245,7 @@
  
 ~~~
 
-- [ ] **Step 5: Take drain mode out of the skill.** Apply this change to `.claude/skills/noldor-gate/SKILL.md`, then mirror it: `cp .claude/skills/noldor-gate/SKILL.md templates/.claude/skills/noldor-gate/SKILL.md`. It rewrites Parameters, the entry check, Step 0's two skip bullets and `--resume mode` with the router's exact text, and deletes the `--resume` drain section and drain + finish mode:
+- [x] **Step 5: Take drain mode out of the skill.** Apply this change to `.claude/skills/noldor-gate/SKILL.md`, then mirror it: `cp .claude/skills/noldor-gate/SKILL.md templates/.claude/skills/noldor-gate/SKILL.md`. It rewrites Parameters, the entry check, Step 0's two skip bullets and `--resume mode` with the router's exact text, and deletes the `--resume` drain section and drain + finish mode:
 
 ~~~diff
 --- a/.claude/skills/noldor-gate/SKILL.md
@@ -432,19 +432,19 @@
 
   The rewritten lines are verbatim from Part 3's router, so Part 3 restates nothing this step changed.
 
-- [ ] **Step 6: Run to verify PASS.**
+- [x] **Step 6: Run to verify PASS.**
 
   Run: `pnpm vitest run src/checks/__tests__/gate-skill-drain-contract.test.ts`
 
   Expected: `Tests  4 passed (4)`.
 
-- [ ] **Step 7: Check the page and the skill.**
+- [x] **Step 7: Check the page and the skill.**
 
   Run: `pnpm noldor validate noldor && pnpm noldor checks skill-portability && pnpm noldor validate skill-catalog && pnpm noldor checks template-sync docs/noldor/drain-mode.md .claude/skills/noldor-gate/SKILL.md && grep -c "^## Drain mode\|^#### Finish mode\|^### Drain mode" .claude/skills/noldor-gate/SKILL.md`
 
   Expected: the four checks exit 0; the grep prints `0`.
 
-- [ ] **Step 8: Commit.**
+- [x] **Step 8: Commit.**
 
   ```bash
   msg=$(mktemp)
