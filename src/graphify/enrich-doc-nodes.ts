@@ -240,7 +240,9 @@ function main(): void {
   const repo = process.cwd();
   const graphPath = process.argv[2] ?? join(repo, 'graphify-out/graph.json');
   if (!existsSync(graphPath)) {
-    process.stderr.write(`enrich-doc-nodes: ${graphPath} not found — run /graphify first.\n`);
+    process.stderr.write(
+      `enrich-doc-nodes: ${graphPath} not found — run pnpm noldor graphify build first.\n`,
+    );
     process.exit(0); // absence is not an error (matches the detector's "no graph → no finding")
   }
   const out = enrichDocNodes(repo, graphPath);

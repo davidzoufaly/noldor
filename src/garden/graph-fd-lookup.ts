@@ -84,7 +84,7 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
       gap: {
         category: META_GAP_CATEGORY,
         itemId: graphPath,
-        message: `${graphPath} does not exist. Run /graphify + pnpm toon to generate the graph, or ensure the path is correct.`,
+        message: `${graphPath} does not exist. Run pnpm noldor graphify build to generate the graph, or ensure the path is correct.`,
       },
       ok: false,
     };
@@ -102,7 +102,7 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
       gap: {
         category: META_GAP_CATEGORY,
         itemId: graphPath,
-        message: `${STALE_GAP_MESSAGE_PREFIX} ${graphPath} regen ${graphDate}, latest source mtime ${srcDate}. Run /graphify + pnpm toon (preferred) or perform a manual co-tag audit: for each .test.ts file under packages/ or apps/src/, grep imports → check which FDs own those files via links.code → propose missing co-tags.`,
+        message: `${STALE_GAP_MESSAGE_PREFIX} ${graphPath} regen ${graphDate}, latest source mtime ${srcDate}. Run pnpm noldor graphify build (preferred) or perform a manual co-tag audit: for each .test.ts file under packages/ or apps/src/, grep imports → check which FDs own those files via links.code → propose missing co-tags.`,
       },
       ok: false,
     };

@@ -135,7 +135,7 @@ export async function graphContext(opts: GraphContextOptions): Promise<GraphCont
       detail:
         `${GRAPH_JSON} is stale: ${committed.detail}, and its mtime is not newer ` +
         `than every file git does not ignore under ${roots.join(', ')}. ` +
-        'Run /graphify --ast-only then pnpm toon, and retry.',
+        'Run pnpm noldor graphify build, and retry.',
       summaryToon: null,
       digests: [],
     };

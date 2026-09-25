@@ -20,6 +20,8 @@ export const RUNTIME_ASSETS = [
   'src/cr/standalone-prompt.md',
   'src/dashboard/static/dist/agents.js',
   'src/dashboard/static/dist/drag.js',
+  'src/graphify/build-graph.py',
+  'src/graphify/graphify-requirements.txt',
   'src/testing/fixtures/canned/add-greeting-helper.json',
 ];
 

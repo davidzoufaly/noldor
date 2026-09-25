@@ -200,8 +200,8 @@ export interface SeedReport {
 export function renderSeedResult(result: SeedResult, apply: boolean): SeedReport {
   if (result.kind === 'graph-unusable') {
     const why = result.stale
-      ? `${GRAPH_PATH} is older than a file under the scan roots — regenerate it with /graphify --ast-only, then re-run. Every --apply leaves the graph older than the files it wrote, so regenerate between batches.`
-      : `${GRAPH_PATH} does not exist — generate it with /graphify --ast-only, then re-run.`;
+      ? `${GRAPH_PATH} is older than a file under the scan roots — regenerate it with pnpm noldor graphify build, then re-run. Every --apply leaves the graph older than the files it wrote, so regenerate between batches.`
+      : `${GRAPH_PATH} does not exist — generate it with pnpm noldor graphify build, then re-run.`;
     return { code: EXIT_REFUSED, stdout: '', stderr: `seed-test-tags: ${why}\n` };
   }
   if (result.kind === 'no-match') {
@@ -230,7 +230,7 @@ export function renderSeedResult(result: SeedResult, apply: boolean): SeedReport
     );
   } else {
     lines.push(
-      `seed-test-tags: wrote ${written.length} file(s). Run pnpm noldor sync test-links, and regenerate the graph (/graphify --ast-only) before the next batch.`,
+      `seed-test-tags: wrote ${written.length} file(s). Run pnpm noldor sync test-links, and regenerate the graph (pnpm noldor graphify build) before the next batch.`,
     );
   }
   return { code: EXIT_OK, stdout: lines.map((l) => `${l}\n`).join(''), stderr: '' };

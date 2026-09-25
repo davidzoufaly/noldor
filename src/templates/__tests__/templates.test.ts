@@ -247,9 +247,6 @@ function tempTree(files: Record<string, string>): { dir: string; [Symbol.dispose
   return { dir, [Symbol.dispose]: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
-// The build case below runs graphify for real, which this repo's CI does not install.
-const graphifyImportable =
-  spawnSync('python3', ['-c', 'import graphify'], { stdio: 'ignore' }).status === 0;
 // The publish cases run the step's own script, which reads graph.json with jq.
 const jqAvailable = spawnSync('jq', ['--version'], { stdio: 'ignore' }).status === 0;
 
@@ -272,20 +269,6 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
 
   const workflow = (): { permissions: unknown; jobs: Record<string, WfJob>; on?: unknown } =>
     parseYaml(raw()) as { permissions: unknown; jobs: Record<string, WfJob>; on?: unknown };
-
-  /** The build job's step that feeds the graph builder to python from a heredoc. */
-  const buildStep = (): WfStep => {
-    const step = workflow().jobs.build.steps.find((s) => (s.run ?? '').includes("<<'PY'"));
-    if (step === undefined) throw new Error('no build step runs a python heredoc');
-    return step;
-  };
-
-  /** That step's Python, exactly as bash hands it to `python3 -`. */
-  const buildScript = (): string => {
-    const run = buildStep().run ?? '';
-    const start = run.indexOf("<<'PY'\n") + "<<'PY'\n".length;
-    return run.slice(start, run.indexOf('\nPY\n', start) + 1);
-  };
 
   it('ships in the template manifest', () => {
     expect(templateFiles()).toContain(rel);
@@ -347,7 +330,7 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
     const text = runnable();
     expect(text).not.toMatch(/pnpm\s+toon\b/);
     expect(text).not.toMatch(/pnpm\s+graphify:/);
-    expect(text).toContain('pnpm noldor graphify graph-to-toon');
+    expect(text).toContain('pnpm noldor graphify build');
   });
 
   it('builds in one clean pass, not an incremental update', () => {
@@ -359,50 +342,17 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
     expect(text).not.toContain('enrich-docs');
   });
 
-  it('pins the hash seed, the file order and a single extraction process', () => {
-    // Unseeded, the same tree clusters into different communities on every run.
-    expect(buildStep().env?.PYTHONHASHSEED).toBe('0');
-    expect(buildScript()).toMatch(/sorted\(/);
-    // The worker pool dies on a stdin script under spawn. The case below builds
-    // too small a tree to start the pool, so only this line holds it.
-    expect(buildScript()).toContain('parallel=False');
+  it('hands the build to the builder the release sweep runs too, with no recipe of its own', () => {
+    // The recipe and its package pins live in the framework, so a consumer's copy
+    // of this file cannot drift from the graph a release commits.
+    const builds = workflow().jobs.build.steps.filter((s) =>
+      (s.run ?? '').includes('graphify build'),
+    );
+    expect(builds.map((s) => s.run?.trim())).toEqual(['pnpm noldor graphify build']);
+    const text = runnable();
+    expect(text).not.toContain("<<'PY'");
+    expect(text).not.toMatch(/\bpip3?\s+install\b/);
   });
-
-  it.skipIf(!graphifyImportable)(
-    'builds code alone, forgets a deleted file, and repeats byte for byte',
-    () => {
-      using tree = tempTree({
-        'a.ts':
-          "import { beta } from './b';\nexport function alpha(): number {\n  return beta();\n}\n",
-        'b.ts': 'export function beta(): number {\n  return 1;\n}\n',
-        'README.md': '# Notes\n\n## Usage\n\nProse a markdown extractor would turn into nodes.\n',
-      });
-      const build = (): string => {
-        const r = spawnSync('python3', ['-'], {
-          cwd: tree.dir,
-          input: buildScript(),
-          env: { ...process.env, ...buildStep().env },
-          encoding: 'utf8',
-        });
-        expect(r.status, r.stderr).toBe(0);
-        return readFileSync(join(tree.dir, 'graphify-out', 'graph.json'), 'utf8');
-      };
-      const sources = (graph: string): string[] => {
-        const { nodes } = JSON.parse(graph) as { nodes: { source_file: string }[] };
-        return [...new Set(nodes.map((n) => n.source_file))].toSorted();
-      };
-
-      expect(sources(build())).toEqual(['a.ts', 'b.ts']);
-
-      // The first graph.json is still on disk, so a pass that merged into it
-      // would carry b's nodes forward.
-      rmSync(join(tree.dir, 'b.ts'));
-      const second = build();
-      expect(sources(second)).toEqual(['a.ts']);
-      expect(build()).toBe(second);
-    },
-    60_000,
-  );
 
   it('runs no repository code while the write token is in scope', () => {
     const { jobs } = workflow();
@@ -599,9 +549,8 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
     );
   });
 
-  it('pins graphify and titles its own PR with a prefix the filter skips', () => {
+  it('titles its own PR with a prefix the filter skips', () => {
     const text = runnable();
-    expect(text).toContain('graphifyy==0.7.8');
     expect(text).toContain('chore(graph):');
     expect(text).not.toMatch(/--title "(feat|fix|refactor)/);
   });

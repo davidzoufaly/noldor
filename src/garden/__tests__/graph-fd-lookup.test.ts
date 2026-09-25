@@ -126,7 +126,7 @@ describe(loadFreshGraphOrWarn, () => {
       if (!result.ok) {
         expect(result.gap.category).toBe('Tests with incomplete co-tag');
         expect(result.gap.message).toMatch(/degraded mode/);
-        expect(result.gap.message).toMatch(/Run \/graphify/);
+        expect(result.gap.message).toMatch(/Run pnpm noldor graphify build/);
       }
     });
   });
@@ -353,7 +353,7 @@ describe(loadFreshGraphOrWarn, () => {
       if (!result.ok) {
         expect(result.gap.itemId).toBe(missingPath);
         expect(result.gap.message).toMatch(/does not exist/);
-        expect(result.gap.message).toMatch(/Run \/graphify/);
+        expect(result.gap.message).toMatch(/Run pnpm noldor graphify build/);
       }
     });
   });

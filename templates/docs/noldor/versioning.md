@@ -30,11 +30,11 @@ a breaking change inside a regular `feat:` or `fix:`.
 Before invoking `pnpm release` for any minor or major bump, run
 [`/noldor-release-sweep`](../../.claude/skills/noldor-release-sweep/SKILL.md). The sweep:
 
-1. `/graphify` + `pnpm toon` — fresh structural snapshot of the codebase.
+1. `pnpm noldor graphify build` — fresh structural snapshot of the codebase.
 2. `/noldor-refactor` against the new `GRAPH_REPORT.md` — fix god nodes,
    low-cohesion communities, dead exports flagged by the audit.
 3. README drift check.
-4. `/graphify` + `pnpm toon` again — capture the post-refactor graph.
+4. Commit any refactor leftover, then `pnpm noldor graphify build` again — capture the post-refactor graph (the build reads HEAD).
 5. **Drift pre-empt** (step 5.5) — `pnpm docs:build` + `pnpm noldor garden sdd-report --release`. Commit any drift on the sweep branch. The release script's existing dirty-tree checks (`src/release/index.ts:132-138` and `:140-146`) then no-op when the sweep already committed the regen output. See [release-sweep-process-hardening](../features/release-sweep-process-hardening.md) §3.1.
 6. Single `chore(release): pre-release graphify + refactor sweep` commit (plus any drift-pre-empt commits from step 5).
 7. `pnpm verify` final gate, then explicit `release now` confirmation.

@@ -397,6 +397,10 @@ export const MANIFEST: Record<string, Group> = {
   graphify: {
     desc: 'Graphify runner + helpers',
     subs: {
+      build: {
+        src: 'graphify/build.ts',
+        desc: 'Build graphify-out/ from HEAD with the pinned Python packages; a no-op when only the graph changed since it was built',
+      },
       'graph-to-toon': { src: 'graphify/graph-to-toon.ts', desc: 'Render graph.json to TOON' },
       'enrich-docs': {
         src: 'graphify/enrich-doc-nodes.ts',

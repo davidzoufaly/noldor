@@ -15,8 +15,10 @@
 # alone does not fix: `git commit` and `git push` run hooks, and hooks are
 # merged-tree code.
 #
-# Yours to edit after `noldor init` writes it: runner labels, the Python and
-# Node versions, and the graphifyy pin. Two repository settings this file
+# Yours to edit after `noldor init` writes it: runner labels and the Node
+# version. The Python version is not free: it must stay the minor noldor pins
+# the graph's packages under, which `noldor graphify build` names when it
+# refuses another. Two repository settings this file
 # cannot set for you. Allow GitHub Actions to create pull requests (Settings ->
 # Actions -> General -> Workflow permissions): it is off by default, and while
 # it is off `gh pr create` below fails after the branch is already pushed.
@@ -74,12 +76,6 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install graphify
-        # Pinned: an unpinned install makes the extraction a function of the run
-        # date. The pin binds the top-level package only — tree-sitter grammars,
-        # networkx and the Python version above can still move.
-        run: pip install graphifyy==0.7.8 -q
-
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -88,48 +84,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Regenerate the graph
-        env:
-          # Without a fixed hash seed the same tree clusters into different
-          # communities on every run, so every graph PR would reshuffle the file.
-          PYTHONHASHSEED: '0'
-        run: |
-          set -euo pipefail
-          # A clean pass over code files, the same scope as the release sweep's
-          # `/graphify --ast-only`, so both commit the same nodes and edges. Not
-          # `graphify update`: it keeps every node graph.json already holds, so
-          # deleted code never leaves, and it extracts markdown too.
-          python3 - <<'PY'
-          from pathlib import Path
-          from graphify.analyze import god_nodes, surprising_connections, suggest_questions
-          from graphify.build import build_from_json
-          from graphify.cluster import cluster, score_all
-          from graphify.detect import detect
-          from graphify.export import to_json
-          from graphify.extract import extract
-          from graphify.report import generate
-
-          detected = detect(Path('.'))
-          # Sorted, so the node order does not follow the filesystem's listing
-          # order. One process: graphify's workers crash on start when this
-          # script comes from stdin and Python spawns rather than forks them.
-          ast = extract(sorted(Path(f) for f in detected['files']['code']), parallel=False)
-          G = build_from_json({'nodes': ast['nodes'], 'edges': ast['edges'], 'hyperedges': []})
-          communities = cluster(G)
-          labels = {c: f'Community {c}' for c in communities}
-          out = Path('graphify-out')
-          out.mkdir(exist_ok=True)
-          report = generate(G, communities, score_all(G, communities), labels, god_nodes(G),
-                            surprising_connections(G, communities), detected,
-                            {'input': 0, 'output': 0}, '.',
-                            suggested_questions=suggest_questions(G, communities, labels))
-          (out / 'GRAPH_REPORT.md').write_text(report, encoding='utf-8')
-          # force: a merge that deletes code legitimately shrinks the graph.
-          to_json(G, communities, str(out / 'graph.json'), force=True)
-          PY
-          # `pnpm noldor` resolves the framework's own bin in a consumer and its
-          # package script in noldor itself. A repo-local alias would not: `toon`
-          # exists only in noldor's package.json.
-          pnpm noldor graphify graph-to-toon graphify-out/graph.json
+        # The builder the release sweep runs too: a seeded pass over the code
+        # files HEAD holds, under Python packages noldor pins, so a release and
+        # this workflow commit the same graph. `pnpm noldor` resolves the
+        # framework's own bin in a consumer and its package script in noldor
+        # itself.
+        run: pnpm noldor graphify build
 
       - name: Verify the outputs
         run: |

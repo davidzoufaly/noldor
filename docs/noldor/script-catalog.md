@@ -750,9 +750,9 @@ FD phase + pointer maintenance used by `/noldor-gate` Step 4 and `/noldor-draft-
 ### `toon`
 
 - **Trigger:** `pnpm toon`, i.e. `pnpm noldor graphify graph-to-toon`.
-- **Inputs:** `graphify-out/graph.json` (produced by `/graphify` skill).
+- **Inputs:** `graphify-out/graph.json` (produced by `pnpm noldor graphify build`, which renders both toon files itself, or by the `/graphify` skill).
 - **Outputs:** stdout TOON-formatted graph view (compact textual graph for context-window inclusion).
-- **When to use:** ad hoc when feeding the project graph to an agent. The `/graphify` skill itself is documented in [`skill-catalog.md`](skill-catalog.md); `src/graphify/` only hosts this post-processor.
+- **When to use:** ad hoc when feeding the project graph to an agent. The `/graphify` skill itself is documented in [`skill-catalog.md`](skill-catalog.md).
 - **Source:** [`src/graphify/graph-to-toon.ts`](../../src/graphify/graph-to-toon.ts)
 
 ### `metrics:compute`
@@ -777,10 +777,19 @@ FD phase + pointer maintenance used by `/noldor-gate` Step 4 and `/noldor-draft-
 - **When to use:** an `EADDRINUSE`, or two dashboards on adjacent ports, and you need to know which repo owns which before acting.
 - **Source:** [`src/dashboard/status.ts`](../../src/dashboard/status.ts)
 
+### `graphify:build`
+
+- **Trigger:** `pnpm noldor graphify build` (`--force` rebuilds a graph that is already current). Run by `/noldor-release-sweep` steps 1 and 5 and by the `update-knowledge-graph` workflow.
+- **Inputs:** HEAD's tree, copied through a throwaway index, so uncommitted edits and untracked files never reach the graph; `built_at_commit` in `graphify-out/graph.json` for the up-to-date check; a Python interpreter of the lock's minor (`NOLDOR_GRAPHIFY_PYTHON`, else `python3`).
+- **Outputs:** `graphify-out/graph.json`, `GRAPH_REPORT.md`, `graph.brainstorm.toon` and `graph.brainstorm-summary.toon`, with `Community N` labels, `built_at_commit` set to HEAD and the report dated by HEAD's commit — the same bytes for the same commit on any machine. The first run installs the pinned packages (`src/graphify/graphify-requirements.txt`, about 240 MB) into a venv under `$XDG_CACHE_HOME/noldor/graphify/`, else `~/.cache/noldor/graphify/`; later runs reuse it, and deleting that directory resets it.
+- **Up to date:** when the four files match HEAD's and no file outside `graphify-out/` changed between `built_at_commit` and HEAD, it says so and writes nothing — the normal outcome right after a graph PR merges.
+- **Exit codes:** 0 built, or already up to date; 1 the build failed (a write that fails partway names `git checkout -- graphify-out/`), an unknown argument, or not a git work tree; 2 no usable Python environment — no interpreter, one of another minor, or a lock pip could not install — with the fix on stderr.
+- **Source:** [`src/graphify/build.ts`](../../src/graphify/build.ts), running [`src/graphify/build-graph.py`](../../src/graphify/build-graph.py)
+
 ### `graphify:enrich-docs`
 
 - **Trigger:** `pnpm noldor graphify enrich-docs`.
-- **Outputs:** adds FD / plan / spec doc nodes plus `plan-of` / `spec-of` edges to `graphify-out/graph.json` (post-processes the `/graphify` output).
+- **Outputs:** adds FD / plan / spec doc nodes plus `plan-of` / `spec-of` edges to `graphify-out/graph.json` (post-processes the built graph).
 - **Source:** [`src/graphify/enrich-doc-nodes.ts`](../../src/graphify/enrich-doc-nodes.ts)
 
 ### `graphify:refactor-precondition`

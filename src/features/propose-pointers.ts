@@ -131,7 +131,7 @@ async function main(): Promise<void> {
   const ctx = requireFreshGraph('graphify-out/graph.json', srcRoots, features);
   if (!ctx) {
     console.error(
-      'propose-pointers: graphify-out/graph.json is missing or stale. Run /graphify + pnpm toon, then retry.',
+      'propose-pointers: graphify-out/graph.json is missing or stale. Run pnpm noldor graphify build, then retry.',
     );
     process.exitCode = 1;
     return;
