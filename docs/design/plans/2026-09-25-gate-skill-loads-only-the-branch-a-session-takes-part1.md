@@ -5,7 +5,7 @@
 **Goal:** `pnpm noldor skill-size check` refuses a push from this repo that grows any `.claude/skills/**/*.md` file past its recorded word count, `pnpm noldor skill-size baseline` re-records it, and the one-commit micro-chore lane can carry the re-record.
 
 **Architecture:**
-- **One new file.** `src/checks/skill-size.ts` holds the measure, the compare, the baseline read/write and the CLI, in the shape of `src/indirection/indirection-cli.ts` but inside the existing `src/checks` module (spec D4: no new module, so no architecture design).
+- **One new file.** `src/checks/skill-size.ts` holds the measure, the compare, the baseline read/write and the CLI, in the shape of `src/indirection/indirection-cli.ts` but inside the existing `src/checks` module (spec D4: no new module, so no architecture design). It walks skill folders with the drift detector's `collectSkillMd`, exported for it — `src/checks` already imports that module, so the change adds no import edge.
 - **One shared reader.** Reading a schema-checked `.noldor/` state file without throwing becomes `readCheckedState` in `src/core/state-file.ts`. The clones and indirection baselines already carry that exact block, so the skill-size ratchet is its third site; routing all three through it is what keeps the clone ratchet's diff-scope verdict green.
 - **Self-host wiring.** The job runs at pre-push from the root `lefthook.yml` only (spec D5); `checks push-gates` replays it with no code change.
 
@@ -21,6 +21,7 @@
 
 - `src/core/state-file.ts` + `src/core/__tests__/state-file.test.ts` — **Modify.** Add `readCheckedState` / `CheckedStateRead<T>`.
 - `src/clones/baseline.ts`, `src/indirection/baseline.ts` — **Modify.** `readBaseline` calls `readCheckedState` instead of repeating it.
+- `src/garden/detectors/skill-code-drift.ts` — **Modify.** Export `collectSkillMd`.
 - `src/checks/skill-size.ts` — **Create.** Measure, compare, baseline read/write, CLI `check|baseline`.
 - `src/checks/__tests__/skill-size.test.ts` — **Create.** Real temp repos; includes the entry's +200-words deletion test.
 - `src/cli/manifest.ts` — **Modify.** The `skill-size` verb group.
@@ -253,11 +254,12 @@ index d25e92d..21aae53 100644
 
 **Files:**
 - Create: `src/checks/skill-size.ts`
+- Modify: `src/garden/detectors/skill-code-drift.ts`
 - Test: `src/checks/__tests__/skill-size.test.ts`
 
 - [ ] **Step 1: Brief the rules.**
 
-  Run: `pnpm noldor rules brief --file src/checks/skill-size.ts --file src/checks/__tests__/skill-size.test.ts --stage code`
+  Run: `pnpm noldor rules brief --file src/checks/skill-size.ts --file src/checks/__tests__/skill-size.test.ts --file src/garden/detectors/skill-code-drift.ts --stage code`
 
   Expected: `ENFORCE` includes `self-explanatory-code`, `test-real-behavior` and `test-mocking-boundaries` (a spy on `process.stdout` / `process.stderr` is a system boundary, allowed).
 
@@ -453,7 +455,21 @@ index d25e92d..21aae53 100644
 
   Expected: FAIL — `Failed to load url ../skill-size.js` (the module does not exist).
 
-- [ ] **Step 4: Implement.** Create `src/checks/skill-size.ts`:
+- [ ] **Step 4: Export the detector's walker.** Apply this change to `src/garden/detectors/skill-code-drift.ts`:
+
+~~~diff
+diff --git a/src/garden/detectors/skill-code-drift.ts b/src/garden/detectors/skill-code-drift.ts
+index 1a61395..2e4df8e 100644
+--- a/src/garden/detectors/skill-code-drift.ts
++++ b/src/garden/detectors/skill-code-drift.ts
+@@ -102,3 +102,3 @@ const MD_LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
+ /** Recursively collect every `*.md` under a skills root; missing root → []. */
+-function collectSkillMd(root: string): string[] {
++export function collectSkillMd(root: string): string[] {
+   if (!existsSync(root)) return [];
+~~~
+
+- [ ] **Step 5: Implement.** Create `src/checks/skill-size.ts`:
 
   ```ts
   // @fd: gate-skill-loads-only-the-branch-a-session-takes
@@ -468,13 +484,14 @@ index d25e92d..21aae53 100644
    *   baseline unreadable          3        0   (overwrites)
    *   usage error                  2        2
    */
-  import { existsSync, readFileSync, readdirSync } from 'node:fs';
+  import { readFileSync } from 'node:fs';
   import { join, relative, sep } from 'node:path';
 
   import { z } from 'zod';
 
   import { runIfDirect } from '../core/cli-entry.js';
   import { readCheckedState, writeJsonState } from '../core/state-file.js';
+  import { collectSkillMd } from '../garden/detectors/skill-code-drift.js';
   import { countWords } from '../utils/word-count.js';
 
   export const SKILL_SIZE_BASELINE = '.noldor/skill-size-baseline.json';
@@ -510,23 +527,12 @@ index d25e92d..21aae53 100644
 
   const byPath = (a: string, b: string): number => a.localeCompare(b, 'en');
 
-  /** Every `.md` file under `dir`, recursively. */
-  export function markdownFilesUnder(dir: string): string[] {
-    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) return markdownFilesUnder(full);
-      return entry.isFile() && entry.name.endsWith('.md') ? [full] : [];
-    });
-  }
-
   /**
    * Word count of every `.md` under `.claude/skills/`, keyed by repo-relative POSIX
    * path and sorted by it. Frontmatter and fenced blocks count: an agent loads them.
    */
   export function measureSkillSizes(repo: string): Record<string, number> {
-    const root = join(repo, '.claude', 'skills');
-    if (!existsSync(root)) return {};
-    const sizes = markdownFilesUnder(root).map((file): [string, number] => [
+    const sizes = collectSkillMd(join(repo, '.claude', 'skills')).map((file): [string, number] => [
       relative(repo, file).split(sep).join('/'),
       countWords(readFileSync(file, 'utf8')),
     ]);
@@ -657,19 +663,19 @@ index d25e92d..21aae53 100644
   runIfDirect('skill-size', 'skill-size', (argv) => main(argv));
   ```
 
-- [ ] **Step 5: Run to verify PASS.**
+- [ ] **Step 6: Run to verify PASS.**
 
   Run: `pnpm vitest run src/checks/__tests__/skill-size.test.ts`
 
   Expected: `Tests  12 passed (12)`.
 
-- [ ] **Step 6: Typecheck, lint, format, and the clone ratchet.**
+- [ ] **Step 7: Typecheck, lint, format, and the clone ratchet.**
 
-  Run: `pnpm typecheck && pnpm exec oxlint src/checks/skill-size.ts src/checks/__tests__/skill-size.test.ts && pnpm noldor fmt src/checks/skill-size.ts src/checks/__tests__/skill-size.test.ts && git add -N src/checks/skill-size.ts && pnpm noldor clones check`
+  Run: `pnpm typecheck && pnpm exec oxlint src/checks/skill-size.ts src/checks/__tests__/skill-size.test.ts src/garden/detectors/skill-code-drift.ts && pnpm noldor fmt src/checks/skill-size.ts src/checks/__tests__/skill-size.test.ts src/garden/detectors/skill-code-drift.ts && git add -N src/checks/skill-size.ts && pnpm noldor clones check`
 
   Expected: all exit 0; `clones check: no clone group touches this change - green`.
 
-- [ ] **Step 7: Commit.**
+- [ ] **Step 8: Commit.**
 
   ```bash
   msg=$(mktemp)
@@ -681,7 +687,7 @@ index d25e92d..21aae53 100644
   Noldor-FD: gate-skill-loads-only-the-branch-a-session-takes
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
   EOF
-  git add src/checks/skill-size.ts src/checks/__tests__/skill-size.test.ts
+  git add src/checks/skill-size.ts src/checks/__tests__/skill-size.test.ts src/garden/detectors/skill-code-drift.ts
   git commit -F "$msg"
   ```
 

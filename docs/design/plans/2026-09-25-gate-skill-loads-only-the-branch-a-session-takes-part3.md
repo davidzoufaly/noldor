@@ -94,7 +94,13 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
 
   Run: `pnpm noldor rules brief --file .claude/skills/noldor-gate/artifact-review.md --stage code`
 
-- [ ] **Step 2: Save the assembler.** Write `/tmp/gate-assemble.mjs`:
+- [ ] **Step 2: Confirm main has not changed the gate skill since `c7bc4bc`.**
+
+  Run: `git fetch -q origin main && git diff --quiet c7bc4bc origin/main -- .claude/skills/noldor-gate/SKILL.md; echo $?`
+
+  Expected: `0`. Anything else means a gate-skill edit landed on `main` after `c7bc4bc`, and assembling from `c7bc4bc` would silently drop it: stop, and re-derive the ranges and patches from the new text first.
+
+- [ ] **Step 3: Save the assembler.** Write `/tmp/gate-assemble.mjs`:
 
   ```js
   import { execFileSync } from 'node:child_process';
@@ -117,7 +123,7 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
 
   Each range is `[firstLine, lastLine, spacesToStrip]`; the strip only removes the indentation a block carried as a list continuation in the monolith.
 
-- [ ] **Step 3: Assemble the nine files verbatim.**
+- [ ] **Step 4: Assemble the nine files verbatim.**
 
   Run:
 
@@ -127,7 +133,7 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
 
   Expected: the nine files exist and hold only pre-split text.
 
-- [ ] **Step 4: Finish each file with its patch.** Apply all nine:
+- [ ] **Step 5: Finish each file with its patch.** Apply all nine:
 
 ~~~diff
 --- a/.claude/skills/noldor-gate/micro-chore.md
@@ -531,7 +537,7 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
  Activated when the operator picks `proceed-autonomous` at the plan-stage Step 2.5 continue-dialog. Persisted as `session.autonomous = true` in `.noldor/session.json` (via `pnpm noldor noldor set-autonomous`). Stays on through PR-merge — no operator-facing "exit autonomous" command; the session marker is cleared by the post-merge cleanup like any other session.
 ~~~
 
-- [ ] **Step 5: Mirror the twins and measure.**
+- [ ] **Step 6: Mirror the twins and measure.**
 
   Run:
 
@@ -544,13 +550,13 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
 
   Expected word counts: `micro-chore.md` 741, `fast-track.md` 756, `attach.md` 737, `artifact-review.md` 1458, `blockers.md` 1899, `code-review.md` 1569, `fd-close.md` 667, `design-writeback.md` 1082, `autonomous.md` 457. `SKILL.md` is still Part 2's monolith.
 
-- [ ] **Step 6: Check them.**
+- [ ] **Step 7: Check them.**
 
   Run: `pnpm noldor checks skill-portability && pnpm noldor validate skill-catalog && pnpm noldor checks template-sync .claude/skills/noldor-gate/artifact-review.md`
 
   Expected: all exit 0 — the catalog still counts 15 skills (a branch file is not a skill).
 
-- [ ] **Step 7: Commit.**
+- [ ] **Step 8: Commit.**
 
   ```bash
   msg=$(mktemp)

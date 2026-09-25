@@ -5,7 +5,7 @@
 **Goal:** `pnpm noldor checks skill-portability` refuses a shipped skill whose `**Read now:**` link names a missing file, or whose folder holds a markdown file no read-now chain from `SKILL.md` reaches; and tests show `checks template-sync`, the skill-code-drift detector and `checks skill-portability` each covering a branch file.
 
 **Architecture:**
-- **One new file.** `src/checks/skill-router.ts` walks each shipped skill folder (one with a `templates/` twin, the same scope rule the portability check already uses), follows read-now links breadth-first from `SKILL.md`, and reports `missing-branch-file` and `unreachable-branch-file`. It reuses Part 1's `markdownFilesUnder` rather than a third directory walk.
+- **One new file.** `src/checks/skill-router.ts` walks each shipped skill folder (one with a `templates/` twin, the same scope rule the portability check already uses), follows read-now links breadth-first from `SKILL.md`, and reports `missing-branch-file` and `unreachable-branch-file`. It reuses the drift detector's `collectSkillMd` and its `MD_LINK_RE`, exported here, instead of a second walk and a second copy of the regex.
 - **The blocking check calls it.** `check-skill-portability.ts` reports router findings beside non-portable scripts; its lefthook job already fires on every `.claude/skills/**` change. Plain links stay the drift detector's advisory job.
 - **Coverage, pinned.** `templateFiles()` and `collectSkillMd` already recurse with no name filter, so the three coverage tests pass on their first run; they exist so a future name filter cannot quietly drop branch files.
 - **Patches.** Every `~~~diff` block applies with `git apply` from the repo root: save it to a file and run `git apply <file>`.
@@ -20,6 +20,7 @@
 
 ## File Structure
 
+- `src/garden/detectors/skill-code-drift.ts` — **Modify.** Export `MD_LINK_RE`.
 - `src/checks/skill-router.ts` — **Create.** Read-now link and reachability rules for shipped skill folders.
 - `src/checks/__tests__/skill-router.test.ts` — **Create.** Finding shapes, both directions of the reachability rule.
 - `src/checks/check-skill-portability.ts` — **Modify.** Block on router findings too.
@@ -32,7 +33,7 @@
 
 **Files:**
 - Create: `src/checks/skill-router.ts`
-- Modify: `src/checks/check-skill-portability.ts`
+- Modify: `src/checks/check-skill-portability.ts`, `src/garden/detectors/skill-code-drift.ts`
 - Test: `src/checks/__tests__/skill-router.test.ts`, `src/checks/__tests__/check-skill-portability.test.ts`
 
 - [ ] **Step 1: Brief the rules.**
@@ -211,14 +212,29 @@ index ef2960f..2b890a5 100644
 
   Expected: `skill-router.test.ts` fails to load `../skill-router.js`; in `check-skill-portability.test.ts` the missing-file and unreachable-file cases fail (`expected 0 to be 1`), while the branch-file command block and the all-resolved router already pass.
 
-- [ ] **Step 4: Implement the rules.** Create `src/checks/skill-router.ts`:
+- [ ] **Step 4: Export the detector's link regex.** Apply this change to `src/garden/detectors/skill-code-drift.ts`:
+
+~~~diff
+diff --git a/src/garden/detectors/skill-code-drift.ts b/src/garden/detectors/skill-code-drift.ts
+index 2e4df8e..d271b34 100644
+--- a/src/garden/detectors/skill-code-drift.ts
++++ b/src/garden/detectors/skill-code-drift.ts
+@@ -99,3 +99,4 @@ const NOLDOR_CMD_RE = /\bnoldor\s+([a-z-]+)(?:\s+([a-z][a-z0-9:-]*))?/g;
+ const INLINE_CODE_RE = /`([^`]+)`/g;
+-const MD_LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
++/** A markdown link; group 1 is its target. */
++export const MD_LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
+ 
+~~~
+
+- [ ] **Step 5: Implement the rules.** Create `src/checks/skill-router.ts`:
 
   ```ts
   // @fd: gate-skill-loads-only-the-branch-a-session-takes
   import { existsSync, readFileSync, readdirSync } from 'node:fs';
   import { dirname, join, relative, resolve, sep } from 'node:path';
 
-  import { markdownFilesUnder } from './skill-size.js';
+  import { MD_LINK_RE, collectSkillMd } from '../garden/detectors/skill-code-drift.js';
 
   /** The marker a router line carries when it hands the session to a branch file. */
   export const READ_NOW_MARKER = '**Read now:**';
@@ -232,8 +248,6 @@ index ef2960f..2b890a5 100644
     readonly kind: 'missing-branch-file' | 'unreachable-branch-file';
     readonly detail: string;
   }
-
-  const MD_LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
 
   /**
    * Check every shipped skill folder — one whose `SKILL.md` has a `templates/` twin
@@ -280,7 +294,7 @@ index ef2960f..2b890a5 100644
           }
         }
       }
-      for (const file of markdownFilesUnder(folder)) {
+      for (const file of collectSkillMd(folder)) {
         if (reached.has(file)) continue;
         findings.push({
           skillPath: rel(file),
@@ -294,7 +308,7 @@ index ef2960f..2b890a5 100644
   }
   ```
 
-- [ ] **Step 5: Block on them.** Replace `src/checks/check-skill-portability.ts` with:
+- [ ] **Step 6: Block on them.** Replace `src/checks/check-skill-portability.ts` with:
 
   ```ts
   // @fd: skill-vs-code-drift-detector
@@ -349,25 +363,25 @@ index ef2960f..2b890a5 100644
   runIfDirect('check-skill-portability', 'checks skill-portability', async () => main());
   ```
 
-- [ ] **Step 6: Run to verify PASS.**
+- [ ] **Step 7: Run to verify PASS.**
 
   Run: `pnpm vitest run src/checks/__tests__/skill-router.test.ts src/checks/__tests__/check-skill-portability.test.ts`
 
   Expected: `Tests  18 passed (18)`.
 
-- [ ] **Step 7: Run the check on the real gate folder.**
+- [ ] **Step 8: Run the check on the real gate folder.**
 
   Run: `pnpm noldor checks skill-portability`
 
   Expected: exit 0, `skill-portability: every shipped-skill command block runs in a consumer, and every read-now link resolves`.
 
-- [ ] **Step 8: Typecheck, lint, format, clones.**
+- [ ] **Step 9: Typecheck, lint, format, clones.**
 
-  Run: `pnpm typecheck && pnpm exec oxlint src/checks/skill-router.ts src/checks/check-skill-portability.ts src/checks/__tests__/skill-router.test.ts src/checks/__tests__/check-skill-portability.test.ts && pnpm noldor fmt src/checks/skill-router.ts src/checks/check-skill-portability.ts src/checks/__tests__/skill-router.test.ts src/checks/__tests__/check-skill-portability.test.ts && git add -N src/checks/skill-router.ts && pnpm noldor clones check`
+  Run: `pnpm typecheck && pnpm exec oxlint src/checks/skill-router.ts src/checks/check-skill-portability.ts src/checks/__tests__/skill-router.test.ts src/checks/__tests__/check-skill-portability.test.ts src/garden/detectors/skill-code-drift.ts && pnpm noldor fmt src/checks/skill-router.ts src/garden/detectors/skill-code-drift.ts src/checks/check-skill-portability.ts src/checks/__tests__/skill-router.test.ts src/checks/__tests__/check-skill-portability.test.ts && git add -N src/checks/skill-router.ts && pnpm noldor clones check`
 
   Expected: all exit 0; `clones check: no clone group touches this change - green`.
 
-- [ ] **Step 9: Commit.**
+- [ ] **Step 10: Commit.**
 
   ```bash
   msg=$(mktemp)
@@ -379,7 +393,7 @@ index ef2960f..2b890a5 100644
   Noldor-FD: gate-skill-loads-only-the-branch-a-session-takes
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
   EOF
-  git add src/checks/skill-router.ts src/checks/check-skill-portability.ts src/checks/__tests__/skill-router.test.ts src/checks/__tests__/check-skill-portability.test.ts
+  git add src/checks/skill-router.ts src/checks/check-skill-portability.ts src/checks/__tests__/skill-router.test.ts src/checks/__tests__/check-skill-portability.test.ts src/garden/detectors/skill-code-drift.ts
   git commit -F "$msg"
   ```
 
@@ -390,7 +404,7 @@ index ef2960f..2b890a5 100644
 ## Task 11: Pin branch-file coverage and verify the feature
 
 **Files:**
-- Test: `src/checks/__tests__/check-template-sync.test.ts`, `src/garden/detectors/__tests__/skill-code-drift.test.ts`
+- Test: `src/checks/__tests__/check-template-sync.test.ts`, `src/garden/detectors/__tests__/skill-code-drift.test.ts`, `src/checks/__tests__/gate-skill-drain-contract.test.ts`
 
 - [ ] **Step 1: Add the coverage tests.** Apply both changes:
 
@@ -468,31 +482,55 @@ index 1e00fc1..079898b 100644
 +});
 ~~~
 
-- [ ] **Step 2: Run them.**
+- [ ] **Step 2: Drop the Part 2 case that Part 3's parity case covers.** `gate-skill-drain-contract.test.ts` hard-codes the three close-out commands that `gate-skill-layout.test.ts` derives from `fd-close.md` and checks on the Resume path, so the stronger case keeps the contract alone. Apply:
 
-  Run: `pnpm vitest run src/checks/__tests__/check-template-sync.test.ts src/garden/detectors/__tests__/skill-code-drift.test.ts`
+~~~diff
+diff --git a/src/checks/__tests__/gate-skill-drain-contract.test.ts b/src/checks/__tests__/gate-skill-drain-contract.test.ts
+index f2b3df4..143db36 100644
+--- a/src/checks/__tests__/gate-skill-drain-contract.test.ts
++++ b/src/checks/__tests__/gate-skill-drain-contract.test.ts
+@@ -44,14 +44,3 @@ describe('the drain contract lives on one page', () => {
+     );
+   });
+-
+-  it('the Resume path archives, flips and bootstraps the FD', () => {
+-    const resume = section(DRAIN_PAGE, 'Resume path');
+-    for (const command of [
+-      'pnpm noldor design archive',
+-      'pnpm noldor features phase-flip-done',
+-      'pnpm noldor cr bootstrap',
+-    ]) {
+-      expect(resume).toContain(command);
+-    }
+-  });
+ });
+~~~
 
-  Expected: both files pass on the first run, new cases included — they pin coverage that already exists (see Architecture). To see them bite, temporarily add `&& entry.name === 'SKILL.md'` to the `.md` test in `collectSkillMd` (`src/garden/detectors/skill-code-drift.ts`), re-run, watch the drift case fail, and revert the edit.
+- [ ] **Step 3: Run them.**
 
-- [ ] **Step 3: Verify everything.**
+  Run: `pnpm vitest run src/checks/__tests__/check-template-sync.test.ts src/garden/detectors/__tests__/skill-code-drift.test.ts src/checks/__tests__/gate-skill-drain-contract.test.ts src/checks/__tests__/gate-skill-layout.test.ts`
+
+  Expected: all four files pass on the first run — the new coverage cases pin behavior that already exists (see Architecture), and the layout test's parity case still guards the Resume path. To see them bite, temporarily add `&& entry.name === 'SKILL.md'` to the `.md` test in `collectSkillMd` (`src/garden/detectors/skill-code-drift.ts`), re-run, watch the drift case fail, and revert the edit.
+
+- [ ] **Step 4: Verify everything.**
 
   Run: `pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test && pnpm noldor skill-size check && pnpm noldor checks skill-portability && pnpm noldor checks template-sync && pnpm noldor checks push-gates`
 
   Expected: all exit 0 — `checks push-gates` replays the whole pre-push chain, the root `skill-size` job included. `pnpm test` runs `init --update` first, which rewrites `.claude/skills/**` from `templates/` — `git status --short` must still be clean afterwards, proving every twin matches.
 
-- [ ] **Step 4: Commit.**
+- [ ] **Step 5: Commit.**
 
   ```bash
   msg=$(mktemp)
   cat > "$msg" <<'EOF'
   test(features:gate-skill-loads-only-the-branch-a-session-takes): pin branch-file coverage in template-sync and the drift detector
 
-  A branch file beside SKILL.md is drift-checked against its templates/ twin and scanned by the skill-code-drift detector exactly as SKILL.md is; these cases keep a future name filter from dropping it.
+  A branch file beside SKILL.md is drift-checked against its templates/ twin and scanned by the skill-code-drift detector exactly as SKILL.md is; these cases keep a future name filter from dropping it. The drain-contract test drops its Resume-path case, which the layout test's parity case covers.
 
   Noldor-FD: gate-skill-loads-only-the-branch-a-session-takes
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
   EOF
-  git add src/checks/__tests__/check-template-sync.test.ts src/garden/detectors/__tests__/skill-code-drift.test.ts
+  git add src/checks/__tests__/check-template-sync.test.ts src/garden/detectors/__tests__/skill-code-drift.test.ts src/checks/__tests__/gate-skill-drain-contract.test.ts
   git commit -F "$msg"
   ```
 
