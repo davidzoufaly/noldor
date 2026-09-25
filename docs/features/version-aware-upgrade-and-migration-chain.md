@@ -81,7 +81,9 @@ diff instead of hand-walking every consumer and praying.
 **Author a schema change (framework dev):** in the same PR that edits a
 `SCHEMA_SURFACE` file, add `src/migrations/<new-version>.ts` (a `Migration`)
 plus a fixture under `src/migrations/__tests__/fixtures/`, or
-`pnpm noldor garden detect` flags `schema-changed-without-migration`.
+`pnpm noldor garden detect` flags `schema-changed-without-migration`. An additive
+change no existing config can fail on (a new optional key) needs no migration:
+put `Noldor-Migration: none` on each commit that edits the file instead.
 
 **Agent API / keyboard:** _none — CLI + git + garden detector only; no
 `window.*` surface._
