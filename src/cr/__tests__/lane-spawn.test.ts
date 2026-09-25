@@ -1,4 +1,4 @@
-// @tests: cr-lane-verdicts-blocked-by-serialization-not-substance
+// @tests: cr-lane-verdicts-blocked-by-serialization-not-substance, make-noldor-agent-agnostic, unvalidated-slug-path-traversal-across-cli-entry-points
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

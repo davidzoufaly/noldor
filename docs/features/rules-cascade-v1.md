@@ -29,6 +29,7 @@ links:
   tests:
     - src/core/rules/__tests__/stage.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
+    - src/cr/__tests__/lanes/subagent.test.ts
     - src/hooks/__tests__/agent-rules-guard.test.ts
     - src/rules/__tests__/brief.test.ts
     - src/rules/__tests__/cli-brief.test.ts
@@ -117,6 +118,7 @@ This release migrates the error-flow, state, and concurrency disciplines into en
 - **Tests:**
   - [`src/core/rules/__tests__/stage.test.ts`](../../src/core/rules/__tests__/stage.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
+  - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
   - [`src/hooks/__tests__/agent-rules-guard.test.ts`](../../src/hooks/__tests__/agent-rules-guard.test.ts)
   - [`src/rules/__tests__/brief.test.ts`](../../src/rules/__tests__/brief.test.ts)
   - [`src/rules/__tests__/cli-brief.test.ts`](../../src/rules/__tests__/cli-brief.test.ts)

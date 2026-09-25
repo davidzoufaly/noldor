@@ -13,7 +13,19 @@ links:
     - src/core/__tests__/slug-guards.test.ts
     - src/core/__tests__/slug-paths.test.ts
     - src/core/__tests__/slug-traversal.cli.test.ts
+    - src/cr/__tests__/aggregate.test.ts
+    - src/cr/__tests__/arbitration-cli.test.ts
+    - src/cr/__tests__/arbitration.test.ts
+    - src/cr/__tests__/decisions.test.ts
     - src/cr/__tests__/expected-lanes-guard.test.ts
+    - src/cr/__tests__/filename.test.ts
+    - src/cr/__tests__/judge.test.ts
+    - src/cr/__tests__/lane-spawn.test.ts
+    - src/cr/__tests__/lanes/subagent-dispatch.test.ts
+    - src/cr/__tests__/lanes/verify-dispatch.test.ts
+    - src/cr/__tests__/orchestrate-decisions.test.ts
+    - src/cr/__tests__/orchestrate-judge.test.ts
+    - src/cr/__tests__/settled-findings.integration.test.ts
     - src/invariants/__tests__/slug-path-choke-point.test.ts
     - src/worktrees/__tests__/down-worktree-traversal.test.ts
 name: Unvalidated Slug Path Traversal Across CLI Entry Points
@@ -98,7 +110,19 @@ This release hardens slug handling: `fix: guard slug-derived paths in the worktr
   - [`src/core/__tests__/slug-guards.test.ts`](../../src/core/__tests__/slug-guards.test.ts)
   - [`src/core/__tests__/slug-paths.test.ts`](../../src/core/__tests__/slug-paths.test.ts)
   - [`src/core/__tests__/slug-traversal.cli.test.ts`](../../src/core/__tests__/slug-traversal.cli.test.ts)
+  - [`src/cr/__tests__/aggregate.test.ts`](../../src/cr/__tests__/aggregate.test.ts)
+  - [`src/cr/__tests__/arbitration-cli.test.ts`](../../src/cr/__tests__/arbitration-cli.test.ts)
+  - [`src/cr/__tests__/arbitration.test.ts`](../../src/cr/__tests__/arbitration.test.ts)
+  - [`src/cr/__tests__/decisions.test.ts`](../../src/cr/__tests__/decisions.test.ts)
   - [`src/cr/__tests__/expected-lanes-guard.test.ts`](../../src/cr/__tests__/expected-lanes-guard.test.ts)
+  - [`src/cr/__tests__/filename.test.ts`](../../src/cr/__tests__/filename.test.ts)
+  - [`src/cr/__tests__/judge.test.ts`](../../src/cr/__tests__/judge.test.ts)
+  - [`src/cr/__tests__/lane-spawn.test.ts`](../../src/cr/__tests__/lane-spawn.test.ts)
+  - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
+  - [`src/cr/__tests__/lanes/verify-dispatch.test.ts`](../../src/cr/__tests__/lanes/verify-dispatch.test.ts)
+  - [`src/cr/__tests__/orchestrate-decisions.test.ts`](../../src/cr/__tests__/orchestrate-decisions.test.ts)
+  - [`src/cr/__tests__/orchestrate-judge.test.ts`](../../src/cr/__tests__/orchestrate-judge.test.ts)
+  - [`src/cr/__tests__/settled-findings.integration.test.ts`](../../src/cr/__tests__/settled-findings.integration.test.ts)
   - [`src/invariants/__tests__/slug-path-choke-point.test.ts`](../../src/invariants/__tests__/slug-path-choke-point.test.ts)
   - [`src/worktrees/__tests__/down-worktree-traversal.test.ts`](../../src/worktrees/__tests__/down-worktree-traversal.test.ts)
 

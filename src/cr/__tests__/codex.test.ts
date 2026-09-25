@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, noldor, specs-cr-gate-multi-reviewer
+// @tests: acceptance-verify-lane, noldor, specs-cr-gate-multi-reviewer, spec-stage-cr-stopping-rule
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -39,8 +39,11 @@ links:
     - src/core/agent-runner/__tests__/types.test.ts
     - src/core/agent-runner/usage/__tests__/adapters.test.ts
     - src/cr/__tests__/deep-review-spawn.test.ts
+    - src/cr/__tests__/judge.test.ts
+    - src/cr/__tests__/lane-spawn.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
+    - src/cr/__tests__/lanes/verify-dispatch.test.ts
     - src/cr/__tests__/run-codex.test.ts
     - src/migrations/__tests__/0.7.0.test.ts
     - src/release/__tests__/llm-polish-summary.test.ts
@@ -139,8 +142,11 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
   - [`src/core/agent-runner/__tests__/types.test.ts`](../../src/core/agent-runner/__tests__/types.test.ts)
   - [`src/core/agent-runner/usage/__tests__/adapters.test.ts`](../../src/core/agent-runner/usage/__tests__/adapters.test.ts)
   - [`src/cr/__tests__/deep-review-spawn.test.ts`](../../src/cr/__tests__/deep-review-spawn.test.ts)
+  - [`src/cr/__tests__/judge.test.ts`](../../src/cr/__tests__/judge.test.ts)
+  - [`src/cr/__tests__/lane-spawn.test.ts`](../../src/cr/__tests__/lane-spawn.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
+  - [`src/cr/__tests__/lanes/verify-dispatch.test.ts`](../../src/cr/__tests__/lanes/verify-dispatch.test.ts)
   - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
   - [`src/migrations/__tests__/0.7.0.test.ts`](../../src/migrations/__tests__/0.7.0.test.ts)
   - [`src/release/__tests__/llm-polish-summary.test.ts`](../../src/release/__tests__/llm-polish-summary.test.ts)

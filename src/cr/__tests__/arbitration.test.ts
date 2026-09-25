@@ -1,4 +1,4 @@
-// @tests: specs-cr-gate-multi-reviewer
+// @tests: specs-cr-gate-multi-reviewer, unvalidated-slug-path-traversal-across-cli-entry-points
 import { describe, expect, it } from 'vitest';
 
 import {

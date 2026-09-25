@@ -7,12 +7,7 @@ links:
     - src/release/release-cr-gate.ts
   docs: []
   tests:
-    - src/core/__tests__/config.test.ts
-    - src/release/__tests__/release-cr-gate.test.ts
-    - src/garden/detectors/__tests__/override-audit.test.ts
-    - src/garden/__tests__/garden-detect.test.ts
-    - src/garden/__tests__/sdd-report.test.ts
-    - src/garden/__tests__/garden-receipt.test.ts
+    - src/cr/__tests__/bootstrap-immunity.test.ts
   spec: docs/design/specs/archive/2026-07-02-release-bypass-retirement-design.md
   plan: docs/design/plans/archive/2026-07-02-release-bypass-retirement.md
 name: Release Bypass Retirement
@@ -95,11 +90,6 @@ Added a `release.crGateExemptCommits` config schema (#133).
 - **Code:**
   - [`src/release/release-cr-gate.ts`](../../src/release/release-cr-gate.ts)
 - **Tests:**
-  - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)
-  - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)
-  - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
-  - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
-  - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
-  - [`src/garden/__tests__/garden-receipt.test.ts`](../../src/garden/__tests__/garden-receipt.test.ts)
+  - [`src/cr/__tests__/bootstrap-immunity.test.ts`](../../src/cr/__tests__/bootstrap-immunity.test.ts)
 
 <!-- /generated: resources -->

@@ -9,7 +9,7 @@ import { injectBootstrapOverrides, resolveIntroducedGate } from '../bootstrap-im
 import { BOOTSTRAP_REASON } from '../gate-registry.js';
 import { checkCrGate } from '../../release/release-cr-gate.js';
 
-// @tests: acceptance-verify-lane, bootstrap-immunity-for-self-gating-features, noldor
+// @tests: acceptance-verify-lane, bootstrap-immunity-for-self-gating-features, noldor, release-bypass-retirement
 
 function git(cwd: string, args: string[]): string {
   return execFileSync('git', args, {

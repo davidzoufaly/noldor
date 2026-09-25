@@ -1,4 +1,4 @@
-// @tests: cr-re-round-cap-enforcement-and-oscillation-detector
+// @tests: cr-re-round-cap-enforcement-and-oscillation-detector, refutation-judge-pass-before-a-blocker-can-red-a-round, specs-cr-gate-multi-reviewer, unvalidated-slug-path-traversal-across-cli-entry-points
 //
 // Q-0261's deletion test, end to end: a real reviewer lane (only its child is faked, at the
 // dispatch seam), the real `cr arbitration dispose` CLI, and two orchestrate rounds in a real repo.

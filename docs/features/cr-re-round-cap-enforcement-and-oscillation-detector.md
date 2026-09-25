@@ -16,11 +16,14 @@ links:
     - src/cr/__tests__/arbitration-cli.test.ts
     - src/cr/__tests__/autofix-cli.test.ts
     - src/cr/__tests__/autofix-ledger.test.ts
+    - src/cr/__tests__/autofix.test.ts
+    - src/cr/__tests__/cut-scan.test.ts
     - src/cr/__tests__/decisions.test.ts
     - src/cr/__tests__/lanes/codex.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
     - src/cr/__tests__/orchestrate-decisions.test.ts
+    - src/cr/__tests__/orchestrate-judge.test.ts
     - src/cr/__tests__/orchestrate.test.ts
     - src/cr/__tests__/prior-review.test.ts
     - src/cr/__tests__/re-round.test.ts
@@ -194,11 +197,14 @@ This release adds `fingerprintBlocker` for single-finding identity (#434) and en
   - [`src/cr/__tests__/arbitration-cli.test.ts`](../../src/cr/__tests__/arbitration-cli.test.ts)
   - [`src/cr/__tests__/autofix-cli.test.ts`](../../src/cr/__tests__/autofix-cli.test.ts)
   - [`src/cr/__tests__/autofix-ledger.test.ts`](../../src/cr/__tests__/autofix-ledger.test.ts)
+  - [`src/cr/__tests__/autofix.test.ts`](../../src/cr/__tests__/autofix.test.ts)
+  - [`src/cr/__tests__/cut-scan.test.ts`](../../src/cr/__tests__/cut-scan.test.ts)
   - [`src/cr/__tests__/decisions.test.ts`](../../src/cr/__tests__/decisions.test.ts)
   - [`src/cr/__tests__/lanes/codex.test.ts`](../../src/cr/__tests__/lanes/codex.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
   - [`src/cr/__tests__/orchestrate-decisions.test.ts`](../../src/cr/__tests__/orchestrate-decisions.test.ts)
+  - [`src/cr/__tests__/orchestrate-judge.test.ts`](../../src/cr/__tests__/orchestrate-judge.test.ts)
   - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
   - [`src/cr/__tests__/prior-review.test.ts`](../../src/cr/__tests__/prior-review.test.ts)
   - [`src/cr/__tests__/re-round.test.ts`](../../src/cr/__tests__/re-round.test.ts)

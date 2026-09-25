@@ -13,12 +13,16 @@ links:
     - src/cr/cr-record.schema.json
   tests:
     - src/cr/__tests__/aggregate.cli.test.ts
+    - src/cr/__tests__/codex.test.ts
+    - src/cr/__tests__/finding-class.test.ts
     - src/cr/__tests__/findings-schema.test.ts
     - src/cr/__tests__/lanes/codex.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
     - src/cr/__tests__/re-round.test.ts
     - src/cr/__tests__/run-codex.test.ts
+    - src/cr/__tests__/schema-parity.test.ts
+    - src/cr/__tests__/sidecar.test.ts
   spec: docs/design/specs/archive/2026-09-23-spec-stage-cr-stopping-rule-design.md
 name: Spec-Stage CR Stopping Rule
 packages:
@@ -93,11 +97,15 @@ A spec finding now blocks only when it names its basis (#494).
   - [`src/cr/cr-record.schema.json`](../../src/cr/cr-record.schema.json)
 - **Tests:**
   - [`src/cr/__tests__/aggregate.cli.test.ts`](../../src/cr/__tests__/aggregate.cli.test.ts)
+  - [`src/cr/__tests__/codex.test.ts`](../../src/cr/__tests__/codex.test.ts)
+  - [`src/cr/__tests__/finding-class.test.ts`](../../src/cr/__tests__/finding-class.test.ts)
   - [`src/cr/__tests__/findings-schema.test.ts`](../../src/cr/__tests__/findings-schema.test.ts)
   - [`src/cr/__tests__/lanes/codex.test.ts`](../../src/cr/__tests__/lanes/codex.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
   - [`src/cr/__tests__/re-round.test.ts`](../../src/cr/__tests__/re-round.test.ts)
   - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
+  - [`src/cr/__tests__/schema-parity.test.ts`](../../src/cr/__tests__/schema-parity.test.ts)
+  - [`src/cr/__tests__/sidecar.test.ts`](../../src/cr/__tests__/sidecar.test.ts)
 
 <!-- /generated: resources -->

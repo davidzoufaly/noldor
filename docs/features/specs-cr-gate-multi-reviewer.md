@@ -49,12 +49,15 @@ links:
     - src/cr/__tests__/lanes/subagent.test.ts
     - src/cr/__tests__/lanes/verify.test.ts
     - src/cr/__tests__/locations.test.ts
+    - src/cr/__tests__/orchestrate-decisions.test.ts
+    - src/cr/__tests__/orchestrate-judge.test.ts
     - src/cr/__tests__/orchestrate.integration.test.ts
     - src/cr/__tests__/orchestrate.test.ts
     - src/cr/__tests__/overwrite-guard.test.ts
     - src/cr/__tests__/prior-review.test.ts
     - src/cr/__tests__/read-fd-summary.test.ts
     - src/cr/__tests__/reflag.test.ts
+    - src/cr/__tests__/settled-findings.integration.test.ts
     - src/garden/detectors/__tests__/override-audit.test.ts
     - src/hooks/__tests__/noldor-enforce-arbitration.test.ts
     - src/metrics/__tests__/cr-and-override.test.ts
@@ -166,12 +169,15 @@ This release threads prior-round reviewer context into re-round prompts (#328).
   - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
   - [`src/cr/__tests__/lanes/verify.test.ts`](../../src/cr/__tests__/lanes/verify.test.ts)
   - [`src/cr/__tests__/locations.test.ts`](../../src/cr/__tests__/locations.test.ts)
+  - [`src/cr/__tests__/orchestrate-decisions.test.ts`](../../src/cr/__tests__/orchestrate-decisions.test.ts)
+  - [`src/cr/__tests__/orchestrate-judge.test.ts`](../../src/cr/__tests__/orchestrate-judge.test.ts)
   - [`src/cr/__tests__/orchestrate.integration.test.ts`](../../src/cr/__tests__/orchestrate.integration.test.ts)
   - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
   - [`src/cr/__tests__/overwrite-guard.test.ts`](../../src/cr/__tests__/overwrite-guard.test.ts)
   - [`src/cr/__tests__/prior-review.test.ts`](../../src/cr/__tests__/prior-review.test.ts)
   - [`src/cr/__tests__/read-fd-summary.test.ts`](../../src/cr/__tests__/read-fd-summary.test.ts)
   - [`src/cr/__tests__/reflag.test.ts`](../../src/cr/__tests__/reflag.test.ts)
+  - [`src/cr/__tests__/settled-findings.integration.test.ts`](../../src/cr/__tests__/settled-findings.integration.test.ts)
   - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
   - [`src/hooks/__tests__/noldor-enforce-arbitration.test.ts`](../../src/hooks/__tests__/noldor-enforce-arbitration.test.ts)
   - [`src/metrics/__tests__/cr-and-override.test.ts`](../../src/metrics/__tests__/cr-and-override.test.ts)

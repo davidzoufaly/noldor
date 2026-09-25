@@ -10,7 +10,9 @@ links:
   tests:
     - src/cr/__tests__/aggregate.cli.test.ts
     - src/cr/__tests__/judge.test.ts
+    - src/cr/__tests__/orchestrate-decisions.test.ts
     - src/cr/__tests__/orchestrate-judge.test.ts
+    - src/cr/__tests__/settled-findings.integration.test.ts
     - src/templates/__tests__/shipped-rules-framework-free.test.ts
   spec: >-
     docs/design/specs/archive/2026-09-23-refutation-judge-pass-before-a-blocker-can-red-a-round-design.md
@@ -87,7 +89,9 @@ A blocker that contradicts the code it cites is now demoted before it can red a 
 - **Tests:**
   - [`src/cr/__tests__/aggregate.cli.test.ts`](../../src/cr/__tests__/aggregate.cli.test.ts)
   - [`src/cr/__tests__/judge.test.ts`](../../src/cr/__tests__/judge.test.ts)
+  - [`src/cr/__tests__/orchestrate-decisions.test.ts`](../../src/cr/__tests__/orchestrate-decisions.test.ts)
   - [`src/cr/__tests__/orchestrate-judge.test.ts`](../../src/cr/__tests__/orchestrate-judge.test.ts)
+  - [`src/cr/__tests__/settled-findings.integration.test.ts`](../../src/cr/__tests__/settled-findings.integration.test.ts)
   - [`src/templates/__tests__/shipped-rules-framework-free.test.ts`](../../src/templates/__tests__/shipped-rules-framework-free.test.ts)
 
 <!-- /generated: resources -->
