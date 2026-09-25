@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Gate Skill Leftovers From Q-0192
-
-- id: Q-0276
-- area: tooling
-- type: docs
-- since: 2026-09-24
-- size: XS
-- impact: med
-- confidence: high
-
-Two edits to `.claude/skills/noldor-gate/SKILL.md` (and its `templates/` twin) that Q-0192 left behind. They need a micro-chore from `main`, because `checks shared-files` refuses `.claude/skills/**` from a feature worktree. (1) The fast-track scaffold could add one sentence: a diff mixing code with `docs/noldor/` needs `Noldor-Sibling-Scope`. #504 already names the trailer through a `rules brief` rule before the first `docs/noldor/` edit, so this is a second place to see it, not the only one. (2) The micro-chore handoff in Step 2 never says `git checkout <temp-branch>` before Step 4. `pr-flow-cli.ts` reads the branch from `HEAD`, so running it from the rewound `main` exits with `no commits ahead of origin/main on current branch`. Add it as a step between the stash pop and the Step 4 handoff, and note that the popped dirty files travel along harmlessly. Deletion test: a micro-chore run by the letter of the skill opens its PR on the first `pr-flow` call. (2026-09-23, split from the retired Q-0192 block)
-
 ### Doctor Flags a Broken CLAUDE Import
 
 - id: Q-0277
