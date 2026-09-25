@@ -29,7 +29,8 @@ check reads) inherits every over-claim.
 ## Goals
 
 - `garden detect`'s incomplete-co-tag category reads empty (the Q-0323 deletion test).
-- Every tag the drain adds names an FD the test really exercises.
+- Every tag the drain adds names an FD that is about a file the test imports (ADR 0008's rule).
+  Whether the test exercises that feature's behaviour is not checked.
 - `links.code` stops claiming files an FD only passed through, so `features owners` names the
   FDs a file is about rather than every FD that once edited it.
 
@@ -138,8 +139,8 @@ family be reverted alone.
 
 ## User Story
 
-As a maintainer reading a test's `// @tests:` line, I want it to name only the features that
-test really covers, so that the tag tells me what breaks when the test goes red.
+As a maintainer reading a test's `// @tests:` line, I want it to name only the features whose
+files that test imports, so that the tag tells me what breaks when the test goes red.
 
 ## Usage
 
