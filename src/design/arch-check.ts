@@ -112,9 +112,9 @@ export function checkArchDoc(
     (a, b) =>
       KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) ||
       viewRank(a.view) - viewRank(b.view) ||
-      a.subject.localeCompare(b.subject),
+      a.subject.localeCompare(b.subject, 'en'),
   );
-  advisories.sort((a, b) => a.subject.localeCompare(b.subject));
+  advisories.sort((a, b) => a.subject.localeCompare(b.subject, 'en'));
   return { findings, advisories };
 }
 
