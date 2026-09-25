@@ -18,6 +18,8 @@ export interface DocRoots {
   specs: string;
   /** UI-design artifacts: feature `.pen` files + `baseline/` + `archive/`. */
   designUi: string;
+  /** Architecture-design artifacts: `baseline.pen`, dated session `.pen` files + `archive/`, `milestones/`. */
+  designArch: string;
   architecture: string;
 }
 
@@ -70,6 +72,9 @@ export function loadDocRoots(cwd: string = process.cwd()): DocRoots {
     // the ui/ subdir postdates the 1.0.0 rename, so docs/superpowers/ui never
     // exists — but one resolution policy beats two.
     designUi: resolveDesignSubdir(cwd, 'ui'),
+    // No legacy `docs/superpowers/` alias: this directory postdates the 1.0.0
+    // rename, and `resolveDesignSubdir` knows only `plans` / `specs` / `ui`.
+    designArch: join(cwd, 'docs', 'design', 'architecture'),
     architecture: join(cwd, 'docs', 'architecture'),
   };
 }

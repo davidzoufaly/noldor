@@ -326,7 +326,7 @@ Three rules need the kind.
 
 The move reuses the pen collector unchanged: dialogue-key match, the branch-added ownership gate, collision skip. It gets its own move kind, `arch-pen`, because the FD pointer it repoints is `links.arch`, not `links.design`. The baseline file is undated, so the filename parser never matches it and it is never archived.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   1. In `src/design/__tests__/archive-resolve.test.ts`, inside `describe('pen artifact resolution', …)`, append:
 
@@ -390,7 +390,7 @@ The move reuses the pen collector unchanged: dialogue-key match, the branch-adde
     });
   ```
 
-- [ ] **Step 2: Run the tests to verify they fail.**
+- [x] **Step 2: Run the tests to verify they fail.**
 
   Run: `pnpm vitest run src/design/__tests__/archive-resolve.test.ts src/design/__tests__/archive-cli.test.ts src/sync/__tests__/sync-fd-resources.test.ts`
   Expected: FAIL.
@@ -398,7 +398,7 @@ The move reuses the pen collector unchanged: dialogue-key match, the branch-adde
   - The CLI case: `nothing to do` for the `.pen`, and `links.arch` is unchanged.
   - The sync case: `links.arch` still names the pre-archive path.
 
-- [ ] **Step 3: Add the architecture design root.**
+- [x] **Step 3: Add the architecture design root.**
 
   In `src/core/doc-roots.ts`:
   - In `interface DocRoots`, directly after `designUi: string;`, add:
@@ -416,7 +416,7 @@ The move reuses the pen collector unchanged: dialogue-key match, the branch-adde
       designArch: join(cwd, 'docs', 'design', 'architecture'),
   ```
 
-- [ ] **Step 4: Collect architecture designs.**
+- [x] **Step 4: Collect architecture designs.**
 
   In `src/design/archive-resolve.ts`:
   1. In `interface ArchiveMove`, change `readonly kind: 'spec' | 'plan' | 'pen';` to `readonly kind: 'spec' | 'plan' | 'pen' | 'arch-pen';`.
@@ -440,7 +440,7 @@ The move reuses the pen collector unchanged: dialogue-key match, the branch-adde
     };
   ```
 
-- [ ] **Step 5: Repoint `links.arch`.**
+- [x] **Step 5: Repoint `links.arch`.**
 
   1. In `src/design/archive-cli.ts`, replace the `LINK_KEY_BY_KIND` declaration with:
 
@@ -476,7 +476,7 @@ The move reuses the pen collector unchanged: dialogue-key match, the branch-adde
       }
   ```
 
-- [ ] **Step 6: Run the tests and the typecheck to verify they pass.**
+- [x] **Step 6: Run the tests and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/archive-resolve.test.ts src/design/__tests__/archive-cli.test.ts src/sync/__tests__/sync-fd-resources.test.ts`
   Expected: PASS.
@@ -484,7 +484,7 @@ The move reuses the pen collector unchanged: dialogue-key match, the branch-adde
   Run: `pnpm typecheck`
   Expected: exit 0, no output. `LINK_KEY_BY_KIND` is a `Record` over the move-kind union, so omitting `'arch-pen'` would have been a type error.
 
-- [ ] **Step 7: Commit.**
+- [x] **Step 7: Commit.**
 
   ```bash
   msg=$(mktemp)

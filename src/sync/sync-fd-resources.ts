@@ -66,6 +66,7 @@ export function resolveArchivedPathList(
  */
 interface FdFrontmatter {
   links?: {
+    arch?: string;
     code?: string[];
     commits?: string[];
     design?: string;
@@ -179,12 +180,14 @@ export async function syncFile(path: string): Promise<boolean> {
     const spec = resolveArchivedPath(fm.links.spec, existsSync);
     const plan = resolveArchivedPathList(fm.links.plan, existsSync);
     const design = resolveArchivedPath(fm.links.design, existsSync);
-    if (spec !== null || plan !== null || design !== null) {
+    const arch = resolveArchivedPath(fm.links.arch, existsSync);
+    if (spec !== null || plan !== null || design !== null || arch !== null) {
       data.links = {
         ...fm.links,
         ...(spec !== null ? { spec } : {}),
         ...(plan !== null ? { plan } : {}),
         ...(design !== null ? { design } : {}),
+        ...(arch !== null ? { arch } : {}),
       };
       frontmatterChanged = true;
     }

@@ -1,4 +1,4 @@
-// @tests: doc-gardening-skill
+// @tests: doc-gardening-skill, architecture-design-phase
 // Unit coverage of the flip-time archival resolver: dialogue-key derivation over
 // every session path, and the ownership gate that keeps a filename match from
 // reaching an artifact this branch does not own.
@@ -238,5 +238,29 @@ describe('pen artifact resolution', () => {
       from: 'docs/design/ui/2026-08-19-my-feature.pen',
       reason: 'collision',
     });
+  });
+
+  it('resolves the session architecture design into its own archive, never the baseline', async () => {
+    const ARCH = '/repo/docs/design/architecture';
+    const plan = await resolveArchivePlan({
+      repo: REPO,
+      key: 'my-feature',
+      branchAdded: [
+        'docs/design/architecture/2026-08-19-my-feature.pen',
+        'docs/design/architecture/baseline.pen',
+      ],
+      readdir: fakeReaddir({
+        [SPECS]: [],
+        [PLANS]: [],
+        [ARCH]: ['2026-08-19-my-feature.pen', 'baseline.pen', 'milestones'],
+      }),
+    });
+    expect(plan.moves).toEqual([
+      {
+        kind: 'arch-pen',
+        from: 'docs/design/architecture/2026-08-19-my-feature.pen',
+        to: 'docs/design/architecture/archive/2026-08-19-my-feature.pen',
+      },
+    ]);
   });
 });

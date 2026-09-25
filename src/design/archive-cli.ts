@@ -71,7 +71,8 @@ function git(cwd: string, gitArgs: readonly string[]): { ok: boolean; stderr: st
  * Every kind this command moves has one — a move whose pointer went unrewritten
  * left the FD with a dangling link for the rest of the session.
  */
-const LINK_KEY_BY_KIND: Record<ArchiveMove['kind'], 'design' | 'plan' | 'spec'> = {
+const LINK_KEY_BY_KIND: Record<ArchiveMove['kind'], 'arch' | 'design' | 'plan' | 'spec'> = {
+  'arch-pen': 'arch',
   pen: 'design',
   plan: 'plan',
   spec: 'spec',
@@ -92,7 +93,8 @@ function declaresPath(value: unknown, from: string): boolean {
  * free. Returns the repo-relative FD paths rewritten (already `git add`ed).
  *
  * `kind` picks the frontmatter key via {@link LINK_KEY_BY_KIND}: a spec move
- * repoints `links.spec`, a plan move `links.plan`, a pen move `links.design`.
+ * repoints `links.spec`, a plan move `links.plan`, a pen move `links.design`,
+ * an architecture pen move `links.arch`.
  */
 export function rewriteArtifactLinks(
   root: string,

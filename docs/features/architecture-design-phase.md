@@ -17,9 +17,12 @@ links:
     - src/core/__tests__/session.test.ts
     - src/design/__tests__/arch-check.test.ts
     - src/design/__tests__/arch-pen.test.ts
+    - src/design/__tests__/archive-cli.test.ts
+    - src/design/__tests__/archive-resolve.test.ts
     - src/design/__tests__/design-approval.test.ts
     - src/indirection/__tests__/module-pairs.test.ts
     - src/indirection/__tests__/trees/modules/src/b/y.spec.ts
+    - src/sync/__tests__/sync-fd-resources.test.ts
 name: pen.dev Architecture Design Phase
 packages:
   - package.json
