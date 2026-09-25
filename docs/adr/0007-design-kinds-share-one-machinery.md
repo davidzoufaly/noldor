@@ -25,7 +25,7 @@ The decision lands in community c25: `src/core/design-artifact-names.ts`, `src/c
 
 ## Decision
 
-Every kind of design artifact goes through one set of machinery. There is one approval record, one pre-commit `.pen` guard, one archive move, one `pen-bridge` and one dialogue-key resolver, and each takes the design kind (`DesignKind`, today `'ui' | 'architecture'`) from the artifact's path. The kind decides only where things live: the design directory, the baseline location and the approval-record directory. An approval record's path mirrors its `.pen`'s place, so two kinds never collide on a shared stem.
+Every kind of design artifact goes through one set of machinery. There is one approval record, one pre-commit `.pen` guard, one archive move, one `pen-bridge` and one dialogue-key resolver, and each takes the design kind (`DesignKind`, today `'ui' | 'architecture'`) from the artifact's path. The kind decides where things live — the design directory, the baseline location and the approval-record directory — and, for an architecture design, that every approved surface is one of the four views; the rest of the lifecycle is the same for every kind. An approval record's path mirrors its `.pen`'s place, so two kinds never collide on a shared stem.
 
 A new design kind declares its locations and reuses the lifecycle. It does not get a parallel flow. Kind-specific behaviour, such as UI capture or the architecture honesty check, lives in its own module beside the shared machinery.
 

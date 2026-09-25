@@ -418,7 +418,10 @@ function writeValidated(
 function resolveBinding(
   ctx: VerdictCtx,
   against: ApprovalBinding,
-): { ok: true; kind: 'spec' | 'milestone'; name: string; rel: string } | Refusal {
+):
+  | { ok: true; kind: 'spec'; name: string; rel: string }
+  | { ok: true; kind: 'milestone'; slug: string; rel: string }
+  | Refusal {
   if (against.kind === 'spec') {
     if (ctx.pen.milestone !== null) {
       return {
@@ -440,7 +443,21 @@ function resolveBinding(
   if (!existsSync(abs) || !lstatSync(abs).isFile()) {
     return { ok: false, error: `--milestone ${against.slug}: no ${rel}` };
   }
-  return { ok: true, kind: 'milestone', name: against.slug, rel };
+  return { ok: true, kind: 'milestone', slug: against.slug, rel };
+}
+
+/**
+ * The record member that binds a file — `spec` for a feature design, `milestone`
+ * for a milestone target, never both. Unvalidated: every caller hands it to
+ * {@link writeValidated}, which parses the whole record.
+ */
+function bindingField(
+  file: { kind: 'spec'; name: string } | { kind: 'milestone'; slug: string },
+  blob: string,
+): { spec: { name: string; blob: string } } | { milestone: { slug: string; blob: string } } {
+  return file.kind === 'spec'
+    ? { spec: { name: file.name, blob } }
+    : { milestone: { slug: file.slug, blob } };
 }
 
 function approve(ctx: VerdictCtx, mode: ApproveMode): number {
@@ -490,9 +507,7 @@ function approve(ctx: VerdictCtx, mode: ApproveMode): number {
     surfaces: mode.surfaces,
     ...(mode.reservation === undefined ? {} : { reservation: mode.reservation }),
     pages: read.pages,
-    ...(bound.kind === 'spec'
-      ? { spec: { name: bound.name, blob: boundBlob } }
-      : { milestone: { slug: bound.name, blob: boundBlob } }),
+    ...bindingField(bound, boundBlob),
   });
   if (written.code !== 0) return written.code;
   console.log(`approved: ${written.rel} → ${ctx.pen.rel} @ ${penBlob.slice(0, 12)}`);
@@ -518,13 +533,16 @@ function waive(ctx: VerdictCtx, reason: string): number {
  * milestone file, or a feature design's spec — live, or archived under the
  * same name.
  */
+/** A bound file located on disk. `name` is its basename, the name `--check`'s diff shows. */
+type BoundFile =
+  | { kind: 'spec'; name: string; blob: string; rel: string; abs: string }
+  | { kind: 'milestone'; slug: string; name: string; blob: string; rel: string; abs: string };
+
 function boundFile(
   cwd: string,
   pen: VerdictCtx['pen'],
   record: ApprovedRecord,
-):
-  | { ok: true; kind: 'spec' | 'milestone'; name: string; blob: string; rel: string; abs: string }
-  | { ok: false; error: string } {
+): ({ ok: true } & BoundFile) | { ok: false; error: string } {
   if (record.milestone !== undefined) {
     const abs = join(loadDocRoots(cwd).milestones, `${record.milestone.slug}.md`);
     const rel = relative(cwd, abs).split(sep).join('/');
@@ -537,6 +555,7 @@ function boundFile(
     return {
       ok: true,
       kind: 'milestone',
+      slug: record.milestone.slug,
       name: `${record.milestone.slug}.md`,
       blob: record.milestone.blob,
       rel,
@@ -617,7 +636,7 @@ function loadApproval(ctx: VerdictCtx):
   | {
       kind: 'bound';
       record: ApprovedRecord;
-      spec: { kind: 'spec' | 'milestone'; name: string; blob: string; rel: string; abs: string };
+      spec: BoundFile;
     } {
   const read = readApproval(ctx.cwd, ctx.pen.rel);
   if (!read.ok) return { kind: 'refused', code: fail(`cannot read the record: ${read.error}`, 2) };
@@ -684,9 +703,7 @@ function reconfirm(ctx: VerdictCtx): number {
   const written = writeValidated(ctx, {
     ...record,
     at: ctx.now(),
-    ...(spec.kind === 'spec'
-      ? { spec: { name: spec.name, blob: specBlob } }
-      : { milestone: { slug: spec.name.slice(0, -'.md'.length), blob: specBlob } }),
+    ...bindingField(spec, specBlob),
   });
   if (written.code !== 0) return written.code;
   console.log(

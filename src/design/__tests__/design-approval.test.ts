@@ -361,6 +361,17 @@ describe('design verdict CLI / milestone targets', () => {
     expect(drift.code).toBe(1);
     expect(drift.out).toContain('docs/milestones/m1.md');
   });
+
+  it('reconfirms a milestone target against its changed milestone file', async () => {
+    const cwd = milestoneRepo();
+    await run(cwd, argv(['--milestone', 'm1']));
+    appendFileSync(join(cwd, 'docs', 'milestones', 'm1.md'), 'A later gate.\n');
+    expect((await run(cwd, ['--pen', target, '--reconfirm'])).code).toBe(0);
+    expect(readBack(cwd, target)).toMatchObject({
+      milestone: { slug: 'm1', blob: blobOf(cwd, 'docs/milestones/m1.md') },
+    });
+    expect((await run(cwd, ['--pen', target, '--check'])).code).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
