@@ -229,15 +229,20 @@ The binding rules, each refused with exit 2:
       });
     });
 
-    it('refuses the wrong binding, a foreign slug, a missing milestone file, and both flags at once', async () => {
+    it('refuses the wrong binding, a foreign slug, a feature design, a missing milestone file, and both flags', async () => {
       const cwd = milestoneRepo();
-      expect((await run(cwd, argv(['--spec', specRel]))).code).toBe(2);
-      expect((await run(cwd, argv(['--milestone', 'm2']))).code).toBe(2);
+      const wrong = await run(cwd, argv(['--spec', specRel]));
+      expect([wrong.code, wrong.err]).toEqual([2, expect.stringContaining('is a milestone target')]);
+      writeFileSync(join(cwd, 'docs', 'milestones', 'm2.md'), '---\nname: m2\nstatus: draft\n---\n');
+      const foreign = await run(cwd, argv(['--milestone', 'm2']));
+      expect([foreign.code, foreign.err]).toEqual([2, expect.stringContaining('does not own')]);
+      const featureArgv = approveArgv().filter((a, i, all) => a !== '--spec' && all[i - 1] !== '--spec');
+      const feature = await run(cwd, [...featureArgv, '--milestone', 'm1']);
+      expect([feature.code, feature.err]).toEqual([2, expect.stringContaining('does not own')]);
       rmSync(join(cwd, 'docs', 'milestones', 'm1.md'));
-      expect((await run(cwd, argv(['--milestone', 'm1']))).code).toBe(2);
+      const missing = await run(cwd, argv(['--milestone', 'm1']));
+      expect([missing.code, missing.err]).toEqual([2, expect.stringContaining('no docs/milestones/m1.md')]);
       expect(parseVerdictArgs(argv(['--milestone', 'm1', '--spec', specRel])).ok).toBe(false);
-      const featureWithMilestone = approveArgv().filter((a, i, all) => a !== '--spec' && all[i - 1] !== '--spec');
-      expect((await run(cwd, [...featureWithMilestone, '--milestone', 'm1'])).code).toBe(2);
     });
 
     it('reports drift once the milestone file changes', async () => {

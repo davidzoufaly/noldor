@@ -142,6 +142,13 @@ Moved boxes need no save; a newly drawn arrow does, because matching reads the d
       expect(printed).toEqual(['re-routed 1 of 1 arrow(s)']);
     });
 
+    it('bakes names in verbatim, replacement patterns included', () => {
+      const edges = [{ id: 'E', name: "Pay $' -> $$Bank", page: 'P', from: 'A', to: 'B' }];
+      const snippet = renderRouteSnippet(edges);
+      expect(snippet).toContain(JSON.stringify(edges));
+      expect(runSnippet(snippet).printed).toEqual(['re-routed 1 of 1 arrow(s)']);
+    });
+
     it('exits 0 printing the snippet, 1 with nothing to route, and 2 on bad arguments', async () => {
       const cwd = mkdtempSync(join(tmpdir(), 'arch-route-'));
       dirs.push(cwd);
@@ -266,9 +273,13 @@ Moved boxes need no save; a newly drawn arrow does, because matching reads the d
   }
   Print('re-routed', done, 'of', EDGES.length, 'arrow(s)');`;
 
-  /** The snippet with `edges` baked in, ready to pass as pencil `execute`'s `input`. */
+  /**
+   * The snippet with `edges` baked in, ready to pass as pencil `execute`'s
+   * `input`. A replacer function, not a string: a box or arrow name holding
+   * `$'`, `$&` or `$$` would otherwise be read as a replacement pattern.
+   */
   export function renderRouteSnippet(edges: readonly RouteEdge[]): string {
-    return ROUTE_SNIPPET.replace('__EDGES__', JSON.stringify(edges));
+    return ROUTE_SNIPPET.replace('__EDGES__', () => JSON.stringify(edges));
   }
 
   /** Exit 0 = snippet printed, 1 = no arrow to route, 2 = bad arguments or an unreadable `.pen`. */
@@ -321,7 +332,7 @@ Moved boxes need no save; a newly drawn arrow does, because matching reads the d
 - [ ] **Step 4: Run the test and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/arch-route.test.ts`
-  Expected: PASS — `Tests  3 passed (3)`.
+  Expected: PASS — `Tests  4 passed (4)`.
 
   Run: `pnpm typecheck`
   Expected: exit 0, no output.

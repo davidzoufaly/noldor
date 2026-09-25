@@ -44,6 +44,7 @@ The row reuses `docSurfaceRow`, the helper the `architecture` row uses:
 
   1. In `describe('ALL_ROW_IDS')`, change `expect(ALL_ROW_IDS.length).toBe(17);` to `expect(ALL_ROW_IDS.length).toBe(18);`.
   2. In `describe('probe id coverage')`, add `'arch-baseline',` to the `ids` array directly after `'architecture',`.
+  2a. In `src/release/__tests__/preflight.test.ts`, in `it('returns exactly one row per registered check, ids unique', …)`, change both `17`s to `18` — that test counts the rows a full `run(cwd)` returns.
   3. Append this block at the end of the file:
 
   ```ts
@@ -79,7 +80,7 @@ The row reuses `docSurfaceRow`, the helper the `architecture` row uses:
 
 - [ ] **Step 2: Run the tests to verify they fail.**
 
-  Run: `pnpm vitest run src/release/__tests__/preflight-probes.test.ts`
+  Run: `pnpm vitest run src/release/__tests__/preflight-probes.test.ts src/release/__tests__/preflight.test.ts`
   Expected: FAIL. The length assertion reports `expected 17 to be 18`, and the new row cases fail because `runProbe('arch-baseline', …)` finds no probe.
 
 - [ ] **Step 3: Add the row id.**
@@ -118,7 +119,7 @@ The row reuses `docSurfaceRow`, the helper the `architecture` row uses:
 
 - [ ] **Step 5: Run the tests and the typecheck to verify they pass.**
 
-  Run: `pnpm vitest run src/release/__tests__/preflight-probes.test.ts`
+  Run: `pnpm vitest run src/release/__tests__/preflight-probes.test.ts src/release/__tests__/preflight.test.ts`
   Expected: PASS — no failures.
 
   Run: `pnpm typecheck`
@@ -159,7 +160,7 @@ The row reuses `docSurfaceRow`, the helper the `architecture` row uses:
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
   EOF
   git add src/release/preflight-types.ts src/release/preflight-probes.ts \
-    src/release/__tests__/preflight-probes.test.ts \
+    src/release/__tests__/preflight-probes.test.ts src/release/__tests__/preflight.test.ts \
     docs/noldor/versioning.md templates/docs/noldor/versioning.md
   git commit -F "$msg"
   ```
