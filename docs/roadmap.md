@@ -105,7 +105,7 @@ Extract the shared tsconfig reader into a neutral module. `src/invariants/toolch
 
 ### Feature .pen Coverage From Acceptance Criteria
 
-- id: Q-0296
+- id: Q-0297
 - area: tooling
 - type: fix
 - since: 2026-09-25

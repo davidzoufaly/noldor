@@ -4,7 +4,7 @@
 **FD:** docs/features/pendev-ui-design-phase.md
 **Date:** 2026-09-25
 **Tier:** specs-only
-**Entry:** Q-0247 (the feature-`.pen` half split out as Q-0296)
+**Entry:** Q-0247 (the feature-`.pen` half split out as Q-0297)
 
 ## Problem
 
@@ -29,7 +29,7 @@ The capture's own fidelity gate re-renders the emitted file in the same browser 
 
 ## Non-goals
 
-- Holding a *feature's* `.pen` to its spec's acceptance criteria. That is Q-0296.
+- Holding a *feature's* `.pen` to its spec's acceptance criteria. That is Q-0297.
 - Layout rows, twin order and element-id grammar for baselines. That is Q-0292. This spec fixes only the page-id shape the coverage check needs, and Q-0292 builds on it.
 - Deep validation of every node against the full JSON schema. The consumer's capture harness already does that at write time (charuy's `scripts/design/validate.ts`), and noldor would need a JSON-schema engine to repeat it.
 - Pixel fidelity or render comparison.
