@@ -25,7 +25,9 @@ links:
     - src/checks/__tests__/invariants-public-api-tsdoc.test.ts
     - src/checks/__tests__/invariants-rule-conflicts.test.ts
     - src/garden/__tests__/garden-detect.test.ts
+    - src/invariants/__tests__/boundaries.test.ts
     - src/invariants/__tests__/locale-compare-pinned.test.ts
+    - src/invariants/__tests__/rule-conflicts.test.ts
     - src/invariants/__tests__/toolchain-floor.test.ts
 introduced: 0.1.0
 updated: 1.9.0
@@ -85,7 +87,9 @@ Adding a new invariant:
   - [`src/checks/__tests__/invariants-public-api-tsdoc.test.ts`](../../src/checks/__tests__/invariants-public-api-tsdoc.test.ts)
   - [`src/checks/__tests__/invariants-rule-conflicts.test.ts`](../../src/checks/__tests__/invariants-rule-conflicts.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/invariants/__tests__/boundaries.test.ts`](../../src/invariants/__tests__/boundaries.test.ts)
   - [`src/invariants/__tests__/locale-compare-pinned.test.ts`](../../src/invariants/__tests__/locale-compare-pinned.test.ts)
+  - [`src/invariants/__tests__/rule-conflicts.test.ts`](../../src/invariants/__tests__/rule-conflicts.test.ts)
   - [`src/invariants/__tests__/toolchain-floor.test.ts`](../../src/invariants/__tests__/toolchain-floor.test.ts)
 
 <!-- /generated: resources -->

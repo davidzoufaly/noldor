@@ -10,7 +10,9 @@ links:
   tests:
     - src/core/__tests__/atomic-write.test.ts
     - src/core/__tests__/rollout-marker.test.ts
+    - src/core/__tests__/slug-paths.test.ts
     - src/core/__tests__/state-file.test.ts
+    - src/dashboard/__tests__/api-blocks.test.ts
     - src/dashboard/__tests__/dashboard-server.test.ts
     - src/dashboard/__tests__/host.test.ts
     - src/hooks/__tests__/noldor-pre-edit-guard.test.ts
@@ -69,7 +71,9 @@ No new day-to-day commands — enforcement, drain, and edit-gating behave identi
 - **Tests:**
   - [`src/core/__tests__/atomic-write.test.ts`](../../src/core/__tests__/atomic-write.test.ts)
   - [`src/core/__tests__/rollout-marker.test.ts`](../../src/core/__tests__/rollout-marker.test.ts)
+  - [`src/core/__tests__/slug-paths.test.ts`](../../src/core/__tests__/slug-paths.test.ts)
   - [`src/core/__tests__/state-file.test.ts`](../../src/core/__tests__/state-file.test.ts)
+  - [`src/dashboard/__tests__/api-blocks.test.ts`](../../src/dashboard/__tests__/api-blocks.test.ts)
   - [`src/dashboard/__tests__/dashboard-server.test.ts`](../../src/dashboard/__tests__/dashboard-server.test.ts)
   - [`src/dashboard/__tests__/host.test.ts`](../../src/dashboard/__tests__/host.test.ts)
   - [`src/hooks/__tests__/noldor-pre-edit-guard.test.ts`](../../src/hooks/__tests__/noldor-pre-edit-guard.test.ts)

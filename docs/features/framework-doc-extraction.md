@@ -10,6 +10,7 @@ links:
   tests:
     - src/core/__tests__/doc-roots.test.ts
     - src/dashboard/__tests__/server-static.test.ts
+    - src/hooks/__tests__/noldor-validate-trailer.test.ts
 name: Framework Doc Extraction
 packages:
   - noldor
@@ -68,5 +69,6 @@ the phased plan.
 - **Tests:**
   - [`src/core/__tests__/doc-roots.test.ts`](../../src/core/__tests__/doc-roots.test.ts)
   - [`src/dashboard/__tests__/server-static.test.ts`](../../src/dashboard/__tests__/server-static.test.ts)
+  - [`src/hooks/__tests__/noldor-validate-trailer.test.ts`](../../src/hooks/__tests__/noldor-validate-trailer.test.ts)
 
 <!-- /generated: resources -->

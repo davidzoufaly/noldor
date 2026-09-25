@@ -10,6 +10,7 @@ links:
     - src/sync/sync-code-links.ts
   docs: []
   tests:
+    - src/core/__tests__/repo-paths.test.ts
     - src/features/__tests__/migrate-code-tags.test.ts
     - src/features/__tests__/propose-pointers.test.ts
     - src/garden/detectors/__tests__/code-links-drift.test.ts
@@ -25,6 +26,7 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
+
 ## Summary
 
 Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
@@ -112,6 +114,7 @@ feat tag parser for `// @fd:` code tags plus a slug→code map (#100).
   - [`src/garden/detectors/code-links-drift.ts`](../../src/garden/detectors/code-links-drift.ts)
   - [`src/sync/sync-code-links.ts`](../../src/sync/sync-code-links.ts)
 - **Tests:**
+  - [`src/core/__tests__/repo-paths.test.ts`](../../src/core/__tests__/repo-paths.test.ts)
   - [`src/features/__tests__/migrate-code-tags.test.ts`](../../src/features/__tests__/migrate-code-tags.test.ts)
   - [`src/features/__tests__/propose-pointers.test.ts`](../../src/features/__tests__/propose-pointers.test.ts)
   - [`src/garden/detectors/__tests__/code-links-drift.test.ts`](../../src/garden/detectors/__tests__/code-links-drift.test.ts)

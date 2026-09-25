@@ -26,6 +26,7 @@ links:
     - src/cr/__tests__/lanes/verify-dispatch.test.ts
     - src/cr/__tests__/lanes/verify.test.ts
     - src/cr/__tests__/run-codex.test.ts
+    - src/testing/__tests__/stub-runner.test.ts
   spec: >-
     docs/design/specs/archive/2026-09-22-cr-lane-verdicts-blocked-by-serialization-not-substance-design.md
   plan:
@@ -124,5 +125,6 @@ This release declares which side writes a CR lane answer file (#492).
   - [`src/cr/__tests__/lanes/verify-dispatch.test.ts`](../../src/cr/__tests__/lanes/verify-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/verify.test.ts`](../../src/cr/__tests__/lanes/verify.test.ts)
   - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
+  - [`src/testing/__tests__/stub-runner.test.ts`](../../src/testing/__tests__/stub-runner.test.ts)
 
 <!-- /generated: resources -->

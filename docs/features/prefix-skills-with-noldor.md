@@ -8,6 +8,8 @@ links:
     - src/migrations/0.6.0.ts
   tests:
     - src/core/__tests__/prefix-skills-codemod.test.ts
+    - src/migrations/__tests__/0.5.0.test.ts
+    - src/migrations/__tests__/0.6.0.test.ts
   spec: docs/design/specs/archive/2026-07-10-prefix-skills-with-noldor-design.md
 name: Prefix Skills with noldor-
 packages:
@@ -49,5 +51,7 @@ As a Noldor operator (human or agent) working across multiple repos, I want ever
   - [`src/migrations/0.6.0.ts`](../../src/migrations/0.6.0.ts)
 - **Tests:**
   - [`src/core/__tests__/prefix-skills-codemod.test.ts`](../../src/core/__tests__/prefix-skills-codemod.test.ts)
+  - [`src/migrations/__tests__/0.5.0.test.ts`](../../src/migrations/__tests__/0.5.0.test.ts)
+  - [`src/migrations/__tests__/0.6.0.test.ts`](../../src/migrations/__tests__/0.6.0.test.ts)
 
 <!-- /generated: resources -->

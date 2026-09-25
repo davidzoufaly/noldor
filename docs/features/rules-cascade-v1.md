@@ -27,9 +27,12 @@ links:
     - src/core/rules/stage.ts
     - src/hooks/agent-rules-guard.ts
   tests:
+    - src/checks/__tests__/check-push-gates.test.ts
+    - src/core/__tests__/branch-added.test.ts
     - src/core/rules/__tests__/stage.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
+    - src/design/__tests__/graph-context.test.ts
     - src/hooks/__tests__/agent-rules-guard.test.ts
     - src/rules/__tests__/brief.test.ts
     - src/rules/__tests__/cli-brief.test.ts
@@ -37,6 +40,7 @@ links:
     - src/rules/__tests__/index-cache.test.ts
     - src/rules/__tests__/load.test.ts
     - src/rules/__tests__/resolve.test.ts
+    - src/rules/__tests__/sibling-scope-trailer.test.ts
     - src/rules/__tests__/types.test.ts
 name: Rules Cascade v1
 packages:
@@ -116,9 +120,12 @@ This release migrates the error-flow, state, and concurrency disciplines into en
   - [`src/core/rules/stage.ts`](../../src/core/rules/stage.ts)
   - [`src/hooks/agent-rules-guard.ts`](../../src/hooks/agent-rules-guard.ts)
 - **Tests:**
+  - [`src/checks/__tests__/check-push-gates.test.ts`](../../src/checks/__tests__/check-push-gates.test.ts)
+  - [`src/core/__tests__/branch-added.test.ts`](../../src/core/__tests__/branch-added.test.ts)
   - [`src/core/rules/__tests__/stage.test.ts`](../../src/core/rules/__tests__/stage.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
+  - [`src/design/__tests__/graph-context.test.ts`](../../src/design/__tests__/graph-context.test.ts)
   - [`src/hooks/__tests__/agent-rules-guard.test.ts`](../../src/hooks/__tests__/agent-rules-guard.test.ts)
   - [`src/rules/__tests__/brief.test.ts`](../../src/rules/__tests__/brief.test.ts)
   - [`src/rules/__tests__/cli-brief.test.ts`](../../src/rules/__tests__/cli-brief.test.ts)
@@ -126,6 +133,7 @@ This release migrates the error-flow, state, and concurrency disciplines into en
   - [`src/rules/__tests__/index-cache.test.ts`](../../src/rules/__tests__/index-cache.test.ts)
   - [`src/rules/__tests__/load.test.ts`](../../src/rules/__tests__/load.test.ts)
   - [`src/rules/__tests__/resolve.test.ts`](../../src/rules/__tests__/resolve.test.ts)
+  - [`src/rules/__tests__/sibling-scope-trailer.test.ts`](../../src/rules/__tests__/sibling-scope-trailer.test.ts)
   - [`src/rules/__tests__/types.test.ts`](../../src/rules/__tests__/types.test.ts)
 
 <!-- /generated: resources -->

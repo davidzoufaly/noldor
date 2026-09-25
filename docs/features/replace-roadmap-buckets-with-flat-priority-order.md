@@ -11,6 +11,7 @@ links:
     - src/utils/parse-blocks.ts
   tests:
     - src/core/__tests__/next-priority.test.ts
+    - src/core/__tests__/split-suggestion.test.ts
     - src/dashboard/__tests__/api-blocks.test.ts
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
@@ -25,6 +26,7 @@ links:
     - src/dashboard/__tests__/milestones-view.test.ts
     - src/garden/__tests__/backlog-demote.test.ts
     - src/garden/__tests__/sdd-report.test.ts
+    - src/milestones/__tests__/assign.test.ts
     - src/triage/__tests__/validate-triage.test.ts
     - src/utils/__tests__/parse-blocks.test.ts
 name: Replace Roadmap Buckets with Flat Priority Order
@@ -78,6 +80,7 @@ This release consolidates the dashboard roadmap around a flat, priority-ordered 
   - [`src/utils/parse-blocks.ts`](../../src/utils/parse-blocks.ts)
 - **Tests:**
   - [`src/core/__tests__/next-priority.test.ts`](../../src/core/__tests__/next-priority.test.ts)
+  - [`src/core/__tests__/split-suggestion.test.ts`](../../src/core/__tests__/split-suggestion.test.ts)
   - [`src/dashboard/__tests__/api-blocks.test.ts`](../../src/dashboard/__tests__/api-blocks.test.ts)
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
   - [`src/dashboard/__tests__/dashboard-doc-surfaces.test.ts`](../../src/dashboard/__tests__/dashboard-doc-surfaces.test.ts)
@@ -92,6 +95,7 @@ This release consolidates the dashboard roadmap around a flat, priority-ordered 
   - [`src/dashboard/__tests__/milestones-view.test.ts`](../../src/dashboard/__tests__/milestones-view.test.ts)
   - [`src/garden/__tests__/backlog-demote.test.ts`](../../src/garden/__tests__/backlog-demote.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
+  - [`src/milestones/__tests__/assign.test.ts`](../../src/milestones/__tests__/assign.test.ts)
   - [`src/triage/__tests__/validate-triage.test.ts`](../../src/triage/__tests__/validate-triage.test.ts)
   - [`src/utils/__tests__/parse-blocks.test.ts`](../../src/utils/__tests__/parse-blocks.test.ts)
 

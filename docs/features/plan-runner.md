@@ -20,6 +20,7 @@ links:
     - src/autonomous/__tests__/build-pool.test.ts
     - src/autonomous/__tests__/decide-next.test.ts
     - src/autonomous/__tests__/drain-reconcile.test.ts
+    - src/autonomous/__tests__/drain-selection.test.ts
     - src/autonomous/__tests__/drain-source.test.ts
     - src/autonomous/__tests__/escalations.test.ts
     - src/autonomous/__tests__/merge-classify.test.ts
@@ -108,6 +109,7 @@ This release adds a parallel prep pipeline to the noldor CLI, introducing fanout
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
   - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)
   - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
+  - [`src/autonomous/__tests__/drain-selection.test.ts`](../../src/autonomous/__tests__/drain-selection.test.ts)
   - [`src/autonomous/__tests__/drain-source.test.ts`](../../src/autonomous/__tests__/drain-source.test.ts)
   - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)
   - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)

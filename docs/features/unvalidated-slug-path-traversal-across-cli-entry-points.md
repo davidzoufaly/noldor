@@ -27,6 +27,7 @@ links:
     - src/cr/__tests__/orchestrate-judge.test.ts
     - src/cr/__tests__/settled-findings.integration.test.ts
     - src/invariants/__tests__/slug-path-choke-point.test.ts
+    - src/worktrees/__tests__/dev-surfaces.test.ts
     - src/worktrees/__tests__/down-worktree-traversal.test.ts
 name: Unvalidated Slug Path Traversal Across CLI Entry Points
 packages:
@@ -124,6 +125,7 @@ This release hardens slug handling: `fix: guard slug-derived paths in the worktr
   - [`src/cr/__tests__/orchestrate-judge.test.ts`](../../src/cr/__tests__/orchestrate-judge.test.ts)
   - [`src/cr/__tests__/settled-findings.integration.test.ts`](../../src/cr/__tests__/settled-findings.integration.test.ts)
   - [`src/invariants/__tests__/slug-path-choke-point.test.ts`](../../src/invariants/__tests__/slug-path-choke-point.test.ts)
+  - [`src/worktrees/__tests__/dev-surfaces.test.ts`](../../src/worktrees/__tests__/dev-surfaces.test.ts)
   - [`src/worktrees/__tests__/down-worktree-traversal.test.ts`](../../src/worktrees/__tests__/down-worktree-traversal.test.ts)
 
 <!-- /generated: resources -->

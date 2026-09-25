@@ -28,7 +28,9 @@ links:
     - src/core/__tests__/framework-version.test.ts
     - src/migrations/__tests__/0.5.0.test.ts
     - src/migrations/__tests__/0.6.0.test.ts
+    - src/migrations/__tests__/0.7.0.test.ts
     - src/migrations/__tests__/1.0.0.test.ts
+    - src/migrations/__tests__/1.13.0.test.ts
     - src/migrations/__tests__/chain.test.ts
     - src/migrations/__tests__/pkg-version.test.ts
     - src/release/__tests__/release-config-flow.test.ts
@@ -143,7 +145,9 @@ Added semver parse and compare helpers (#104).
   - [`src/core/__tests__/framework-version.test.ts`](../../src/core/__tests__/framework-version.test.ts)
   - [`src/migrations/__tests__/0.5.0.test.ts`](../../src/migrations/__tests__/0.5.0.test.ts)
   - [`src/migrations/__tests__/0.6.0.test.ts`](../../src/migrations/__tests__/0.6.0.test.ts)
+  - [`src/migrations/__tests__/0.7.0.test.ts`](../../src/migrations/__tests__/0.7.0.test.ts)
   - [`src/migrations/__tests__/1.0.0.test.ts`](../../src/migrations/__tests__/1.0.0.test.ts)
+  - [`src/migrations/__tests__/1.13.0.test.ts`](../../src/migrations/__tests__/1.13.0.test.ts)
   - [`src/migrations/__tests__/chain.test.ts`](../../src/migrations/__tests__/chain.test.ts)
   - [`src/migrations/__tests__/pkg-version.test.ts`](../../src/migrations/__tests__/pkg-version.test.ts)
   - [`src/release/__tests__/release-config-flow.test.ts`](../../src/release/__tests__/release-config-flow.test.ts)

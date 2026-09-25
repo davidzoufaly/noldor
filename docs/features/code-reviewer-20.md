@@ -7,6 +7,7 @@ links:
     - src/core/review-profile.ts
   docs: []
   tests:
+    - src/core/__tests__/review-profile.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
   spec: docs/design/specs/archive/2026-06-13-code-reviewer-20-design.md
   plan: docs/design/plans/archive/2026-06-13-code-reviewer-20.md
@@ -80,6 +81,7 @@ Added a review-profile schema along with built-in profiles (#98).
 - **Code:**
   - [`src/core/review-profile.ts`](../../src/core/review-profile.ts)
 - **Tests:**
+  - [`src/core/__tests__/review-profile.test.ts`](../../src/core/__tests__/review-profile.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
 
 <!-- /generated: resources -->

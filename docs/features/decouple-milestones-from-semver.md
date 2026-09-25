@@ -12,7 +12,9 @@ links:
     - src/features/attach-milestone-cli.ts
     - src/milestones/show-cli.ts
   tests:
+    - src/dashboard/__tests__/milestones-view.test.ts
     - src/features/__tests__/attach-milestone.test.ts
+    - src/milestones/__tests__/assign.test.ts
     - src/milestones/__tests__/lib.test.ts
     - src/milestones/__tests__/show.test.ts
     - src/milestones/__tests__/validate-milestones.test.ts
@@ -118,7 +120,9 @@ This release applies code review fixes (skills count + YAML safety + triage buck
   - [`src/features/attach-milestone-cli.ts`](../../src/features/attach-milestone-cli.ts)
   - [`src/milestones/show-cli.ts`](../../src/milestones/show-cli.ts)
 - **Tests:**
+  - [`src/dashboard/__tests__/milestones-view.test.ts`](../../src/dashboard/__tests__/milestones-view.test.ts)
   - [`src/features/__tests__/attach-milestone.test.ts`](../../src/features/__tests__/attach-milestone.test.ts)
+  - [`src/milestones/__tests__/assign.test.ts`](../../src/milestones/__tests__/assign.test.ts)
   - [`src/milestones/__tests__/lib.test.ts`](../../src/milestones/__tests__/lib.test.ts)
   - [`src/milestones/__tests__/show.test.ts`](../../src/milestones/__tests__/show.test.ts)
   - [`src/milestones/__tests__/validate-milestones.test.ts`](../../src/milestones/__tests__/validate-milestones.test.ts)

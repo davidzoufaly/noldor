@@ -8,6 +8,8 @@ links:
   docs: []
   tests:
     - src/cr/__tests__/bootstrap-immunity.test.ts
+    - src/release/__tests__/release-cr-gate-e2e.test.ts
+    - src/release/__tests__/release-cr-gate.test.ts
   spec: docs/design/specs/archive/2026-07-02-release-bypass-retirement-design.md
   plan: docs/design/plans/archive/2026-07-02-release-bypass-retirement.md
 name: Release Bypass Retirement
@@ -91,5 +93,7 @@ Added a `release.crGateExemptCommits` config schema (#133).
   - [`src/release/release-cr-gate.ts`](../../src/release/release-cr-gate.ts)
 - **Tests:**
   - [`src/cr/__tests__/bootstrap-immunity.test.ts`](../../src/cr/__tests__/bootstrap-immunity.test.ts)
+  - [`src/release/__tests__/release-cr-gate-e2e.test.ts`](../../src/release/__tests__/release-cr-gate-e2e.test.ts)
+  - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)
 
 <!-- /generated: resources -->

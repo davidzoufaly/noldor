@@ -16,8 +16,10 @@ links:
     - src/autonomous/inbox-cli.ts
     - src/autonomous/unpark-cli.ts
   tests:
+    - src/autonomous/__tests__/branch-work.test.ts
     - src/autonomous/__tests__/build-pool.test.ts
     - src/autonomous/__tests__/decide-next.test.ts
+    - src/autonomous/__tests__/drain-branch-state.test.ts
     - src/autonomous/__tests__/drain-reconcile.test.ts
     - src/autonomous/__tests__/escalations.test.ts
     - src/autonomous/__tests__/merge-coordinator.test.ts
@@ -108,8 +110,10 @@ touch .noldor/drain-stop                # one-shot stop (exit 130), cleared at n
   - [`src/autonomous/inbox-cli.ts`](../../src/autonomous/inbox-cli.ts)
   - [`src/autonomous/unpark-cli.ts`](../../src/autonomous/unpark-cli.ts)
 - **Tests:**
+  - [`src/autonomous/__tests__/branch-work.test.ts`](../../src/autonomous/__tests__/branch-work.test.ts)
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
   - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)
+  - [`src/autonomous/__tests__/drain-branch-state.test.ts`](../../src/autonomous/__tests__/drain-branch-state.test.ts)
   - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
   - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)
   - [`src/autonomous/__tests__/merge-coordinator.test.ts`](../../src/autonomous/__tests__/merge-coordinator.test.ts)

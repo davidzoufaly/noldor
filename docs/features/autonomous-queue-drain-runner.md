@@ -24,6 +24,7 @@ links:
     - src/autonomous/__tests__/escalations.test.ts
     - src/autonomous/__tests__/merge-classify.test.ts
     - src/autonomous/__tests__/merge-coordinator.test.ts
+    - src/autonomous/__tests__/phase-events.test.ts
     - src/autonomous/__tests__/queue-drain-cli.test.ts
     - src/autonomous/__tests__/run-drain.test.ts
     - src/autonomous/__tests__/status-cli.test.ts
@@ -113,6 +114,7 @@ a merged PR (not merely a clean child exit).
   - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)
   - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)
   - [`src/autonomous/__tests__/merge-coordinator.test.ts`](../../src/autonomous/__tests__/merge-coordinator.test.ts)
+  - [`src/autonomous/__tests__/phase-events.test.ts`](../../src/autonomous/__tests__/phase-events.test.ts)
   - [`src/autonomous/__tests__/queue-drain-cli.test.ts`](../../src/autonomous/__tests__/queue-drain-cli.test.ts)
   - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
   - [`src/autonomous/__tests__/status-cli.test.ts`](../../src/autonomous/__tests__/status-cli.test.ts)

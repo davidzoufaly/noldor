@@ -34,6 +34,7 @@ links:
     - src/core/agent-runner/__tests__/doctor-runners.test.ts
     - src/core/agent-runner/__tests__/no-stray-spawns.test.ts
     - src/core/agent-runner/__tests__/opencode-events.test.ts
+    - src/core/agent-runner/__tests__/registry-logsink.test.ts
     - src/core/agent-runner/__tests__/registry.test.ts
     - src/core/agent-runner/__tests__/runners.test.ts
     - src/core/agent-runner/__tests__/types.test.ts
@@ -48,7 +49,9 @@ links:
     - src/migrations/__tests__/0.7.0.test.ts
     - src/release/__tests__/llm-polish-summary.test.ts
     - src/templates/__tests__/agent-filter.test.ts
+    - src/templates/__tests__/region-managed-sync.test.ts
     - src/templates/__tests__/shim-inventory.test.ts
+    - src/templates/__tests__/templates.test.ts
     - src/testing/__tests__/consumer-fixture.test.ts
     - src/testing/__tests__/stub-runner.test.ts
   spec: docs/design/specs/archive/2026-06-11-make-noldor-agent-agnostic-design.md
@@ -137,6 +140,7 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
   - [`src/core/agent-runner/__tests__/doctor-runners.test.ts`](../../src/core/agent-runner/__tests__/doctor-runners.test.ts)
   - [`src/core/agent-runner/__tests__/no-stray-spawns.test.ts`](../../src/core/agent-runner/__tests__/no-stray-spawns.test.ts)
   - [`src/core/agent-runner/__tests__/opencode-events.test.ts`](../../src/core/agent-runner/__tests__/opencode-events.test.ts)
+  - [`src/core/agent-runner/__tests__/registry-logsink.test.ts`](../../src/core/agent-runner/__tests__/registry-logsink.test.ts)
   - [`src/core/agent-runner/__tests__/registry.test.ts`](../../src/core/agent-runner/__tests__/registry.test.ts)
   - [`src/core/agent-runner/__tests__/runners.test.ts`](../../src/core/agent-runner/__tests__/runners.test.ts)
   - [`src/core/agent-runner/__tests__/types.test.ts`](../../src/core/agent-runner/__tests__/types.test.ts)
@@ -151,7 +155,9 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
   - [`src/migrations/__tests__/0.7.0.test.ts`](../../src/migrations/__tests__/0.7.0.test.ts)
   - [`src/release/__tests__/llm-polish-summary.test.ts`](../../src/release/__tests__/llm-polish-summary.test.ts)
   - [`src/templates/__tests__/agent-filter.test.ts`](../../src/templates/__tests__/agent-filter.test.ts)
+  - [`src/templates/__tests__/region-managed-sync.test.ts`](../../src/templates/__tests__/region-managed-sync.test.ts)
   - [`src/templates/__tests__/shim-inventory.test.ts`](../../src/templates/__tests__/shim-inventory.test.ts)
+  - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)
   - [`src/testing/__tests__/consumer-fixture.test.ts`](../../src/testing/__tests__/consumer-fixture.test.ts)
   - [`src/testing/__tests__/stub-runner.test.ts`](../../src/testing/__tests__/stub-runner.test.ts)
 - **Docs:**

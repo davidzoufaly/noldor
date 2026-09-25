@@ -38,6 +38,8 @@ links:
     - src/design/__tests__/pen-schema.test.ts
     - src/design/__tests__/ui-capture.test.ts
     - src/design/__tests__/ui-sync.test.ts
+    - src/garden/__tests__/garden-detect.test.ts
+    - src/hooks/__tests__/noldor-open-artifact.test.ts
     - src/release/__tests__/ui-design-freshness.test.ts
 name: pen.dev UI Design Phase
 packages:
@@ -148,6 +150,8 @@ Consumer config schema now accepts `uiPaths` and `uiSurfaces` (#342).
   - [`src/design/__tests__/pen-schema.test.ts`](../../src/design/__tests__/pen-schema.test.ts)
   - [`src/design/__tests__/ui-capture.test.ts`](../../src/design/__tests__/ui-capture.test.ts)
   - [`src/design/__tests__/ui-sync.test.ts`](../../src/design/__tests__/ui-sync.test.ts)
+  - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/hooks/__tests__/noldor-open-artifact.test.ts`](../../src/hooks/__tests__/noldor-open-artifact.test.ts)
   - [`src/release/__tests__/ui-design-freshness.test.ts`](../../src/release/__tests__/ui-design-freshness.test.ts)
 
 <!-- /generated: resources -->

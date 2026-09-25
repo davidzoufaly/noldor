@@ -29,6 +29,9 @@ links:
     - src/cr/__tests__/re-round.test.ts
     - src/cr/__tests__/run-codex.test.ts
     - src/cr/__tests__/settled-findings.integration.test.ts
+    - src/docs/__tests__/adr-structural-context.test.ts
+    - src/garden/detectors/__tests__/structural-context.test.ts
+    - src/prep/__tests__/formats.test.ts
 name: CR Re-Round Cap Enforcement and Oscillation Detector
 packages:
   - scripts
@@ -210,5 +213,8 @@ This release adds `fingerprintBlocker` for single-finding identity (#434) and en
   - [`src/cr/__tests__/re-round.test.ts`](../../src/cr/__tests__/re-round.test.ts)
   - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
   - [`src/cr/__tests__/settled-findings.integration.test.ts`](../../src/cr/__tests__/settled-findings.integration.test.ts)
+  - [`src/docs/__tests__/adr-structural-context.test.ts`](../../src/docs/__tests__/adr-structural-context.test.ts)
+  - [`src/garden/detectors/__tests__/structural-context.test.ts`](../../src/garden/detectors/__tests__/structural-context.test.ts)
+  - [`src/prep/__tests__/formats.test.ts`](../../src/prep/__tests__/formats.test.ts)
 
 <!-- /generated: resources -->

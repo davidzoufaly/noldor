@@ -10,6 +10,10 @@ links:
     - .claude/skills/noldor-triage/SKILL.md
   tests:
     - src/core/__tests__/fd-load.test.ts
+    - src/features/__tests__/seed-test-tags.test.ts
+    - src/garden/__tests__/graph-fd-lookup.test.ts
+    - src/garden/__tests__/sdd-report.test.ts
+    - src/milestones/__tests__/assign.test.ts
     - src/triage/__tests__/merge-candidates.test.ts
   spec: >-
     docs/design/specs/archive/2026-07-06-sdd-detector-5-idea-merge-semantic-similarity-design.md
@@ -65,6 +69,10 @@ As an operator (or triage agent) running `/noldor-triage`, I want the merge-cand
   - [`.claude/skills/noldor-triage/SKILL.md`](../../.claude/skills/noldor-triage/SKILL.md)
 - **Tests:**
   - [`src/core/__tests__/fd-load.test.ts`](../../src/core/__tests__/fd-load.test.ts)
+  - [`src/features/__tests__/seed-test-tags.test.ts`](../../src/features/__tests__/seed-test-tags.test.ts)
+  - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
+  - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
+  - [`src/milestones/__tests__/assign.test.ts`](../../src/milestones/__tests__/assign.test.ts)
   - [`src/triage/__tests__/merge-candidates.test.ts`](../../src/triage/__tests__/merge-candidates.test.ts)
 
 <!-- /generated: resources -->

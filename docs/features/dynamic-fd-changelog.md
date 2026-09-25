@@ -31,6 +31,7 @@ links:
     - src/features/__tests__/migrate-changelog-unreleased.test.ts
     - src/release/__tests__/llm-polish-summary.test.ts
     - src/release/__tests__/release-changelog.test.ts
+    - src/release/__tests__/release-commits.test.ts
     - src/release/__tests__/release-fd-changelog-in-progress.test.ts
     - src/release/__tests__/release-fd-changelog-initial-release.test.ts
     - src/release/__tests__/release-fd-changelog.test.ts
@@ -100,6 +101,7 @@ As a developer or agent reading an FD detail page, I want to see every commit at
   - [`src/features/__tests__/migrate-changelog-unreleased.test.ts`](../../src/features/__tests__/migrate-changelog-unreleased.test.ts)
   - [`src/release/__tests__/llm-polish-summary.test.ts`](../../src/release/__tests__/llm-polish-summary.test.ts)
   - [`src/release/__tests__/release-changelog.test.ts`](../../src/release/__tests__/release-changelog.test.ts)
+  - [`src/release/__tests__/release-commits.test.ts`](../../src/release/__tests__/release-commits.test.ts)
   - [`src/release/__tests__/release-fd-changelog-in-progress.test.ts`](../../src/release/__tests__/release-fd-changelog-in-progress.test.ts)
   - [`src/release/__tests__/release-fd-changelog-initial-release.test.ts`](../../src/release/__tests__/release-fd-changelog-initial-release.test.ts)
   - [`src/release/__tests__/release-fd-changelog.test.ts`](../../src/release/__tests__/release-fd-changelog.test.ts)

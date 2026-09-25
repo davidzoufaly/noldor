@@ -18,6 +18,8 @@ links:
     - src/clones/__tests__/diff-scope.test.ts
     - src/clones/__tests__/tokenize.test.ts
     - src/core/__tests__/cli-entry.test.ts
+    - src/features/__tests__/seed-test-tags.test.ts
+    - src/garden/__tests__/sdd-report.test.ts
   spec: docs/design/specs/archive/2026-07-13-code-clone-detector-design.md
 name: Code-Clone Detector
 packages:
@@ -89,5 +91,7 @@ Duplication detection no longer counts import headers and pure delegations (#453
   - [`src/clones/__tests__/diff-scope.test.ts`](../../src/clones/__tests__/diff-scope.test.ts)
   - [`src/clones/__tests__/tokenize.test.ts`](../../src/clones/__tests__/tokenize.test.ts)
   - [`src/core/__tests__/cli-entry.test.ts`](../../src/core/__tests__/cli-entry.test.ts)
+  - [`src/features/__tests__/seed-test-tags.test.ts`](../../src/features/__tests__/seed-test-tags.test.ts)
+  - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
 
 <!-- /generated: resources -->

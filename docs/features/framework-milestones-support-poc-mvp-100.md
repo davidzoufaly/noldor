@@ -9,6 +9,7 @@ links:
     - src/garden/detectors/milestone-shipped-incomplete.ts
   docs: []
   tests:
+    - src/checks/__tests__/check-parent-opt-in.test.ts
     - src/core/__tests__/feature-schema-since.test.ts
     - src/core/__tests__/feature-schema.test.ts
     - src/dashboard/__tests__/dashboard-data.test.ts
@@ -99,6 +100,7 @@ feat: connect features to milestones across schema, garden, and dashboard (#108)
   - [`src/features/validate-features.ts`](../../src/features/validate-features.ts)
   - [`src/garden/detectors/milestone-shipped-incomplete.ts`](../../src/garden/detectors/milestone-shipped-incomplete.ts)
 - **Tests:**
+  - [`src/checks/__tests__/check-parent-opt-in.test.ts`](../../src/checks/__tests__/check-parent-opt-in.test.ts)
   - [`src/core/__tests__/feature-schema-since.test.ts`](../../src/core/__tests__/feature-schema-since.test.ts)
   - [`src/core/__tests__/feature-schema.test.ts`](../../src/core/__tests__/feature-schema.test.ts)
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)

@@ -14,6 +14,7 @@ links:
   tests:
     - src/features/__tests__/propose-pointers.test.ts
     - src/features/__tests__/seed-test-tags.test.ts
+    - src/garden/__tests__/fd-ownership.test.ts
     - src/garden/__tests__/graph-fd-lookup.test.ts
     - src/garden/__tests__/sdd-report.test.ts
     - src/sync/__tests__/sync-fd-resources.test.ts
@@ -69,6 +70,7 @@ pnpm noldor sync test-links                               # propagate into FD li
 - **Tests:**
   - [`src/features/__tests__/propose-pointers.test.ts`](../../src/features/__tests__/propose-pointers.test.ts)
   - [`src/features/__tests__/seed-test-tags.test.ts`](../../src/features/__tests__/seed-test-tags.test.ts)
+  - [`src/garden/__tests__/fd-ownership.test.ts`](../../src/garden/__tests__/fd-ownership.test.ts)
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
   - [`src/sync/__tests__/sync-fd-resources.test.ts`](../../src/sync/__tests__/sync-fd-resources.test.ts)

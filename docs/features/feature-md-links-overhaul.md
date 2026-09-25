@@ -32,6 +32,8 @@ links:
     - src/release/__tests__/release-commits.test.ts
     - src/release/__tests__/release-fd-commits.test.ts
     - src/sync/__tests__/projection.test.ts
+    - src/sync/__tests__/sync-code-links.test.ts
+    - src/sync/__tests__/sync-doc-links.test.ts
     - src/sync/__tests__/sync-spec-links.test.ts
     - src/sync/__tests__/sync-test-links.test.ts
   spec: lost-pre-extraction
@@ -135,6 +137,8 @@ nothing rather than silently widening back to the whole repo.
   - [`src/release/__tests__/release-commits.test.ts`](../../src/release/__tests__/release-commits.test.ts)
   - [`src/release/__tests__/release-fd-commits.test.ts`](../../src/release/__tests__/release-fd-commits.test.ts)
   - [`src/sync/__tests__/projection.test.ts`](../../src/sync/__tests__/projection.test.ts)
+  - [`src/sync/__tests__/sync-code-links.test.ts`](../../src/sync/__tests__/sync-code-links.test.ts)
+  - [`src/sync/__tests__/sync-doc-links.test.ts`](../../src/sync/__tests__/sync-doc-links.test.ts)
   - [`src/sync/__tests__/sync-spec-links.test.ts`](../../src/sync/__tests__/sync-spec-links.test.ts)
   - [`src/sync/__tests__/sync-test-links.test.ts`](../../src/sync/__tests__/sync-test-links.test.ts)
 

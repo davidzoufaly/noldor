@@ -8,6 +8,7 @@ links:
     - package.json
   docs: []
   tests:
+    - src/core/__tests__/release-markers.test.ts
     - src/invariants/__tests__/boundaries.test.ts
     - src/invariants/__tests__/rule-conflicts.test.ts
     - src/validate/__tests__/noldor-config.test.ts
@@ -54,6 +55,7 @@ As a framework maintainer, I want migration-era scripts, dead code, duplicate im
   - [`src/core/release-markers.ts`](../../src/core/release-markers.ts)
   - [`package.json`](../../package.json)
 - **Tests:**
+  - [`src/core/__tests__/release-markers.test.ts`](../../src/core/__tests__/release-markers.test.ts)
   - [`src/invariants/__tests__/boundaries.test.ts`](../../src/invariants/__tests__/boundaries.test.ts)
   - [`src/invariants/__tests__/rule-conflicts.test.ts`](../../src/invariants/__tests__/rule-conflicts.test.ts)
   - [`src/validate/__tests__/noldor-config.test.ts`](../../src/validate/__tests__/noldor-config.test.ts)

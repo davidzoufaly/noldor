@@ -50,6 +50,7 @@ links:
     - src/checks/check-oxfmt-ignores.ts
     - src/checks/check-parent-opt-in.ts
   tests:
+    - src/checks/__tests__/check-feature-slug-scope.test.ts
     - src/checks/__tests__/check-install-freshness.test.ts
     - src/checks/__tests__/check-oxfmt-ignores.test.ts
     - src/checks/__tests__/check-parent-opt-in.test.ts
@@ -57,11 +58,13 @@ links:
     - src/core/__tests__/changelog.test.ts
     - src/core/__tests__/commit-wrapper.test.ts
     - src/core/__tests__/config-waiver-guard.test.ts
+    - src/core/__tests__/extract-touches.test.ts
     - src/core/__tests__/fmt-guard.test.ts
     - src/core/__tests__/init-gitignore.test.ts
     - src/core/__tests__/lint-plan-snippets.test.ts
     - src/core/__tests__/next-priority.test.ts
     - src/core/__tests__/phase-flip-done.test.ts
+    - src/core/__tests__/pr-flow-cli.test.ts
     - src/core/__tests__/pr-flow.test.ts
     - src/core/__tests__/prerequisites.test.ts
     - src/core/__tests__/release-markers.test.ts
@@ -82,6 +85,7 @@ links:
     - src/cr/__tests__/run-codex.test.ts
     - src/cr/__tests__/schema-parity.test.ts
     - src/cr/__tests__/sidecar.test.ts
+    - src/features/__tests__/fill-links-code-gaps.test.ts
     - src/features/__tests__/migrate-link-rot.test.ts
     - src/features/__tests__/phase-cli.test.ts
     - src/garden/__tests__/backlog-demote.test.ts
@@ -107,8 +111,14 @@ links:
     - src/release/__tests__/release-cr-gate-e2e.test.ts
     - src/release/__tests__/release-cr-gate.test.ts
     - src/release/__tests__/release-packages.test.ts
+    - src/release/__tests__/release-session.test.ts
     - src/release/__tests__/release-version.test.ts
+    - src/sync/__tests__/sync-spec-links.test.ts
+    - src/templates/__tests__/region-managed-sync.test.ts
+    - src/templates/__tests__/templates.test.ts
     - src/testing/__tests__/drain-e2e.test.ts
+    - src/triage/__tests__/has-block.test.ts
+    - src/triage/__tests__/remove-block-cli.test.ts
   docs: []
   spec: lost-pre-extraction
 noldor-tier: full
@@ -264,6 +274,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/checks/check-oxfmt-ignores.ts`](../../src/checks/check-oxfmt-ignores.ts)
   - [`src/checks/check-parent-opt-in.ts`](../../src/checks/check-parent-opt-in.ts)
 - **Tests:**
+  - [`src/checks/__tests__/check-feature-slug-scope.test.ts`](../../src/checks/__tests__/check-feature-slug-scope.test.ts)
   - [`src/checks/__tests__/check-install-freshness.test.ts`](../../src/checks/__tests__/check-install-freshness.test.ts)
   - [`src/checks/__tests__/check-oxfmt-ignores.test.ts`](../../src/checks/__tests__/check-oxfmt-ignores.test.ts)
   - [`src/checks/__tests__/check-parent-opt-in.test.ts`](../../src/checks/__tests__/check-parent-opt-in.test.ts)
@@ -271,11 +282,13 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)
   - [`src/core/__tests__/commit-wrapper.test.ts`](../../src/core/__tests__/commit-wrapper.test.ts)
   - [`src/core/__tests__/config-waiver-guard.test.ts`](../../src/core/__tests__/config-waiver-guard.test.ts)
+  - [`src/core/__tests__/extract-touches.test.ts`](../../src/core/__tests__/extract-touches.test.ts)
   - [`src/core/__tests__/fmt-guard.test.ts`](../../src/core/__tests__/fmt-guard.test.ts)
   - [`src/core/__tests__/init-gitignore.test.ts`](../../src/core/__tests__/init-gitignore.test.ts)
   - [`src/core/__tests__/lint-plan-snippets.test.ts`](../../src/core/__tests__/lint-plan-snippets.test.ts)
   - [`src/core/__tests__/next-priority.test.ts`](../../src/core/__tests__/next-priority.test.ts)
   - [`src/core/__tests__/phase-flip-done.test.ts`](../../src/core/__tests__/phase-flip-done.test.ts)
+  - [`src/core/__tests__/pr-flow-cli.test.ts`](../../src/core/__tests__/pr-flow-cli.test.ts)
   - [`src/core/__tests__/pr-flow.test.ts`](../../src/core/__tests__/pr-flow.test.ts)
   - [`src/core/__tests__/prerequisites.test.ts`](../../src/core/__tests__/prerequisites.test.ts)
   - [`src/core/__tests__/release-markers.test.ts`](../../src/core/__tests__/release-markers.test.ts)
@@ -296,6 +309,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
   - [`src/cr/__tests__/schema-parity.test.ts`](../../src/cr/__tests__/schema-parity.test.ts)
   - [`src/cr/__tests__/sidecar.test.ts`](../../src/cr/__tests__/sidecar.test.ts)
+  - [`src/features/__tests__/fill-links-code-gaps.test.ts`](../../src/features/__tests__/fill-links-code-gaps.test.ts)
   - [`src/features/__tests__/migrate-link-rot.test.ts`](../../src/features/__tests__/migrate-link-rot.test.ts)
   - [`src/features/__tests__/phase-cli.test.ts`](../../src/features/__tests__/phase-cli.test.ts)
   - [`src/garden/__tests__/backlog-demote.test.ts`](../../src/garden/__tests__/backlog-demote.test.ts)
@@ -321,8 +335,14 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/release/__tests__/release-cr-gate-e2e.test.ts`](../../src/release/__tests__/release-cr-gate-e2e.test.ts)
   - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)
   - [`src/release/__tests__/release-packages.test.ts`](../../src/release/__tests__/release-packages.test.ts)
+  - [`src/release/__tests__/release-session.test.ts`](../../src/release/__tests__/release-session.test.ts)
   - [`src/release/__tests__/release-version.test.ts`](../../src/release/__tests__/release-version.test.ts)
+  - [`src/sync/__tests__/sync-spec-links.test.ts`](../../src/sync/__tests__/sync-spec-links.test.ts)
+  - [`src/templates/__tests__/region-managed-sync.test.ts`](../../src/templates/__tests__/region-managed-sync.test.ts)
+  - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)
   - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)
+  - [`src/triage/__tests__/has-block.test.ts`](../../src/triage/__tests__/has-block.test.ts)
+  - [`src/triage/__tests__/remove-block-cli.test.ts`](../../src/triage/__tests__/remove-block-cli.test.ts)
 
 <!-- /generated: resources -->
 
