@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  DEFAULT_PUBLISH_TIMEOUT_MS,
   DEFAULT_REGISTRY,
   awaitPublish,
   isVersionOnRegistry,
@@ -36,7 +37,15 @@ describe('isVersionOnRegistry', () => {
     ).resolves.toBe(true);
     expect(fake.lastArgs()).toEqual([
       'npm',
-      ['view', 'noldor@0.5.0', 'version', '--json', '--registry', DEFAULT_REGISTRY],
+      [
+        'view',
+        'noldor@0.5.0',
+        'version',
+        '--json',
+        '--registry',
+        DEFAULT_REGISTRY,
+        '--prefer-online',
+      ],
       undefined,
     ]);
   });
@@ -75,6 +84,12 @@ describe('isVersionOnRegistry', () => {
 });
 
 describe('awaitPublish', () => {
+  it('waits out two back-to-back 300s registry cache lifetimes by default', () => {
+    // The packument is served with `max-age=300`; a stale copy can expire at the
+    // CDN edge and then again in npm's local cache before the version shows.
+    expect(DEFAULT_PUBLISH_TIMEOUT_MS).toBeGreaterThan(2 * 300_000);
+  });
+
   it('resolves on the first poll when the version is already visible', async () => {
     const fake = fakeExec(0);
     const res = await awaitPublish({

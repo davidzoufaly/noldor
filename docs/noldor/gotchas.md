@@ -494,10 +494,12 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   when it fires: one micro-chore PR to commit the aged regen, then a second
   `pnpm release` run. (#469; the masking gap is still open.)
 - **A registry-visibility timeout is not a failed publish — `--resume`, don't
-  re-release.** `pnpm release`'s npm-publish wait (290s) starts when the tag is
-  pushed, but the publish workflow still has to queue and run, and npm then warns
-  the package "may take a few minutes to become available". v1.10.0 published
-  cleanly (`+ @david.zoufaly/noldor@1.10.0`, signed provenance, workflow green in
-  40s) and the release still aborted on the wait. `pnpm release --resume`
-  finished it. Check the workflow and the registry before treating the abort as a
+  re-release.** v1.10.0 and v1.13.0 both published cleanly (`+ @david.zoufaly/noldor@…`,
+  signed provenance, workflow green in under a minute) and the release still
+  aborted on the wait. The cause was caching: the registry serves the packument
+  with `max-age=300`, and the preflight's `npm view` had cached the pre-publish
+  copy, so a plain `npm view` kept reading E404 for the whole 300s wait. The wait
+  now polls with `--prefer-online` and gives up after 11 minutes (above two cache
+  lifetimes). If it still times out, `pnpm release --resume` finishes the
+  release. Check the workflow and the registry before treating the abort as a
   publish failure.
