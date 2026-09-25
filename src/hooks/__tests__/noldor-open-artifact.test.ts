@@ -3,6 +3,7 @@ import { execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { WORKSPACE_ROOT_ENV } from '../../design/open-artifact.js';
@@ -66,6 +67,15 @@ describe('hooks open-artifact', () => {
     const { root, spec } = setupRepo();
     const ctx = contextFor({ cwd: root, tool_input: { file_path: spec } });
     expect(ctx).toContain('[2026-01-01-x-design.md](docs/design/specs/2026-01-01-x-design.md)');
+  });
+
+  it('hands the agent a file:// link in a terminal harness', () => {
+    const { root, spec } = setupRepo();
+    const ctx = contextFor(
+      { cwd: root, tool_input: { file_path: spec } },
+      { CLAUDE_CODE_ENTRYPOINT: 'cli' },
+    );
+    expect(ctx).toContain(`[2026-01-01-x-design.md](${pathToFileURL(spec).href})`);
   });
 
   // Q-0207. `payload.cwd` is the AGENT's cwd, and every gate session inside
