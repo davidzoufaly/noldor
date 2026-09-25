@@ -97,7 +97,8 @@ const ROOT_ANCHOR_RE = /^(src|docs|scripts|templates|bin|e2e|samples|\.claude|\.
 const PNPM_SCRIPT_RE = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_.-]+)/g;
 const NOLDOR_CMD_RE = /\bnoldor\s+([a-z-]+)(?:\s+([a-z][a-z0-9:-]*))?/g;
 const INLINE_CODE_RE = /`([^`]+)`/g;
-const MD_LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
+/** A markdown link; group 1 is its target. */
+export const MD_LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
 
 /** Recursively collect every `*.md` under a skills root; missing root → []. */
 export function collectSkillMd(root: string): string[] {

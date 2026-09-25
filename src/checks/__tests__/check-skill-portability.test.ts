@@ -60,3 +60,52 @@ describe('checks skill-portability', () => {
     expect(await main(fixtureRepo({ verify: 'x' }, {}))).toBe(0);
   });
 });
+
+describe('checks skill-portability — branch files and routers', () => {
+  const FORK = '.claude/skills/demo/fork.md';
+  const ROUTER = '**Read now:** [`fork.md`](fork.md)\n';
+
+  it('refuses a non-portable command block in a branch file beside SKILL.md', async () => {
+    const fork = '```bash\npnpm verify\n```\n';
+    const repo = fixtureRepo(
+      { verify: 'x' },
+      {
+        [SKILL]: ROUTER,
+        [`templates/${SKILL}`]: ROUTER,
+        [FORK]: fork,
+        [`templates/${FORK}`]: fork,
+      },
+    );
+    expect(await main(repo)).toBe(1);
+  });
+
+  it('refuses a shipped router whose read-now link names a missing file', async () => {
+    expect(await main(shippedSkillRepo(ROUTER))).toBe(1);
+  });
+
+  it('refuses a shipped branch file no read-now link reaches', async () => {
+    const repo = fixtureRepo(
+      {},
+      {
+        [SKILL]: '# demo\n',
+        [`templates/${SKILL}`]: '# demo\n',
+        [FORK]: 'x\n',
+        [`templates/${FORK}`]: 'x\n',
+      },
+    );
+    expect(await main(repo)).toBe(1);
+  });
+
+  it('accepts a shipped router whose every read-now link resolves', async () => {
+    const repo = fixtureRepo(
+      {},
+      {
+        [SKILL]: ROUTER,
+        [`templates/${SKILL}`]: ROUTER,
+        [FORK]: 'x\n',
+        [`templates/${FORK}`]: 'x\n',
+      },
+    );
+    expect(await main(repo)).toBe(0);
+  });
+});

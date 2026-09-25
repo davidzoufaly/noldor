@@ -36,11 +36,11 @@
 - Modify: `src/checks/check-skill-portability.ts`, `src/garden/detectors/skill-code-drift.ts`
 - Test: `src/checks/__tests__/skill-router.test.ts`, `src/checks/__tests__/check-skill-portability.test.ts`
 
-- [ ] **Step 1: Brief the rules.**
+- [x] **Step 1: Brief the rules.**
 
   Run: `pnpm noldor rules brief --file src/checks/skill-router.ts --file src/checks/check-skill-portability.ts --file src/checks/__tests__/skill-router.test.ts --stage code`
 
-- [ ] **Step 2: Write the failing tests.** Create `src/checks/__tests__/skill-router.test.ts`:
+- [x] **Step 2: Write the failing tests.** Create `src/checks/__tests__/skill-router.test.ts`:
 
   ```ts
   // @tests: gate-skill-loads-only-the-branch-a-session-takes
@@ -206,13 +206,13 @@ index ef2960f..2b890a5 100644
 +});
 ~~~
 
-- [ ] **Step 3: Run to verify FAIL.**
+- [x] **Step 3: Run to verify FAIL.**
 
   Run: `pnpm vitest run src/checks/__tests__/skill-router.test.ts src/checks/__tests__/check-skill-portability.test.ts`
 
   Expected: `skill-router.test.ts` fails to load `../skill-router.js`; in `check-skill-portability.test.ts` the missing-file and unreachable-file cases fail (`expected 0 to be 1`), while the branch-file command block and the all-resolved router already pass.
 
-- [ ] **Step 4: Export the detector's link regex.** Apply this change to `src/garden/detectors/skill-code-drift.ts`:
+- [x] **Step 4: Export the detector's link regex.** Apply this change to `src/garden/detectors/skill-code-drift.ts`:
 
 ~~~diff
 diff --git a/src/garden/detectors/skill-code-drift.ts b/src/garden/detectors/skill-code-drift.ts
@@ -227,7 +227,7 @@ index 2e4df8e..d271b34 100644
  
 ~~~
 
-- [ ] **Step 5: Implement the rules.** Create `src/checks/skill-router.ts`:
+- [x] **Step 5: Implement the rules.** Create `src/checks/skill-router.ts`:
 
   ```ts
   // @fd: gate-skill-loads-only-the-branch-a-session-takes
@@ -308,7 +308,7 @@ index 2e4df8e..d271b34 100644
   }
   ```
 
-- [ ] **Step 6: Block on them.** Replace `src/checks/check-skill-portability.ts` with:
+- [x] **Step 6: Block on them.** Replace `src/checks/check-skill-portability.ts` with:
 
   ```ts
   // @fd: skill-vs-code-drift-detector
@@ -363,25 +363,25 @@ index 2e4df8e..d271b34 100644
   runIfDirect('check-skill-portability', 'checks skill-portability', async () => main());
   ```
 
-- [ ] **Step 7: Run to verify PASS.**
+- [x] **Step 7: Run to verify PASS.**
 
   Run: `pnpm vitest run src/checks/__tests__/skill-router.test.ts src/checks/__tests__/check-skill-portability.test.ts`
 
   Expected: `Tests  18 passed (18)`.
 
-- [ ] **Step 8: Run the check on the real gate folder.**
+- [x] **Step 8: Run the check on the real gate folder.**
 
   Run: `pnpm noldor checks skill-portability`
 
   Expected: exit 0, `skill-portability: every shipped-skill command block runs in a consumer, and every read-now link resolves`.
 
-- [ ] **Step 9: Typecheck, lint, format, clones.**
+- [x] **Step 9: Typecheck, lint, format, clones.**
 
   Run: `pnpm typecheck && pnpm exec oxlint src/checks/skill-router.ts src/checks/check-skill-portability.ts src/checks/__tests__/skill-router.test.ts src/checks/__tests__/check-skill-portability.test.ts src/garden/detectors/skill-code-drift.ts && pnpm noldor fmt src/checks/skill-router.ts src/garden/detectors/skill-code-drift.ts src/checks/check-skill-portability.ts src/checks/__tests__/skill-router.test.ts src/checks/__tests__/check-skill-portability.test.ts && git add -N src/checks/skill-router.ts && pnpm noldor clones check`
 
   Expected: all exit 0; `clones check: no clone group touches this change - green`.
 
-- [ ] **Step 10: Commit.**
+- [x] **Step 10: Commit.**
 
   ```bash
   msg=$(mktemp)
