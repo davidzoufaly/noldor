@@ -16,7 +16,8 @@ links:
       docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md
   spec: >-
     docs/design/specs/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-design.md
-  tests: []
+  tests:
+    - src/checks/__tests__/skill-size.test.ts
 name: Gate Skill Loads Only the Branch a Session Takes
 packages:
   - scripts
@@ -65,5 +66,7 @@ As an agent running `/noldor-gate` (interactive, or as a headless drain child), 
   - [`docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part2.md`](../../docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part2.md)
   - [`docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md`](../../docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md)
   - [`docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md`](../../docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md)
+- **Tests:**
+  - [`src/checks/__tests__/skill-size.test.ts`](../../src/checks/__tests__/skill-size.test.ts)
 
 <!-- /generated: resources -->

@@ -700,19 +700,19 @@ index 1a61395..2e4df8e 100644
 **Files:**
 - Modify: `src/cli/manifest.ts`, `docs/noldor/script-catalog.md`, `templates/docs/noldor/script-catalog.md`, `AGENTS.md`, `templates/AGENTS.md`
 
-- [ ] **Step 1: Brief the rules.**
+- [x] **Step 1: Brief the rules.**
 
   Run: `pnpm noldor rules brief --file src/cli/manifest.ts --file docs/noldor/script-catalog.md --stage code`
 
   Expected: `sibling-scope-trailer` appears for the catalog page (this commit mixes code with a `docs/noldor/` page).
 
-- [ ] **Step 2: Verify the verb does not exist yet.**
+- [x] **Step 2: Verify the verb does not exist yet.**
 
   Run: `pnpm noldor skill-size check`
 
   Expected: non-zero, an unknown-command message naming `skill-size`.
 
-- [ ] **Step 3: Register the verb group.** In `src/cli/manifest.ts`, insert after the `indirection: { … }` block (the one whose `src` is `indirection/indirection-cli.ts`):
+- [x] **Step 3: Register the verb group.** In `src/cli/manifest.ts`, insert after the `indirection: { … }` block (the one whose `src` is `indirection/indirection-cli.ts`):
 
   ```ts
   'skill-size': {
@@ -723,13 +723,13 @@ index 1a61395..2e4df8e 100644
   },
   ```
 
-- [ ] **Step 4: Verify the verb runs.**
+- [x] **Step 4: Verify the verb runs.**
 
   Run: `pnpm noldor skill-size check`
 
   Expected: exit 3 with `✗ skill-size: no baseline at .noldor/skill-size-baseline.json. Record one: pnpm noldor skill-size baseline` (the baseline is recorded in Task 4).
 
-- [ ] **Step 5: Catalog it.** In `docs/noldor/script-catalog.md`, insert after the `pnpm noldor indirection` table row:
+- [x] **Step 5: Catalog it.** In `docs/noldor/script-catalog.md`, insert after the `pnpm noldor indirection` table row:
 
   ```markdown
   | `pnpm noldor skill-size`                 | [`src/checks/skill-size.ts`](../../src/checks/skill-size.ts) | `skill-size <check\|baseline>` per-file word-count ratchet over `.claude/skills/**/*.md`; pre-push in this repo only (root `lefthook.yml`). |
@@ -737,19 +737,19 @@ index 1a61395..2e4df8e 100644
 
   Then mirror the twin: `cp docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md`.
 
-- [ ] **Step 6: Regenerate the capability index.**
+- [x] **Step 6: Regenerate the capability index.**
 
   Run: `pnpm noldor docs capability-index --write`
 
   Expected: `AGENTS.md` and `templates/AGENTS.md` each gain a `skill-size` line in the generated `## Capability index` list.
 
-- [ ] **Step 7: Verify the wiring.**
+- [x] **Step 7: Verify the wiring.**
 
   Run: `pnpm noldor validate script-catalog && pnpm noldor docs capability-index && pnpm noldor checks template-sync docs/noldor/script-catalog.md AGENTS.md && pnpm typecheck`
 
   Expected: all exit 0.
 
-- [ ] **Step 8: Commit.**
+- [x] **Step 8: Commit.**
 
   ```bash
   msg=$(mktemp)
