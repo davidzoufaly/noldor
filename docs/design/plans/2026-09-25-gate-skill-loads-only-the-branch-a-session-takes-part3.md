@@ -582,11 +582,11 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
 - Test: `src/checks/__tests__/gate-skill-layout.test.ts`
 - Modify: `.claude/skills/noldor-gate/SKILL.md`, `templates/.claude/skills/noldor-gate/SKILL.md`
 
-- [ ] **Step 1: Brief the rules.**
+- [x] **Step 1: Brief the rules.**
 
   Run: `pnpm noldor rules brief --file .claude/skills/noldor-gate/SKILL.md --file src/checks/__tests__/gate-skill-layout.test.ts --stage code`
 
-- [ ] **Step 2: Write the failing test.** Create `src/checks/__tests__/gate-skill-layout.test.ts`:
+- [x] **Step 2: Write the failing test.** Create `src/checks/__tests__/gate-skill-layout.test.ts`:
 
   ```ts
   // @tests: gate-skill-loads-only-the-branch-a-session-takes
@@ -690,13 +690,13 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
   });
   ```
 
-- [ ] **Step 3: Run to verify FAIL.**
+- [x] **Step 3: Run to verify FAIL.**
 
   Run: `pnpm vitest run src/checks/__tests__/gate-skill-layout.test.ts`
 
   Expected: 4 of 5 fail — the monolith is over 3,000 words, has no load table, and still carries `Q-`/`PR #` ids; the Resume-path parity case already passes (Part 2 gave the page the close-out, Task 6 gave `fd-close.md` its commands).
 
-- [ ] **Step 4: Assemble the router verbatim, then finish it with its patch.**
+- [x] **Step 4: Assemble the router verbatim, then finish it with its patch.**
 
   Run: `node /tmp/gate-assemble.mjs '{"SKILL.md":[[1,9,0],[19,19,0],[23,23,0],[25,59,0],[77,77,3],[79,79,3],[214,224,0],[394,420,0]]}'`
 
@@ -800,19 +800,19 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
 
   And mirror: `cp .claude/skills/noldor-gate/SKILL.md templates/.claude/skills/noldor-gate/SKILL.md`.
 
-- [ ] **Step 5: Run to verify PASS.**
+- [x] **Step 5: Run to verify PASS.**
 
   Run: `pnpm vitest run src/checks/__tests__/gate-skill-layout.test.ts src/checks/__tests__/gate-skill-drain-contract.test.ts`
 
   Expected: `Tests  9 passed (9)`.
 
-- [ ] **Step 6: Check the router.**
+- [x] **Step 6: Check the router.**
 
   Run: `wc -w .claude/skills/noldor-gate/SKILL.md && pnpm noldor checks skill-portability && pnpm noldor validate skill-catalog && pnpm noldor checks template-sync .claude/skills/noldor-gate/SKILL.md`
 
   Expected: `2701`; all checks exit 0.
 
-- [ ] **Step 7: Commit.**
+- [x] **Step 7: Commit.**
 
   ```bash
   msg=$(mktemp)
