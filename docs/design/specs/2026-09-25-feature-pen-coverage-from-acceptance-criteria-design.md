@@ -69,7 +69,9 @@ Rules, all checkable from the text:
 - **Accounting:** every criterion of `## Acceptance criteria` appears on some row. A criterion may be cited by several pages, but not by a page and by `not drawn` at once.
 - **Shows** and any further column are prose for the reader. The check ignores them.
 
-Criteria are numbered by position: the Nth top-level list item of `## Acceptance criteria` is criterion N, the same items split-check's S2 counts. The skill asks a UI-bearing spec to write its criteria as a numbered list, so the numbers the table cites are the numbers a reader sees. The check itself counts positions, so a bulleted list still works.
+Criteria are numbered by position: the Nth top-level list item of `## Acceptance criteria` is criterion N, the same items split-check's S2 counts. The skill asks a UI-bearing spec to write its criteria as a numbered list, so the numbers the table cites are the numbers a reader sees. When the list is numbered, each item's typed number must equal its position; a list that skips, repeats or restarts a number is a `misnumbered-criteria` finding naming the first item out of step, because the typed number is the one a reader of the raw file cites. A bulleted list has no typed numbers and is read by position.
+
+Page names compare exactly after trimming their ends. When a declared page is missing and an undeclared `FINAL:` page differs from it only in spacing or case, the `missing-page` finding names that page, so a typo reads as one mistake rather than two unrelated ones.
 
 ### Unit 2 — The coverage check (`src/design/feature-coverage.ts`, new)
 
@@ -77,7 +79,7 @@ Pure functions over the spec's text and a list of page names, so the same check 
 
 - `readCriteria(specMd)` returns the acceptance criteria in order. It finds the section the way S2 does today (the first H2 whose name starts with `Acceptance`, any case) and counts the same top-level `- ` and `N. ` items, but skips fenced lines, using the fence tracking in `src/utils/markdown-sections.ts` (`stepFence`). It lives in `src/core/spec-criteria.ts`: `countSpecCriteria` in `src/core/split-suggestion.ts` moves onto it, so S2 and this check count the same list, and `src/core` must not import `src/design`.
 - `readCoverageTable(specMd)` returns the rows, or a finding for each row that breaks Unit 1's grammar.
-- `checkFeatureCoverage(specMd, pageNames)` returns findings. Accounting findings: `no-coverage-table`, `no-criteria`, `malformed-row`, `unknown-criterion`, `unaccounted-criterion`, `contradictory-criterion`. Page findings take Q-0247's names and meanings, keyed by page name instead of id: `missing-page` (a declared page no top-level page carries), `duplicate-page` (carried twice), `undeclared-page` (a top-level `FINAL:` page the table does not declare).
+- `checkFeatureCoverage(specMd, pageNames)` returns findings. Accounting findings: `no-coverage-table`, `no-criteria`, `misnumbered-criteria`, `malformed-row`, `unknown-criterion`, `unaccounted-criterion`, `contradictory-criterion`. Page findings take Q-0247's names and meanings, keyed by page name instead of id: `missing-page` (a declared page no top-level page carries), `duplicate-page` (carried twice), `undeclared-page` (a top-level `FINAL:` page the table does not declare).
 
 The page comparison is written here rather than shared with `checkCoverage` in `src/design/pen-doc.ts`. The two key pages differently: a baseline by the id `<state>-<mode>` its capture emits, a feature design by the name the agent sets. One function serving both keys would carry a switch that only ever takes one branch per caller.
 
@@ -86,7 +88,7 @@ Pages are matched by name, not by id. The agent names a page (`Update(<pageId>, 
 ### Unit 3 — The verdict (`src/design/design-approval-cli.ts`)
 
 - `--approve` on a UI `.pen` bound to a spec runs `checkFeatureCoverage` on the spec it binds and the pages it read from disk, after the editor-versus-disk comparison. Any finding refuses: every finding is printed, nothing is written. An architecture `.pen`, a milestone target and `--waive` skip the check.
-- `--reconfirm` runs the same check on the changed spec and the approved pages (the `.pen` blob is already proven unchanged). A finding refuses and says the design needs a full verdict.
+- `--reconfirm` runs the same check on the changed spec and the pages of the `.pen` on disk. Those are the pages the approval covered, since `reconfirm()` already proves the blob unchanged, and reading the file rather than the record's `pages` covers records written before that optional field existed. A finding refuses and names its remedy: an accounting finding points at the spec's coverage table, and a page finding points at the design, which then needs a full verdict.
 - A new read-only verb, `--coverage`, takes `--spec` and the editor's `--editor-page` list and runs the same check. It reads no `.pen` bytes, so it works before the editor saves, and it writes nothing. `--pen` still names the design, so the spec's dialogue key is matched as `--approve` matches it, and an architecture `.pen` or a milestone target is refused as a usage error. Step 1.5(b) runs it before the pages are shown.
 - `--check` is unchanged. It reports drift; `--reconfirm` is where drift meets the check.
 
@@ -107,14 +109,14 @@ Every refusal names what it refuses, and nothing is written on any refusal. An u
 
 - `feature-coverage.ts`: fixture specs for each finding, and a charuy Q-0275-shaped spec (18 criteria, the table above) that passes against its page list and fails when one page is dropped. Ranges with an en dash and a hyphen. A table reformatted by oxfmt (padded cells).
 - CLI, in the existing temp-repo harness: `--approve` refuses and writes no record on each finding class, and approves a covered design with several `FINAL:` pages on one surface. `--reconfirm` refuses a spec that gained an unaccounted criterion. `--coverage` exit codes, and no file written. Architecture, milestone and `--waive` behave as before.
-- split-check: every existing S2 test passes on the shared reader.
+- split-check: every existing S2 test passes on the shared reader, and one new S2 test pins the fenced case: list lines inside a fence under `## Acceptance criteria` are not counted.
 
 ## Acceptance criteria
 
-1. `design verdict --approve` on a UI `.pen` whose spec has no `### Design coverage` table exits 2, writes no record, and says the table is missing.
+1. `design verdict --approve` on a UI `.pen` whose spec has no `### Design coverage` table, or no acceptance criteria the check can read, exits 2, writes no record, and says which is missing.
 2. `--approve` refuses the same way, naming the criterion, when a criterion of the spec appears on no row of the table.
 3. `--approve` refuses the same way, naming the page, when a declared page is not a top-level page of the `.pen`, is carried by two top-level pages, or when the `.pen` has a top-level `FINAL:` page the table does not declare.
-4. `--approve` refuses the same way when a row cites a criterion the spec does not have, cites a criterion that is also on the `not drawn` row, or breaks the table grammar.
+4. `--approve` refuses the same way, naming the row, when a row cites a criterion the spec does not have, cites a criterion that is also on the `not drawn` row, or breaks the table grammar, and naming the first item out of step when numbered criteria skip, repeat or restart a number.
 5. With every criterion accounted for and the `.pen`'s top-level `FINAL:` pages exactly the declared pages, `--approve` writes the record as it does today, including when one surface owns several `FINAL:` pages.
 6. `--reconfirm` exits 2 and leaves the record unchanged when the changed spec is no longer covered by the approved pages, and reconfirms as today when it still is.
 7. `design verdict --coverage` exits 0 on a covered design and 1 listing every gap otherwise, reads the page names from `--editor-page`, and writes nothing.
