@@ -630,5 +630,9 @@
   "Q-0288": {
     "slug": "design-links-open-from-a-terminal",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0289": {
+    "slug": "upgrade-restarts-the-dashboard",
+    "retiredAt": "2026-09-25"
   }
 }
