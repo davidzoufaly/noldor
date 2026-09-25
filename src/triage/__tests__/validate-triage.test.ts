@@ -297,6 +297,83 @@ Body.
       expect.objectContaining({ rule: 'duplicate-entry-id', file: 'docs/backlog.md' }),
     );
   });
+
+  it('errors on a roadmap block and an FD entry-id sharing one id, naming both', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithId('Q-0296'),
+      backlogRaw: backlogWithId('Q-0002'),
+      strict: false,
+      counterExists: true,
+      featureEntryIdOwners: [{ slug: 'architecture-design-phase', entryId: 'Q-0296' }],
+    });
+    const dup = result.errors.filter((e) => e.rule === 'duplicate-entry-id');
+    expect(dup).toHaveLength(1);
+    expect(dup[0]).toMatchObject({ file: 'docs/roadmap.md', entryName: 'Entry A' });
+    expect(dup[0]?.message).toContain("feature 'architecture-design-phase'");
+  });
+
+  it('errors on two FDs sharing one entry-id', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithId('Q-0001'),
+      backlogRaw: backlogWithId('Q-0002'),
+      strict: false,
+      counterExists: true,
+      featureEntryIdOwners: [
+        { slug: 'first', entryId: 'Q-0274' },
+        { slug: 'second', entryId: 'Q-0274' },
+      ],
+    });
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({
+        rule: 'duplicate-entry-id',
+        file: 'docs/features/second.md',
+        message: expect.stringContaining("feature 'first'"),
+      }),
+    );
+  });
+
+  it('errors on a live block carrying a retired id', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithId('Q-0274'),
+      backlogRaw: backlogWithId('Q-0002'),
+      strict: false,
+      counterExists: true,
+      retiredIds: { 'Q-0274': { slug: 'fd-resources-hook-skips-flat-feature-docs' } },
+    });
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({
+        rule: 'duplicate-entry-id',
+        file: 'docs/roadmap.md',
+        message: expect.stringContaining("retired as 'fd-resources-hook-skips-flat-feature-docs'"),
+      }),
+    );
+  });
+
+  it('errors on an FD carrying a retired id that belongs to another entry', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithId('Q-0001'),
+      backlogRaw: backlogWithId('Q-0002'),
+      strict: false,
+      counterExists: true,
+      featureEntryIdOwners: [{ slug: 'graph', entryId: 'Q-0260' }],
+      retiredIds: { 'Q-0260': { slug: 're-rounds', retiredInto: 'cap' } },
+    });
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({ rule: 'duplicate-entry-id', file: 'docs/features/graph.md' }),
+    );
+  });
+
+  it('accepts an FD carrying the retired id of its own entry', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithId('Q-0001'),
+      backlogRaw: backlogWithId('Q-0002'),
+      strict: false,
+      counterExists: true,
+      featureEntryIdOwners: [{ slug: 'own', entryId: 'Q-0112' }],
+      retiredIds: { 'Q-0112': { slug: 'own' } },
+    });
+    expect(result.errors).toEqual([]);
+  });
 });
 
 describe('blocked-by reference validation', () => {

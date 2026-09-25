@@ -2,7 +2,7 @@
 area: tooling
 category: Tooling
 deps: []
-entry-id: Q-0260
+entry-id: Q-0313
 links:
   code:
     - .github/workflows/update-knowledge-graph.yml

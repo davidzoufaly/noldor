@@ -7,11 +7,16 @@ import matter from 'gray-matter';
 import { parseSlug } from '../core/slug.js';
 import { parseBacklog, parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 import { COUNTER_PATH_DEFAULT, ENTRY_ID_RE } from './entry-id.js';
-import { RETIRED_IDS_PATH_DEFAULT, loadRetiredIds, retiredRefs } from './retired-ids.js';
+import {
+  RETIRED_IDS_PATH_DEFAULT,
+  loadRetiredIds,
+  retiredRefs,
+  type RetiredIdRecord,
+} from './retired-ids.js';
 import { isEntrypoint } from '../core/cli-entry.js';
 
 export interface TriageIssue {
-  file: 'docs/roadmap.md' | 'docs/backlog.md';
+  file: 'docs/roadmap.md' | 'docs/backlog.md' | `docs/features/${string}.md`;
   rule:
     | 'duplicate-name'
     | 'missing-required-field'
@@ -69,6 +74,21 @@ export interface ValidateTriageInputs {
    * empty.
    */
   retiredEntryIds?: readonly string[];
+  /**
+   * Which feature MD carries each `entry-id:` — the owner half of
+   * {@link ValidateTriageInputs.featureEntryIds}. Feeds `duplicate-entry-id`
+   * across the queue and the FDs: a live block and an FD sharing one `Q-NNNN`
+   * is the mint race a branch rebase can merge without a conflict (both sides
+   * moved the counter by the same step). Defaults to empty.
+   */
+  featureEntryIdOwners?: ReadonlyArray<{ slug: string; entryId: string }>;
+  /**
+   * The retired-ID map itself (`loadRetiredIds`). A live block carrying a
+   * retired key is a reused ID — error. An FD carrying one is an error only
+   * when the record's `slug` names a different entry; a promoted-then-retired
+   * entry keeps its ID on its own FD by design. Defaults to empty.
+   */
+  retiredIds?: Readonly<Record<string, RetiredIdRecord>>;
   /**
    * When true, `unknown-blocked-by-ref` alone is promoted to an error while
    * every other advisory keeps its default severity. Self-host CI runs with
@@ -141,6 +161,13 @@ export function validateTriageInputs(input: ValidateTriageInputs): TriageValidat
   pushEmptyGroupIssues(input.backlogRaw, 'docs/backlog.md', errors);
 
   pushIdIssues(roadmap, backlog, input.counterExists, errors);
+  pushCarriedTwiceIssues(
+    roadmap,
+    backlog,
+    input.featureEntryIdOwners ?? [],
+    input.retiredIds ?? {},
+    errors,
+  );
   pushBlockedByIssues(
     roadmap,
     backlog,
@@ -410,6 +437,71 @@ function pushIdIssues(
   scan(backlog, 'docs/backlog.md');
 }
 
+/**
+ * ID collisions that cross the queue's edge: a live block or FD carrying an ID
+ * another FD, or the retired-ID map, already holds. {@link pushIdIssues} only
+ * sees roadmap + backlog, so an FD `entry-id:` minted on a branch from the same
+ * counter value main spent on a queue block merged green — twice on 2026-09-25
+ * (Q-0274, Q-0296). All `duplicate-entry-id`, always error.
+ */
+function pushCarriedTwiceIssues(
+  roadmap: BacklogEntry[],
+  backlog: BacklogEntry[],
+  featureOwners: ReadonlyArray<{ slug: string; entryId: string }>,
+  retired: Readonly<Record<string, RetiredIdRecord>>,
+  errors: TriageIssue[],
+): void {
+  const fdOwner = new Map<string, string>();
+  for (const { slug, entryId } of featureOwners) {
+    const file = `docs/features/${slug}.md` as const;
+    const prior = fdOwner.get(entryId);
+    if (prior !== undefined) {
+      errors.push({
+        entryName: slug,
+        file,
+        message: `Duplicate id '${entryId}' on feature '${slug}' (already the \`entry-id\` of feature '${prior}').`,
+        rule: 'duplicate-entry-id',
+      });
+      continue;
+    }
+    fdOwner.set(entryId, slug);
+    const record = retired[entryId];
+    if (record !== undefined && record.slug !== slug) {
+      errors.push({
+        entryName: slug,
+        file,
+        message: `Duplicate id '${entryId}' on feature '${slug}' (already retired as '${record.slug}' in ${RETIRED_IDS_PATH_DEFAULT}).`,
+        rule: 'duplicate-entry-id',
+      });
+    }
+  }
+  const scan = (entries: BacklogEntry[], file: TriageIssue['file']): void => {
+    for (const entry of entries) {
+      if (entry.id === undefined) continue;
+      const owner = fdOwner.get(entry.id);
+      if (owner !== undefined) {
+        errors.push({
+          entryName: entry.name,
+          file,
+          message: `Duplicate id '${entry.id}' on '${entry.name}' (already the \`entry-id\` of feature '${owner}').`,
+          rule: 'duplicate-entry-id',
+        });
+      }
+      const record = retired[entry.id];
+      if (record !== undefined) {
+        errors.push({
+          entryName: entry.name,
+          file,
+          message: `Duplicate id '${entry.id}' on '${entry.name}' (already retired as '${record.slug}' in ${RETIRED_IDS_PATH_DEFAULT}).`,
+          rule: 'duplicate-entry-id',
+        });
+      }
+    }
+  };
+  scan(roadmap, 'docs/roadmap.md');
+  scan(backlog, 'docs/backlog.md');
+}
+
 function pushIssues(
   entries: BacklogEntry[],
   file: TriageIssue['file'],
@@ -489,20 +581,25 @@ function parseArgv(argv: string[]): CliOptions {
  * basenames) and `entry-id:` frontmatter values. Feeds the known-ref set for
  * `unknown-blocked-by-ref`. A missing directory yields empty arrays.
  */
-async function loadFeatureRefs(
-  featuresDir: string,
-): Promise<{ featureSlugs: string[]; featureEntryIds: string[] }> {
-  if (!existsSync(featuresDir)) return { featureSlugs: [], featureEntryIds: [] };
+async function loadFeatureRefs(featuresDir: string): Promise<{
+  featureSlugs: string[];
+  featureEntryIds: string[];
+  featureEntryIdOwners: Array<{ slug: string; entryId: string }>;
+}> {
   const featureSlugs: string[] = [];
   const featureEntryIds: string[] = [];
+  const featureEntryIdOwners: Array<{ slug: string; entryId: string }> = [];
+  if (!existsSync(featuresDir)) return { featureSlugs, featureEntryIds, featureEntryIdOwners };
   for (const file of await readdir(featuresDir)) {
     if (!file.endsWith('.md')) continue;
     featureSlugs.push(file.slice(0, -3));
     const parsed = matter(await readFile(join(featuresDir, file), 'utf8'));
     const entryId = (parsed.data as { 'entry-id'?: unknown })['entry-id'];
-    if (typeof entryId === 'string') featureEntryIds.push(entryId);
+    if (typeof entryId !== 'string') continue;
+    featureEntryIds.push(entryId);
+    featureEntryIdOwners.push({ slug: file.slice(0, -3), entryId });
   }
-  return { featureSlugs, featureEntryIds };
+  return { featureSlugs, featureEntryIds, featureEntryIdOwners };
 }
 
 /**
@@ -529,7 +626,9 @@ async function main(): Promise<void> {
     readFile(`${opts.cwd}/docs/backlog.md`, 'utf8'),
   ]);
   const counterExists = existsSync(`${opts.cwd}/${COUNTER_PATH_DEFAULT}`);
-  const { featureSlugs, featureEntryIds } = await loadFeatureRefs(`${opts.cwd}/docs/features`);
+  const { featureSlugs, featureEntryIds, featureEntryIdOwners } = await loadFeatureRefs(
+    `${opts.cwd}/docs/features`,
+  );
   const milestoneSlugs = await loadMilestoneSlugs(`${opts.cwd}/docs/milestones`);
   const retiredMap = loadRetiredIds(`${opts.cwd}/${RETIRED_IDS_PATH_DEFAULT}`);
   const retiredEntryIds = [...retiredRefs(retiredMap)];
@@ -542,6 +641,8 @@ async function main(): Promise<void> {
     featureSlugs,
     featureEntryIds,
     retiredEntryIds,
+    featureEntryIdOwners,
+    retiredIds: retiredMap,
     milestoneSlugs,
   });
   for (const advisory of result.advisories) {
