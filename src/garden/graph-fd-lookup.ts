@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-import { defaultRunGit } from '../core/branch-added.js';
+import { defaultRunGit, type RunGit } from '../core/branch-added.js';
 import {
   listDirIfExists,
   loadSddFeatures,
@@ -109,7 +109,10 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
       gap: {
         category: META_GAP_CATEGORY,
         itemId: graphPath,
-        message: `${STALE_GAP_MESSAGE_PREFIX} ${graphPath} regen ${graphDate}, latest source mtime ${srcDate}. Run pnpm noldor graphify build (preferred) or perform a manual co-tag audit: for each .test.ts file under packages/ or apps/src/, grep imports → check which FDs own those files via links.code → propose missing co-tags.`,
+        message: `${STALE_GAP_MESSAGE_PREFIX} ${graphPath} regen ${graphDate}, latest source mtime ${srcDate}. ${graphRebuildRemedy(
+          defaultRunGit(dirname(resolve(graphPath))),
+          srcRoots.map((root) => resolve(root)),
+        )} (preferred) or perform a manual co-tag audit: for each .test.ts file under packages/ or apps/src/, grep imports → check which FDs own those files via links.code → propose missing co-tags.`,
       },
       ok: false,
     };
@@ -118,6 +121,29 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
   const raw = readFileSync(graphPath, 'utf8');
   const graph = JSON.parse(raw) as GraphifyGraph;
   return { graph, ok: true };
+}
+
+/**
+ * What to tell an operator whose graph reads stale: `Run pnpm noldor graphify
+ * build`, unless a scan root holds uncommitted changes. The build reads HEAD,
+ * so it cannot clear those — both freshness legs keep counting them, and a
+ * rebuild-and-retry loop never ends (Q-0315). The legs stay strict on purpose:
+ * a graph of HEAD really does not describe the edit.
+ *
+ * @param run - git runner anchored inside the repository
+ * @param roots - the scan roots the freshness verdict read, as pathspecs
+ *   `run` resolves (absolute, or relative to the runner's cwd)
+ * @returns the remedy sentence, without a trailing period
+ *
+ * @remarks
+ * A git failure (not a repo, git missing) reads as clean: the plain remedy is
+ * the right one where git cannot say what is committed.
+ */
+export function graphRebuildRemedy(run: RunGit, roots: readonly string[]): string {
+  const status = run(['status', '--porcelain', '--', ...roots]);
+  return status.status === 0 && status.stdout.trim().length > 0
+    ? 'The scan roots hold uncommitted changes, and pnpm noldor graphify build reads HEAD — commit them first, then run pnpm noldor graphify build'
+    : 'Run pnpm noldor graphify build';
 }
 
 /**

@@ -18,6 +18,7 @@ import { newestMtimeInRoots, scanRoots } from '../core/repo-paths.js';
 import {
   buildFileToFdsMap,
   getCommunityOwners,
+  graphRebuildRemedy,
   type CommunityOwnerSuggestion,
   type GraphifyGraph,
   type GraphifyNode,
@@ -135,7 +136,7 @@ export async function graphContext(opts: GraphContextOptions): Promise<GraphCont
       detail:
         `${GRAPH_JSON} is stale: ${committed.detail}, and its mtime is not newer ` +
         `than every file git does not ignore under ${roots.join(', ')}. ` +
-        'Run pnpm noldor graphify build, and retry.',
+        `${graphRebuildRemedy(run, roots)}, and retry.`,
       summaryToon: null,
       digests: [],
     };

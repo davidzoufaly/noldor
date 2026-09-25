@@ -324,15 +324,28 @@ describe(loadFreshGraphOrWarn, () => {
       commit('code without a graph refresh');
       const result = loadFreshGraphOrWarn(graphPath, [src]);
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(isStaleGraphGap(result.gap)).toBe(true);
+      if (!result.ok) {
+        expect(isStaleGraphGap(result.gap)).toBe(true);
+        expect(result.gap.message).toContain('Run pnpm noldor graphify build');
+        expect(result.gap.message).not.toMatch(/commit them first/);
+      }
     });
   });
 
-  it('goes stale when a source file has uncommitted changes', () => {
+  // The build reads HEAD, so "run graphify build" cannot clear this one: the
+  // remedy has to say commit first, or an operator rebuilds in a loop (Q-0315).
+  it('goes stale when a source file has uncommitted changes, and says to commit first', () => {
     withTmp((dir) => {
       const { graphPath, source, src } = pulledRepo(dir);
       writeFileSync(source, 'y');
-      expect(loadFreshGraphOrWarn(graphPath, [src]).ok).toBe(false);
+      const result = loadFreshGraphOrWarn(graphPath, [src]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(isStaleGraphGap(result.gap)).toBe(true);
+        expect(result.gap.message).toMatch(
+          /commit them first, then run pnpm noldor graphify build/,
+        );
+      }
     });
   });
 

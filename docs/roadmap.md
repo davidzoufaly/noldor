@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Graph-Freshness Remedies Ignore Uncommitted Edits
-
-- id: Q-0315
-- area: tooling
-- type: fix
-- since: 2026-09-25
-- size: S
-- impact: med
-- confidence: high
-
-The mtime-based freshness legs (`loadFreshGraphOrWarn`, `graph-context`'s worktree leg) call an uncommitted source edit stale, and a HEAD-built graph can never clear that. `graphify build` now says so in its no-op line, but the remedy strings still just say "run pnpm noldor graphify build". Either the legs stop counting uncommitted edits against a graph that describes HEAD, or the remedies say "commit, then build". (PR #589)
-
 ### seed-test-tags Still Claims an Apply Stales the Graph
 
 - id: Q-0316

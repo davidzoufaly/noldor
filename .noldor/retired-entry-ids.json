@@ -713,5 +713,9 @@
   "Q-0314": {
     "slug": "gate-exit-11-record-prose-misstates-deferred",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0315": {
+    "slug": "graph-freshness-remedies-ignore-uncommitted-edits",
+    "retiredAt": "2026-09-25"
   }
 }

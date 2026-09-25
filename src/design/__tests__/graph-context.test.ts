@@ -199,6 +199,24 @@ describe('graphContext committed leg (real git)', () => {
     utimesSync(join(dir, GRAPH_JSON), past, past);
     const r = await graphContext({ cwd: dir, paths: [] });
     expect(r.status).toBe('stale');
+    expect(r.detail).toContain('Run pnpm noldor graphify build');
+    expect(r.detail).not.toMatch(/commit them first/);
+  });
+
+  // The build reads HEAD, so a rebuild cannot clear an uncommitted edit — the
+  // remedy has to say commit first (Q-0315). The committed leg alone ignores
+  // the working tree, so it has to fail too for the edit to decide the verdict.
+  it('says to commit first when an uncommitted source edit keeps it stale', async () => {
+    committedRepo();
+    writeFileSync(join(dir, 'src', 'b.ts'), 'export const b = 2;\n', 'utf8');
+    git(dir, ['add', '-A']);
+    git(dir, ['commit', '-qm', 'later source'], T_LATER_SOURCE);
+    writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 2;\n', 'utf8');
+    const past = new Date(Date.now() - 600_000);
+    utimesSync(join(dir, GRAPH_JSON), past, past);
+    const r = await graphContext({ cwd: dir, paths: [] });
+    expect(r.status).toBe('stale');
+    expect(r.detail).toMatch(/commit them first, then run pnpm noldor graphify build/);
   });
 });
 
