@@ -33,18 +33,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Deletion tests: several processes calling `acquireLock` at the same instant leave exactly one holder; and while a claim on the dead lock's inode is held, `acquireLock` leaves the lock alone. (found 2026-09-24 in the Q-0238 spec review and fixing PR #538's review blocker)
 
-### Step 0 Lists In-Progress Worktree Sessions
-
-- id: Q-0287
-- area: tooling
-- type: feat
-- since: 2026-09-24
-- size: S
-- impact: med
-- confidence: med
-
-`/noldor-gate` Step 0 cannot see in-progress work that lives in a worktree. An attach session's phase revert (`done → in-progress`) is committed only on its feature branch, and `next-priority` reads the FDs of the checkout it runs in, so on main its `inProgress` bucket stays empty. On 2026-09-24 "pick what is in progress" got `inProgress: []` while two attach worktrees were open — one stopped mid-Step 4 minutes earlier, one parked after spec review round 2 since 2026-09-16 — and both were found only through `git worktree list` and each worktree's `.noldor/session.json`. `worktrees status` lists the worktrees but not their session or stage, and Step 0 does not read it. Wanted: the in-progress bucket also lists worktree sessions, with the path, slug and last stage from each marker, and flags a marker past its 24h expiry as stale. Multiagent Parallel Session Visibility (Q-0114, backlog) is the dashboard side of the same blind spot. Deletion test: a repo whose only in-progress work is an attach session on a worktree branch gets a non-empty `inProgress` bucket naming it. (found 2026-09-24 resuming PR #538)
-
 ### Design Links Open From a Terminal
 
 - id: Q-0288
