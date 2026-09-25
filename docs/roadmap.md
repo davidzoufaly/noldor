@@ -16,6 +16,54 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Gate Exit-11 Record Prose Misstates --deferred
+
+- id: Q-0314
+- area: tooling
+- type: docs
+- since: 2026-09-25
+- size: XS
+- impact: med
+- confidence: high
+
+The gate skill's exit-11 (`next: apply-then-stop`) bullet says to `cr autofix record` "exactly as above", which reads like the all-mechanical `--deferred 0` form. After a MIXED round, `record` needs `--deferred <design count + unapplied mechanical>`: it derives the count from the sinks and refuses a disagreeing `--deferred` with exit 2. Fix the prose in `.claude/skills/noldor-gate/SKILL.md` (line 188) and its `templates/` twin. (PR #589)
+
+### Graph-Freshness Remedies Ignore Uncommitted Edits
+
+- id: Q-0315
+- area: tooling
+- type: fix
+- since: 2026-09-25
+- size: S
+- impact: med
+- confidence: high
+
+The mtime-based freshness legs (`loadFreshGraphOrWarn`, `graph-context`'s worktree leg) call an uncommitted source edit stale, and a HEAD-built graph can never clear that. `graphify build` now says so in its no-op line, but the remedy strings still just say "run pnpm noldor graphify build". Either the legs stop counting uncommitted edits against a graph that describes HEAD, or the remedies say "commit, then build". (PR #589)
+
+### seed-test-tags Still Claims an Apply Stales the Graph
+
+- id: Q-0316
+- area: tooling
+- type: docs
+- since: 2026-09-25
+- size: XS
+- impact: low
+- confidence: high
+
+seed-test-tags' "Every --apply leaves the graph older than the files it wrote, so regenerate between batches" predates Q-0290's git leg, which ignores test-only edits: an apply no longer stales the graph. The message and the sdd-co-tag-detector FD's Usage both still claim it does. (PR #589)
+
+### Move noldor-refactor Phase 6 onto graphify build
+
+- id: Q-0317
+- area: tooling
+- type: refactor
+- since: 2026-09-25
+- size: S
+- impact: med
+- confidence: med
+
+`/noldor-refactor` Phase 6 still regenerates with `/graphify` and reads `graphify-out/.graphify_python` for its before/after comparison, so its graph differs from the one `graphify build` commits. Moving Phase 6 onto the builder needs the comparison script rewritten, and the refactor committed before it builds (the build reads HEAD). (PR #589)
+
 ### Geometry-Compare Lane — the Automated Half
 
 - id: Q-0180
