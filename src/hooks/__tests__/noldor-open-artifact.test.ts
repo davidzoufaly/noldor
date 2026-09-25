@@ -69,13 +69,13 @@ describe('hooks open-artifact', () => {
     expect(ctx).toContain('[2026-01-01-x-design.md](docs/design/specs/2026-01-01-x-design.md)');
   });
 
-  it('hands the agent a file:// link in a terminal harness', () => {
+  it('hands the agent a vscode://file link in a terminal harness', () => {
     const { root, spec } = setupRepo();
     const ctx = contextFor(
       { cwd: root, tool_input: { file_path: spec } },
       { CLAUDE_CODE_ENTRYPOINT: 'cli' },
     );
-    expect(ctx).toContain(`[2026-01-01-x-design.md](${pathToFileURL(spec).href})`);
+    expect(ctx).toContain(`[2026-01-01-x-design.md](vscode://file${pathToFileURL(spec).pathname})`);
   });
 
   // Q-0207. `payload.cwd` is the AGENT's cwd, and every gate session inside

@@ -455,13 +455,16 @@ export function buildArtifactLink(linkPath: string): string {
 }
 
 /**
- * The `file://` twin of {@link buildArtifactLink}, for a harness with no
- * workspace folder to resolve a relative link against. `pathToFileURL` already
- * percent-encodes `%`, `#`, `?`, whitespace and `<>`; the parentheses it leaves
- * alone would close the markdown destination early, so they are encoded here.
+ * The `vscode://file` twin of {@link buildArtifactLink}, for a harness with no
+ * workspace folder to resolve a relative link against. A `file://` URL opens in
+ * whatever app macOS maps to `.md`, so iTerm2's ⌘-click lands the spec in Xcode
+ * or a previewer; VS Code's own URL handler opens it as an editor tab. The path
+ * part is `pathToFileURL`'s, which already percent-encodes `%`, `#`, `?`,
+ * whitespace and `<>`; the parentheses it leaves alone would close the markdown
+ * destination early, so they are encoded here.
  */
-export function buildFileUrlLink(absPath: string): string {
-  const destination = pathToFileURL(absPath).href.replace(/[()]/g, (c) =>
+export function buildVscodeUrlLink(absPath: string): string {
+  const destination = `vscode://file${pathToFileURL(absPath).pathname}`.replace(/[()]/g, (c) =>
     c === '(' ? '%28' : '%29',
   );
   return markdownLink(basename(absPath), destination);
@@ -474,7 +477,7 @@ function markdownLink(label: string, destination: string): string {
 /**
  * True when the session runs in a terminal (`CLAUDE_CODE_ENTRYPOINT=cli`). A
  * terminal has no workspace folder, so a workspace-relative link is dead there —
- * iTerm2 opens an absolute path or a `file://` URL on ⌘-click, nothing else.
+ * iTerm2 opens only an absolute path or a URL on ⌘-click.
  * Anything else (the VS Code extension, another runner, unset) keeps the
  * workspace-relative link, which is what an editor-hosted session resolves.
  */
@@ -484,13 +487,13 @@ export function isTerminalHarness(env: Readonly<Record<string, string | undefine
 
 /**
  * The path and markdown link to report for a resolved artifact in this harness:
- * absolute + `file://` in a terminal, workspace-relative under an editor.
+ * absolute + `vscode://file` in a terminal, workspace-relative under an editor.
  */
 export function reportedArtifact(
   resolved: { readonly absPath: string; readonly linkPath: string },
   env: Readonly<Record<string, string | undefined>>,
 ): { readonly path: string; readonly link: string } {
   return isTerminalHarness(env)
-    ? { path: resolved.absPath, link: buildFileUrlLink(resolved.absPath) }
+    ? { path: resolved.absPath, link: buildVscodeUrlLink(resolved.absPath) }
     : { path: resolved.linkPath, link: buildArtifactLink(resolved.linkPath) };
 }

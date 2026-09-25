@@ -8,7 +8,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { OpenResult } from '../editor-launch.js';
 import {
   buildArtifactLink,
-  buildFileUrlLink,
+  buildVscodeUrlLink,
   launchArtifact,
   resolveArtifact,
   type GitProbe,
@@ -457,16 +457,18 @@ describe('buildArtifactLink', () => {
   });
 });
 
-describe('buildFileUrlLink', () => {
-  it('builds a file:// link to the absolute path', () => {
-    expect(buildFileUrlLink('/r/docs/design/specs/x.md')).toBe(
-      '[x.md](file:///r/docs/design/specs/x.md)',
+describe('buildVscodeUrlLink', () => {
+  it('builds a vscode://file link to the absolute path', () => {
+    expect(buildVscodeUrlLink('/r/docs/design/specs/x.md')).toBe(
+      '[x.md](vscode://file/r/docs/design/specs/x.md)',
     );
   });
 
   // `pathToFileURL` leaves parentheses alone; unencoded, `)` would end the
   // markdown destination early.
   it('encodes parentheses and literal percent signs', () => {
-    expect(buildFileUrlLink('/r/a (1)%20.md')).toBe('[a (1)%20.md](file:///r/a%20%281%29%2520.md)');
+    expect(buildVscodeUrlLink('/r/a (1)%20.md')).toBe(
+      '[a (1)%20.md](vscode://file/r/a%20%281%29%2520.md)',
+    );
   });
 });
