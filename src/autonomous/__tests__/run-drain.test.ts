@@ -323,6 +323,14 @@ describe('finish mode: committed-but-undelivered work', () => {
     expect(h.spawnGate.mock.calls[1]![0].NOLDOR_DRAIN_FINISH).toBe('1');
   });
 
+  it('lifts the claude --print background-task ceiling on every spawn', async () => {
+    const h = harness(['a'], { ships: () => false, branchWork: () => true });
+    await runDrain(h.deps, { ...opts, maxRetries: 1 });
+    for (const [env] of h.spawnGate.mock.calls) {
+      expect(env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS).toBe('0');
+    }
+  });
+
   it('suppresses salvage on a finish re-spawn — repair would delete the commits being finished', async () => {
     const h = harness(['a'], { ships: () => false, branchWork: () => true });
     const salvage = vi.fn(() => 'clean' as const);

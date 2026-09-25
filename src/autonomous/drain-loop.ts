@@ -224,6 +224,10 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
     const base: Record<string, string> = {
       NOLDOR_DRAIN: '1',
       NOLDOR_DRAIN_SKIP: [...skip].join(','),
+      // `claude --print` otherwise kills a child's still-running background tasks 600 s after
+      // its turn ends — a backgrounded `cr orchestrate` dies and the entry reads as a plain
+      // no-PR exit. Wait for them instead; the per-iteration timeout still bounds the child.
+      CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0',
       // Belt-and-suspenders only — the authoritative finish directive rides the prompt
       // (`source.finishPrompt`), since a headless model ignores an env-only signal.
       ...(finishing ? { NOLDOR_DRAIN_FINISH: '1' } : {}),
