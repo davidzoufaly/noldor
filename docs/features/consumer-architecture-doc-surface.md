@@ -12,6 +12,7 @@ links:
     - src/docs/docs-architecture.ts
     - src/garden/detectors/architecture.ts
     - src/garden/detectors/fd-diagram.ts
+    - src/utils/word-count.ts
   tests:
     - src/core/__tests__/markdown-section-scan.test.ts
     - src/docs/__tests__/architecture-form.test.ts
@@ -187,6 +188,7 @@ This release adds the architecture doc surface (#333).
   - [`src/docs/docs-architecture.ts`](../../src/docs/docs-architecture.ts)
   - [`src/garden/detectors/architecture.ts`](../../src/garden/detectors/architecture.ts)
   - [`src/garden/detectors/fd-diagram.ts`](../../src/garden/detectors/fd-diagram.ts)
+  - [`src/utils/word-count.ts`](../../src/utils/word-count.ts)
 - **Tests:**
   - [`src/core/__tests__/markdown-section-scan.test.ts`](../../src/core/__tests__/markdown-section-scan.test.ts)
   - [`src/docs/__tests__/architecture-form.test.ts`](../../src/docs/__tests__/architecture-form.test.ts)
