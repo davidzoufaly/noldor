@@ -98,7 +98,11 @@ describe('tryAcquire', () => {
     writeFileSync(lockIn(dir), JSON.stringify({ ...other, pid: exitedPid() }));
     const claim = `${lockIn(dir)}.reclaim.${statSync(lockIn(dir), { bigint: true }).ino}`;
     linkSync(lockIn(dir), claim);
-    expect(tryAcquire(lockIn(dir), self)).toEqual({ kind: 'held' });
+    expect(tryAcquire(lockIn(dir), self)).toEqual({
+      kind: 'held',
+      claim,
+      holder: expect.objectContaining({ worktree: '/work/other' }),
+    });
     expect(readJson(lockIn(dir))).toMatchObject({ worktree: '/work/other' });
     rmSync(claim);
     expect(tryAcquire(lockIn(dir), self)).toEqual({ kind: 'acquired' });
@@ -152,7 +156,7 @@ describe('acquireSuiteLock', () => {
       onWait: (holder) => announced.push(holder),
     });
     expect(outcome).toEqual({ kind: 'acquired', waited: true });
-    expect(announced).toEqual([other]);
+    expect(announced).toEqual([{ holder: other }]);
     expect(readJson(lockIn(dir))).toEqual(self);
   });
 
@@ -161,6 +165,21 @@ describe('acquireSuiteLock', () => {
     const outcome = await acquireSuiteLock(lockIn(dir), self, { timeoutMs: 150, pollMs: 20 });
     expect(outcome).toEqual({ kind: 'timed-out', holder: other });
     expect(readJson(lockIn(dir))).toEqual(other);
+  });
+
+  it('names a stranded reclaim claim and its dead holder when it times out', async () => {
+    const dead = { ...other, pid: exitedPid() };
+    writeFileSync(lockIn(dir), JSON.stringify(dead));
+    const claim = `${lockIn(dir)}.reclaim.${statSync(lockIn(dir), { bigint: true }).ino}`;
+    linkSync(lockIn(dir), claim);
+    const announced: unknown[] = [];
+    const outcome = await acquireSuiteLock(lockIn(dir), self, {
+      timeoutMs: 150,
+      pollMs: 20,
+      onWait: (by) => announced.push(by),
+    });
+    expect(outcome).toEqual({ kind: 'timed-out', holder: dead, claim });
+    expect(announced).toEqual([{ holder: dead, claim }]);
   });
 
   it('stops when the caller aborts', async () => {
@@ -182,6 +201,10 @@ describe('suiteLockSkipReason', () => {
       { env: '1', watch: false, filters: undefined },
     ],
     ['a run whose filter list is empty', { env: undefined, watch: false, filters: [] }],
+    [
+      'a run with --changed off',
+      { env: undefined, watch: false, filters: undefined, changed: false },
+    ],
   ])('queues %s', (_run, run) => {
     expect(suiteLockSkipReason(run)).toBeNull();
   });
@@ -192,6 +215,21 @@ describe('suiteLockSkipReason', () => {
     [
       'a run with file filters',
       { env: undefined, watch: false, filters: ['src/a.test.ts'] },
+      'filtered',
+    ],
+    [
+      'a -t run',
+      { env: undefined, watch: false, filters: undefined, testNamePattern: /probe/ },
+      'filtered',
+    ],
+    [
+      'a --changed run',
+      { env: undefined, watch: false, filters: undefined, changed: true },
+      'filtered',
+    ],
+    [
+      'a --related run',
+      { env: undefined, watch: false, filters: undefined, related: ['src/a.ts'] },
       'filtered',
     ],
   ])('does not queue %s', (_run, run, reason) => {
@@ -384,30 +422,44 @@ describe('through the real vitest CLI', () => {
     };
   }
 
-  it('queues a full run, leaves a filtered run alone, and releases the lock afterwards', async () => {
-    const vitestCli = join(
-      dirname(createRequire(import.meta.url).resolve('vitest/package.json')),
-      'vitest.mjs',
-    );
-    const run = (fixture: { config: string; lock: string; seen: string }, filters: string[]) =>
-      execFileAsync(
-        process.execPath,
-        [
-          vitestCli,
-          'run',
-          '--config',
-          fixture.config,
-          '--root',
-          dirname(fixture.config),
-          ...filters,
-        ],
-        { env: childEnv({ PROBE_LOCK: fixture.lock, PROBE_SEEN: fixture.seen }), timeout: 9000 },
+  // Three nested vitest CLIs boot in parallel, so this is among the heaviest tests in
+  // the suite it protects: the explicit budget keeps a loaded machine from pushing it
+  // past the default 10s `testTimeout`.
+  it(
+    'queues a full run, leaves filtered and -t runs alone, and releases the lock afterwards',
+    {
+      timeout: 60_000,
+    },
+    async () => {
+      const vitestCli = join(
+        dirname(createRequire(import.meta.url).resolve('vitest/package.json')),
+        'vitest.mjs',
       );
-    const full = fixtureRepo('full');
-    const filtered = fixtureRepo('filtered');
-    await Promise.all([run(full, []), run(filtered, ['probe'])]);
-    expect(readFileSync(full.seen, 'utf8')).toBe('true');
-    expect(readFileSync(filtered.seen, 'utf8')).toBe('false');
-    expect(existsSync(full.lock)).toBe(false);
-  });
+      const run = (fixture: { config: string; lock: string; seen: string }, filters: string[]) =>
+        execFileAsync(
+          process.execPath,
+          [
+            vitestCli,
+            'run',
+            '--config',
+            fixture.config,
+            '--root',
+            dirname(fixture.config),
+            ...filters,
+          ],
+          {
+            env: childEnv({ PROBE_LOCK: fixture.lock, PROBE_SEEN: fixture.seen }),
+            timeout: 50_000,
+          },
+        );
+      const full = fixtureRepo('full');
+      const filtered = fixtureRepo('filtered');
+      const named = fixtureRepo('named');
+      await Promise.all([run(full, []), run(filtered, ['probe']), run(named, ['-t', 'probe'])]);
+      expect(readFileSync(full.seen, 'utf8')).toBe('true');
+      expect(readFileSync(filtered.seen, 'utf8')).toBe('false');
+      expect(readFileSync(named.seen, 'utf8')).toBe('false');
+      expect(existsSync(full.lock)).toBe(false);
+    },
+  );
 });
