@@ -328,7 +328,7 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 
 ### `sync:fd-resources`
 
-- **Trigger:** `pnpm noldor sync fd-resources`. Runs in `pre-commit` (`fd-resources` job, `glob: 'docs/features/*.md'`).
+- **Trigger:** `pnpm noldor sync fd-resources`. Runs in `pre-commit` (`fd-resources` job, `glob: 'docs/features/*.md'`). Accepts `--slug <slug>` (repeatable, or comma-separated), as `sync code-links` does: only the named FDs are rewritten, and a filter that selects no feature MD exits 1 and writes nothing.
 - **Inputs:** FD frontmatter `links.{code,docs,tests}` arrays + `links.spec` string. Reads filesystem to verify whether `links.spec` points at an existing file.
 - **Outputs:** rewrites the FD body's auto-generated `<!-- generated: resources -->` Resources block in place. Additionally auto-rewrites `links.spec` to its `archive/` variant when the original spec file is missing on disk AND `<dirname>/archive/<basename>` exists (see [`resolveSpecPath`](../../src/sync/sync-fd-resources.ts)) — this closes the drift loop where `/noldor-garden`'s `git mv <spec> archive/` step used to leave FDs pointing at the old path. Stages modified FDs.
 - **When to use:** automatic when an FD frontmatter changes or after `/noldor-garden` archives a spec. Run manually if the body's Resources block drifts from frontmatter or if a hand-run `git mv` archived a spec.

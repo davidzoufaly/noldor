@@ -11,6 +11,7 @@ import {
   applyBlock,
   buildResourcesBlock,
   resolveArchivedPath,
+  syncFeatures,
   syncFile,
 } from '../sync-fd-resources.js';
 
@@ -574,5 +575,53 @@ Body.
     expect(readFileSync(mdPath, 'utf8')).toContain(
       'arch: docs/design/architecture/archive/2026-09-24-x.pen',
     );
+  });
+});
+
+describe(syncFeatures, () => {
+  // An FD whose Resources block is missing, so any sync of it rewrites the file.
+  const drifted = `---
+name: Fake
+links:
+  code:
+    - src/fake.ts
+---
+
+## Summary
+
+Body.
+`;
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'sync-fd-resources-slug-'));
+    for (const slug of ['a', 'b', 'c']) writeFileSync(join(dir, `${slug}.md`), drifted, 'utf8');
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('syncs every FD when no filter is given', async () => {
+    expect(await syncFeatures(dir)).toEqual({ scanned: 3, updated: 3 });
+  });
+
+  it('writes only the FDs --slug names, leaving the rest byte-identical', async () => {
+    expect(await syncFeatures(dir, ['a', 'c'])).toEqual({ scanned: 2, updated: 2 });
+    expect(readFileSync(join(dir, 'a.md'), 'utf8')).toContain('## Resources');
+    expect(readFileSync(join(dir, 'b.md'), 'utf8')).toBe(drifted);
+  });
+
+  it('refuses a filter naming a slug with no feature MD, writing nothing', async () => {
+    const result = await syncFeatures(dir, ['a', 'typo']);
+    expect(result).toEqual({ error: expect.stringContaining('typo') });
+    expect(readFileSync(join(dir, 'a.md'), 'utf8')).toBe(drifted);
+  });
+
+  it('refuses an empty filter rather than widening to every FD', async () => {
+    expect(await syncFeatures(dir, [])).toEqual({
+      error: expect.stringContaining('no usable value'),
+    });
+    expect(readFileSync(join(dir, 'a.md'), 'utf8')).toBe(drifted);
   });
 });

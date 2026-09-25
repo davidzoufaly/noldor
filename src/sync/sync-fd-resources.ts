@@ -6,6 +6,7 @@ import matter from 'gray-matter';
 
 import { ARCHIVE_DIR } from '../core/design-artifact-names.js';
 import { LOST_SENTINEL } from '../core/feature-schema.js';
+import { parseRunOptions } from './projection.js';
 
 const START_MARKER = '<!-- generated: resources -->';
 const END_MARKER = '<!-- /generated: resources -->';
@@ -206,15 +207,61 @@ export async function syncFile(path: string): Promise<boolean> {
   return true;
 }
 
-async function main(): Promise<void> {
-  const dir = 'docs/features';
+/**
+ * Sync the Resources block of every feature MD in `dir`, or of only the ones
+ * `slugs` names. A defined `slugs` must select at least one existing FD: an
+ * empty filter, or one naming a slug with no feature MD, writes nothing and
+ * returns an error — a scoped run that quietly widened to every FD is the
+ * churn `--slug` exists to prevent.
+ *
+ * @param dir - The feature MD directory
+ * @param slugs - FD slugs to restrict the run to, or `undefined` for all
+ * @returns How many FDs the run covered and rewrote, or the refusal message
+ */
+export async function syncFeatures(
+  dir: string,
+  slugs?: readonly string[],
+): Promise<{ scanned: number; updated: number } | { error: string }> {
   const entries = await readdir(dir, { withFileTypes: true });
-  let updated = 0;
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
-    if (await syncFile(join(dir, entry.name))) updated += 1;
+  const all = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+    .map((entry) => entry.name.slice(0, -'.md'.length));
+
+  let targets = all;
+  if (slugs !== undefined) {
+    if (slugs.length === 0) {
+      return {
+        error:
+          '`--slug` was given no usable value — pass `--slug <feature-slug>` ' +
+          '(repeatable, or comma-separated). Nothing was written.',
+      };
+    }
+    const unmatched = slugs.filter((slug) => !all.includes(slug));
+    if (unmatched.length > 0) {
+      return {
+        error:
+          `\`--slug\` named ${unmatched.length} slug(s) with no feature MD: ${unmatched.toSorted().join(', ')}. ` +
+          'Nothing was written.',
+      };
+    }
+    targets = [...slugs];
   }
-  console.log(`Synced ${entries.length} feature MD(s), updated ${updated}.`);
+
+  let updated = 0;
+  for (const slug of targets) {
+    if (await syncFile(join(dir, `${slug}.md`))) updated += 1;
+  }
+  return { scanned: targets.length, updated };
+}
+
+async function main(): Promise<void> {
+  const result = await syncFeatures('docs/features', parseRunOptions(process.argv.slice(2)).slugs);
+  if ('error' in result) {
+    console.error(result.error);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Synced ${result.scanned} feature MD(s), updated ${result.updated}.`);
 }
 
 const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('sync-fd-resources');
