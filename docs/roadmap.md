@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Gate Skill Rebase Base-Sha Qualifier
-
-- id: Q-0301
-- area: tooling
-- type: docs
-- since: 2026-09-25
-- size: XS
-- impact: med
-- confidence: high
-
-Gate Step 4's green-tip recovery prose (`.claude/skills/noldor-gate/SKILL.md` and its `templates/` twin) says `git rev-parse <branch>@{1}` after a rebase. That holds only for a rebase onto the same base; after rebasing onto a moved `origin/main` it is the pre-rebase tip, whose merge-base is the OLD fork point, so every lane reviews main's new commits as part of the branch. `docs/noldor/drain-mode.md` now carries the qualifier (pass the rebased twin of the last reviewed head, or `--base-sha origin/main` for the whole branch); the skill needs the same one — a micro-chore from main. Deletion test: the skill's recovery paragraph and `drain-mode.md` give the same recipe. (found 2026-09-25, Q-0292)
-
 ### Sync fd-resources Honours --slug
 
 - id: Q-0302
