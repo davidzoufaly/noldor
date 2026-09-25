@@ -7,15 +7,15 @@ links:
   code: []
   plan:
     - >-
-      docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part1.md
+      docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part1.md
     - >-
-      docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part2.md
+      docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part2.md
     - >-
-      docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md
+      docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md
     - >-
-      docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md
+      docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md
   spec: >-
-    docs/design/specs/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-design.md
+    docs/design/specs/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-design.md
   tests:
     - src/checks/__tests__/gate-skill-drain-contract.test.ts
     - src/checks/__tests__/gate-skill-layout.test.ts
@@ -24,7 +24,7 @@ links:
 name: Gate Skill Loads Only the Branch a Session Takes
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-09-25T00:00:00.000Z
 noldor-tier: full
 ---
@@ -63,12 +63,12 @@ As an agent running `/noldor-gate` (interactive, or as a headless drain child), 
 
 ## Resources
 
-- **Spec:** [`docs/design/specs/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-design.md`](../../docs/design/specs/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-design.md`](../../docs/design/specs/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-design.md)
 - **Plan:**
-  - [`docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part1.md`](../../docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part1.md)
-  - [`docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part2.md`](../../docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part2.md)
-  - [`docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md`](../../docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md)
-  - [`docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md`](../../docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md)
+  - [`docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part1.md`](../../docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part1.md)
+  - [`docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part2.md`](../../docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part2.md)
+  - [`docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md`](../../docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md)
+  - [`docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md`](../../docs/design/plans/archive/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md)
 - **Tests:**
   - [`src/checks/__tests__/gate-skill-drain-contract.test.ts`](../../src/checks/__tests__/gate-skill-drain-contract.test.ts)
   - [`src/checks/__tests__/gate-skill-layout.test.ts`](../../src/checks/__tests__/gate-skill-layout.test.ts)
