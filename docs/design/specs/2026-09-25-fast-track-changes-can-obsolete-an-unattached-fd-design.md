@@ -25,7 +25,7 @@ The existing detectors check shape, not truth. `fd-link-rot` stats link targets,
 
 ## Non-goals
 
-- FD-carrying sessions (`specs-only-*`, `full-*`) that touch files another FD owns. The same staleness risk, but a different seam; a sibling roadmap entry.
+- FD-carrying sessions (`specs-only-*`, `full-*`) that touch files another FD owns. The same staleness risk, but a different seam.
 - Making a fast-track show up in an FD's `## PRs` list or changelog. That changes release attribution in `commitsForFeature()`.
 - Judging whether a Usage section is true. No model-driven check in garden; the detector checks that a declaration exists, not that it is right.
 - Blocking anything. No pre-push or release gate in this change.
@@ -66,7 +66,7 @@ A new detector in `src/garden/detectors/` walks first-parent history on `HEAD`:
 
 - **Floor.** The oldest first-parent commit whose body carries a `Noldor-Doc-Impact:` line. No such commit, no findings: a repo that never used the declaration is silent, so the detector calibrates itself per repo instead of reading a date.
 - **Candidate commits.** Fast-track commits (`Noldor-Path: fast-track` in the body) after the floor with no declaration line.
-- **Findings.** For each candidate FD (Unit 1's rule) that owns a file one of those commits changed, keep the commits newer than the FD's latest commit found by `commitsForFeature()` — any commit the FD records clears everything before it. One finding per FD: the slug, the commits, the files.
+- **Findings.** For each candidate FD (Unit 1's rule) that owns a file one of those commits changed, keep the commits newer than the FD's latest recorded commit — one `commitsForFeature()` finds, or a first-parent commit whose `Noldor-Doc-Impact:` line names the FD — so any commit the FD records clears everything before it. The second form is how a fast-track's own FD update counts: after the squash its `docs(features:<slug>):` subject sits in the body behind a `* ` bullet, where the scope grep cannot match it. One finding per FD: the slug, the commits, the files.
 
 It rides its own key in `GardenFindings`, like `architectureAdvisories` and `fdDiagramStubs`, and stays out of `FINDING_CATEGORIES` in `src/garden/garden-detect-runner.ts`, so it never blocks the receipt restamp or a release. A git failure is reported as a finding that names it, never as a clean result. An FD the lookup skipped as unparseable is not reported here; `detectMalformedFds()` already names it in the same run.
 
@@ -85,7 +85,7 @@ It rides its own key in `GardenFindings`, like `architectureAdvisories` and `fdD
 - The commit-msg hook refuses a `Noldor-Doc-Impact:` value that is neither `none` nor a list of existing FD slugs.
 - `garden detect` reports, under its own key, each candidate FD owning a file changed by a first-parent fast-track commit that is at or after the floor, carries no declaration, and is newer than the FD's latest recorded commit; each finding names the FD, the commits and the files.
 - A repo with no declaration anywhere in its first-parent history gets no findings from the detector.
-- A commit the FD records clears every earlier finding for that FD, including a micro-chore commit whose only change is a `<!-- noldor:usage-checked <sha> -->` line under the FD's `## Usage`.
+- A commit the FD records clears every earlier finding for that FD — one `commitsForFeature()` finds, including a micro-chore commit whose only change is a `<!-- noldor:usage-checked <sha> -->` line under the FD's `## Usage`, or a first-parent commit whose `Noldor-Doc-Impact:` line names the FD.
 - The detector never blocks: the garden receipt restamp and release preflight are unaffected by its findings.
 - A git failure inside the detector produces a finding that names it, not an empty result.
 - `garden-and-drift.md`, `script-catalog.md` and `git-and-commits.md` describe the detector, the command and the trailer, and their `templates/` twins match.
