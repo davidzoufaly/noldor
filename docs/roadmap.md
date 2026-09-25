@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Lane-Error Rounds and the Round Cap
-
-- id: Q-0310
-- area: tooling
-- type: feat
-- since: 2026-09-25
-- size: S
-- impact: med
-- confidence: low
-
-Decide whether a CR round whose only blockers are lane errors (timeouts) counts against the round cap, and whether the drain supervisor should take the no-sleep assertion itself (`caffeinate -is -w <pid>`). On the 2026-09-24 overnight drain a sleeping Mac turned three code rounds red on timeouts alone, and `gate-skill-leftovers-from-q-0192` stopped at the cap without one finding about the change; it shipped on its last retry (PR #549). The operator workaround is in `docs/noldor/autonomy.md` → Operator gotchas. Deletion test: a round red only on lane timeouts leaves the round count unchanged. (found 2026-09-25)
-
 ### Geometry-Compare Lane — the Automated Half
 
 - id: Q-0180
