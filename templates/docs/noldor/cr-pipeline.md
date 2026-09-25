@@ -595,6 +595,12 @@ persisted diff image before arguing with the ratio.
 
 ## Review gotchas
 
+- **A spec or plan round closed at the re-round cap leaves its sink red by
+  design, so the gate's Step 4 wait for artifact lanes passes
+  `--unresolved-only`.** Without the flag the kind-less aggregate re-redded on
+  findings already fixed in commits, and each such session proceeded by hand
+  on the Q-0069 precedent (a green code stage earns the receipt) — Q-0154, hit
+  on Q-0131 and again on Q-0092.
 - **Never comma-join `--artifact` for `--kind code`.** `cr orchestrate --kind code
   --artifact <x>` runs the empty-delta short-circuit (`isEmptyDiffDefault`,
   `src/cr/orchestrate.ts`) with the artifact string as a **single git pathspec**.
@@ -812,6 +818,13 @@ could not see each other.
 Only **red** rounds count, against `AUTOFIX_ROUND_CAP + 1` (three: the initial
 pass plus two re-rounds). A green dispatch arbitrates nothing and is free,
 however many run, which is what keeps receipt re-earns from spending budget.
+
+Why three: before the cap, an operator loop fed itself — every fix is new
+prose, so a delta review of it near-guarantees a new finding. Q-0073 ran 14
+rounds, Q-0078 11 and Q-0124 10; in Q-0112, rounds 1–3 caught real design
+flaws while rounds 4–11 were self-consistency findings seeded by the previous
+round's fix. Three rounds is the span in which every real design flaw on
+record surfaced.
 
 So the dispatch count and the red count are different numbers, and a series can
 legally run more rounds than "a cap of two" suggests: two greens between reds,

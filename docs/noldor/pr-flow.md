@@ -32,7 +32,7 @@ gate end-of-flow (any path)
 
 `composeTitle` and the Summary section of `composeBody` both read `PrFlowInput.summaryCommit` — the **first commit ahead of the base that carries code**, resolved by `pickSummarySha` in [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts).
 
-That predicate exists because `/noldor-gate` retires an entry's roadmap block *before* implementing it (skill Step 2, "Roadmap-entry retirement"), so the oldest commit on a drained fast-track branch is bookkeeping. Sourcing the title from the first commit put `docs(roadmap): retire <slug> — shipped via fast-track (no FD)` on every drained PR and never named the change that shipped.
+That predicate exists because `/noldor-gate` retires an entry's roadmap block *before* implementing it (skill Step 2 → [`fast-track.md`](../../.claude/skills/noldor-gate/fast-track.md), "Roadmap-entry retirement"), so the oldest commit on a drained fast-track branch is bookkeeping. Sourcing the title from the first commit put `docs(roadmap): retire <slug> — shipped via fast-track (no FD)` on every drained PR and never named the change that shipped.
 
 "Carries code" is the whole `isBookkeepingOnly` set, not just `docs/roadmap.md` — since Q-0107 `remove-block` co-stages `.noldor/retired-entry-ids.json`, and a `full-*` branch leads with its spec and plan commits, so a roadmap-only test lands on those instead. A commit whose file list is **empty** is skipped too: `git log --name-only` prints no paths for a merge, so without that guard a branch an operator merged `main` into would be titled `Merge branch 'main'`.
 
@@ -107,6 +107,8 @@ The 20-second operator threshold (step 1) and the 5-second hook seatbelt are ind
 
 Each blind retry forks another zombie hook chain and amplifies wasted time. The 2026-05-16 retro recorded 8 attempts × ~2 min each = ~15 min wasted on what should have been a 30-sec push.
 
+The gate preflights the push gates before its code-stage review (`pnpm noldor checks push-gates`) for a related reason: a gate that refuses the push only after the review forces a fix commit, which changes the tree, invalidates the `Noldor-Reviewed-Subagent` receipt and buys a full re-review with no review value. Q-0112 lost 2 of its 6 code-stage dispatches and 3 failed pushes that way.
+
 ### `pnpm noldor pr-flow` recovery — when the CLI itself is broken
 
 The `/noldor-gate` Step 4 path invokes `pnpm noldor pr-flow`. If the CLI exits non-zero for a reason unrelated to the pre-push hook (e.g. a regression in [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts), an upstream `gh` change, a malformed FD that `loadFdSummary` can't parse), fall back to the manual three-step ship — the same one the framework used pre-CLI:
@@ -174,7 +176,7 @@ Attach-session PRs additionally carry a phase-revert commit (`phase: done → in
 docs(features:<parent-slug>): revert phase done → in-progress for attach session
 ```
 
-These commits are written by `/noldor-gate` Step 2 scaffolding (see [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md) "Phase-revert lifecycle (attach paths)").
+These commits are written by `/noldor-gate` Step 2 scaffolding (see [`.claude/skills/noldor-gate/attach.md`](../../.claude/skills/noldor-gate/attach.md) "Phase-revert lifecycle").
 
 The reverse (`phase: in-progress → done`) is written by `/noldor-gate` Step 4 end-of-flow (`pnpm noldor features phase-flip-done`) so it lands on `main` inside the feature PR; `release-markers.ts:fillMarkers` remains the release-time safety net for FDs that missed the flip — see [versioning.md](versioning.md) step 4 and the changelog-pr-flow-integration spec §3 for the original (now superseded) asymmetric model.
 

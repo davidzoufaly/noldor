@@ -181,6 +181,22 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   one line, and `chromium.launch({ channel: 'chrome' })` drives the operator's
   real installed Chrome. (Q-0231)
 
+## Gate sessions
+
+- **Naming the next roadmap entry at the gate's Step 5 handoff biases the next
+  session.** On 2026-05-13 the controller leaked the top entry's name while
+  handing off, and the next session's framing carried the shipped work's context
+  into it. That is why Step 5 prints only that the queue is non-empty and
+  never names, summarizes or paraphrases the entry — even when the operator
+  asks what is next.
+- **A micro-chore's `git reset --hard origin/main` once wiped uncommitted
+  `ideas.md` edits.** A drain's micro-chore iteration rewound local `main`
+  under another process's in-flight edits, and uncommitted content never
+  enters git's object store, so nothing could recover it. That is why the
+  micro-chore handoff stashes unrelated edits (`git stash push
+  --include-untracked -m noldor-microchore`) before the reset and pops them
+  after.
+
 ## Drain / headless sessions
 
 - **`git commit` via the foreground Bash tool hangs in a drain-spawned session.**

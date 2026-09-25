@@ -837,11 +837,11 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
 **Files:**
 - Modify: `docs/noldor/cr-pipeline.md`, `docs/noldor/pr-flow.md`, `docs/noldor/gotchas.md`, `docs/noldor/complexity-gating.md` and their `templates/docs/noldor/` twins
 
-- [ ] **Step 1: Brief the rules.**
+- [x] **Step 1: Brief the rules.**
 
   Run: `pnpm noldor rules brief --file docs/noldor/gotchas.md --stage code`
 
-- [ ] **Step 2: Apply the four page changes.** `cr-pipeline.md` gains why the round budget is three and the `--unresolved-only` story; `pr-flow.md` gains the push-gate re-earn story and repoints its two section links to `fast-track.md` and `attach.md`; `gotchas.md` gains § Gate sessions (the Step 5 leak and the micro-chore reset); `complexity-gating.md` repoints its retirement link.
+- [x] **Step 2: Apply the four page changes.** `cr-pipeline.md` gains why the round budget is three and the `--unresolved-only` story; `pr-flow.md` gains the push-gate re-earn story and repoints its two section links to `fast-track.md` and `attach.md`; `gotchas.md` gains § Gate sessions (the Step 5 leak and the micro-chore reset); `complexity-gating.md` repoints its retirement link.
 
 ~~~diff
 --- a/docs/noldor/cr-pipeline.md
@@ -921,7 +921,7 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
  
 ~~~
 
-- [ ] **Step 3: Mirror the twins and check.**
+- [x] **Step 3: Mirror the twins and check.**
 
   Run:
 
@@ -932,7 +932,7 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
 
   Expected: both exit 0.
 
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
 
   ```bash
   msg=$(mktemp)
