@@ -836,7 +836,9 @@ describe('design verdict CLI / --check', () => {
       expect(out).toContain('could not diff the spec');
       expect(out).toContain('ENOENT');
     } finally {
-      process.env.TMPDIR = savedTmp;
+      // Assigning undefined stores the string "undefined" — CI runners leave TMPDIR unset.
+      if (savedTmp === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = savedTmp;
     }
   });
 
