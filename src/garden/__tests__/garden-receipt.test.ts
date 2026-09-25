@@ -1,4 +1,4 @@
-// @tests: noldor, outcome-telemetry-and-effectiveness-metrics
+// @tests: noldor, outcome-telemetry-and-effectiveness-metrics, release-sweep-process-hardening
 
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

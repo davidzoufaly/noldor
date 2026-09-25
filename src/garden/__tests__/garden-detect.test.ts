@@ -22,7 +22,7 @@ import type { GateComplianceFindings, StaleDesignArtifact } from '../garden-dete
 import type { RulePairInvariant as Invariant } from '../../invariants/rule-pairs.js';
 import type { Invariant as ArchitectureInvariant } from '../../invariants/types.js';
 
-// @tests: architecture-invariants, bootstrap-immunity-for-self-gating-features, dashboard-roadmap-drag-drop, doc-gardening-skill, framework-milestones-support-poc-mvp-100, graphify-plan-of-edges-nodes-for-plans-specs, noldor, outcome-telemetry-and-effectiveness-metrics, release-sweep-process-hardening
+// @tests: architecture-invariants, bootstrap-immunity-for-self-gating-features, dashboard-roadmap-drag-drop, doc-gardening-skill, framework-milestones-support-poc-mvp-100, graphify-plan-of-edges-nodes-for-plans-specs, noldor, outcome-telemetry-and-effectiveness-metrics, release-sweep-process-hardening, pendev-ui-design-phase
 
 async function makeRepo() {
   const root = await mkdtemp(join(tmpdir(), 'garden-'));
