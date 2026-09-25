@@ -428,7 +428,7 @@ The record binds the milestone file's blob, so the verdict is always the last ed
   NOLDOR_ALLOW_SHARED=1 git commit -F "$msg"
   ```
 
-- [ ] **Step 5: Close the plan.**
+- [x] **Step 5: Close the plan.**
 
   Run: `pnpm noldor sync code-links --slug architecture-design-phase`
   Expected: `docs/features/architecture-design-phase.md` `links.code` also lists `src/design/arch-route.ts` and `src/design/arch-progress.ts`, and the FD is staged. Commit it with a `docs(features:architecture-design-phase): fill links.code` subject and the usual trailer paragraph.

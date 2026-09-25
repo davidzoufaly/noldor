@@ -9,6 +9,8 @@ links:
     - src/design/arch-baseline.ts
     - src/design/arch-check.ts
     - src/design/arch-pen.ts
+    - src/design/arch-progress.ts
+    - src/design/arch-route.ts
     - src/indirection/module-pairs.ts
   spec: docs/design/specs/2026-09-24-architecture-design-phase-design.md
   tests:
@@ -83,6 +85,8 @@ As an operator designing a new milestone, feature or package, I want an as-built
   - [`src/design/arch-baseline.ts`](../../src/design/arch-baseline.ts)
   - [`src/design/arch-check.ts`](../../src/design/arch-check.ts)
   - [`src/design/arch-pen.ts`](../../src/design/arch-pen.ts)
+  - [`src/design/arch-progress.ts`](../../src/design/arch-progress.ts)
+  - [`src/design/arch-route.ts`](../../src/design/arch-route.ts)
   - [`src/indirection/module-pairs.ts`](../../src/indirection/module-pairs.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-arch-baseline.test.ts`](../../src/checks/__tests__/check-arch-baseline.test.ts)
