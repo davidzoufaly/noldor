@@ -1,6 +1,6 @@
 # Domain Knowledge Graph — Summary (v3)
 # version: 3
-# 3977 nodes, 5573 edges (contains/imports_from omitted), 238 communities, directed=false
+# 3981 nodes, 5579 edges (contains/imports_from omitted), 207 communities, directed=false
 # Deep dive: graph.brainstorm.toon (TOC at top — use Read offset/limit per community)
 # Compact format used in brainstorm.toon:
 #   Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of ?=other  (contains/imports_from omitted — derivable)
@@ -9,50 +9,50 @@
 #   Cross-edge row (this file + brainstorm.toon ## cross): <rel> <label>@c<src_comm>><label>@c<tgt_comm>
 
 ## community index (top 20 by size)
-  c0 (102): detectors
-  c1 (73): .constructor() · StateFileCorruptError · area-category.test.ts
-  c2 (73): collect
-  c3 (66): api
-  c4 (62): arbitrationExit() · blocker() · buildSkeleton()
-  c5 (62): CONSUMER_CONFIG() · ROADMAP() · acquireLock()
-  c6 (60): ageBucket() · barTable() · cmpOrdinal()
-  c7 (59): .constructor() · .constructor() · LedgerParseError
-  c8 (57): detectors
-  c9 (53): addWorktree() · appBundleFor() · autoOpenEnabled()
-  c10 (51): detectors / adapters
-  c11 (51): buildPrompt() · commit() · commit()
-  c12 (50): detectors
-  c13 (49): .constructor() · .constructor() · .constructor()
-  c14 (47): dashboard-server.test.ts · dashboard-stale-install.test.ts · dashboard-worktrees.test.ts
-  c15 (47): detectors
-  c16 (42): assertConfig() · assertQueueSourceSynced() · assertQueueSourceSyncedAt()
-  c17 (42): dash() · dashboard-ensure.test.ts · dashboard-identity.test.ts
-  c18 (40): detectors
-  c19 (39): arbitration-cli.ts · captureCitations() · cited()
+  c0 (116): detectors
+  c1 (94): addWorktree() · appBundleFor() · appFlag()
+  c2 (87): api
+  c3 (80): amend-receipt.test.ts · amend-receipt.ts · amendSubagentReceipt()
+  c4 (75): agent-runner / usage
+  c5 (71): lanes
+  c6 (69): arbitrationExit() · blocker() · buildSkeleton()
+  c7 (68): detectors
+  c8 (66): detectors
+  c9 (66): allocatePorts() · bootDevSurfaces() · buildCommunityMap()
+  c10 (62): .constructor() · StateFileCorruptError · codePathOwnsFile()
+  c11 (61): ageBucket() · barTable() · cmpOrdinal()
+  c12 (60): collect
+  c13 (59): .constructor() · .constructor() · LedgerParseError
+  c14 (51): detectors
+  c15 (51): buildPrompt() · commit() · commit()
+  c16 (50): lanes
+  c17 (50): detectors
+  c18 (50): .constructor() · .constructor() · .constructor()
+  c19 (49): detectors
 
 ## cross-community edges (top 25)
-  f activateMilestone!@c18>atomicWriteFileSync!@c0
-  f annotateRound!@c7>writeJsonAtomic!@c30
-  f appendRound!@c7>writeJsonAtomic!@c30
-  f approve!@c61>errMessage!@c35
-  f approve!@c61>list!@c25
-  f arbitrationPath!@c41>slugKindJsonPath!@c49
-  f assertQueueSourceSyncedAt!@c16>spawnRunner!@c51
-  f assessEntrySplit!@c52>extractTouches!@c105
-  f auditOverrides!@c8>parseTrailers!@c73
-  f autoBase!@c137>resolveDefaultBase!@c79
-  f autoOpenEnabled!@c9>loadConfigSync!@c111
-  f baselineStamp!@c76>blobIdOfWorktreeFile!@c61
-  f bind!@c83>makeReconcileDeps!@c16
-  f bootDevSurfaces!@c148>atomicWriteFile!@c3
-  f boundSpec!@c61>loadDocRoots!@c127
-  f branchHasUnshippedWorkAt!@c16>spawnRunner!@c51
-  f buildBlockedByGraph!@c141>parseBacklog!@c45
-  f buildGateComplianceSection!@c8>loadConfigSync!@c111
-  f buildJudgeRepairPrompt!@c55>repairEvidence!@c29
-  f buildMergeCandidates!@c163>loadDocRoots!@c127
-  f buildMergeCandidates!@c163>loadSddFeatures!@c80
-  f buildMergeCandidates!@c163>parseBacklog!@c45
-  f buildMergeCandidates!@c163>readQueueFile!@c18
-  f buildPrompt!@c116>renderPriorSection!@c37
-  f captureSurface!@c76>blobIdOfWorktreeFile!@c61
+  f .kill!@c4>.emit!@c33
+  f activateMilestone!@c42>atomicWriteFileSync!@c0
+  f aggregate!@c113>readExpectedLanes!@c69
+  f annotateRound!@c13>writeJsonAtomic!@c25
+  f appendRound!@c13>writeJsonAtomic!@c25
+  f approve!@c20>list!@c33
+  f arbitrationPath!@c31>slugKindJsonPath!@c69
+  f assessEntrySplit!@c55>extractTouches!@c51
+  f auditCodexCrOverrides!@c7>tally!@c0
+  f auditOverrides!@c8>parseTrailers!@c75
+  f autoBase!@c116>resolveDefaultBase!@c43
+  f autoOpenEnabled!@c1>loadConfigSync!@c38
+  f baselineStamp!@c63>blobIdOfWorktreeFile!@c20
+  f bind!@c86>makeReconcileDeps!@c38
+  f bootDevSurfaces!@c9>atomicWriteFile!@c2
+  f boundSpec!@c20>loadDocRoots!@c7
+  f buildGateComplianceSection!@c8>loadConfigSync!@c38
+  f buildMergeCandidates!@c14>loadDocRoots!@c7
+  f buildMergeCandidates!@c14>loadSddFeatures!@c7
+  f captureSurface!@c63>blobIdOfWorktreeFile!@c20
+  f captureSurface!@c63>receiptRelPath!@c34
+  f checkAdr!@c17>loadDocRoots!@c7
+  f checkAdr!@c17>toPosixRelative!@c19
+  f checkArchitecture!@c21>loadDocRoots!@c7
+  f checkArchitecture!@c21>toPosixRelative!@c19
