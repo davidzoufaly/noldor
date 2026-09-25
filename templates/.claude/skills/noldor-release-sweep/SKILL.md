@@ -1,12 +1,12 @@
 ---
 name: noldor-release-sweep
-description: Orchestrate the full pre-release sweep — /graphify (AST-only by default) → graph-to-toon → /noldor-refactor against the new GRAPH_REPORT.md (skipped when god nodes and cohesion are unchanged since the last tag; --refactor forces it) → README drift check → /graphify + graph-to-toon to capture the refactor → commit sweep results → pause for explicit user confirmation → the release pipeline. Full-semantic graphify is an explicit opt-in (--full-semantic). Use when the user signals they're ready to release. Never runs pnpm release without explicit confirmation.
+description: Orchestrate the full pre-release sweep — `pnpm noldor graphify build` → /noldor-refactor against the new GRAPH_REPORT.md (skipped when god nodes and cohesion are unchanged since the last tag; --refactor forces it) → README drift check → commit refactor leftovers + build the graph again to capture the refactor → commit sweep results → pause for explicit user confirmation → the release pipeline. Full-semantic `/graphify` is an explicit opt-in (--full-semantic). Use when the user signals they're ready to release. Never runs pnpm release without explicit confirmation.
 user_invocable: true
 ---
 
 # Release sweep — graphify → refactor → README → graphify → release
 
-This skill runs the non-negotiable pre-release sweep documented in [`docs/noldor/graph-integration.md`](../../../docs/noldor/graph-integration.md) as a single continuous flow, instead of stopping after graphify like the bare `/graphify` skill does.
+This skill runs the non-negotiable pre-release sweep documented in [`docs/noldor/graph-integration.md`](../../../docs/noldor/graph-integration.md) as a single continuous flow, from the first graph build to the release confirmation.
 
 ## Commands in this skill
 
@@ -49,23 +49,21 @@ If any check fails, stop and report. Do not proceed.
 
 ## Steps
 
-### 1. First graphify pass (AST-only by default)
+### 1. Build the graph (AST-only by default)
 
-Invoke the `graphify` skill (Skill tool, name `graphify`) with args `--ast-only (structural extraction only: run the AST part and merge with an empty semantic result; do NOT dispatch semantic extraction subagents)`. Wait for it to finish — it generates `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md`, and the HTML graph. Do NOT engage with its trailing "want me to trace it?" exploration prompt — you have downstream work to do.
+```bash
+pnpm noldor graphify build
+```
 
-**Why AST-only.** `/noldor-refactor` keys off god nodes, community cohesion, and dead exports — all of which come from the AST structural graph. The v0.4.0 full-semantic sweep fanned out 31 background subagents over 669 files; roughly half died mid-run (session-pause kills, API disconnects, stream-watchdog stalls), two chunks never landed, and the marginal value for the sweep was near zero. AST-only runs in seconds, is deterministic, and needs no agents.
+It writes `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md` and both toon files from HEAD's tree, under the Python packages noldor pins. The `update-knowledge-graph` workflow runs the same builder, so the graph this sweep commits is the one CI would commit. Right after a graph PR merged it prints that the graph is already built from this tree and writes nothing — the normal outcome, not a skipped step. Exit 2 means there is no usable Python environment; the fix is on stderr (usually: install Python 3.13, or point `NOLDOR_GRAPHIFY_PYTHON` at one).
 
-**Full-semantic opt-in.** Run the full semantic pipeline only when the operator explicitly asks for a deep pass — `/noldor-release-sweep --full-semantic` or an equivalent in-conversation request. In that case invoke `graphify` with no mode args (its default full pipeline). Never escalate to full-semantic on your own.
+**Why AST-only.** `/noldor-refactor` keys off god nodes, community cohesion, and dead exports — all of which come from the AST structural graph. The v0.4.0 full-semantic sweep fanned out 31 background subagents over 669 files; roughly half died mid-run (session-pause kills, API disconnects, stream-watchdog stalls), two chunks never landed, and the marginal value for the sweep was near zero. The build runs in seconds, gives the same bytes for the same commit, and needs no agents.
+
+**Full-semantic opt-in.** Run the full semantic pipeline only when the operator explicitly asks for a deep pass — `/noldor-release-sweep --full-semantic` or an equivalent in-conversation request. In that case, here and at step 5, invoke the `graphify` skill (Skill tool, name `graphify`) with no mode args (its default full pipeline) in place of the build, then `pnpm noldor graphify graph-to-toon graphify-out/graph.json`. Do not engage with its trailing "want me to trace it?" exploration prompt. LLM extraction is not deterministic, so the next CI graph run replaces what it writes. Never escalate to full-semantic on your own.
 
 ### 2. Toon files
 
-```bash
-pnpm noldor graphify graph-to-toon graphify-out/graph.json
-```
-
-The graph path is a required argument — the subcommand prints usage and exits non-zero when given none, so there is no bare form to fall back on.
-
-This regenerates `graphify-out/graph.brainstorm.toon`, `graphify-out/graph.brainstorm-summary.toon`. Required for downstream toon-aware reads.
+Nothing to run: step 1's build renders both toon files (`graphify-out/graph.brainstorm.toon`, `graphify-out/graph.brainstorm-summary.toon`), and the full-semantic path runs `graph-to-toon` itself.
 
 ### 3. /noldor-refactor against the fresh GRAPH_REPORT
 
@@ -99,9 +97,17 @@ If you find drift, DO NOT edit the README on the sweep branch — `README.md` is
 
 If README looks current, say so explicitly: "README reflects current state — no drift."
 
-### 5. Second graphify pass + toon
+### 5. Second graph build
 
-Invoke the `graphify` skill again — same mode as step 1 (AST-only by default; full-semantic only if the operator opted in there) — to capture the refactor. Then re-run `pnpm noldor graphify graph-to-toon graphify-out/graph.json`. The post-refactor graph is the snapshot that ships with the release tag. When step 3 skipped the refactor pass, nothing changed since step 1 — skip this pass too.
+The build reads HEAD, so an edit that is not committed is not in the graph. Commit any refactor leftover first — everything `git status --short` shows outside `graphify-out/`, which stays uncommitted until step 6:
+
+```bash
+git status --short
+git add <each refactor leftover>
+git commit -m "chore(release): commit refactor leftovers before the second graph build"
+```
+
+Then run `pnpm noldor graphify build` again — the same mode as step 1 (full-semantic only if the operator opted in there) — to capture the refactor. The post-refactor graph is the snapshot that ships with the release tag. When step 3 skipped the refactor pass, nothing changed since step 1 — skip this pass too.
 
 ### 5.5. Drift pre-empt — sdd:report
 
@@ -140,10 +146,10 @@ The `release-sweep` allowlist admits `docs/sdd-report.md`. If `git status` shows
 git status --short
 ```
 
-Stage and commit anything the sweep produced — `graphify-out/` and refactor changes that haven't been committed yet (the refactor skill commits its own structural edits, but the toon + graph regen typically lands here). README edits stay out — see step 4. Use a single commit:
+Stage and commit the graph the sweep built — `graphify-out/`. Refactor edits are already committed: the refactor skill commits its own, and step 5 committed any leftover before building. README edits stay out — see step 4. Use a single commit:
 
 ```bash
-git add graphify-out  # plus any uncommitted refactor leftover
+git add graphify-out
 git commit -m "chore(release): pre-release graphify + refactor sweep"
 ```
 
@@ -262,12 +268,12 @@ Do this regardless of release outcome (run, cancelled, deferred). The release-sw
 - **Never run `pnpm release` without `release now` confirmation.** Even if the user said "ready for release" earlier in the conversation. Even if they seem to expect it. The explicit gate is non-negotiable.
 - **AST-only is the default graph mode.** Never dispatch the semantic subagent fan-out unless the operator explicitly opted into `--full-semantic`. The AST graph already carries everything `/noldor-refactor` consumes.
 - **Never `--no-verify` or `--amend`** at any stage.
-- **Don't engage with `/graphify`'s post-run exploration prompt.** The skill ends with "want me to trace [question]?" — answer no implicitly by moving on to step 2.
+- **Under `--full-semantic`, don't engage with `/graphify`'s post-run exploration prompt.** The skill ends with "want me to trace [question]?" — answer no implicitly by moving on.
 - **If `pnpm verify` fails at step 1, 3, or 7** — stop. Don't paper over. The sweep can only ship a green main.
 - **If `/noldor-refactor` opens a substantial scope** (multi-day work) — pause and ask whether to continue or defer. The sweep should not silently turn into a multi-hour refactor.
 
 ## When NOT to use
 
 - Mid-feature work. The sweep is for the moment between "feature merged to main" and "tag the release".
-- Routine rebuilds of the graph during development. Use `/graphify` directly.
+- Routine rebuilds of the graph during development. Use `pnpm noldor graphify build` directly.
 - After a hotfix that doesn't bump a minor version. Patches can ship without the full sweep if the change is small enough that god-node / cohesion drift is impossible (e.g. one-line bug fix).
