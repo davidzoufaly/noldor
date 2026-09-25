@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Gate Exit-11 Record Prose Misstates --deferred
-
-- id: Q-0314
-- area: tooling
-- type: docs
-- since: 2026-09-25
-- size: XS
-- impact: med
-- confidence: high
-
-The gate skill's exit-11 (`next: apply-then-stop`) bullet says to `cr autofix record` "exactly as above", which reads like the all-mechanical `--deferred 0` form. After a MIXED round, `record` needs `--deferred <design count + unapplied mechanical>`: it derives the count from the sinks and refuses a disagreeing `--deferred` with exit 2. Fix the prose in `.claude/skills/noldor-gate/SKILL.md` (line 188) and its `templates/` twin. (PR #589)
-
 ### Graph-Freshness Remedies Ignore Uncommitted Edits
 
 - id: Q-0315

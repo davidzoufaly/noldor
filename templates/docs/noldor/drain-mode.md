@@ -165,7 +165,9 @@ dependency, so the prompt stays a thin pointer.
   re-run the code-stage orchestrate with the printed `base-sha`, and re-aggregate.
   (`--since` keeps the ledger's `diffStat` over the whole fix; without it round 1
   measures `HEAD~1..HEAD` and under-reports a `src/**` + `docs/noldor/**` split.)
-  On exit 11 (`next: apply-then-stop`) apply + record the `M<n>` subset, then stop
+  On exit 11 (`next: apply-then-stop`) apply + record the `M<n>` subset — with
+  `--deferred` = the `D<n>` count + any unapplied `M<n>`, never `0`: `record`
+  derives it from the sinks and refuses a mismatch with exit 2 — then stop
   looping — a design blocker rides along, so the next bullet handles it.
   With `autonomous.onBlockers: 'auto-fix'` this is what lets a mechanical-only red
   self-heal instead of failing the whole iteration — the drain's usual outcome for
