@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Design Verdict Check Edge Cases
-
-- id: Q-0281
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: XS
-- impact: low
-- confidence: med
-
-Three non-blocking edges `design verdict --check` still has, from PR #540's round-2 review: (a) `readApproval` (`src/design/design-approval.ts`) tests `existsSync`, which is false when a parent directory is unreadable, so an inaccessible record reads as absent ("take the verdict") instead of as a read failure — `statSync` with an `ENOENT` check tells them apart; (b) `specDiff` acquires its scratch dir outside its try, so a `mkdtempSync` failure throws out of `--check` instead of printing `could not diff`; (c) a `git diff` killed by a signal reports `exited null` — print `diff.signal`. Deletion test for (a): a record under a `chmod 000` directory makes `--check` exit 2 naming the read error. (found 2026-09-24, PR #540 review)
-
 ### Verify Whether Subagents Load CLAUDE.md
 
 - id: Q-0282
