@@ -21,7 +21,10 @@ afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
-describe('dashboard server', () => {
+// Most routes render from the live repo (git log over the last 30 days, the
+// feature docs), so one request costs ~1.5 s alone and several times that when
+// the full suite runs next to other suites that also read the repo.
+describe('dashboard server', { timeout: 30_000 }, () => {
   it('GET /health returns 200 OK', async () => {
     const res = await fetch(`${baseUrl}/health`);
     expect(res.status).toBe(200);
@@ -111,13 +114,15 @@ describe('dashboard server', () => {
     expect(body).toContain('<option value="30" selected');
   });
 
-  it('GET /wip-age?limit=999 clamps to 100; limit=0 to 1; limit=abc to 10', async () => {
-    const high = await (await fetch(`${baseUrl}/wip-age?limit=999`)).text();
-    expect(high).toContain('value="100"');
-    const zero = await (await fetch(`${baseUrl}/wip-age?limit=0`)).text();
-    expect(zero).toContain('value="1"');
-    const nan = await (await fetch(`${baseUrl}/wip-age?limit=abc`)).text();
-    expect(nan).toContain('value="10"');
+  // One request per case: each /wip-age render is a live-repo git log, so three
+  // in one case tripled its cost against a single budget.
+  it.each([
+    ['999', '100'],
+    ['0', '1'],
+    ['abc', '10'],
+  ])('GET /wip-age?limit=%s clamps to %s', async (limit, clamped) => {
+    const body = await (await fetch(`${baseUrl}/wip-age?limit=${limit}`)).text();
+    expect(body).toContain(`value="${clamped}"`);
   });
 
   it('GET /wip-age?format=json returns { wipAge, hotZones } as application/json', async () => {
