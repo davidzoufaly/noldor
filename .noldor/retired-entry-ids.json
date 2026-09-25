@@ -634,5 +634,9 @@
   "Q-0289": {
     "slug": "upgrade-restarts-the-dashboard",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0290": {
+    "slug": "graph-freshness-reads-git-not-mtime",
+    "retiredAt": "2026-09-25"
   }
 }

@@ -1,10 +1,13 @@
 // @fd: sdd-co-tag-detector
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 
+import { defaultRunGit } from '../core/branch-added.js';
 import { readTextFiles, walkRepo } from '../core/fd-load.js';
 import type { FeatureRecord, Gap } from '../core/fd-load.js';
 import { TEST_FILE_RE, newestMtimeInRoots, scanRoots } from '../core/repo-paths.js';
+import { GRAPH_IRRELEVANT_EXCLUDES } from '../release/graph-freshness.js';
 import { extractTags } from '../sync/sync-test-links.js';
 
 /**
@@ -63,13 +66,17 @@ const STALE_GAP_MESSAGE_PREFIX = 'Co-tag detector ran in degraded mode:';
  *   self-contained meta-gap when stale or the graph file is missing.
  *
  * @remarks
- * Mtime-based staleness is intentionally cheap; CLAUDE.md's pre-release
- * sweep already forces a fresh `/graphify` regen, so any false-stale
- * (e.g. after `git checkout`) is harmless — it forces a regen, which is
- * the right outcome anyway. A false-stale that every test run re-creates is
- * not: build and test output written under a scan root (Playwright's
- * `test-results/`) undid each regen, so gitignored files are left out — see
- * `newestMtimeInRoots`.
+ * Two legs, and either one passing is fresh. The git leg asks what the
+ * committed history says (see {@link committedGraphIsFresh}); the mtime leg
+ * asks whether the file on disk outranks every source file. Mtime alone read
+ * a current graph as stale after an ordinary pull: a pull bringing a code merge
+ * together with its graph refresh writes files in index order, and
+ * `graphify-out/` sorts before `src/`, so `graph.json` lands milliseconds
+ * before the code it describes (Q-0290). The mtime leg stays for what git
+ * cannot vouch for — a local regen not yet committed, or a repo that does not
+ * track the graph. Gitignored files are left out of it, so build and test
+ * output under a scan root (Playwright's `test-results/`) cannot undo a regen
+ * — see `newestMtimeInRoots`.
  */
 export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): LoadGraphResult {
   if (!existsSync(graphPath)) {
@@ -84,7 +91,9 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
   }
 
   const graphMtime = statSync(graphPath).mtimeMs;
-  const newestSrcMtime = newestMtimeInRoots(process.cwd(), srcRoots);
+  const newestSrcMtime = committedGraphIsFresh(graphPath, srcRoots)
+    ? null
+    : newestMtimeInRoots(process.cwd(), srcRoots);
 
   if (newestSrcMtime !== null && newestSrcMtime > graphMtime) {
     const graphDate = new Date(graphMtime).toISOString().slice(0, 10);
@@ -102,6 +111,42 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
   const raw = readFileSync(graphPath, 'utf8');
   const graph = JSON.parse(raw) as GraphifyGraph;
   return { graph, ok: true };
+}
+
+/**
+ * Git leg of {@link loadFreshGraphOrWarn}: the graph is tracked, its file is
+ * its committed content, no commit after the graph's last one touches a scan
+ * root, and nothing under a scan root has uncommitted changes.
+ *
+ * Commit order, not commit time — `rev-list <graph-commit>..HEAD` counts the
+ * commits the graph has not seen, so clock skew and same-second merges cannot
+ * swing it. Test-only and doc-only changes are ignored on both halves, the
+ * same scope the release gate reads ({@link GRAPH_IRRELEVANT_EXCLUDES}).
+ * Untracked files show in `git status --porcelain` and ignored ones do not, so
+ * a new source file stales the graph and build output does not. Any git
+ * failure (not a repo, no commits, git missing) reads as not-fresh, which
+ * hands the verdict to the mtime leg rather than inventing one.
+ */
+function committedGraphIsFresh(graphPath: string, srcRoots: readonly string[]): boolean {
+  const graphAbs = resolve(graphPath);
+  const top = defaultRunGit(dirname(graphAbs))(['rev-parse', '--show-toplevel']);
+  if (top.status !== 0) return false;
+  // Run from the top level: the exclude globs are pathspecs, resolved against
+  // git's cwd, so from `graphify-out/` they would never match a source file.
+  const run = defaultRunGit(top.stdout.trim());
+  const quiet = (args: readonly string[]): boolean => {
+    const r = run(args);
+    return r.status === 0 && r.stdout.trim().length === 0;
+  };
+  const graphCommit = run(['log', '-1', '--format=%H', '--', graphAbs]);
+  const sha = graphCommit.stdout.trim();
+  if (graphCommit.status !== 0 || sha.length === 0) return false;
+  const sources = [...srcRoots.map((root) => resolve(root)), ...GRAPH_IRRELEVANT_EXCLUDES];
+  return (
+    quiet(['status', '--porcelain', '--', graphAbs]) &&
+    quiet(['rev-list', '-1', `${sha}..HEAD`, '--', ...sources]) &&
+    quiet(['status', '--porcelain', '--', ...sources])
+  );
 }
 
 /**

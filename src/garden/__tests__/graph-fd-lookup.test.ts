@@ -287,6 +287,64 @@ describe(loadFreshGraphOrWarn, () => {
     });
   });
 
+  // Q-0290: a pull that brings a code merge together with its graph refresh
+  // writes `graphify-out/` before `src/`, so the current graph is milliseconds
+  // older than the code it describes. The committed history is the measure.
+  function pulledRepo(dir: string) {
+    const src = join(dir, 'src');
+    const source = join(src, 'app.ts');
+    const graphPath = join(dir, 'graphify-out', 'graph.json');
+    mkdirSync(src, { recursive: true });
+    mkdirSync(dirname(graphPath), { recursive: true });
+    writeFileSync(source, 'x');
+    writeFileSync(graphPath, JSON.stringify({ nodes: [], links: [] }));
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    git('init', '-q');
+    const commit = (msg: string) => {
+      git('add', '-A');
+      git('-c', 'user.email=t@example.com', '-c', 'user.name=T', 'commit', '-qm', msg);
+    };
+    commit('code + graph refresh');
+    const past = new Date(Date.now() - 60_000);
+    utimesSync(graphPath, past, past);
+    return { commit, graphPath, source, src };
+  }
+
+  it('stays fresh when the committed graph is older on disk than the code it covers', () => {
+    withTmp((dir) => {
+      const { graphPath, src } = pulledRepo(dir);
+      expect(loadFreshGraphOrWarn(graphPath, [src]).ok).toBe(true);
+    });
+  });
+
+  it('goes stale when a source commit lands after the graph commit', () => {
+    withTmp((dir) => {
+      const { commit, graphPath, source, src } = pulledRepo(dir);
+      writeFileSync(source, 'y');
+      commit('code without a graph refresh');
+      const result = loadFreshGraphOrWarn(graphPath, [src]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(isStaleGraphGap(result.gap)).toBe(true);
+    });
+  });
+
+  it('goes stale when a source file has uncommitted changes', () => {
+    withTmp((dir) => {
+      const { graphPath, source, src } = pulledRepo(dir);
+      writeFileSync(source, 'y');
+      expect(loadFreshGraphOrWarn(graphPath, [src]).ok).toBe(false);
+    });
+  });
+
+  it('stays fresh when only a test file changed after the graph commit', () => {
+    withTmp((dir) => {
+      const { commit, graphPath, src } = pulledRepo(dir);
+      writeFileSync(join(src, 'app.test.ts'), 'x');
+      commit('test only');
+      expect(loadFreshGraphOrWarn(graphPath, [src]).ok).toBe(true);
+    });
+  });
+
   it('returns a missing-graph gap when graph.json does not exist', () => {
     withTmp((dir) => {
       const missingPath = join(dir, 'nope.json');
