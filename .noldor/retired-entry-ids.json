@@ -697,5 +697,9 @@
   "Q-0307": {
     "slug": "drain-lock-readers-share-readholder",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0308": {
+    "slug": "load-timeout-tests-in-dashboard-and-sdd-report",
+    "retiredAt": "2026-09-25"
   }
 }

@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Load-Timeout Tests in Dashboard and sdd-report
-
-- id: Q-0308
-- area: testing
-- type: fix
-- since: 2026-09-25
-- size: S
-- impact: med
-- confidence: med
-
-Two full-suite reds are load timeouts that plain `origin/main` shows too, so a branch that hits them has not broken anything. `src/dashboard/__tests__/dashboard-server.test.ts` → `GET /wip-age?limit=999 clamps to 100…` timed out at 10 s in two full runs of the Q-0286 branch and in two full runs after rebasing Q-0292 onto 26665b4; alone it passes in 3.9 s (three sequential `/wip-age` requests over the live repo history). One `src/garden/__tests__/sdd-report.test.ts` case also timed out; a detached `origin/main` at 519e461 redded the same dashboard case and a different `sdd-report.test.ts` case. Each file passes alone. Same family as Q-0171 (suites that read live repo state). Raise those tests' budgets or cut their cost; until then, compare against an `origin/main` run before blaming the branch. Deletion test: both files pass in three concurrent full-suite runs. (found 2026-09-25 shipping Q-0286 and Q-0292)
-
 ### Design Archive Repoints a Folded links.spec
 
 - id: Q-0309

@@ -1,9 +1,10 @@
 // @tests: bootstrap-immunity-for-self-gating-features, dashboard-roadmap-drag-drop, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100, noldor, outcome-telemetry-and-effectiveness-metrics, release-script-sddreport-skip-if-only-count-line-changed, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering, sdd-co-tag-detector
 
-import { execSync } from 'node:child_process';
+import { exec, execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { promisify } from 'node:util';
 
 import {
   buildGateComplianceSection,
@@ -37,6 +38,8 @@ import type { FeatureRecord } from '../../core/fd-load.js';
 
 import type { FeatureFrontmatter } from '../../core/feature-schema.js';
 import type { BacklogEntry } from '../../utils/parse-blocks.js';
+
+const execAsync = promisify(exec);
 
 const fmDoneNoTests: FeatureFrontmatter = {
   area: 'example',
@@ -687,7 +690,10 @@ describe(detectReadmePackageDrift, () => {
   });
 });
 
-describe('sdd:report --json', () => {
+// The CLI cases spawn `tsx` over the whole live repo. The markdown run also
+// computes metrics and a clone scan (~4 s alone, ~30 s under three concurrent
+// full suites), so the budgets sit well above the 10 s default.
+describe('sdd:report --json', { timeout: 30_000 }, () => {
   it('emits a JSON array of {category, itemId, message} on stdout', () => {
     const out = execSync('tsx src/garden/sdd-report.ts --json', {
       cwd: process.cwd(),
@@ -707,29 +713,33 @@ describe('sdd:report --json', () => {
   });
 });
 
-describe('sdd:report markdown output', () => {
-  // Tests in this describe invoke the real CLI. The `--out <tmp>` flag points
-  // each invocation at a tmpdir-scoped path so the live `docs/sdd-report.md`
-  // is never mutated — running `pnpm test` no longer dirties the working
-  // tree, which previously broke `pnpm release`'s clean-tree precondition.
+describe('sdd:report markdown output', { timeout: 30_000 }, () => {
+  // The real CLI runs once per mode, both at the same time, and the cases read
+  // what it wrote. `--out <tmp>` keeps the live `docs/sdd-report.md` untouched —
+  // running `pnpm test` no longer dirties the working tree, which previously
+  // broke `pnpm release`'s clean-tree precondition.
   let tmpDir: string;
-  let outPath: string;
+  let defaultOut: string;
+  let releaseOut: string;
 
-  beforeEach(() => {
+  beforeAll(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'sdd-report-'));
-    outPath = join(tmpDir, 'sdd-report.md');
-  });
+    defaultOut = join(tmpDir, 'sdd-report.md');
+    releaseOut = join(tmpDir, 'sdd-report-release.md');
+    await Promise.all([
+      execAsync(`tsx src/garden/sdd-report.ts --out ${defaultOut}`, { cwd: process.cwd() }),
+      execAsync(`tsx src/garden/sdd-report.ts --release --out ${releaseOut}`, {
+        cwd: process.cwd(),
+      }),
+    ]);
+  }, 60_000);
 
-  afterEach(() => {
+  afterAll(() => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('writes oxfmt-compliant markdown (no extra fmt pass needed)', () => {
-    execSync(`tsx src/garden/sdd-report.ts --out ${outPath}`, {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-    });
-    const result = execSync(`pnpm --silent fmt:check ${outPath}`, {
+    const result = execSync(`pnpm --silent fmt:check ${defaultOut}`, {
       cwd: process.cwd(),
       encoding: 'utf8',
     });
@@ -737,30 +747,22 @@ describe('sdd:report markdown output', () => {
   });
 
   it('omits Gate compliance section by default (review-skip counter only shipped at release)', () => {
-    execSync(`tsx src/garden/sdd-report.ts --out ${outPath}`, {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-    });
     // Assert on whole emitted LINES, not a whole-document regex. Every gap-detail
     // bullet starts `- `, so line-anchoring makes it impossible for quoted
     // `ideas.md` prose that happens to name the receipt key to false-red this
     // test while the section is genuinely absent. The review-skip line is matched
     // via the shared literal so the assertion can't desync from the emitter.
-    const lines = readFileSync(outPath, 'utf8').split('\n');
+    const lines = readFileSync(defaultOut, 'utf8').split('\n');
     expect(lines).not.toContain('## Gate compliance');
     expect(lines.some((l) => l.startsWith('### Review-skip count'))).toBe(false);
     expect(lines.some((l) => l.startsWith(REVIEW_SKIP_COUNT_PREFIX))).toBe(false);
   });
 
   it('includes Gate compliance section when --release flag is passed', () => {
-    execSync(`tsx src/garden/sdd-report.ts --release --out ${outPath}`, {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-    });
     // Line-anchored for the same reason as the negative twin above — otherwise a
     // quoted idea bullet naming the section could carry this assertion green even
     // if --release stopped emitting the section.
-    const lines = readFileSync(outPath, 'utf8').split('\n');
+    const lines = readFileSync(releaseOut, 'utf8').split('\n');
     expect(lines).toContain('## Gate compliance');
     expect(lines.some((l) => l.startsWith(REVIEW_SKIP_COUNT_PREFIX))).toBe(true);
   });
