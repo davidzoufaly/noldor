@@ -725,5 +725,9 @@
   "Q-0322": {
     "slug": "migration-coverage-fires-on-additive-only-schema-changes",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0317": {
+    "slug": "move-noldor-refactor-phase-6-onto-graphify-build",
+    "retiredAt": "2026-09-25"
   }
 }
