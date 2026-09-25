@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Drain Child Waits for Its Background Tasks
-
-- id: Q-0299
-- area: tooling
-- type: fix
-- since: 2026-09-25
-- size: XS
-- impact: med
-- confidence: high
-
-`claude --print` kills a drain child's background tasks 600 s after its turn ends. The first `gate-skill-leftovers-from-q-0192` attempt ends in the drain log with `Background tasks still running after 600s; terminating. Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 to wait indefinitely.`, with no PR; its code-stage `cr orchestrate` had been running under a Bash tool call minutes earlier. The drain-mode contract already forbids backgrounding these commands, and the child did it anyway. Options: the supervisor sets `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` in the child env, or reads that line as its own failure reason instead of a plain no-PR exit. Deletion test: a child killed this way is reported with that reason in the drain log and the escalation inbox. (found 2026-09-25)
-
 ### Design Log Section Resolves on Decide and Open
 
 - id: Q-0300
