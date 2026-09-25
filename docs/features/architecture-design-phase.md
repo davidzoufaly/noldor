@@ -6,14 +6,15 @@ entry-id: Q-0296
 links:
   code: []
   spec: docs/design/specs/2026-09-24-architecture-design-phase-design.md
-  tests: []
+  tests:
+    - src/design/__tests__/arch-check.test.ts
+    - src/design/__tests__/arch-pen.test.ts
 name: pen.dev Architecture Design Phase
 packages:
   - package.json
 phase: in-progress
 noldor-tier: full
 ---
-
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->
