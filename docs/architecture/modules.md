@@ -32,6 +32,7 @@ flowchart TD
     validate[src/validate]
     verify[src/verify]
     garden[src/garden]
+    indirection[src/indirection]
   end
 
   subgraph projection[Projection and reporting]
@@ -57,11 +58,10 @@ flowchart TD
     fixtures[src/fixtures]
   end
 
-  cli --> workflow
   cli --> quality
-  cli --> projection
   cli --> shipping
-  hooks --> quality
+  hooks --> workflow
+  hooks --> projection
   hooks --> core
 
   workflow --> core
@@ -71,8 +71,13 @@ flowchart TD
   core --> utils
   garden --> docs
   release --> garden
-  autonomous --> cr
 ```
+
+Every arrow here is backed by a static import, the same rule
+`pnpm noldor checks arch-baseline` holds the architecture baseline to. The CLI
+also reaches the workflow and projection modules, but through a computed
+`import(path)` off the command manifest, which no static graph can see — so
+those arrows are not drawn.
 
 ## State ownership
 
@@ -82,6 +87,7 @@ flowchart TD
 | `src/cr` | `.noldor/cr/*.json` review sinks, the auto-fix round ledger |
 | `src/triage` | `.noldor/id-counter.json`, `.noldor/retired-entry-ids.json` |
 | `src/clones` | `.noldor/clones-baseline.json` |
+| `src/indirection` | `.noldor/indirection-baseline.json` |
 | `src/rules` | `.noldor/rules/*.md` |
 | `src/design` | `.noldor/design/*.md` dialogue ledgers |
 | `src/autonomous` | drain state, escalation inbox, watch state |
