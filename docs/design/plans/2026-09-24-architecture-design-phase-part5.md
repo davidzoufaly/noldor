@@ -554,7 +554,7 @@ Without the third rank, `architecture/archive/…` would sort ahead of a live `u
 
 - [ ] **Step 2: Run the test to verify it fails.**
 
-  Run: `pnpm vitest run src/design/__tests__/pen-bridge.test.ts -t "architecture designs"`
+  Run: `pnpm vitest run src/design/__tests__/pen-bridge.test.ts -t "live designs of either kind"`
   Expected: FAIL. The architecture design and baseline sort among "anything else", and the UI archive entry ranks with the live designs.
 
 - [ ] **Step 3: Rank both kinds.**
