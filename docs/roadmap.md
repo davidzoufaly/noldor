@@ -33,18 +33,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Deletion tests: several processes calling `acquireLock` at the same instant leave exactly one holder; and while a claim on the dead lock's inode is held, `acquireLock` leaves the lock alone. (found 2026-09-24 in the Q-0238 spec review and fixing PR #538's review blocker)
 
-### Design Links Open From a Terminal
-
-- id: Q-0288
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: S
-- impact: med
-- confidence: med
-
-Spec and plan links do not open when the operator runs Claude Code in iTerm2 rather than the VS Code extension. `pnpm noldor design open` prints a `link:` line built by `buildArtifactLink` (`src/design/open-artifact.ts`) as a markdown link to a workspace-relative path — which the VS Code extension resolves against the workspace folder, but a terminal has no workspace to resolve against, so the link is dead there. The harness is knowable: `CLAUDE_CODE_ENTRYPOINT` is `cli` in a terminal and `claude-vscode` under the extension (`checks pen-bridge` already reads it). Wanted: in a terminal harness, `design open` prints something the terminal can open — an absolute path or a `file://` URL (iTerm2 opens both on ⌘-click) — and keeps today's workspace-relative link under the extension. Deletion test: under `CLAUDE_CODE_ENTRYPOINT=cli`, the `link:` line names an absolute path that exists. (operator report, 2026-09-24)
-
 ### Upgrade Restarts the Dashboard
 
 - id: Q-0289
