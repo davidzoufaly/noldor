@@ -1,6 +1,6 @@
 ---
 name: SDD Co-Tag Detector
-phase: in-progress
+phase: done
 area: tooling
 category: Tooling
 packages:
@@ -47,6 +47,8 @@ A report row:
 ```
 - `packages/format/src/__tests__/tree.test.ts` — imports files owned by FDs missing from @tests: tag — add: group-node
 ```
+
+A row is only as good as `links.code`: an FD that claims a shared helper makes every test importing it owe that FD a tag. Before draining, prune claims to the files each FD is about ([ADR 0008](../adr/0008-links-code-means-what-a-file-is-about.md)); on 2026-09-25 that cut 606 proposed tags to 112.
 
 Draining the backlog, one reviewable batch at a time:
 
