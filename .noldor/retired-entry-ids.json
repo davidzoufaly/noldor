@@ -647,5 +647,9 @@
     "slug": "ui-baseline-validity-not-just-recency",
     "retiredInto": "pendev-ui-design-phase",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0286": {
+    "slug": "drain-lock-atomic-publish-and-safe-reclaim",
+    "retiredAt": "2026-09-25"
   }
 }

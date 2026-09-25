@@ -16,23 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Drain Lock Atomic Publish and Safe Reclaim
-
-- id: Q-0286
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: S
-- impact: med
-- confidence: med
-
-`acquireLock` in `src/autonomous/drain-lock.ts` has two races that can leave two supervisors draining one repo. Both are rare, because supervisors seldom start in the same instant, and the Q-0238 suite lock (`src/testing/suite-lock.ts`, PR #538) already solves both.
-
-- **Payload window.** The lock is created with `openSync(path, 'wx')` and its `{ pid, startedAt }` payload is written in a second call. A second supervisor that reads the file between the two sees an empty payload, treats the holder as dead, renames the live lock aside and takes it — the reclaim path turns "unparseable" into "dead" with no age check. Fix: publish the lock with its content in one step (write a temp file, then `linkSync` it into place — `EEXIST` means held).
-- **Stale-read reclaim.** The reclaim renames a dead holder's `.noldor/drain.lock` aside and unlinks it without reading what it moved, so a supervisor that judged an older holder dead can move and delete a lock another supervisor has just taken. The suite lock's `replaceDead` is the pattern: hard-link the dead lock to a claim named after its inode (one holder per inode), judge the holder again through the claim, confirm the lock is still that inode, then rename the new lock over it so the path is never free.
-
-Deletion tests: several processes calling `acquireLock` at the same instant leave exactly one holder; and while a claim on the dead lock's inode is held, `acquireLock` leaves the lock alone. (found 2026-09-24 in the Q-0238 spec review and fixing PR #538's review blocker)
-
 ### Geometry-Compare Lane — the Automated Half
 
 - id: Q-0180
