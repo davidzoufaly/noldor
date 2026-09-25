@@ -15,6 +15,7 @@ links:
   spec: >-
     docs/design/specs/archive/2026-09-22-self-refreshing-compact-knowledge-graph-design.md
   tests:
+    - src/core/__tests__/scratch-dir.test.ts
     - src/graphify/__tests__/build-e2e.test.ts
     - src/graphify/__tests__/build.test.ts
     - src/graphify/__tests__/graph-to-toon.test.ts
@@ -26,6 +27,7 @@ phase: done
 noldor-tier: full
 introduced: 1.12.0
 ---
+
 ## Summary
 
 The committed knowledge graph refreshes itself: a merged `feat`, `fix` or
@@ -138,6 +140,7 @@ This release ships a knowledge-graph refresh workflow (#501).
   - [`src/templates/manifest.ts`](../../src/templates/manifest.ts)
   - [`templates/.github/workflows/update-knowledge-graph.yml`](../../templates/.github/workflows/update-knowledge-graph.yml)
 - **Tests:**
+  - [`src/core/__tests__/scratch-dir.test.ts`](../../src/core/__tests__/scratch-dir.test.ts)
   - [`src/graphify/__tests__/build-e2e.test.ts`](../../src/graphify/__tests__/build-e2e.test.ts)
   - [`src/graphify/__tests__/build.test.ts`](../../src/graphify/__tests__/build.test.ts)
   - [`src/graphify/__tests__/graph-to-toon.test.ts`](../../src/graphify/__tests__/graph-to-toon.test.ts)
