@@ -54,7 +54,7 @@ Three rules need the kind.
    It now asks `penCandidatesForRecord`.
 3. **The baseline rule.** It now covers the one architecture baseline file. The baseline is also left out of the feature-design set, so its first commit is not refused as an unkeyable design. That refusal would sit before the override and could not be waived.
 
-- [ ] **Step 1: Move the existing lookup and tamper tests onto record paths.**
+- [x] **Step 1: Move the existing lookup and tamper tests onto record paths.**
 
   In `src/checks/__tests__/check-shared-files.test.ts`:
 
@@ -72,7 +72,7 @@ Three rules need the kind.
     const penInHead: PenBlobLookup = (record) => (record === RECORD ? OID_A : null);
   ```
 
-- [ ] **Step 2: Add the failing architecture cases.**
+- [x] **Step 2: Add the failing architecture cases.**
 
   1. In the `stagedAwarePenLookup` block, append:
 
@@ -133,12 +133,12 @@ Three rules need the kind.
   });
   ```
 
-- [ ] **Step 3: Run the tests to verify they fail.**
+- [x] **Step 3: Run the tests to verify they fail.**
 
   Run: `pnpm vitest run src/checks/__tests__/check-shared-files.test.ts`
   Expected: FAIL. The moved lookup cases fail, because the lookup still expects a stem and returns `null` for a record path. The architecture cases fail because the guard ignores `docs/design/architecture/`: the unrecorded design passes, and the worktree baseline edit is not refused.
 
-- [ ] **Step 4: Invert the record path.**
+- [x] **Step 4: Invert the record path.**
 
   In `src/design/design-approval.ts`:
 
@@ -176,7 +176,7 @@ Three rules need the kind.
   }
   ```
 
-- [ ] **Step 5: Make the guard kind-aware.**
+- [x] **Step 5: Make the guard kind-aware.**
 
   In `src/checks/check-shared-files.ts`:
 
@@ -283,7 +283,7 @@ Three rules need the kind.
   7. Change `if (inWorktree && entry.path.startsWith(BASELINE_PREFIX)) {` to `if (inWorktree && isBaselinePen(entry.path)) {`.
   8. In `REMEDIATION['pen-baseline']`, change `'UI baseline .pen edited from a feature worktree.\n'` to `'Baseline .pen (UI or architecture) edited from a feature worktree.\n'`.
 
-- [ ] **Step 6: Run the tests and the typecheck to verify they pass.**
+- [x] **Step 6: Run the tests and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/checks/__tests__/check-shared-files.test.ts src/design/__tests__/design-approval.test.ts`
   Expected: PASS.
@@ -291,7 +291,7 @@ Three rules need the kind.
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 7: Commit.**
+- [x] **Step 7: Commit.**
 
   ```bash
   msg=$(mktemp)

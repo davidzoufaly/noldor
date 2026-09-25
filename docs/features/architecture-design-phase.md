@@ -13,6 +13,8 @@ links:
   spec: docs/design/specs/2026-09-24-architecture-design-phase-design.md
   tests:
     - src/checks/__tests__/check-arch-baseline.test.ts
+    - src/core/__tests__/feature-schema.test.ts
+    - src/core/__tests__/session.test.ts
     - src/design/__tests__/arch-check.test.ts
     - src/design/__tests__/arch-pen.test.ts
     - src/design/__tests__/design-approval.test.ts

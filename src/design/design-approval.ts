@@ -18,7 +18,13 @@ import { basename, join } from 'node:path';
 import { z } from 'zod';
 
 import { parseReceiptWith } from '../core/blob-id.js';
-import { designKindOfPath, specSlugFromFilename } from '../core/design-artifact-names.js';
+import {
+  ARCH_DESIGN_DIR,
+  ARCHIVE_DIR,
+  designKindOfPath,
+  specSlugFromFilename,
+  UI_DESIGN_DIR,
+} from '../core/design-artifact-names.js';
 import { errMessage } from '../core/err-message.js';
 import { writeReceiptFile } from '../core/receipt-store.js';
 
@@ -94,6 +100,24 @@ export function approvalDirSegments(pen: string): readonly string[] {
 /** Record path relative to the repo root, for git pathspecs and staged-set lookups. */
 export function approvalRelPath(pen: string): string {
   return `${approvalDirSegments(pen).join('/')}/${basename(pen, '.pen')}.json`;
+}
+
+/**
+ * The `.pen` paths a record path can stand for — the design and its `archive/`
+ * twin, in the record's own design kind — or `[]` for a path that is not a
+ * record. The inverse of {@link approvalRelPath}; the guard's record-tamper
+ * rule uses it to find the design a staged record belongs to.
+ */
+export function penCandidatesForRecord(recordRelPath: string): string[] {
+  const root = `${APPROVAL_DIR_SEGMENTS.join('/')}/`;
+  if (!recordRelPath.startsWith(root) || !recordRelPath.endsWith('.json')) return [];
+  const rest = recordRelPath.slice(root.length, -'.json'.length);
+  const archPrefix = 'architecture/';
+  const [dir, stem] = rest.startsWith(archPrefix)
+    ? [ARCH_DESIGN_DIR, rest.slice(archPrefix.length)]
+    : [UI_DESIGN_DIR, rest];
+  if (stem === '' || stem.includes('/')) return [];
+  return [`${dir}/${stem}.pen`, `${dir}/${ARCHIVE_DIR}/${stem}.pen`];
 }
 
 /**
