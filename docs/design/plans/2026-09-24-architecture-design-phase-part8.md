@@ -470,7 +470,7 @@ The binding rules, each refused with exit 2:
 
 Drafting a milestone is a micro-chore. The micro-chore lane must admit two paths so the target lands in the same commit as the milestone file: the target `.pen`, and its record. The guard's approval rule still applies to the target, now keyed by its slug. Before this task it refused every target as unkeyable.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   1. Append to `src/checks/__tests__/check-shared-files.test.ts`:
 
@@ -513,14 +513,14 @@ Drafting a milestone is a micro-chore. The micro-chore lane must admit two paths
     });
   ```
 
-- [ ] **Step 2: Run the tests to verify they fail.**
+- [x] **Step 2: Run the tests to verify they fail.**
 
   Run: `pnpm vitest run src/checks/__tests__/check-shared-files.test.ts src/core/__tests__/allowlist.test.ts`
   Expected: FAIL.
   - The matching-record case is still refused, because the undated target is unkeyable.
   - The lane case is `false`.
 
-- [ ] **Step 3: Key the target in the guard.**
+- [x] **Step 3: Key the target in the guard.**
 
   In `src/checks/check-shared-files.ts`:
   1. Add `milestoneSlugFromPenPath` to the design-artifact-names import.
@@ -530,7 +530,7 @@ Drafting a milestone is a micro-chore. The micro-chore lane must admit two paths
       const key = milestoneSlugFromPenPath(entry.path) ?? penSlugFromFilename(base);
   ```
 
-- [ ] **Step 4: Admit the target on the micro-chore lane.**
+- [x] **Step 4: Admit the target on the micro-chore lane.**
 
   In `src/core/allowlist.ts`, inside `MICRO_CHORE_GLOBS`, directly after `'.noldor/retired-entry-ids.json',`, add:
 
@@ -543,7 +543,7 @@ Drafting a milestone is a micro-chore. The micro-chore lane must admit two paths
     '.noldor/design-approval/architecture/milestones/*.json',
   ```
 
-- [ ] **Step 5: Run the tests and the typecheck to verify they pass.**
+- [x] **Step 5: Run the tests and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/checks/__tests__/check-shared-files.test.ts src/core/__tests__/allowlist.test.ts`
   Expected: PASS.
@@ -551,7 +551,7 @@ Drafting a milestone is a micro-chore. The micro-chore lane must admit two paths
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
   ```bash
   msg=$(mktemp)

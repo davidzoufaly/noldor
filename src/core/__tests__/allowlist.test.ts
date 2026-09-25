@@ -1,4 +1,4 @@
-// @tests: release-sweep-process-hardening
+// @tests: release-sweep-process-hardening, architecture-design-phase
 import { describe, expect, it } from 'vitest';
 import {
   isBookkeepingOnly,
@@ -98,6 +98,21 @@ describe('micro-chore allowlist', () => {
     expect(isMicroChoreAllowed(['.noldor/session.json'])).toBe(false);
     expect(isMicroChoreAllowed(['.noldor/clones-baseline.json'])).toBe(false);
     expect(isMicroChoreAllowed(['.noldor/indirection-baseline.json'])).toBe(false);
+  });
+  it('accepts a milestone file with its target design and approval record', () => {
+    expect(
+      isMicroChoreAllowed([
+        'docs/milestones/m1.md',
+        'docs/design/architecture/milestones/m1.pen',
+        '.noldor/design-approval/architecture/milestones/m1.json',
+      ]),
+    ).toBe(true);
+  });
+  it('still rejects a feature architecture design and its record', () => {
+    expect(isMicroChoreAllowed(['docs/design/architecture/2026-09-24-x.pen'])).toBe(false);
+    expect(isMicroChoreAllowed(['.noldor/design-approval/architecture/2026-09-24-x.json'])).toBe(
+      false,
+    );
   });
 });
 

@@ -15,6 +15,12 @@ export const MICRO_CHORE_GLOBS = [
   // own paperwork — can only land through a `Noldor-Path-Override`.
   '.noldor/id-counter.json',
   '.noldor/retired-entry-ids.json',
+  // A milestone's target architecture and its approval record: drafting a
+  // milestone is a micro-chore, and the target lands in the same commit as the
+  // milestone file. The `.pen` guard still demands the record, so the lane
+  // widens what may land, never what may land unapproved.
+  'docs/design/architecture/milestones/*.pen',
+  '.noldor/design-approval/architecture/milestones/*.json',
   // Consumer config. On the lane because gates *print remedies that edit it*:
   // `ui-design-freshness` tells the operator to declare `consumer.uiCapture` for
   // a surface by name, and until this entry the declaration could not be

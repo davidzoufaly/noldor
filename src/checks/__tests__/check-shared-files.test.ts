@@ -521,3 +521,26 @@ describe('check-shared-files / evaluate — architecture designs', () => {
     );
   });
 });
+
+describe('check-shared-files / evaluate — milestone targets', () => {
+  const TARGET = 'docs/design/architecture/milestones/m1.pen';
+  const RECORD = '.noldor/design-approval/architecture/milestones/m1.json';
+  const addTarget: StagedChange = { path: TARGET, change: 'add', blob: OID_A };
+
+  it('keys a milestone target by its slug: refused with no record, accepted with a matching one', () => {
+    expect(evaluate([addTarget], MAIN, {}, NO_RECORDS)).toEqual([
+      { path: TARGET, reason: 'pen-unapproved' },
+    ]);
+    const lookup: RecordLookup = (p) => (p === RECORD ? approvedRecord(OID_A) : null);
+    expect(evaluate([addTarget], MAIN, {}, lookup)).toEqual([]);
+  });
+
+  it('refuses dropping the record of a target that stays', () => {
+    const staged: StagedChange[] = [{ path: RECORD, change: 'delete', blob: ZERO }];
+    const lookup = stagedAwareRecordLookup(staged, () => approvedRecord(OID_A));
+    const targetInHead = stagedAwarePenLookup([], (rel) => (rel === TARGET ? OID_A : null));
+    expect(evaluate(staged, MAIN, {}, lookup, targetInHead)).toEqual([
+      { path: RECORD, reason: 'pen-unapproved' },
+    ]);
+  });
+});
