@@ -40,18 +40,36 @@ async function dispatch(srcRelative: string, argsAfterModulePath: string[]): Pro
   await import(pathToFileURL(modPath).href);
 }
 
+/** Whether one argv token carries whitespace — a word the shell did not split. */
+const hasSpace = (s: string): boolean => /\s/.test(s);
+
 /**
- * Print `Unknown command`/`Unknown subcommand` and exit 1, appending the
- * framework-skew diagnosis when the consumer's anchor and the installed package
- * disagree.
+ * Print `Unknown command`/`Unknown subcommand` with the tokens it received and
+ * exit 1, appending the framework-skew diagnosis when the consumer's anchor and
+ * the installed package disagree.
+ *
+ * A token carrying whitespace is shown quoted and answered with the word-split
+ * diagnosis instead of the skew one. zsh does not word-split `$var`, so
+ * `pnpm noldor $c` with `c="checks template-sync"` arrives as ONE argument;
+ * printed bare it is indistinguishable from two, and the skew hint would then
+ * prescribe `noldor upgrade` for a caller that only needs to split its words.
  *
  * The skew modules are imported dynamically, not at the top of this router: this
  * is the CLI's front door, every `noldor` invocation pays for its static
  * imports, and the diagnosis is only ever needed on the error path. `main` is
  * already async, so the await costs nothing here.
  */
-async function failUnknown(what: string): Promise<never> {
-  console.error(what);
+async function failUnknown(what: string, tokens: string[]): Promise<never> {
+  console.error(`${what}: ${tokens.map((t) => (hasSpace(t) ? JSON.stringify(t) : t)).join(' ')}`);
+  const unsplit = tokens.find(hasSpace);
+  if (unsplit !== undefined) {
+    console.error(
+      `\nThe argument ${JSON.stringify(unsplit)} contains whitespace, so the shell passed it as ` +
+        'one word. Pass each word as its own argument (zsh does not word-split `$var`; ' +
+        'use `${=var}` or write the words out).',
+    );
+    process.exit(1);
+  }
   try {
     const [{ missingCommandSkewHint }, { loadFrameworkVersion }] = await Promise.all([
       import('../core/framework-skew.js'),
@@ -109,7 +127,7 @@ async function main(): Promise<void> {
 
   const g = MANIFEST[group];
   if (!g) {
-    await failUnknown(`Unknown command: ${group}`);
+    await failUnknown('Unknown command', [group]);
     return;
   }
 
@@ -137,7 +155,7 @@ async function main(): Promise<void> {
 
   const subCmd = g.subs[sub];
   if (subCmd === undefined) {
-    await failUnknown(`Unknown subcommand: ${group} ${sub}`);
+    await failUnknown('Unknown subcommand', [group, sub]);
     return;
   }
 

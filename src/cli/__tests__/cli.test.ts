@@ -115,6 +115,34 @@ describe('noldor CLI', () => {
     }
   });
 
+  // zsh does not word-split `$var`, so `pnpm noldor $c` with `c="checks
+  // template-sync"` hands the CLI one argument. Printed bare it reads as two, and
+  // a skew hint on top would send the caller to `noldor upgrade` for a shell trap.
+  it('quotes an unknown command carrying a space and gives no upgrade advice', () => {
+    const dir = anchoredConsumer('1.3.0');
+    try {
+      const { status, stderr } = runFail(['checks template-sync'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain('Unknown command: "checks template-sync"');
+      expect(stderr).toContain('one word');
+      expect(stderr).not.toContain('framework version skew');
+      expect(stderr).not.toContain('noldor upgrade');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('quotes an unknown subcommand carrying a space the same way', () => {
+    const dir = anchoredConsumer('1.3.0');
+    try {
+      const { stderr } = runFail(['checks', 'template-sync --json'], dir);
+      expect(stderr).toContain('Unknown subcommand: checks "template-sync --json"');
+      expect(stderr).not.toContain('noldor upgrade');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('garden --help shows garden subcommands', () => {
     const out = run(['garden', '--help']);
     expect(out).toContain('detect');

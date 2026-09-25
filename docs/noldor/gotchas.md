@@ -212,11 +212,11 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   [git-and-commits.md](git-and-commits.md#piped-commits-mask-hook-failures).
 - **zsh eats a bare `===` / `====`** inside a compound command (parses as the
   `==` command → "=== not found"). Quote separator strings: `echo "==="`.
-- **zsh does not word-split `$var`, and the CLI then blames version skew.**
+- **zsh does not word-split `$var`.**
   `for c in "checks template-sync" …; do pnpm noldor $c; done` passes
-  `checks template-sync` as ONE argument, and the reply is `Unknown command …
-  This may be framework version skew … run 'noldor upgrade'` — advice that
-  points the wrong way. Use `${=c}`, or write one call per command. This is the
+  `checks template-sync` as ONE argument. The CLI now says so —
+  `Unknown command: "checks template-sync"`, quoted, with no skew advice — but
+  the call still fails. Use `${=c}`, or write one call per command. This is the
   `$var` word-splitting trap the `--include` bullet below refers to.
   (architecture-design-phase)
 - **`tsx -e` cannot top-level await** ("not supported with cjs output"). Write
