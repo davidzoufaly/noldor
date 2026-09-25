@@ -89,6 +89,8 @@ interface FakePython {
   readonly venvFails?: boolean;
   readonly installFails?: boolean;
   readonly recipeFails?: boolean;
+  /** The recipe exits 0 without writing its outputs. */
+  readonly recipeWritesNothing?: boolean;
 }
 
 /**
@@ -127,6 +129,7 @@ function fakePython(python: FakePython, calls: RecipeCall[]): Runner {
       env: opts.env,
     });
     if (python.recipeFails) return { status: 1, stdout: '', stderr: 'Traceback: recipe crashed' };
+    if (python.recipeWritesNothing) return OK;
     buildNumber += 1;
     const flag = (name: string) => args[args.indexOf(name) + 1]!;
     const out = flag('--out');
@@ -328,6 +331,23 @@ describe('graphify build — when it is already up to date', () => {
     expect(stampOf(repo)).toBe(git(repo, 'rev-parse', 'HEAD'));
   });
 
+  it('never hands git a stamp that is not a commit sha, so it cannot be read as an option', () => {
+    const cache = tempDir('graphify-cache-');
+    const { repo } = repoWithCommittedGraph(cache);
+    const planted = join(repo, 'planted-by-the-stamp.txt');
+    const path = join(repo, 'graphify-out/graph.json');
+    const graph = JSON.parse(readFileSync(path, 'utf8'));
+    writeFileSync(path, JSON.stringify({ ...graph, built_at_commit: `--output=${planted}` }));
+    commitAll(repo, 'chore(graph): a stamp that is an option');
+    const h = harness(repo, cache);
+
+    expect(main([], h.deps)).toBe(0);
+
+    expect(existsSync(planted)).toBe(false);
+    expect(h.lines[0]).toContain('carries no built_at_commit naming a commit');
+    expect(h.calls).toHaveLength(1);
+  });
+
   it('rebuilds an up-to-date graph under --force', () => {
     const cache = tempDir('graphify-cache-');
     const { repo } = repoWithCommittedGraph(cache);
@@ -349,6 +369,20 @@ describe('graphify build — the Python environment', () => {
     const h = harness(repo, cache, { venvFails: true });
     expect(main(['--force'], h.deps)).toBe(0);
     expect(h.errors).toEqual([]);
+  });
+
+  it('keeps a separate environment per interpreter platform and machine', () => {
+    const repo = makeRepo();
+    const cache = tempDir('graphify-cache-');
+    expect(main(['--force'], harness(repo, cache, { version: '3.13.4 darwin arm64' }).deps)).toBe(
+      0,
+    );
+
+    const sameMachine = harness(repo, cache, { version: '3.13.4 darwin arm64', venvFails: true });
+    expect(main(['--force'], sameMachine.deps)).toBe(0);
+    const otherMachine = harness(repo, cache, { version: '3.13.4 darwin x86_64', venvFails: true });
+    expect(main(['--force'], otherMachine.deps)).toBe(2);
+    expect(otherMachine.errors.join('\n')).toContain('venv: cannot create');
   });
 
   it('sets the environment up again when its ready marker is missing', () => {
@@ -408,6 +442,18 @@ describe('graphify build — failures', () => {
     expect(main(['--force'], h.deps)).toBe(1);
 
     expect(h.errors.join('\n')).toContain('recipe crashed');
+    expect(graphOut(repo)).toEqual(before);
+  });
+
+  it('exits 1 and leaves graphify-out/ unchanged when the recipe exits 0 but writes nothing', () => {
+    const cache = tempDir('graphify-cache-');
+    const { repo } = repoWithCommittedGraph(cache);
+    const before = graphOut(repo);
+    const h = harness(repo, cache, { recipeWritesNothing: true });
+
+    expect(main(['--force'], h.deps)).toBe(1);
+
+    expect(h.errors.join('\n')).toContain('exited 0 but left no readable graph');
     expect(graphOut(repo)).toEqual(before);
   });
 

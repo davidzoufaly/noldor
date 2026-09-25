@@ -99,7 +99,6 @@ function failed(r: RunResult): boolean {
   return r.error !== undefined || r.status !== 0;
 }
 
-/** The last lines a failed subprocess printed, for the error message. */
 function tail(r: RunResult): string {
   const text = `${r.stderr}\n${r.stdout}`.trim();
   return r.error?.message ?? (text.split('\n').slice(-8).join('\n') || `exit ${r.status}`);
@@ -131,9 +130,11 @@ function readStamp(graphPath: string): Step<string> {
     typeof data === 'object' && data !== null
       ? (data as { built_at_commit?: unknown }).built_at_commit
       : undefined;
-  return typeof stamp === 'string' && stamp !== ''
+  // Only a full sha reaches git as a revision: graph.json is repository content,
+  // and a stamp like `--output=<path>` would otherwise be read as an option.
+  return typeof stamp === 'string' && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(stamp)
     ? ok(stamp)
-    : fail('graphify-out/graph.json carries no built_at_commit');
+    : fail('graphify-out/graph.json carries no built_at_commit naming a commit');
 }
 
 /**
@@ -194,7 +195,10 @@ function ensureEnvironment(deps: BuildDeps): Step<string> {
 
   const probe = deps.run(
     interpreter,
-    ['-c', 'import sys; print("%d.%d.%d" % sys.version_info[:3])'],
+    [
+      '-c',
+      'import platform, sys; print("%d.%d.%d" % sys.version_info[:3], sys.platform, platform.machine())',
+    ],
     {
       cwd: deps.cwd,
       env: deps.env,
@@ -206,14 +210,17 @@ function ensureEnvironment(deps: BuildDeps): Step<string> {
       `no Python interpreter runs as '${interpreter}' (${tail(probe)}) — install Python ${minor} or point NOLDOR_GRAPHIFY_PYTHON at one`,
     );
   }
-  const version = probe.stdout.trim();
+  const identity = probe.stdout.trim();
+  const version = identity.split(/\s+/)[0] ?? '';
   if (!version.startsWith(`${minor}.`)) {
     return fail(
       `'${interpreter}' is Python ${version}, but the graph's packages are pinned under Python ${minor} — point NOLDOR_GRAPHIFY_PYTHON at a Python ${minor} interpreter`,
     );
   }
 
-  const key = createHash('sha256').update(lock).update('\0').update(version).digest('hex');
+  // The platform and machine are in the key because a cache directory can be
+  // shared across machines, and a venv built for one cannot run on another.
+  const key = createHash('sha256').update(lock).update('\0').update(identity).digest('hex');
   const dir = join(environmentRoot(deps.env), key.slice(0, 16));
   const python = join(dir, 'bin', 'python');
   if (existsSync(join(dir, READY_MARKER))) return ok(python);
@@ -335,14 +342,22 @@ function runRecipe(
     { cwd: tree.value, env: pythonEnv(deps.env), timeoutMs: BUILD_TIMEOUT_MS },
   );
   if (failed(r)) return fail(`the graph recipe failed: ${tail(r)}`);
-  const graph = readFileSync(join(out, 'graph.json'), 'utf8');
-  const ctx = buildContext(JSON.parse(graph) as GraphData);
-  return ok({
-    'GRAPH_REPORT.md': readFileSync(join(out, 'GRAPH_REPORT.md'), 'utf8'),
-    'graph.brainstorm.toon': renderBrainstormToon(ctx),
-    'graph.brainstorm-summary.toon': renderBrainstormSummary(ctx),
-    'graph.json': graph,
-  });
+  return readOutputs(out);
+}
+
+function readOutputs(out: string): Step<Outputs> {
+  try {
+    const graph = readFileSync(join(out, 'graph.json'), 'utf8');
+    const ctx = buildContext(JSON.parse(graph) as GraphData);
+    return ok({
+      'GRAPH_REPORT.md': readFileSync(join(out, 'GRAPH_REPORT.md'), 'utf8'),
+      'graph.brainstorm.toon': renderBrainstormToon(ctx),
+      'graph.brainstorm-summary.toon': renderBrainstormSummary(ctx),
+      'graph.json': graph,
+    });
+  } catch (err) {
+    return fail(`the graph recipe exited 0 but left no readable graph (${(err as Error).message})`);
+  }
 }
 
 function writeOutputs(root: string, outputs: Outputs): Step<void> {

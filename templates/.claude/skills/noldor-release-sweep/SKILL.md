@@ -107,7 +107,7 @@ git add <each refactor leftover>
 git commit -m "chore(release): commit refactor leftovers before the second graph build"
 ```
 
-Then run `pnpm noldor graphify build` again — the same mode as step 1 (full-semantic only if the operator opted in there) — to capture the refactor. The post-refactor graph is the snapshot that ships with the release tag. When step 3 skipped the refactor pass, nothing changed since step 1 — skip this pass too.
+Then build the graph again exactly as step 1 did — `pnpm noldor graphify build`, or, when the operator opted into `--full-semantic` there, the `graphify` skill followed by `graph-to-toon` — to capture the refactor. The post-refactor graph is the snapshot that ships with the release tag. When step 3 skipped the refactor pass, nothing changed since step 1 — skip this pass too.
 
 ### 5.5. Drift pre-empt — sdd:report
 
