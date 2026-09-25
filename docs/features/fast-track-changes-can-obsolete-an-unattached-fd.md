@@ -4,10 +4,17 @@ category: Tooling
 deps: []
 entry-id: Q-0233
 links:
-  code: []
+  code:
+    - src/features/features-owners-cli.ts
+    - src/garden/detectors/undeclared-doc-impact.ts
+    - src/garden/graph-fd-lookup.ts
   spec: >-
     docs/design/specs/2026-09-25-fast-track-changes-can-obsolete-an-unattached-fd-design.md
-  tests: []
+  tests:
+    - src/features/__tests__/features-owners-cli.test.ts
+    - src/garden/__tests__/fd-ownership.test.ts
+    - src/garden/detectors/__tests__/undeclared-doc-impact.test.ts
+    - src/hooks/__tests__/noldor-validate-trailer.test.ts
 name: Fast-Track Changes Can Obsolete an Unattached FD
 packages:
   - scripts
@@ -45,5 +52,14 @@ A fast-track ships without attaching to any feature MD, so when one or more fast
 ## Resources
 
 - **Spec:** [`docs/design/specs/2026-09-25-fast-track-changes-can-obsolete-an-unattached-fd-design.md`](../../docs/design/specs/2026-09-25-fast-track-changes-can-obsolete-an-unattached-fd-design.md)
+- **Code:**
+  - [`src/features/features-owners-cli.ts`](../../src/features/features-owners-cli.ts)
+  - [`src/garden/detectors/undeclared-doc-impact.ts`](../../src/garden/detectors/undeclared-doc-impact.ts)
+  - [`src/garden/graph-fd-lookup.ts`](../../src/garden/graph-fd-lookup.ts)
+- **Tests:**
+  - [`src/features/__tests__/features-owners-cli.test.ts`](../../src/features/__tests__/features-owners-cli.test.ts)
+  - [`src/garden/__tests__/fd-ownership.test.ts`](../../src/garden/__tests__/fd-ownership.test.ts)
+  - [`src/garden/detectors/__tests__/undeclared-doc-impact.test.ts`](../../src/garden/detectors/__tests__/undeclared-doc-impact.test.ts)
+  - [`src/hooks/__tests__/noldor-validate-trailer.test.ts`](../../src/hooks/__tests__/noldor-validate-trailer.test.ts)
 
 <!-- /generated: resources -->

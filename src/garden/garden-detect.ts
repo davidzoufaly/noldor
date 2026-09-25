@@ -34,6 +34,10 @@ import {
   type StructuralContextStub,
 } from './detectors/structural-context.js';
 import { detectFdDiagramStubs, type FdDiagramStub } from './detectors/fd-diagram.js';
+import {
+  detectUndeclaredDocImpact,
+  type UndeclaredDocImpact,
+} from './detectors/undeclared-doc-impact.js';
 import { codeAdapter } from '../sync/adapters/code.js';
 import { docsAdapter } from '../sync/adapters/docs.js';
 import { testsAdapter } from '../sync/adapters/tests.js';
@@ -656,6 +660,15 @@ export interface GardenFindings {
    * An undrawn diagram must never stop a ship.
    */
   readonly fdDiagramStubs: readonly FdDiagramStub[];
+  /**
+   * FDs whose owned code changed under a fast-track that declared no doc impact.
+   *
+   * Its own key, absent from `FINDING_CATEGORIES` in `garden-detect-runner.ts`,
+   * for the same reason as {@link fdDiagramStubs}: that list gates the
+   * auto-restamp and an unstamped receipt is a blocking release row. A doc that
+   * may have gone stale is a prompt to read it, never a reason to stop a ship.
+   */
+  readonly undeclaredDocImpact: readonly UndeclaredDocImpact[];
 }
 
 /**
@@ -879,6 +892,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   // no `## Diagram` heading is out of scope, so the whole existing corpus is
   // silent and only scaffolded sections are ever reported.
   const fdDiagramStubs = await detectFdDiagramStubs(repo);
+  const undeclaredDocImpact = await detectUndeclaredDocImpact(repo);
   const overrideAudit = auditOverrides({ cwd: repo, ...(await loadOverrideAuditOptions(repo)) });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
   const bootstrapOverrideAudit = detectBootstrapOverrideAudit({ cwd: repo });
@@ -908,6 +922,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     architectureAdvisories,
     structuralContextStubs,
     fdDiagramStubs,
+    undeclaredDocImpact,
   };
 }
 
