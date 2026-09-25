@@ -1,4 +1,4 @@
-// @tests: dashboard-broken-pages-audit
+// @tests: dashboard-broken-pages-audit, consumer-architecture-doc-surface, project-tracking-dashboard
 // Regression net for the 2026-07-11 broken-pages audit: every static GET route
 // the dashboard serves must render 200 with no "Internal error" body. The route
 // list is GET_ROUTES — exported from the SAME map the router dispatches on, so
