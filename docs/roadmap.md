@@ -123,21 +123,6 @@ Milestone membership rots by omission at both ends of the chain, so an active mi
 
 `blocked-by` is all-or-nothing, so a partial dependency degrades into prose the scorer cannot see. Several entries in a real consumer can start, and two-thirds ship, while one part waits — a bar whose five sections are independently blocked; a panel where one row needs a concept that does not exist yet. Marking the whole entry `blocked-by` divides its score by `1 + unshipped_dep_count` for work that is mostly doable today; leaving it off loses the dependency from the graph entirely, so `/noldor-garden` cannot see it and a reader has to find it in a paragraph. Wanted: a `partially-blocked-by:` that joins the blocked-by graph for cycle detection and `show` output but is **excluded from the dependency factor** in `scoreEntry()` — the semantics being "cannot finish" rather than "cannot start". Open question for the spec: whether `/noldor-gate` should surface the partial blocker at pickup so the agent knows which slice to leave alone, or whether that belongs in the entry body. Deletion test: an entry with only `partially-blocked-by` refs scores as unblocked while still appearing in the dependency graph. (found 2026-09-22)
 
-### UI Baseline .pen Layout and Id Contract
-
-- id: Q-0292
-- area: tooling
-- type: feat
-- since: 2026-09-24
-- size: M
-- impact: med
-- confidence: med
-- parent: pendev-ui-design-phase
-
-A UI baseline `.pen` has no layout or id contract, so every consumer invents one, and charuy's first attempt was unusable. `design capture` only runs the consumer's `uiCapture` command and vouches for the blob (`src/design/ui-capture.ts`); nothing says how the pages inside are arranged or named. Charuy's `app.pen` was two unordered rows (full pages / overlays) with counter ids (`n1`, `n2`…) that all shifted when one control was added, so no review, spec or agent could reference an id. Charuy's local fix (2026-09-23, branch `fast/baseline-structure`): one labelled row per area, dark page beside its light twin, page id `<state>-<theme>`, element id = parent id + `.<segment>` where the segment is `data-testid`, else icon, `aria-label`, slot, role, layer name, with `-2`/`-3` only on a repeated sibling. Constraints that must hold for any consumer: pages stay TOP-LEVEL frames (the ui-review / render-compare lanes enumerate only top-level `FINAL:<surface>:` frames, so a row frame would hide them — labels go in as sibling text nodes), and ids never contain `/` (the Pencil schema's `entity.id` pattern is `^[^/]+$`; `/` is its descendant-path separator). Wanted: the convention written down as noldor's baseline contract (area rows, twin order, id grammar), plus a check `design capture` runs on the written file — ids unique, no `^n\d+$`-style positional ids, no `/`, every `FINAL:` page top-level, every page in exactly one labelled row. Deletion test: a baseline with a counter id or a nested `FINAL:` page fails `design capture` naming the node. (found 2026-09-23 recapturing charuy's app baseline)
-
-- Operator ask, 2026-09-24: the baseline `.pen` — and other `.pen` files too — should carry huge section titles, so each app area is readable on the canvas without zooming in. The row labels above are where they go; the contract should fix their size, not just their presence.
-
 ### One Graph Builder for the Sweep and CI
 
 - id: Q-0293
