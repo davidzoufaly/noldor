@@ -400,6 +400,38 @@ describe('heading references without backticks', () => {
     expect(ledger(cwd)).toContain(`- 1 · ${digestBody('one body')}`);
   });
 
+  it('design log --decide --section binds a number to the exact heading name', () => {
+    const cwd = repo(TICKED);
+    expect(log(cwd, '--decide', 'chose A', '--section', '3').code).toBe(0);
+    expect(ledger(cwd)).toContain('  - section: The `--reject` flag');
+  });
+
+  it('design log --open --section binds a backtick-free prefix to the exact heading name', () => {
+    const cwd = repo(TICKED);
+    expect(log(cwd, '--open', 'which?', '--section', 'The --approve').code).toBe(0);
+    expect(ledger(cwd)).toContain('  - section: The `--approve` flag');
+  });
+
+  it('design log refuses an ambiguous --section prefix', () => {
+    const r = log(repo(TICKED), '--decide', 'chose A', '--section', 'The');
+    expect(r.code).toBe(1);
+    expect(r.err).toMatch(/--section 'The' fits 2 headings/);
+  });
+
+  it('design log keeps an unmatched --section as typed and warns', () => {
+    const cwd = repo(TICKED);
+    const r = log(cwd, '--decide', 'chose A', '--section', 'Later heading');
+    expect(r.code).toBe(0);
+    expect(r.err).toMatch(/--section 'Later heading' matches no heading/);
+    expect(ledger(cwd)).toContain('  - section: Later heading');
+  });
+
+  it('design log keeps --section as typed when no artifact is on disk yet', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'noldor-cli-fields-'));
+    expect(log(cwd, '--decide', 'chose A', '--section', '3').code).toBe(0);
+    expect(ledger(cwd)).toContain('  - section: 3');
+  });
+
   it('design log refuses confirming and unconfirming one heading by two names', () => {
     const r = log(repo(TICKED), '--confirm-section', '1', '--unconfirm-section', 'Problem');
     expect(r.code).toBe(1);
