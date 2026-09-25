@@ -484,3 +484,27 @@ Nobody has looked at `docs/design/architecture/baseline.pen` on the canvas yet. 
 - confidence: low
 
 Code-review lows declined on `architecture-design-phase`, filed so they are not lost: (a) `src/indirection/module-pairs.ts` imports `pairKey` from `src/design/arch-pen.ts`, an upward edge — moving it would either pull dependency-cruiser into the pure check or add a `src/core` file for one line; (b) `design arch-progress` compares arrows by their end text, not by the refs they resolve to — revisit if a target and its baseline name the same arrow differently. (found 2026-09-25)
+
+### Charuy Graph Workflow onto graphify build
+
+- id: Q-0318
+- area: tooling
+- type: chore
+- since: 2026-09-25
+- size: S
+- impact: low
+- confidence: med
+
+charuy's `update-knowledge-graph.yml` copy still runs the old heredoc with only `graphifyy` pinned. Switch it to `pnpm noldor graphify build` once charuy upgrades to a noldor release that ships the command (Q-0293 D6, PR #589). Until then charuy's CI and its sweep can still cluster differently.
+
+### Confirm the First CI Graph PR After #589 Keeps Community Ids
+
+- id: Q-0319
+- area: tooling
+- type: chore
+- since: 2026-09-25
+- size: XS
+- impact: low
+- confidence: high
+
+Live check owed from Q-0293: the first CI graph PR after #589 should reshuffle no community ids. It will change GRAPH_REPORT.md's header date (now the built commit's date, not the run day) and drop `graphify-out/manifest.json`. Anything else moving is a regression in the builder.

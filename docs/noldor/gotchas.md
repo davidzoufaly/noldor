@@ -106,6 +106,12 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   in a run full of them — grep `STACK_TRACE_ERROR` instead. A test that timed out
   inside synchronous work (`execSync`) also reports a duration ABOVE its bound
   (14.5s against 10s), because vitest cannot interrupt it. (Q-0238)
+- **graphify's `source_file` is relative to the directory all code files
+  share, not to the repo root.** A fixture repo whose code all sits under `src/`
+  records `greet.ts`, not `src/greet.ts`, so a test asserting on graph node
+  paths must expect the trimmed form. noldor itself spans `bin/`, `scripts/` and
+  `src/`, so its own paths stay full — a fixture that passes there can still
+  surprise you in a one-folder repo. (PR #589)
 
 ## Worktrees
 
@@ -339,6 +345,12 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   did not survive, and the gate again blamed a missing spec, while the same
   message passed `hooks validate-trailer` from a file. Write a multi-line
   message to a file and use `git commit -F <file>`. (Q-0261, Q-0292)
+- **`checks push-gates` flags a small copied disposable as a diff-scope
+  clone.** A 7-line temp-dir helper with `[Symbol.dispose]`, copied from
+  `design-approval-cli.ts`, turned the clones gate red before code review ran. The fix
+  was extracting `src/core/scratch-dir.ts` (one commit, no receipt re-earn).
+  Grep for `[Symbol.dispose]` and reuse an existing helper before writing a new
+  one. (PR #589)
 
 ## Pencil / UI design
 
