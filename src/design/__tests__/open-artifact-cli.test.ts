@@ -140,15 +140,17 @@ describe('design open', () => {
 
   // Q-0288. A terminal has no workspace folder, so the relative link is dead
   // there; both lines must name the absolute artifact path instead.
-  it('prints an absolute path and a file:// link in a terminal harness', () => {
+  it('prints an absolute path and a vscode://file link in a terminal harness', () => {
     const { root, spec } = setupRepo();
     const r = run([spec], root, { CLAUDE_CODE_ENTRYPOINT: 'cli' });
     expect(r.code).toBe(0);
     expect(r.out[0]).toBe(spec);
     expect(existsSync(r.out[0] ?? '')).toBe(true);
-    const target = /^link: \[2026-01-01-x-design\.md\]\((file:\/\/[^)]+)\)$/.exec(r.out[1] ?? '');
+    const target = /^link: \[2026-01-01-x-design\.md\]\(vscode:\/\/file(\/[^)]+)\)$/.exec(
+      r.out[1] ?? '',
+    );
     expect(target).not.toBeNull();
-    expect(fileURLToPath(target?.[1] ?? '')).toBe(spec);
+    expect(fileURLToPath(`file://${target?.[1] ?? ''}`)).toBe(spec);
   });
 
   it('keeps the workspace-relative link under the VS Code extension', () => {

@@ -51,7 +51,7 @@ export interface HookOutput {
  *
  * @param payload - The parsed PostToolUse payload.
  * @param env - Process environment, read for {@link WORKSPACE_ROOT_ENV} and the
- *   harness (`CLAUDE_CODE_ENTRYPOINT`), which picks a relative or `file://` link.
+ *   harness (`CLAUDE_CODE_ENTRYPOINT`), which picks a relative or `vscode://file` link.
  * @param launch - Injected in tests; defaults to the real editor spawn.
  */
 export function openArtifactForPayload(
