@@ -6,6 +6,7 @@ entry-id: Q-0042
 links:
   code:
     - src/cli/validate-script-catalog.ts
+    - src/docs/capability-index.ts
   tests:
     - src/cli/__tests__/validate-script-catalog.test.ts
     - src/docs/__tests__/capability-index.test.ts
@@ -67,6 +68,7 @@ The catalog diff now joins on the leaf command as well as the source (#379).
 - **Spec:** [`docs/design/specs/archive/2026-07-14-validate-script-catalog-gate-design.md`](../../docs/design/specs/archive/2026-07-14-validate-script-catalog-gate-design.md)
 - **Code:**
   - [`src/cli/validate-script-catalog.ts`](../../src/cli/validate-script-catalog.ts)
+  - [`src/docs/capability-index.ts`](../../src/docs/capability-index.ts)
 - **Tests:**
   - [`src/cli/__tests__/validate-script-catalog.test.ts`](../../src/cli/__tests__/validate-script-catalog.test.ts)
   - [`src/docs/__tests__/capability-index.test.ts`](../../src/docs/__tests__/capability-index.test.ts)

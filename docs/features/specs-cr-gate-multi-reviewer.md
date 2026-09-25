@@ -38,6 +38,7 @@ links:
     - .claude/skills/noldor-gate/SKILL.md
     - .noldor/config.json
     - src/core/sha.ts
+    - src/hooks/noldor-enforce-arbitration.ts
   tests:
     - src/core/__tests__/config.test.ts
     - src/core/__tests__/lanes.test.ts
@@ -170,6 +171,7 @@ This release threads prior-round reviewer context into re-round prompts (#328).
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`.noldor/config.json`](../../.noldor/config.json)
   - [`src/core/sha.ts`](../../src/core/sha.ts)
+  - [`src/hooks/noldor-enforce-arbitration.ts`](../../src/hooks/noldor-enforce-arbitration.ts)
 - **Tests:**
   - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)
   - [`src/core/__tests__/lanes.test.ts`](../../src/core/__tests__/lanes.test.ts)

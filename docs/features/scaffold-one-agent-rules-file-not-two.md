@@ -8,6 +8,9 @@ links:
     - src/checks/check-agents-md-wiring.ts
     - src/migrations/1.13.0.ts
     - src/templates/managed-region.ts
+  docs:
+    - docs/noldor/adoption-guide.md
+    - docs/noldor/agent-runtimes.md
   tests:
     - src/checks/__tests__/check-agents-md-wiring.test.ts
     - src/cli/__tests__/init-agents-md.test.ts
@@ -25,6 +28,7 @@ since: 2026-09-22T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.13.0
 ---
+
 ## Summary
 
 Claude now reads `AGENTS.md`, which is the same file codex and opencode already read, so the framework no longer needs to scaffold a Claude-specific `CLAUDE.md` alongside it. Collapse the two onto one file: `noldor init` should write `AGENTS.md` and not create `CLAUDE.md` in a fresh consumer, and an existing consumer should get a migration path rather than a silently duplicated rule set — this repo itself runs the split today (`AGENTS.md` for codex/opencode, `.claude/` for Claude Code), and charuy carries the same duplication, so both need propagating. Adoption-weighted per the vision's standing tie-breaker: one agent-rules file is one less thing a new consumer has to understand, and a duplicated one is a drift source the moment the two copies disagree. Open questions for the spec: what happens to `.claude/skills/**`, which has no AGENTS.md equivalent and stays Claude-primary; and whether the migration rewrites an existing `CLAUDE.md` or leaves it and stops regenerating it. Deletion test: `noldor init` in a clean repo produces `AGENTS.md` and no `CLAUDE.md`, and a consumer that had both ends with one. (found 2026-09-22)
@@ -122,5 +126,8 @@ AGENTS.md is now the one rules file for every agent. The framework owns only its
   - [`src/templates/__tests__/agent-filter.test.ts`](../../src/templates/__tests__/agent-filter.test.ts)
   - [`src/templates/__tests__/managed-region.test.ts`](../../src/templates/__tests__/managed-region.test.ts)
   - [`src/templates/__tests__/region-managed-sync.test.ts`](../../src/templates/__tests__/region-managed-sync.test.ts)
+- **Docs:**
+  - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
+  - [`docs/noldor/agent-runtimes.md`](../../docs/noldor/agent-runtimes.md)
 
 <!-- /generated: resources -->

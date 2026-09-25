@@ -19,6 +19,7 @@ links:
     - src/release/preflight-render.ts
     - src/release/preflight-types.ts
     - src/release/clean-tree.ts
+    - src/graphify/refactor-precondition.ts
   plan:
     - lost-pre-extraction
     - lost-pre-extraction
@@ -114,6 +115,7 @@ As an operator preparing a release, I want `/noldor-release-sweep` to run end-to
   - [`src/release/preflight-render.ts`](../../src/release/preflight-render.ts)
   - [`src/release/preflight-types.ts`](../../src/release/preflight-types.ts)
   - [`src/release/clean-tree.ts`](../../src/release/clean-tree.ts)
+  - [`src/graphify/refactor-precondition.ts`](../../src/graphify/refactor-precondition.ts)
 - **Tests:**
   - [`src/core/__tests__/allowlist.test.ts`](../../src/core/__tests__/allowlist.test.ts)
   - [`src/core/__tests__/pr-flow-cli.test.ts`](../../src/core/__tests__/pr-flow-cli.test.ts)

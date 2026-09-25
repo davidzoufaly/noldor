@@ -29,6 +29,8 @@ links:
     - src/design/pen-schema.ts
     - src/core/blob-id.ts
     - src/sync/sync-fd-resources.ts
+    - src/core/init-vscode-settings.ts
+    - src/core/receipt-store.ts
   spec: docs/design/specs/archive/2026-08-19-pendev-ui-design-phase-design.md
   tests:
     - src/checks/__tests__/check-pen-bridge.test.ts
@@ -145,6 +147,8 @@ Consumer config schema now accepts `uiPaths` and `uiSurfaces` (#342).
   - [`src/design/pen-schema.ts`](../../src/design/pen-schema.ts)
   - [`src/core/blob-id.ts`](../../src/core/blob-id.ts)
   - [`src/sync/sync-fd-resources.ts`](../../src/sync/sync-fd-resources.ts)
+  - [`src/core/init-vscode-settings.ts`](../../src/core/init-vscode-settings.ts)
+  - [`src/core/receipt-store.ts`](../../src/core/receipt-store.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-pen-bridge.test.ts`](../../src/checks/__tests__/check-pen-bridge.test.ts)
   - [`src/checks/__tests__/check-ui-design-freshness.test.ts`](../../src/checks/__tests__/check-ui-design-freshness.test.ts)

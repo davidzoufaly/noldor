@@ -8,6 +8,9 @@ links:
     - src/milestones/cli.ts
     - src/milestones/lib.ts
     - src/milestones/validate-milestones.ts
+    - src/features/attach-milestone.ts
+    - src/features/attach-milestone-cli.ts
+    - src/milestones/show-cli.ts
   tests:
     - src/features/__tests__/attach-milestone.test.ts
     - src/milestones/__tests__/lib.test.ts
@@ -21,6 +24,7 @@ noldor-tier: full
 introduced: 0.5.0
 updated: 1.9.0
 ---
+
 ## Summary
 
 `docs/vision.md`'s `current-milestone: 1.0.0` ties milestone identity to semver. The two have different cadences: a milestone is a strategic gate ("public release with house-modeling agent"); semver tracks API/format compatibility. Conflating them forces premature version commitments and leaks strategic naming into the changelog. Proposal: introduce a separate milestone-naming taxonomy (codenames? phases?) and a new skill (`/noldor-milestone` or similar) for crafting milestone definitions independent of releases. Vision keeps a milestone reference; release notes keep semver. Trigger: live now — milestone vs version drift already confuses `/noldor-triage` decisions ("is this v1.0 or post-MVP?").
@@ -110,6 +114,9 @@ This release applies code review fixes (skills count + YAML safety + triage buck
   - [`src/milestones/cli.ts`](../../src/milestones/cli.ts)
   - [`src/milestones/lib.ts`](../../src/milestones/lib.ts)
   - [`src/milestones/validate-milestones.ts`](../../src/milestones/validate-milestones.ts)
+  - [`src/features/attach-milestone.ts`](../../src/features/attach-milestone.ts)
+  - [`src/features/attach-milestone-cli.ts`](../../src/features/attach-milestone-cli.ts)
+  - [`src/milestones/show-cli.ts`](../../src/milestones/show-cli.ts)
 - **Tests:**
   - [`src/features/__tests__/attach-milestone.test.ts`](../../src/features/__tests__/attach-milestone.test.ts)
   - [`src/milestones/__tests__/lib.test.ts`](../../src/milestones/__tests__/lib.test.ts)
