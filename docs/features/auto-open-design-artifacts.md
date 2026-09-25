@@ -70,7 +70,9 @@ having a window yanked out from under me mid-task.
 
 Automatic in a Claude Code session: writing a spec or plan under a specs or plans doc root
 hands the agent a ready-to-paste markdown link that resolves from the editor's workspace.
-No operator action.
+No operator action. In a terminal session (iTerm2, `CLAUDE_CODE_ENTRYPOINT=cli`) there is no
+workspace, so the link is an absolute `vscode://file/…` URL instead — ⌘-click opens it as a
+VS Code tab.
 
 The tab is **off by default**. Opt in per repo:
 
