@@ -23,6 +23,7 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 | Auditing the framework                | [`garden-and-drift.md`](garden-and-drift.md), [`triage.md`](triage.md)                                                                                                                      |
 | Hitting a weird operational trap      | [`gotchas.md`](gotchas.md)                                                                                                                                                                  |
 | Looking up a pnpm script              | [`script-catalog.md`](script-catalog.md)                                                                                                                                                    |
+| Writing a UI baseline `.pen`          | [`ui-baseline.md`](ui-baseline.md)                                                                                                                                                          |
 | Running unattended drains             | [`autonomy.md`](autonomy.md), [`drain-mode.md`](drain-mode.md)                                                                                                                               |
 | Picking an agent runner               | [`agent-runtimes.md`](agent-runtimes.md)                                                                                                                                                    |
 | Tracking framework metrics            | [`metrics.md`](metrics.md)                                                                                                                                                                  |
@@ -51,6 +52,7 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 - [`garden-and-drift.md`](garden-and-drift.md) — what /noldor-garden detects + sentinel rules
 - [`gotchas.md`](gotchas.md) — operational traps not obvious from code (docs/templates, CR sinks, tests, dashboard, drain)
 - [`graph-integration.md`](graph-integration.md) — graphify ↔ SDD substrate
+- [`ui-baseline.md`](ui-baseline.md) — UI baseline `.pen` contract: pages as top-level frames in labelled rows, row titles of at least 200 px, twins side by side, ids that never shift; what `design capture` and `checks ui-design-freshness` report when a baseline breaks it
 - [`metrics.md`](metrics.md) — metrics CLI + `/metrics` dashboard page
 - [`research-fanout.md`](research-fanout.md) — parallel read-only research agents: task specs, envelope contract, INDEX/synthesis
 - [`adoption-guide.md`](adoption-guide.md) — full consumer onboarding: prerequisites floor, install (monorepo + CI-auth traps), init/adopt, first-commit gotchas, `consumer:` field table

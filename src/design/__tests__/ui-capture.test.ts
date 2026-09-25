@@ -21,15 +21,25 @@ import { blobIdOfWorktreeFile, readReceipt, receiptPath, receiptRelPath } from '
 /** Module-level so two runners in one test never write identical bytes. */
 let captureSeq = 0;
 
+/** The one row label every fixture's page sits under, at the contract's minimum size. */
+const rowLabel = (fontSize = 200) => ({
+  type: 'text',
+  id: 'area-app',
+  content: 'App',
+  fontSize,
+  x: 0,
+  y: 0,
+});
+
 /**
- * A minimal valid `.pen` whose one page carries `label`. `design capture` now
- * refuses to vouch for a baseline that is not a usable document, so every
- * fixture a success case vouches for must be one.
+ * A minimal `.pen` laid out to the baseline contract, whose one page carries
+ * `label`. `design capture` refuses to vouch for a baseline the freshness check
+ * would red, so every fixture a success case vouches for must be one.
  */
 const validPen = (label: string): string =>
   JSON.stringify({
     version: '2.19',
-    children: [{ type: 'frame', id: 'page', name: label, children: [] }],
+    children: [rowLabel(), { type: 'frame', id: 'page', name: label, y: 240, children: [] }],
   });
 
 /** `writes` replaces the valid document a scripted capture would otherwise produce. */
@@ -400,6 +410,7 @@ describe('design capture', () => {
       type: 'frame',
       id,
       name: `FINAL:app: ${id}`,
+      y: 240,
       children: [],
       ...extra,
     });
@@ -423,7 +434,7 @@ describe('design capture', () => {
       const broken = JSON.stringify({
         version: '2.19',
         variables: {},
-        children: [page('rest', { fill: '$gone' })],
+        children: [rowLabel(), page('rest', { fill: '$gone' })],
       });
       const { deps: d } = deps({ 'capture-app': { code: 0, writes: broken } });
 
@@ -440,7 +451,10 @@ describe('design capture', () => {
         uiCoverage: { app: { states: ['rest'], modes: ['light', 'dark'] } },
       });
       await writeBaseline('app', 'PEN-BYTES');
-      const darkOnly = JSON.stringify({ version: '2.19', children: [page('rest-dark')] });
+      const darkOnly = JSON.stringify({
+        version: '2.19',
+        children: [rowLabel(), page('rest-dark')],
+      });
       const { deps: d } = deps({ 'capture-app': { code: 0, writes: darkOnly } });
 
       const r = await run([], d);
@@ -458,12 +472,27 @@ describe('design capture', () => {
       await writeBaseline('app', 'PEN-BYTES');
       const both = JSON.stringify({
         version: '2.19',
-        children: [page('rest-light'), page('rest-dark')],
+        children: [rowLabel(), page('rest-light'), page('rest-dark', { x: 140 })],
       });
       const { deps: d } = deps({ 'capture-app': { code: 0, writes: both } });
 
       expect((await run([], d)).code).toBe(0);
       expect(readReceipt(cwd, 'app')).not.toBeNull();
+    });
+
+    it('writes no receipt when the captured baseline breaks the layout contract', async () => {
+      await writeConfig({ uiPaths: ['src/**'], uiCapture: { app: { command: 'capture-app' } } });
+      await writeBaseline('app', 'PEN-BYTES');
+      const smallTitle = JSON.stringify({
+        version: '2.19',
+        children: [rowLabel(48), page('rest')],
+      });
+      const { deps: d } = deps({ 'capture-app': { code: 0, writes: smallTitle } });
+
+      const r = await run([], d);
+      expect(r.code).toBe(1);
+      expect(readReceipt(cwd, 'app')).toBeNull();
+      expect(r.out).toContain('area-app');
     });
 
     it('refuses to vouch for a hand edit that left the baseline unparseable', async () => {

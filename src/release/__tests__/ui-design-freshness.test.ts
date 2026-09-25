@@ -43,12 +43,23 @@ async function commitAt(repo: Repo, msg: string): Promise<void> {
   });
 }
 
+/** The one row label every fixture's pages sit under, at the contract's minimum size. */
+const rowLabel = (fontSize = 200) => ({
+  type: 'text',
+  id: 'area-app',
+  content: 'App',
+  fontSize,
+  x: 0,
+  y: 0,
+});
+
 /**
  * The baseline's content is checked too, so a `.pen` fixture is a real (if
- * minimal) document. Its one page carries `msg`, so every commit changes it.
+ * minimal) document laid out to the baseline contract. Its one page carries
+ * `msg`, so every commit changes it.
  */
 const validPen = (msg: string): string =>
-  `${JSON.stringify({ version: '2.19', children: [{ type: 'frame', id: 'page', name: msg, children: [] }] })}\n`;
+  `${JSON.stringify({ version: '2.19', children: [rowLabel(), { type: 'frame', id: 'page', name: msg, y: 240, children: [] }] })}\n`;
 
 async function commitFiles(repo: Repo, paths: string[], msg: string): Promise<void> {
   for (const path of paths) {
@@ -63,6 +74,7 @@ const frame = (id: string, name: string, extra: Record<string, unknown> = {}) =>
   type: 'frame',
   id,
   name,
+  y: 240,
   children: [],
   ...extra,
 });
@@ -474,7 +486,7 @@ describe('evaluateUiDesignFreshness', () => {
     const unresolved = {
       version: '2.19',
       variables: {},
-      children: [frame('rest', 'FINAL:app: rest', { fill: '$viewport-bg' })],
+      children: [rowLabel(), frame('rest', 'FINAL:app: rest', { fill: '$viewport-bg' })],
     };
     const SCHEMA = {
       path: '/ext/pen.schema.json',
@@ -526,7 +538,7 @@ describe('evaluateUiDesignFreshness', () => {
       await commitPen(
         repo,
         'app',
-        { version: '2.19', children: [frame('rest-dark', 'FINAL:app: rest — dark')] },
+        { version: '2.19', children: [rowLabel(), frame('rest-dark', 'FINAL:app: rest — dark')] },
         'docs: baseline',
       );
       await commitReceipt('app', 'chore: capture');
@@ -546,8 +558,9 @@ describe('evaluateUiDesignFreshness', () => {
         {
           version: '2.19',
           children: [
+            rowLabel(),
             frame('rest-light', 'FINAL:app: rest — light'),
-            frame('rest-dark', 'FINAL:app: rest — dark'),
+            frame('rest-dark', 'FINAL:app: rest — dark', { x: 140 }),
           ],
         },
         'docs: baseline',
@@ -559,6 +572,20 @@ describe('evaluateUiDesignFreshness', () => {
       });
       expect(v.overall).toBe('fresh');
       expect(v.surfaces[0].advisories).toBeUndefined();
+    });
+
+    it('reads invalid when the committed baseline breaks the layout contract, naming the node', async () => {
+      await commit(['src/app/page.tsx'], 'feat: ui');
+      await commitPen(
+        repo,
+        'app',
+        { version: '2.19', children: [rowLabel(48), frame('rest', 'FINAL:app: rest')] },
+        'docs: baseline',
+      );
+      await commitReceipt('app', 'chore: capture');
+      const v = await evaluateUiDesignFreshness(cwd, APP);
+      expect(v.overall).toBe('invalid');
+      expect(v.surfaces[0].detail).toContain('area-app');
     });
 
     it('ranks invalid above stale and names both problems in the detail', async () => {

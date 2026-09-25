@@ -1,10 +1,12 @@
 // @tests: pendev-ui-design-phase
 // Reads a committed `.pen` — plain UTF-8 JSON — and judges it by its content:
-// is it a document the editor can render, and does it hold the pages its
-// surface declares. The freshness check and `design capture` both call
-// `inspectBaseline`, so a baseline the check reds is one capture refuses to vouch for.
+// is it a document the editor can render, is it laid out to the baseline
+// contract, and does it hold the pages its surface declares. The freshness
+// check and `design capture` both call `inspectBaseline`, so a baseline the
+// check reds is one capture refuses to vouch for.
 
 import { errMessage } from '../core/err-message.js';
+import { checkLayout, type LayoutFindingCode } from './pen-layout.js';
 
 /** A parsed `.pen`. Only the top-level `children` array is guaranteed; everything else is as found. */
 export interface PenDocument {
@@ -42,7 +44,8 @@ export type PenFindingCode =
   | 'schema-required'
   | 'missing-page'
   | 'duplicate-page'
-  | 'undeclared-page';
+  | 'undeclared-page'
+  | LayoutFindingCode;
 
 /**
  * One problem with a `.pen`. `red` findings depend only on the file, so they
@@ -249,17 +252,21 @@ export function checkCoverage(
 }
 
 /**
- * Every finding for one surface's baseline: validity always, coverage when the
- * surface declares it and the bytes parse. The one entry point the freshness
- * check and `design capture` share, so the two cannot disagree about a file.
+ * Every finding for one surface's baseline: validity always; layout whenever
+ * the bytes parse; coverage when, in addition, the surface declares it. The one
+ * entry point the freshness check and `design capture` share, so the two cannot
+ * disagree about a file.
  */
 export function inspectBaseline(
   bytes: Buffer | string,
   opts: { schema: PenSchemaFacts | null; coverage?: CoverageDeclaration; surface: string },
 ): PenFinding[] {
   const validity = validateBaseline(bytes, opts.schema);
-  if (opts.coverage === undefined) return validity;
   const parsed = parsePenDocument(bytes);
   if (!parsed.ok) return validity;
-  return [...validity, ...checkCoverage(topLevelPages(parsed.doc), opts.coverage, opts.surface)];
+  const coverage =
+    opts.coverage === undefined
+      ? []
+      : checkCoverage(topLevelPages(parsed.doc), opts.coverage, opts.surface);
+  return [...validity, ...coverage, ...checkLayout(parsed.doc, { coverage: opts.coverage })];
 }
