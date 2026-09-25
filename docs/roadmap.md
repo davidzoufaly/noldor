@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Doctor Flags a Broken CLAUDE Import
-
-- id: Q-0277
-- area: tooling
-- type: feat
-- since: 2026-09-24
-- size: XS
-- impact: med
-- confidence: med
-
-A Claude Code `@path` import that names a missing file fails silently: the file simply never loads. `src/checks/check-agents-md-wiring.ts` already reads every project CLAUDE file and parses its imports the way Claude Code does (relative to the importing file's own directory), but only checks that one of them reaches `AGENTS.md`. Wanted: `noldor doctor` warns on any `@path` import in a project CLAUDE file whose target does not exist, naming the file, the import and the path it resolved to. The first real case is charuy: its `.claude/CLAUDE.md` imports `@.claude/charuy-overlay.md`, which resolves to `.claude/.claude/charuy-overlay.md`, so the overlay has probably never loaded. (Charuy, anchored 1.12.0, also still needs `noldor upgrade` then `noldor init --update` after the release carrying PR #535 — consumer-side work, not this entry.) Deletion test: a CLAUDE file importing a missing path gets a doctor row. (found 2026-09-24 shipping Q-0252)
-
 ### CR Lane Prompts Stop Calling a .pen Encrypted
 
 - id: Q-0278
