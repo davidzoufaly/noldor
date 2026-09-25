@@ -1,4 +1,4 @@
-// @tests: pnpm-release-resume
+// @tests: pnpm-release-resume, release-sweep-process-hardening
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import {

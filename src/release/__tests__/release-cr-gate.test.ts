@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: noldor, release-bypass-retirement, test-suites-read-live-repo-state-shifting-full-suite-failures
 import { describe, expect, it } from 'vitest';
 import { checkCrGate } from '../release-cr-gate.js';
 import type { RunCommand } from '../run-command.js';

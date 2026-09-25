@@ -1,4 +1,4 @@
-// @tests: release-sweep-process-hardening
+// @tests: release-sweep-process-hardening, release-script-sddreport-skip-if-only-count-line-changed
 import { describe, expect, it } from 'vitest';
 
 import { NOT_RUN_BY_PREFLIGHT, renderPreflight } from '../preflight-render.js';
