@@ -15,7 +15,7 @@ The pen.dev UI design phase (`pendev-ui-design-phase`) grew a full loop around `
 - an archive move at ship
 - a `pen-bridge` that wakes the editor
 
-`architecture-design-phase` (Q-0274) adds a second kind of design with the same lifecycle: an architecture baseline, a design `.pen` per feature or milestone, approval, and a ship write-back.
+`architecture-design-phase` (Q-0296) adds a second kind of design with the same lifecycle: an architecture baseline, a design `.pen` per feature or milestone, approval, and a ship write-back.
 
 Most of that machinery is already generic: receipts, blob ids, the approval schema, dialogue-key matching, archive ownership and ancestry. What ties it to UI is paths, hard-coded as `UI_DESIGN_DIR` / `UI_BASELINE_DIR` in `src/core/design-artifact-names.ts`, plus approval records keyed by `.pen` stem alone. A separate architecture flow was weighed and set aside. It would leave the UI code untouched, but it would copy about eight mechanisms whose copies would then drift apart, and the operator would have two flows to learn for one lifecycle.
 
