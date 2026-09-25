@@ -1,7 +1,7 @@
 // @tests: ui-design-review-lane
 // The `ui-reviewer` lane: does the implemented UI match the design this session
 // approved? Node resolves the `.pen` PATH and the surfaces in scope; the child
-// reads the design through pencil MCP (encrypted file, only reader) and returns a
+// reads the design through pencil MCP (the only renderer) and returns a
 // verdict. Every terminating path writes exactly one sink — a lane with no sink is
 // indistinguishable from a lane that passed (Q-0100).
 

@@ -1,7 +1,7 @@
 // @tests: ui-design-review-lane
 // Prompt + child contract for the `ui-reviewer` lane. The child opens the design
-// itself through pencil MCP — `.pen` files are encrypted, so Node can resolve a
-// path but never read content (see src/design/ui-sync-cli.ts). Parse half only;
+// itself through pencil MCP, because the review judges rendered pages and only
+// pencil renders them; Node resolves the path. Parse half only;
 // sink policy lives in ui-review.ts, mirroring the reviewer/verifier split.
 
 import { z } from 'zod';
@@ -87,7 +87,7 @@ export function buildUiReviewPrompt(input: UiDispatchInput): string {
       : 'No surface set was resolved for this round — read every `FINAL:` page in the file.';
   return `You are a UI-Design Reviewer. Judge whether the implementation in range ${input.baseSha}..${input.headSha} matches the design it was built from.
 
-The design is a Pencil \`.pen\` file at \`${input.penPath}\`. It is encrypted — the ONLY way to read it is pencil MCP: call \`get_app_state\` (with \`include_schema\` and \`include_canvas_design\`) for the schema, then \`execute({ filePath: "${input.penPath}" })\` with a snippet that reads the pages. Never open it with a file-reading tool. ${scope}
+The design is a Pencil \`.pen\` file at \`${input.penPath}\`. Review it through pencil MCP, because you are judging the rendered pages: call \`get_app_state\` (with \`include_schema\` and \`include_canvas_design\`) for the schema, then \`execute({ filePath: "${input.penPath}" })\` with a snippet that reads the pages. Do not read it with a file-reading tool — its raw JSON is not what renders. ${scope}
 
 ${penBridgeRecipe(input.penPath)}
 
