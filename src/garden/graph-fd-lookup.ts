@@ -1,14 +1,21 @@
-// @fd: sdd-co-tag-detector
+// @fd: sdd-co-tag-detector, fast-track-changes-can-obsolete-an-unattached-fd
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { defaultRunGit } from '../core/branch-added.js';
-import { readTextFiles, walkRepo } from '../core/fd-load.js';
+import {
+  listDirIfExists,
+  loadSddFeatures,
+  readFileIfExists,
+  readTextFiles,
+  walkRepo,
+} from '../core/fd-load.js';
 import type { FeatureRecord, Gap } from '../core/fd-load.js';
 import { TEST_FILE_RE, newestMtimeInRoots, scanRoots } from '../core/repo-paths.js';
 import { GRAPH_IRRELEVANT_EXCLUDES } from '../release/graph-freshness.js';
 import { extractTags } from '../sync/sync-test-links.js';
+import { extractSection } from '../utils/markdown-sections.js';
 
 /**
  * Parsed graphify graph payload. Only the fields this module relies on
@@ -246,6 +253,92 @@ export function getFdOwnersForFile(filePath: string, map: Map<string, Set<string
     for (const slug of map.get(cursor) ?? new Set<string>()) owners.add(slug);
   }
   return owners;
+}
+
+/** Why an owning FD is not asked whether a change altered its documented behaviour. */
+export type OwnerSkip = 'not-done' | 'usage-unwritten';
+
+/** An FD's standing for a doc-impact check. */
+export interface FdStanding {
+  readonly phase: string;
+  /** `null` when the FD is a candidate: `phase: done` with a written `## Usage`. */
+  readonly skip: OwnerSkip | null;
+}
+
+/** Every FD's `links.code` ownership and standing, loaded once and queried per path set. */
+export interface FdOwnership {
+  readonly fileToFds: Map<string, Set<string>>;
+  readonly standing: ReadonlyMap<string, FdStanding>;
+  /** Feature MD filenames left out because their frontmatter did not parse. */
+  readonly unparseable: readonly string[];
+}
+
+/** An FD that owns at least one of the paths asked about. */
+export interface PathOwner extends FdStanding {
+  readonly slug: string;
+  /** The asked-about paths this FD owns, sorted. */
+  readonly files: readonly string[];
+}
+
+/**
+ * True when an FD body's `## Usage` section holds visible text and no TODO
+ * stub. HTML comments are not text: a `noldor:usage-checked` marker alone
+ * documents nothing that could go stale.
+ *
+ * @param md - Full feature MD contents
+ */
+export function usageWritten(md: string): boolean {
+  const usage = extractSection(md, 'Usage');
+  if (usage === null || usage.includes('<!-- TODO')) return false;
+  return usage.replaceAll(/<!--[\s\S]*?-->/g, '').trim() !== '';
+}
+
+/**
+ * Load every FD's `links.code` ownership and standing from a features directory.
+ *
+ * `loadSddFeatures` skips an FD whose frontmatter does not parse, so the
+ * skipped filenames are returned beside the map: a caller must not read an
+ * owner list with skips as complete.
+ *
+ * @param featuresDir - Directory holding `<slug>.md` feature files
+ */
+export async function loadFdOwnership(featuresDir: string): Promise<FdOwnership> {
+  const records = await loadSddFeatures(featuresDir);
+  const parsed = new Set(records.map((r) => `${r.slug}.md`));
+  const unparseable = (await listDirIfExists(featuresDir))
+    .filter((name) => name.endsWith('.md') && !parsed.has(name))
+    .toSorted();
+  const standing = new Map<string, FdStanding>();
+  for (const { slug, frontmatter } of records) {
+    const body = (await readFileIfExists(join(featuresDir, `${slug}.md`))) ?? '';
+    const skip =
+      frontmatter.phase !== 'done' ? 'not-done' : usageWritten(body) ? null : 'usage-unwritten';
+    standing.set(slug, { phase: frontmatter.phase, skip });
+  }
+  return { fileToFds: buildFileToFdsMap(records), standing, unparseable };
+}
+
+/**
+ * The FDs owning any of `paths`, each with the paths it owns — most owned
+ * paths first, so the FDs a change is most about lead.
+ *
+ * @param paths - Repo-relative paths, e.g. a branch's changed files
+ * @param ownership - From {@link loadFdOwnership}
+ */
+export function ownersOf(paths: readonly string[], ownership: FdOwnership): PathOwner[] {
+  const owned = new Map<string, string[]>();
+  for (const path of paths) {
+    for (const slug of getFdOwnersForFile(path, ownership.fileToFds)) {
+      owned.set(slug, [...(owned.get(slug) ?? []), path]);
+    }
+  }
+  return [...owned]
+    .map(([slug, files]) => ({
+      slug,
+      files: files.toSorted(),
+      ...(ownership.standing.get(slug) ?? { phase: 'unknown', skip: 'not-done' as const }),
+    }))
+    .toSorted((a, b) => b.files.length - a.files.length || (a.slug < b.slug ? -1 : 1));
 }
 
 /**

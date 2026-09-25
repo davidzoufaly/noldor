@@ -1,4 +1,4 @@
-// @tests: noldor, scope-sibling-trailer-for-doc-sync-commits
+// @tests: noldor, scope-sibling-trailer-for-doc-sync-commits, fast-track-changes-can-obsolete-an-unattached-fd
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
@@ -789,6 +789,68 @@ describe('validateTrailer', () => {
       const r = validateTrailer({ message: 'fix: x\n', cwd: dir });
       expect(r.ok).toBe(false);
       expect(r.reason).toMatch(/Missing Noldor-Path trailer/);
+    });
+  });
+
+  describe('Noldor-Doc-Impact declaration', () => {
+    function repoWithFds(): string {
+      const dir = setupRepo();
+      writeFileSync(join(dir, 'a'), 'init');
+      execSync('git add a && git commit -q -m init', { cwd: dir });
+      const sha = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+      writeFileSync(join(dir, '.noldor', 'rollout-marker'), sha + '\n');
+      writeFileSync(join(dir, 'b'), 'x');
+      execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(join(dir, 'docs', 'features', 'alpha.md'), '---\nname: Alpha\n---\n');
+      writeFileSync(join(dir, 'docs', 'features', 'beta.md'), '---\nname: Beta\n---\n');
+      writeFileSync(join(dir, 'docs', 'vision.md'), '# Vision\n');
+      return dir;
+    }
+
+    const fastTrack = (declaration: string): string =>
+      `fix(tooling): x\n\nNoldor-Doc-Impact: ${declaration}\nNoldor-Path: fast-track\n`;
+
+    it('accepts none', () => {
+      const r = validateTrailer({ message: fastTrack('none'), cwd: repoWithFds() });
+      expect(r).toEqual({ ok: true });
+    });
+
+    it('accepts a comma-separated list of existing FD slugs', () => {
+      const r = validateTrailer({ message: fastTrack('alpha, beta'), cwd: repoWithFds() });
+      expect(r).toEqual({ ok: true });
+    });
+
+    it('rejects a slug with no feature MD and names it', () => {
+      const r = validateTrailer({ message: fastTrack('alpha, gamma'), cwd: repoWithFds() });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain('gamma');
+      expect(r.reason).not.toContain('alpha');
+    });
+
+    it('rejects none listed beside a slug, even when a feature MD is named none', () => {
+      const dir = repoWithFds();
+      writeFileSync(join(dir, 'docs', 'features', 'none.md'), '---\nname: None\n---\n');
+      const r = validateTrailer({ message: fastTrack('none, alpha'), cwd: dir });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain('none');
+    });
+
+    it('rejects a slug that would resolve outside docs/features', () => {
+      const r = validateTrailer({ message: fastTrack('../vision'), cwd: repoWithFds() });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain('../vision');
+    });
+
+    it('checks the declaration on every path, not only fast-track', () => {
+      const dir = repoWithFds();
+      execSync('git add docs/features/alpha.md', { cwd: dir });
+      const r = validateTrailer({
+        message: 'docs(features:alpha): x\n\nNoldor-Doc-Impact: gamma\nNoldor-Path: micro-chore\n',
+        cwd: dir,
+      });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain('gamma');
     });
   });
 });

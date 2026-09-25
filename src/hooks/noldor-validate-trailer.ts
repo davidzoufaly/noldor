@@ -14,6 +14,7 @@ import { microChoreRefusal } from '../core/config-waiver-guard.js';
 import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { isEntrypoint } from '../core/cli-entry.js';
+import { resolveSlugPath } from '../core/slug-paths.js';
 
 export interface ValidationResult {
   ok: boolean;
@@ -81,6 +82,28 @@ function validateReleaseAutomation(opts: ValidateOptions): ValidationResult {
  * the culprit, so keep the trailer-centric message and point at the injection
  * hook instead.
  */
+/**
+ * Why a `Noldor-Doc-Impact` declaration is invalid, or `null` when it is absent
+ * or valid: `none` alone, or FD slugs that each name an existing feature MD.
+ * Garden trusts the declaration, so one naming a missing FD would record a doc
+ * update that never happened.
+ */
+function docImpactRefusal(value: string | undefined, cwd: string): string | null {
+  if (value === undefined) return null;
+  const entries = value.split(',').map((entry) => entry.trim());
+  if (entries.length === 1 && entries[0] === 'none') return null;
+  const invalid = entries.filter((slug) => {
+    if (slug === 'none') return true;
+    const fd = resolveSlugPath(cwd, ['docs', 'features'], slug, { suffix: '.md' });
+    return !fd.ok || !existsSync(fd.path);
+  });
+  if (invalid.length === 0) return null;
+  return (
+    `Noldor-Doc-Impact must be 'none' alone or slugs of existing docs/features/<slug>.md files; ` +
+    `invalid: ${invalid.map((slug) => JSON.stringify(slug)).join(', ')}`
+  );
+}
+
 function missingPathReason(cwd: string): string {
   if (!sessionMarkerExists(cwd)) {
     return (
@@ -152,6 +175,9 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   if (!PATHS.includes(path as (typeof PATHS)[number])) {
     return { ok: false, reason: `Unknown Noldor-Path: ${path}` };
   }
+
+  const docImpact = docImpactRefusal(t['Noldor-Doc-Impact'], opts.cwd);
+  if (docImpact !== null) return { ok: false, reason: docImpact };
 
   if (path === 'micro-chore') {
     // Re-validate staged diff vs allowlist as defense-in-depth: pre-commit may have been bypassed,
