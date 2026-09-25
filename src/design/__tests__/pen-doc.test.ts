@@ -305,6 +305,20 @@ describe('inspectBaseline', () => {
     expect(codes(findings)).toEqual(['duplicate-page']);
   });
 
+  it('reports a declared page id that a top-level text node shares, through coverage', () => {
+    const findings = inspectBaseline(
+      pen({
+        children: [
+          rowLabel,
+          page('rest', 'FINAL:app: rest', { y: 240 }),
+          { type: 'text', id: 'rest', content: 'Rest', fontSize: 200, x: 0, y: 2000 },
+        ],
+      }),
+      { schema: null, coverage: { states: ['rest'] }, surface: 'app' },
+    );
+    expect(codes(findings)).toEqual(['duplicate-page']);
+  });
+
   it('reports only unparseable when the bytes are not a .pen, since no page can be read', () => {
     expect(
       codes(
