@@ -240,6 +240,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'features/seed-test-tags.ts',
         desc: 'Seed missing // @tests: co-tags from the graph (dry run; --apply writes, --path batches)',
       },
+      owners: {
+        src: 'features/features-owners-cli.ts',
+        desc: "FDs owning a branch's changed files (--base, default origin/main) or given --path files, and which are doc-impact candidates",
+      },
       'migrate-fd-commits-to-prs': {
         src: 'features/migrate-fd-commits-to-prs.ts',
         desc: 'Migrate FD commit refs to PR refs',
