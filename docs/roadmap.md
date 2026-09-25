@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Sync fd-resources Honours --slug
-
-- id: Q-0302
-- area: tooling
-- type: fix
-- since: 2026-09-25
-- size: XS
-- impact: med
-- confidence: high
-
-`noldor sync fd-resources` has no `--slug`: `sync fd-resources --slug <slug>` synced all 95 FDs and updated 15 (`src/sync/sync-fd-resources.ts` never reads the flag), while `sync code-links` / `test-links` / `doc-links` honour it. From a feature worktree that drags unrelated Resources churn (`sdd-co-tag-detector.md`) into the tree; the workaround is `git checkout --` the unrelated FDs. Wanted: `fd-resources` takes `--slug` like its siblings, or refuses a flag it ignores. Deletion test: `sync fd-resources --slug <a>` writes only `docs/features/<a>.md`. (found 2026-09-25, Q-0297)
-
 ### Module Map Drops Arrows No Import Backs
 
 - id: Q-0303
