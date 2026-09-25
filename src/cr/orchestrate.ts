@@ -9,6 +9,7 @@ import { aggregate, describeStale } from './aggregate.js';
 import {
   AUTOFIX_ROUND_CAP,
   appendRound,
+  countedRounds,
   fingerprintBlocker,
   fingerprintBlockers,
   hasClosingRound,
@@ -468,7 +469,9 @@ export function capVerdict(
   // green and reopen a session the contract says is closed.
   if (hasClosingRound(ledger, sessionStartedAt))
     return { refusal: 'closing-round-spent', closingRound: false };
-  const last = rounds.at(-1);
+  // The last round the cap counts: a lane-error round after it reviewed nothing, so
+  // a timed-out closing round leaves the closing round still to earn (Q-0310).
+  const last = countedRounds(rounds).at(-1);
   // A green last round means the pair is not mid-arbitration: it is re-minting a
   // receipt that a later commit stripped. Refusing there would forbid retrying a
   // failed mint at the same head — the very thing "green rounds are free" is for
@@ -679,7 +682,7 @@ export function buildSkeleton(
     slug,
     kind,
     boundTree,
-    rounds: rounds.map((r) => ({
+    rounds: countedRounds(rounds).map((r) => ({
       round: r.round,
       verdict: roundVerdict(r),
       headSha: r.headSha,
@@ -836,7 +839,7 @@ export function renderCapRefusal(
 ): string {
   const rows = (ledger?.rounds ?? []).map(
     (r) =>
-      `  ${r.round}  ${roundVerdict(r).padEnd(5)}  ${r.applied} applied, ${r.deferred} deferred  ${r.headSha.slice(0, 7) || '(no sha)'}`,
+      `  ${r.round}  ${roundVerdict(r).padEnd(5)}  ${r.applied} applied, ${r.deferred} deferred  ${r.headSha.slice(0, 7) || '(no sha)'}${r.laneError === true ? '  lane errors only — not counted' : ''}`,
   );
   const exit =
     refusal === 'head-unchanged'
@@ -1261,6 +1264,13 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       // reviewer resolved and one other lane crashed has one of each.
       const nothingResolved = lanesRun.length === 0 || Object.keys(agg.summaries).length === 0;
       const red = filed.length > 0 || integrity.length > 0 || nothingResolved;
+      // Red only because lanes did not review (a timeout, a spawn failure): every
+      // filed blocker — a lane's carried priors included — belongs to an errored
+      // lane. Stays red, costs no budget, and never closes the pair (Q-0310).
+      const laneError =
+        filed.length > 0 &&
+        integrity.length === 0 &&
+        filed.every((b) => agg.errored.includes(b.lane));
       if (agg.unresolved.length > 0) {
         console.error(
           `round counted from the lanes that resolved — ${agg.unresolved.join(', ')} did not`,
@@ -1319,6 +1329,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         blockerIds: ruleBlockers.map((b) => b.id).sort(),
         signals: reflag.signals,
         verdict: red ? 'red' : 'green',
+        ...(laneError ? { laneError: true } : {}),
         ...(judge !== null && judge.refuted.length > 0
           ? {
               refuted: judge.refuted.map((d) => ({
@@ -1338,7 +1349,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         // The integrity clause holds even when a real finding rides alongside —
         // one corrupt sink means this round's verdict is not trustworthy, and a
         // untrustworthy round must not be the one that closes the pair.
-        ...(cap.closingRound && filed.length > 0 && integrity.length === 0
+        ...(cap.closingRound && filed.length > 0 && integrity.length === 0 && !laneError
           ? { closingRound: true }
           : {}),
       });
@@ -1346,7 +1357,8 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       // red ones, and printing only the second let "four rounds against a cap of
       // two" read as a bypass when it was two greens and a closing round (Q-0251).
       console.error(
-        `round ${recorded.rounds.length} recorded ${red ? 'red' : 'green'} — ` +
+        `round ${recorded.rounds.length} recorded ${red ? 'red' : 'green'}` +
+          `${laneError ? ` on lane errors only (${agg.errored.join(', ')}) — not counted` : ''} — ` +
           `red rounds ${roundLabel(redRounds(recorded.rounds))} against the cap; green rounds do not count`,
       );
     }

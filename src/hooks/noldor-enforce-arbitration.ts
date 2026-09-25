@@ -8,6 +8,7 @@
 import {
   AUTOFIX_ROUND_CAP,
   autofixLedgerSchema,
+  countedRounds,
   ledgerPath,
   roundVerdict,
 } from '../cr/autofix-ledger.js';
@@ -286,7 +287,11 @@ function readLedgerFacts(cwd: string, slug: string): LedgerFacts | null {
     const parsed = autofixLedgerSchema.safeParse(raw);
     if (!parsed.success) return null;
     return {
-      rounds: parsed.data.rounds.map((r) => ({ round: r.round, verdict: roundVerdict(r) })),
+      // The rounds the cap counts: a lane-error round reviewed nothing (Q-0310).
+      rounds: countedRounds(parsed.data.rounds).map((r) => ({
+        round: r.round,
+        verdict: roundVerdict(r),
+      })),
     };
   } catch {
     return null;

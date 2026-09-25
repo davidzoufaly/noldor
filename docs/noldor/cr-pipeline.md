@@ -840,6 +840,16 @@ a hole the others open:
 - An **integrity** blocker says the verdict cannot be trusted, so it reds the
   round but never marks it terminal. One corrupt sink must not wedge the pair
   behind the override permanently.
+- A round red **only on lane errors** — every filed blocker came from a lane
+  whose sink says its review never ran (a `<reviewer>` / `<codex>` failure
+  blocker, or `reason: dispatch-failed`: a timeout or a spawn failure) — stays
+  red but is recorded `laneError` and does **not** count (Q-0310). A timed-out
+  lane's carried priors ride along uncounted: they were not re-reviewed. The
+  round prints `recorded red on lane errors only (<lanes>) — not counted`, is
+  never the terminal closing round, and the cap reads past it, so a closing
+  round that times out is still the closing round on retry. The nothing-wrote-a-sink
+  round above is not a lane-error round: a lane that never starts still reaches
+  the cap.
 
 Only a red round whose findings were actually filed, and which carries no
 integrity blocker, can be the terminal closing round. A round in which every

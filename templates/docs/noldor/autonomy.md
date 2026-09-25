@@ -246,9 +246,14 @@ detach needed. A systemd `OnCalendar=` timer wrapping the same command works the
   the verifier's `doctor` smoke floor reported pnpm missing because
   `makeDefaultProbe` (`src/core/prerequisites.ts`) gives `pnpm --version` 5 s.
   The cap counted all three rounds as red, so the entry stopped at the cap
-  without one finding about the change. Keep the machine awake for the run:
+  without one finding about the change. A round red only on lane errors no
+  longer counts against the cap (Q-0310), but the timeouts still cost the
+  iteration its time, and the verifier's probe-timeout `fail` is a verdict, not a
+  lane error, so it still counts. Keep the machine awake for the run:
   `caffeinate -is -w <drain-pid>` ends with the drain; `-s` holds only on AC
-  power, and a closed lid on battery sleeps regardless. (PR #549)
+  power, and a closed lid on battery sleeps regardless. The supervisor does not
+  take the assertion itself: it would be macOS-only, and it cannot hold a
+  closed lid on battery anyway. (PR #549)
 
 ## Salvaging a leftover branch
 

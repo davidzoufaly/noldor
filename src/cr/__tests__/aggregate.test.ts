@@ -50,6 +50,32 @@ describe('aggregate', () => {
     expect(r.blockers[0].severity).toBe('high');
     expect(r.notes.reviewer).toEqual(['Strengths: clear summary']);
   });
+  it('names the lanes whose own review never ran (Q-0310)', async () => {
+    const sink = (lane: string, extra: Record<string, unknown>) =>
+      writeFile(
+        join(crDir, `x-code-${lane}.json`),
+        JSON.stringify({
+          lane,
+          artifact: 'a.ts',
+          kind: 'code',
+          slug: 'x',
+          suggestions: [],
+          summary: 's',
+          startedAt: '2026-09-25T00:00:00.000Z',
+          finishedAt: '2026-09-25T00:00:01.000Z',
+          ...extra,
+        }),
+      );
+    await sink('reviewer', { blockers: [{ file: '<reviewer>', severity: 'high', message: 't' }] });
+    await sink('verifier', {
+      blockers: [{ file: 'a.ts', severity: 'high', message: 'verify lane errored' }],
+      verdict: 'fail',
+      reason: 'dispatch-failed',
+    });
+    await sink('codex', { blockers: [{ file: 'a.ts', severity: 'high', message: 'real' }] });
+    const r = await aggregate('x', 'code', { cwd: root });
+    expect(r.errored.sort()).toEqual(['reviewer', 'verifier']);
+  });
   it('unresolved (finishedAt unset) => not ok, lane in unresolved', async () => {
     await copy('findings-in-progress.json', 'x-spec-standalone.json');
     const r = await aggregate('x', 'spec', { cwd: root });

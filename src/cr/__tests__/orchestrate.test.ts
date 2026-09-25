@@ -31,7 +31,7 @@ import { priorRecordStands } from '../arbitration.js';
 import { ruleR3 } from '../reflag.js';
 import { buildSkeleton, renderSkeletonExit } from '../orchestrate.js';
 import type { ArbitrationRecord } from '../arbitration.js';
-import { fingerprintBlockers, ledgerDir, ledgerPath } from '../autofix-ledger.js';
+import { fingerprintBlockers, ledgerDir, ledgerPath, redRounds } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';
 import { runSubagent as subagentLane } from '../lanes/subagent.js';
 import { runManual as manualLane } from '../lanes/manual.js';
@@ -812,7 +812,12 @@ describe('round budget (Q-0170)', () => {
 
   /** Ledger entries as prior rounds, written the way orchestrate writes them. */
   async function seedRounds(
-    rounds: Array<{ headSha: string; verdict?: 'green' | 'red'; closingRound?: boolean }>,
+    rounds: Array<{
+      headSha: string;
+      verdict?: 'green' | 'red';
+      closingRound?: boolean;
+      laneError?: boolean;
+    }>,
     session = '',
   ): Promise<void> {
     await mkdir(ledgerDir(root), { recursive: true });
@@ -831,6 +836,7 @@ describe('round budget (Q-0170)', () => {
           deferred: 0,
           diffStat: '',
           ...(r.closingRound ? { closingRound: true } : {}),
+          ...(r.laneError ? { laneError: true } : {}),
         })),
       }),
       'utf8',
@@ -1344,6 +1350,67 @@ describe('round budget (Q-0170)', () => {
     const last = (await ledgerRounds()).at(-1)!;
     expect(last).toMatchObject({ verdict: 'red' });
     expect(last.closingRound).toBeUndefined();
+    spy.mockRestore();
+  });
+
+  // Q-0310: a round red only because a lane timed out reviewed nothing, so it must not
+  // spend the budget — the 2026-09-24 overnight drain hit the cap on timeouts alone.
+  const LANE_TIMEOUT = {
+    file: '<reviewer>',
+    severity: 'high',
+    message: 'subagent lane errored: reviewer dispatch failed: exit -1 (timeout)',
+  };
+
+  it('does not count a round red only on a lane timeout', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // The timed-out lane still owes its carried prior, and that rides along uncounted too.
+    await writeReviewerSink([LANE_TIMEOUT, BLOCKER]);
+    await run({ args: { ...ARGS, headSha: 'aaaaaaa', autonomous: true }, cwd: root });
+    const rounds = await ledgerRounds();
+    expect(rounds[0]).toMatchObject({ verdict: 'red', laneError: true });
+    expect(redRounds(rounds as never)).toBe(0);
+    spy.mockRestore();
+  });
+
+  it('counts a lane timeout beside a real finding from another lane', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await writeReviewerSink([LANE_TIMEOUT]);
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-manual.json'),
+      JSON.stringify({
+        lane: 'manual',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [BLOCKER],
+        suggestions: [],
+        summary: 'blockers found',
+        startedAt: '2026-09-03T00:00:00.000Z',
+        finishedAt: '2026-09-03T00:00:01.000Z',
+      }),
+      'utf8',
+    );
+    await run({
+      args: { ...ARGS, lanes: ['reviewer', 'manual'], headSha: 'aaaaaaa', autonomous: true },
+      cwd: root,
+    });
+    const last = (await ledgerRounds()).at(-1)!;
+    expect(last).toMatchObject({ verdict: 'red' });
+    expect(last.laneError).toBeUndefined();
+    spy.mockRestore();
+  });
+
+  it('leaves the closing round to earn when it times out', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await seedRounds([{ headSha: 'aaaaaaa' }, { headSha: 'bbbbbbb' }, { headSha: 'ccccccc' }]);
+    await writeReviewerSink([LANE_TIMEOUT]);
+    await run({ args: { ...ARGS, headSha: 'ddddddd', autonomous: true }, cwd: root });
+    const last = (await ledgerRounds()).at(-1)!;
+    expect(last).toMatchObject({ headSha: 'ddddddd', verdict: 'red', laneError: true });
+    expect(last.closingRound).toBeUndefined();
+    // A retry at the same head is still the closing round: the timeout reviewed nothing.
+    const ledger = JSON.parse(await readFile(ledgerPath(root, 'x' as never, 'spec'), 'utf8'));
+    expect(capVerdict(ledger, '', 'ddddddd')).toEqual({ refusal: null, closingRound: true });
     spy.mockRestore();
   });
 
