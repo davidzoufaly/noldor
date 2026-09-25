@@ -721,5 +721,9 @@
   "Q-0316": {
     "slug": "seed-test-tags-still-claims-an-apply-stales-the-graph",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0322": {
+    "slug": "migration-coverage-fires-on-additive-only-schema-changes",
+    "retiredAt": "2026-09-25"
   }
 }
