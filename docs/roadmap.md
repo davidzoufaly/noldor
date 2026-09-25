@@ -123,6 +123,19 @@ Milestone membership rots by omission at both ends of the chain, so an active mi
 
 `blocked-by` is all-or-nothing, so a partial dependency degrades into prose the scorer cannot see. Several entries in a real consumer can start, and two-thirds ship, while one part waits — a bar whose five sections are independently blocked; a panel where one row needs a concept that does not exist yet. Marking the whole entry `blocked-by` divides its score by `1 + unshipped_dep_count` for work that is mostly doable today; leaving it off loses the dependency from the graph entirely, so `/noldor-garden` cannot see it and a reader has to find it in a paragraph. Wanted: a `partially-blocked-by:` that joins the blocked-by graph for cycle detection and `show` output but is **excluded from the dependency factor** in `scoreEntry()` — the semantics being "cannot finish" rather than "cannot start". Open question for the spec: whether `/noldor-gate` should surface the partial blocker at pickup so the agent knows which slice to leave alone, or whether that belongs in the entry body. Deletion test: an entry with only `partially-blocked-by` refs scores as unblocked while still appearing in the dependency graph. (found 2026-09-22)
 
+### Huge View Titles on the Architecture .pen
+
+- id: Q-0298
+- area: tooling
+- type: feat
+- since: 2026-09-25
+- size: S
+- impact: low
+- split-from: Q-0292
+- recovered: 2026-09-25
+
+The UI baseline contract (Q-0292) makes every row label at least 200 px, so each app area reads at zoom-to-fit. The architecture baseline, `docs/design/architecture/baseline.pen` (Q-0296), has no titles at all: its four views (`context`, `containers`, `modules`, `flows`) are top-level frames whose names show only as the editor's small frame captions, and its ids are counters (`p31`, `g5`, `a23`) that shift when a box is added. Wanted: one title of at least 200 px above each view, as a top-level text sibling — `readArchPen` in `src/design/arch-pen.ts` already skips a top-level node whose name is no view — written into the baseline, required by `checks arch-baseline`, and ids that are not counters. Writing the baseline needs a live pencil bridge (terminal Claude Code). Deletion test: an architecture baseline with a view that has no title of at least 200 px fails `checks arch-baseline`, naming the view. (split out of Q-0292 on 2026-09-25: the operator asked for huge section titles on "other `.pen` files too")
+
 ### One Graph Builder for the Sweep and CI
 
 - id: Q-0293
