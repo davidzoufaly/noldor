@@ -622,5 +622,9 @@
   "Q-0285": {
     "slug": "release-npm-wait-bypasses-the-registry-cache",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0287": {
+    "slug": "step-0-lists-in-progress-worktree-sessions",
+    "retiredAt": "2026-09-25"
   }
 }
