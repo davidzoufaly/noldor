@@ -1478,7 +1478,7 @@ n
   4 boom! @8
   5 boom! @4
   6 buildArtifactLink! @7
-  7 buildFileUrlLink! @7
+  7 buildVscodeUrlLink! @7
   8 canonical! @7
   9 canonicalDir! @7
   10 check-pen-bridge.test.ts @0

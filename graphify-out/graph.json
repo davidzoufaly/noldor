@@ -21325,19 +21325,19 @@
       "norm_label": "buildartifactlink()"
     },
     {
-      "label": "buildFileUrlLink()",
+      "label": "buildVscodeUrlLink()",
       "file_type": "code",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L463",
-      "id": "design_open_artifact_buildfileurllink",
+      "source_location": "L466",
+      "id": "design_open_artifact_buildvscodeurllink",
       "community": 7,
-      "norm_label": "buildfileurllink()"
+      "norm_label": "buildvscodeurllink()"
     },
     {
       "label": "markdownLink()",
       "file_type": "code",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L470",
+      "source_location": "L473",
       "id": "design_open_artifact_markdownlink",
       "community": 7,
       "norm_label": "markdownlink()"
@@ -21346,7 +21346,7 @@
       "label": "isTerminalHarness()",
       "file_type": "code",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L481",
+      "source_location": "L484",
       "id": "design_open_artifact_isterminalharness",
       "community": 7,
       "norm_label": "isterminalharness()"
@@ -21355,7 +21355,7 @@
       "label": "reportedArtifact()",
       "file_type": "code",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L489",
+      "source_location": "L492",
       "id": "design_open_artifact_reportedartifact",
       "community": 7,
       "norm_label": "reportedartifact()"
@@ -112603,7 +112603,7 @@
       "source_location": "L9",
       "weight": 1.0,
       "source": "src_design_tests_open_artifact_test_ts",
-      "target": "design_open_artifact_buildfileurllink",
+      "target": "design_open_artifact_buildvscodeurllink",
       "confidence_score": 1.0
     },
     {
@@ -118253,17 +118253,17 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L463",
+      "source_location": "L466",
       "weight": 1.0,
       "source": "src_design_open_artifact_ts",
-      "target": "design_open_artifact_buildfileurllink",
+      "target": "design_open_artifact_buildvscodeurllink",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L470",
+      "source_location": "L473",
       "weight": 1.0,
       "source": "src_design_open_artifact_ts",
       "target": "design_open_artifact_markdownlink",
@@ -118273,7 +118273,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L481",
+      "source_location": "L484",
       "weight": 1.0,
       "source": "src_design_open_artifact_ts",
       "target": "design_open_artifact_isterminalharness",
@@ -118283,7 +118283,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L489",
+      "source_location": "L492",
       "weight": 1.0,
       "source": "src_design_open_artifact_ts",
       "target": "design_open_artifact_reportedartifact",
@@ -118613,7 +118613,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L495",
+      "source_location": "L498",
       "weight": 1.0,
       "source": "design_open_artifact_reportedartifact",
       "target": "design_open_artifact_buildartifactlink",
@@ -118624,9 +118624,9 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L467",
+      "source_location": "L470",
       "weight": 1.0,
-      "source": "design_open_artifact_buildfileurllink",
+      "source": "design_open_artifact_buildvscodeurllink",
       "target": "design_open_artifact_markdownlink",
       "confidence_score": 1.0
     },
@@ -118635,10 +118635,10 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L494",
+      "source_location": "L497",
       "weight": 1.0,
       "source": "design_open_artifact_reportedartifact",
-      "target": "design_open_artifact_buildfileurllink",
+      "target": "design_open_artifact_buildvscodeurllink",
       "confidence_score": 1.0
     },
     {
@@ -118646,7 +118646,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/design/open-artifact.ts",
-      "source_location": "L493",
+      "source_location": "L496",
       "weight": 1.0,
       "source": "design_open_artifact_reportedartifact",
       "target": "design_open_artifact_isterminalharness",
@@ -160049,5 +160049,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "77e4bb0c8bafb77a7d76b28d5218def3fecd8efc"
+  "built_at_commit": "0e2490a48f2cc79ded4219b663d8ec544af1b41a"
 }
