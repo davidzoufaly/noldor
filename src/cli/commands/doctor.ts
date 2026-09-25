@@ -7,7 +7,8 @@
 // 3. presence + version-floor check for every *configured* agent runner.
 // 4. structural wiring assertions on consumer-owned files phases 2-3 cannot
 //    see: the root `lefthook.yml` (scaffold-only, so exempt from drift) and the
-//    CLAUDE files, which must import `AGENTS.md` for Claude Code to read it.
+//    CLAUDE files, which must import `AGENTS.md` for Claude Code to read it
+//    (plus an advisory row for any CLAUDE import naming a missing file).
 // 5. lockfile-vs-installed-modules freshness, so a pulled dependency change
 //    that was never installed reports itself instead of surfacing later as a
 //    typecheck failure that reads like a code bug.
@@ -21,7 +22,7 @@ import {
 } from '../../templates/manifest.js';
 import { computeDrift } from '../../templates/diff.js';
 import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
-import { checkAgentsMdWiring } from '../../checks/check-agents-md-wiring.js';
+import { brokenClaudeImports, checkAgentsMdWiring } from '../../checks/check-agents-md-wiring.js';
 import { REPAIR, checkInstallFreshness } from '../../checks/check-install-freshness.js';
 import {
   checkPenBridge,
@@ -106,6 +107,17 @@ if (!rulesWiring.ok) {
   else {
     rulesWiringBad++;
     console.log(`${'unwired'.padEnd(12)} rules: ${rulesWiring.detail}`);
+  }
+}
+
+// Broken CLAUDE imports: advisory only (does NOT affect exit code). Claude Code
+// skips an `@path` import whose file is missing without a word, so the file
+// never loads — but the repo still works, so warn rather than fail.
+if (agentsCfg.targets.includes('claude')) {
+  for (const b of brokenClaudeImports(process.cwd())) {
+    console.log(
+      `${'warn'.padEnd(12)} rules: ${b.file} imports '${b.written}', which resolves to ${b.resolved} — no such file, so Claude Code silently skips it. Imports resolve against the importing file's own directory.`,
+    );
   }
 }
 

@@ -214,3 +214,37 @@ export function checkAgentsMdWiring(
         : `no CLAUDE file, so Claude Code reads ${RULES_FILE} directly`,
   };
 }
+
+/** One `@path` import in a project CLAUDE file whose target is not on disk. */
+export interface BrokenClaudeImport {
+  readonly file: ClaudeFile;
+  /** The import as written, `@` included. */
+  readonly written: string;
+  /** Repo-relative path it resolved to. */
+  readonly resolved: string;
+}
+
+/**
+ * Every import in a project CLAUDE file that names a missing file. Claude Code
+ * skips such an import without a word, so the file it meant to load never loads.
+ * Home (`@~/`) and absolute imports are skipped — they point off the repo, so
+ * their absence here proves nothing — and so is a bare `@word` with no `.` or
+ * `/`, which reads as a mention, not a path.
+ */
+export function brokenClaudeImports(cwd: string): BrokenClaudeImport[] {
+  const views = readClaudeFiles(cwd);
+  const broken: BrokenClaudeImport[] = [];
+  for (const file of PROJECT_CLAUDE_FILES) {
+    const view = views[file];
+    if (view === undefined) continue;
+    const lines = view.content.split('\n');
+    for (const token of importTokens(file, view.content)) {
+      const written = lines[token.line].slice(token.start, token.end);
+      const path = written.slice(1);
+      if (path.startsWith('~') || path.startsWith('/') || !/[./]/.test(path)) continue;
+      if (existsSync(join(cwd, token.target))) continue;
+      broken.push({ file, written, resolved: token.target });
+    }
+  }
+  return broken;
+}
