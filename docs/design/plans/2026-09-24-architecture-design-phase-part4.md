@@ -431,7 +431,7 @@ The kind is read from the lexical `--pen` path, which `path.resolve` has already
 
 The session marker is `.strict()`, so the spec step (Part 7) cannot record its verdict until the schema declares it. `links.arch` takes the same refinement as `links.design`. It is hoisted into one `penLink` helper rather than copied, because two copies would trip the clones ratchet and could drift apart.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   Append to `src/core/__tests__/session.test.ts`:
 
@@ -472,14 +472,14 @@ The session marker is `.strict()`, so the spec step (Part 7) cannot record its v
   });
   ```
 
-- [ ] **Step 2: Run the tests to verify they fail.**
+- [x] **Step 2: Run the tests to verify they fail.**
 
   Run: `pnpm vitest run src/core/__tests__/session.test.ts src/core/__tests__/feature-schema.test.ts`
   Expected: FAIL.
   - The session case throws `Unrecognized key(s) in object: 'archVerdict', 'archWaiver'`, because the schema is strict.
   - The `links.arch` case reports the valid path as `false`, because `LinksSchema` is strict too.
 
-- [ ] **Step 3: Declare the session fields.**
+- [x] **Step 3: Declare the session fields.**
 
   In `src/core/session.ts`, inside `SessionMarkerSchema`'s object, directly after the `uiWaiver` field, add:
 
@@ -493,7 +493,7 @@ The session marker is `.strict()`, so the spec step (Part 7) cannot record its v
         .optional(),
   ```
 
-- [ ] **Step 4: Declare `links.arch`.**
+- [x] **Step 4: Declare `links.arch`.**
 
   In `src/core/feature-schema.ts`, directly above `const LinksSchema = z`, add:
 
@@ -531,7 +531,7 @@ The session marker is `.strict()`, so the spec step (Part 7) cannot record its v
 
   Keep the `/** Repo-relative path of the feature's UI-design `.pen` artifact (spec U3). */` comment above `design:`.
 
-- [ ] **Step 5: Run the tests and the typecheck to verify they pass.**
+- [x] **Step 5: Run the tests and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/core/__tests__/session.test.ts src/core/__tests__/feature-schema.test.ts`
   Expected: PASS.
@@ -542,7 +542,7 @@ The session marker is `.strict()`, so the spec step (Part 7) cannot record its v
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
   ```bash
   msg=$(mktemp)

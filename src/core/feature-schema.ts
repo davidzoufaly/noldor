@@ -48,23 +48,29 @@ export function isCheckableLinkPath(value: unknown): value is string {
   );
 }
 
+/** A repo-relative POSIX `.pen` path — the one shape both design links take. */
+function penLink(key: 'arch' | 'design') {
+  return z
+    .string()
+    .min(1)
+    .refine(
+      (p) =>
+        p.endsWith('.pen') &&
+        !p.startsWith('/') &&
+        !p.includes('\\') &&
+        !p.split('/').includes('..') &&
+        !/^[a-z][a-z0-9+.-]*:/i.test(p),
+      { message: `links.${key} must be a repo-relative POSIX .pen path` },
+    );
+}
+
 const LinksSchema = z
   .object({
+    /** Repo-relative path of the feature's architecture-design `.pen` (spec: "Design-kind seam"). */
+    arch: penLink('arch').optional(),
     code: z.array(z.string()).default([]),
     /** Repo-relative path of the feature's UI-design `.pen` artifact (spec U3). */
-    design: z
-      .string()
-      .min(1)
-      .refine(
-        (p) =>
-          p.endsWith('.pen') &&
-          !p.startsWith('/') &&
-          !p.includes('\\') &&
-          !p.split('/').includes('..') &&
-          !/^[a-z][a-z0-9+.-]*:/i.test(p),
-        { message: 'links.design must be a repo-relative POSIX .pen path' },
-      )
-      .optional(),
+    design: penLink('design').optional(),
     docs: z.array(z.string()).default([]),
     plan: z.union([z.string(), z.array(z.string())]).optional(),
     spec: z.string().optional(),

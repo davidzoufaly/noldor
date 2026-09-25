@@ -45,6 +45,13 @@ export const SessionMarkerSchema = z
       .object({ reason: z.string().min(1), at: z.string().min(1) })
       .strict()
       .optional(),
+    /** Spec-time architecture-design verdict, written by /noldor-spec step 1.6 (spec: "Spec step"). */
+    archVerdict: z.enum(['required', 'skip']).optional(),
+    /** Operator waiver for a required architecture design with no editor — the same shape as `uiWaiver`. */
+    archWaiver: z
+      .object({ reason: z.string().min(1), at: z.string().min(1) })
+      .strict()
+      .optional(),
     markerVersion: z.literal(2).optional(),
   })
   .strict()

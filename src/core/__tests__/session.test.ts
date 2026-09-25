@@ -1,4 +1,4 @@
-// @tests: autonomous-plan-to-pr-merge, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening
+// @tests: autonomous-plan-to-pr-merge, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening, architecture-design-phase
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -338,5 +338,24 @@ describe('ui-design fields', () => {
 
   it('all three fields are optional (back-compat)', () => {
     expect(() => SessionMarkerSchema.parse(base)).not.toThrow();
+  });
+});
+
+describe('architecture-design fields', () => {
+  const base = { path: 'full-new', slug: 's', startedAt: '2026-09-24T00:00:00Z' };
+
+  it('accepts archVerdict and archWaiver, and both stay optional', () => {
+    expect(() =>
+      SessionMarkerSchema.parse({
+        ...base,
+        archVerdict: 'required',
+        archWaiver: { reason: 'no VS Code window', at: '2026-09-24T10:00:00Z' },
+      }),
+    ).not.toThrow();
+    expect(() => SessionMarkerSchema.parse(base)).not.toThrow();
+  });
+
+  it('rejects an unknown archVerdict value', () => {
+    expect(() => SessionMarkerSchema.parse({ ...base, archVerdict: 'maybe' })).toThrow();
   });
 });
