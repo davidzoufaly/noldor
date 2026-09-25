@@ -367,7 +367,7 @@ Moved boxes need no save; a newly drawn arrow does, because matching reads the d
 - Modify: `docs/noldor/script-catalog.md`, `templates/docs/noldor/script-catalog.md`
 - Modify (generated): `AGENTS.md`, `templates/AGENTS.md`
 
-- [ ] **Step 1: Register the command.**
+- [x] **Step 1: Register the command.**
 
   In `src/cli/manifest.ts`, inside `design.subs`, directly after the `'pen-bridge'` entry, add:
 
@@ -378,14 +378,14 @@ Moved boxes need no save; a newly drawn arrow does, because matching reads the d
         },
   ```
 
-- [ ] **Step 2: Document it (both twins) and regenerate the capability index.**
+- [x] **Step 2: Document it (both twins) and regenerate the capability index.**
 
   In `docs/noldor/script-catalog.md`, directly after the `### \`design:verdict\`` entry (after its `- **Source:**` line), insert:
 
   ```markdown
   ### `design:arch-route`
 
-  - **Trigger:** `pnpm -s noldor design arch-route --pen <path.pen> [--view context|containers|modules|flows]`. Run after boxes move on an architecture canvas, by `/noldor-spec` step 1.6 while iterating and by gate Step 4 after the baseline write-back.
+  - **Trigger:** `pnpm noldor design arch-route --pen <path.pen> [--view context|containers|modules|flows]` — as `pnpm -s noldor …` when capturing stdout, so pnpm's banner stays out of the snippet. Run after boxes move on an architecture canvas, by `/noldor-spec` step 1.6 while iterating and by gate Step 4 after the baseline write-back.
   - **Inputs:** the `.pen` on disk, read with the architecture reader (`readArchPen`), so arrows resolve exactly as `checks arch-baseline` resolves them. Moved boxes need no save: the snippet reads live bounds. A newly drawn arrow needs one, because matching reads the file.
   - **Outputs:** a pencil `execute` snippet on stdout. Pass it as `input`, with `filePath` set to the same `.pen`. It rewrites every routable arrow as a border-to-border path with a two-stroke arrowhead, and prints `re-routed <n> of <m> arrow(s)`. Arrows whose ends do not resolve are named on stderr and left alone. Exit 0 = snippet printed, 1 = no arrow to route, 2 = bad arguments or an unreadable `.pen`.
   - **When to use:** whenever dragging boxes left arrows behind. The check never reads geometry, so a green check can sit on a canvas whose arrows are out of place.
@@ -404,12 +404,12 @@ Moved boxes need no save; a newly drawn arrow does, because matching reads the d
   - `capability-index --write` exits 0. The `design` line in `AGENTS.md` and `templates/AGENTS.md` now lists `arch-route`.
   - `validate script-catalog` exits 0.
 
-- [ ] **Step 3: Confirm the command answers through the CLI.**
+- [x] **Step 3: Confirm the command answers through the CLI.**
 
   Run: `pnpm -s noldor design arch-route --pen docs/design/architecture/baseline.pen --view modules | head -1`
   Expected: `const EDGES = [{"id":…` — the baseline Part 3 drew has routable arrows on `modules`.
 
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
 
   ```bash
   msg=$(mktemp)

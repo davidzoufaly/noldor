@@ -140,6 +140,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** never by hand in the normal flow — the spec skill's verdict step and gate Step 2.5 own every call site. Re-run `--approve` after a `pen-approval-mismatch` refusal from `checks shared-files` or a `design-approval-stale` terminal from the `ui-reviewer` lane, on the design as it now stands; run `--reconfirm` after a `design-approval-spec-stale` terminal when the design still depicts the spec.
 - **Source:** [`src/design/design-approval-cli.ts`](../../src/design/design-approval-cli.ts)
 
+### `design:arch-route`
+
+- **Trigger:** `pnpm noldor design arch-route --pen <path.pen> [--view context|containers|modules|flows]` — as `pnpm -s noldor …` when capturing stdout, so pnpm's banner stays out of the snippet. Run after boxes move on an architecture canvas, by `/noldor-spec` step 1.6 while iterating and by gate Step 4 after the baseline write-back.
+- **Inputs:** the `.pen` on disk, read with the architecture reader (`readArchPen`), so arrows resolve exactly as `checks arch-baseline` resolves them. Moved boxes need no save: the snippet reads live bounds. A newly drawn arrow needs one, because matching reads the file.
+- **Outputs:** a pencil `execute` snippet on stdout. Pass it as `input`, with `filePath` set to the same `.pen`. It rewrites every routable arrow as a border-to-border path with a two-stroke arrowhead, and prints `re-routed <n> of <m> arrow(s)`. Arrows whose ends do not resolve are named on stderr and left alone. Exit 0 = snippet printed, 1 = no arrow to route, 2 = bad arguments or an unreadable `.pen`.
+- **When to use:** whenever dragging boxes left arrows behind. The check never reads geometry, so a green check can sit on a canvas whose arrows are out of place.
+- **Source:** [`src/design/arch-route.ts`](../../src/design/arch-route.ts)
+
 ### `design:geometry-diff`
 
 - **Trigger:** `pnpm noldor design geometry-diff <design.json> <impl.json> --surface <name>`. Run by hand while writing or debugging a `geometryCommand` capture script, or over a failing `geometry-compare` round's evidence files.

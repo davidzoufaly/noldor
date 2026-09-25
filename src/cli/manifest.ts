@@ -87,6 +87,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'design/pen-bridge-cli.ts',
         desc: 'Open a .pen in VS Code so pencil MCP answers (bridge wake)',
       },
+      'arch-route': {
+        src: 'design/arch-route.ts',
+        desc: "Print a pencil execute snippet that redraws an architecture .pen's named arrows from their boxes' live bounds",
+      },
       open: {
         src: 'design/open-artifact-cli.ts',
         desc: "Open a spec/plan in VS Code and print the path that resolves from the editor's workspace",
