@@ -38,7 +38,7 @@
 - Modify: `.claude/skills/noldor-spec/SKILL.md`
 - Modify: `templates/.claude/skills/noldor-spec/SKILL.md`
 
-- [ ] **Step 1: Point step 1.5's hand-offs at step 1.6.**
+- [x] **Step 1: Point step 1.5's hand-offs at step 1.6.**
 
   In `.claude/skills/noldor-spec/SKILL.md`, make three exact replacements inside step 1.5:
 
@@ -51,7 +51,7 @@
   Run: `grep -c "step 1.6" .claude/skills/noldor-spec/SKILL.md`
   Expected: `3`
 
-- [ ] **Step 2: Insert step 1.6.**
+- [x] **Step 2: Insert step 1.6.**
 
   Directly above the line that begins `1.7. **Structural-read step (path-gated).**`, insert this block (followed by a blank line):
 
@@ -67,7 +67,7 @@
      The architecture `.pen` and its record commit with the spec at gate Step 2.5, beside any UI `.pen`. Then continue to step 1.7.
   ```
 
-- [ ] **Step 3: Extend step 7.5.**
+- [x] **Step 3: Extend step 7.5.**
 
   At the end of the step-7.5 paragraph (after `costs the operator a `--reconfirm`.`), append:
 
@@ -75,7 +75,7 @@
    When `archVerdict` is `required` and no `archWaiver` is recorded, take the architecture verdict the same way, as step 1.6 describes — one verdict per `.pen`; a session with both a UI and an architecture design asks for two, never one merged approval.
   ```
 
-- [ ] **Step 4: Mirror the twin and check it.**
+- [x] **Step 4: Mirror the twin and check it.**
 
   Run:
 
@@ -96,7 +96,7 @@
 - Modify: `.claude/skills/noldor-gate/SKILL.md`, `templates/.claude/skills/noldor-gate/SKILL.md`
 - Modify: `docs/noldor/gotchas.md`, `templates/docs/noldor/gotchas.md`
 
-- [ ] **Step 1: Add the architecture drift check to gate Step 2.5.**
+- [x] **Step 1: Add the architecture drift check to gate Step 2.5.**
 
   In `.claude/skills/noldor-gate/SKILL.md`, at the end of the paragraph that begins `**Design-approval drift (UI-bearing sessions).**` (after `refuses it as `design-approval-spec-stale`.`), append:
 
@@ -104,7 +104,7 @@
    The same check runs on the architecture `.pen` when the marker carries `archVerdict: required` and no `archWaiver`: `pnpm noldor design verdict --check --pen <the session's architecture .pen>`, with the same three exit branches.
   ```
 
-- [ ] **Step 2: Add the architecture write-back to gate Step 4.**
+- [x] **Step 2: Add the architecture write-back to gate Step 4.**
 
   Directly after the bullet that begins `- **UI baseline write-back (UI-bearing sessions only).**` (it ends `do NOT block the ship on it.`), insert this bullet, separated by blank lines:
 
@@ -116,7 +116,7 @@
     - Advisory at this seam: the check's exit code never blocks `pr-flow`. Pencil MCP unavailable (a headless drain, a session without the bridge): skip LOUDLY — print the check's rows as the debt — and let release preflight's `arch-baseline` row hold the line.
   ```
 
-- [ ] **Step 3: Record the canvas traps.**
+- [x] **Step 3: Record the canvas traps.**
 
   In `docs/noldor/gotchas.md`, at the end of the `## Pencil / UI design` section (directly above `## Release & publish`, after the bullet ending `(charuy Q-0278)`), insert:
 
@@ -142,7 +142,7 @@
     created, as this repo's baseline was. (architecture-design-phase)
   ```
 
-- [ ] **Step 4: Mirror the twins and check them.**
+- [x] **Step 4: Mirror the twins and check them.**
 
   Run:
 
@@ -156,7 +156,7 @@
 
   Expected: all three exit 0.
 
-- [ ] **Step 5: Commit both tasks.**
+- [x] **Step 5: Commit both tasks.**
 
   ```bash
   msg=$(mktemp)
