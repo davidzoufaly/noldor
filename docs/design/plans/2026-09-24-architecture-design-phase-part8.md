@@ -192,7 +192,7 @@ The binding rules, each refused with exit 2:
 
 `--check` and `--reconfirm` read whichever file the record binds.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   In `src/design/__tests__/design-approval.test.ts`, directly after `describe('design verdict CLI / architecture designs', …)`, add:
 
@@ -257,12 +257,12 @@ The binding rules, each refused with exit 2:
   });
   ```
 
-- [ ] **Step 2: Run the tests to verify they fail.**
+- [x] **Step 2: Run the tests to verify they fail.**
 
   Run: `pnpm vitest run src/design/__tests__/design-approval.test.ts -t "milestone targets"`
   Expected: FAIL. `--milestone` is an `unknown argument`, and an undated target is refused as unkeyable.
 
-- [ ] **Step 3: Parse `--milestone`.**
+- [x] **Step 3: Parse `--milestone`.**
 
   In `src/design/design-approval-cli.ts`:
 
@@ -313,7 +313,7 @@ The binding rules, each refused with exit 2:
       };
   ```
 
-- [ ] **Step 4: Key a milestone target by its slug.**
+- [x] **Step 4: Key a milestone target by its slug.**
 
   1. In `resolveFeaturePen`, change the return type to `{ ok: true; abs: string; base: string; kind: DesignKind; milestone: string | null } | Refusal`. Change its final `return` to:
 
@@ -331,7 +331,7 @@ The binding rules, each refused with exit 2:
 
   3. In `main`, change `const key = penSlugFromFilename(pen.base);` to `const key = pen.milestone ?? penSlugFromFilename(pen.base);`, and add `milestone: pen.milestone,` to the `ctx.pen` object after `kind: pen.kind,`.
 
-- [ ] **Step 5: Bind and read either file.**
+- [x] **Step 5: Bind and read either file.**
 
   1. Directly above `function approve(`, add:
 
@@ -414,7 +414,7 @@ The binding rules, each refused with exit 2:
         : { milestone: { slug: spec.name.slice(0, -'.md'.length), blob: specBlob } }),
   ```
 
-- [ ] **Step 6: Run the tests and the typecheck to verify they pass.**
+- [x] **Step 6: Run the tests and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/design-approval.test.ts`
   Expected: PASS — every case, the milestone ones included, and the spec-binding cases unchanged.
@@ -422,7 +422,7 @@ The binding rules, each refused with exit 2:
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 7: Document `--milestone` (both twins).**
+- [x] **Step 7: Document `--milestone` (both twins).**
 
   In `docs/noldor/script-catalog.md`, in the `### \`design:verdict\`` entry:
 
@@ -437,7 +437,7 @@ The binding rules, each refused with exit 2:
 
   Run: `cp docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md`
 
-- [ ] **Step 8: Commit.**
+- [x] **Step 8: Commit.**
 
   ```bash
   msg=$(mktemp)

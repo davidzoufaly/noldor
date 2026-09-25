@@ -296,6 +296,73 @@ describe('design verdict CLI / architecture designs', () => {
   });
 });
 
+describe('design verdict CLI / milestone targets', () => {
+  const target = 'docs/design/architecture/milestones/m1.pen';
+  const PAGES_M = ['BASE:modules: as-built', 'FINAL:modules: split cr'];
+
+  function milestoneRepo(): string {
+    const cwd = gitRepo();
+    mkdirSync(join(cwd, 'docs', 'design', 'architecture', 'milestones'), { recursive: true });
+    mkdirSync(join(cwd, 'docs', 'milestones'), { recursive: true });
+    writeFileSync(join(cwd, target), penJson(PAGES_M));
+    writeFileSync(
+      join(cwd, 'docs', 'milestones', 'm1.md'),
+      '---\nname: m1\nstatus: draft\n---\n\n## Gate\n\nShip it.\n',
+    );
+    return cwd;
+  }
+  const argv = (bind: string[]): string[] => [
+    '--pen',
+    target,
+    '--approve',
+    '--surface',
+    'modules',
+    ...bind,
+    ...PAGES_M.flatMap((p) => ['--editor-page', p]),
+  ];
+
+  it('approves a milestone target against its milestone file', async () => {
+    const cwd = milestoneRepo();
+    expect((await run(cwd, argv(['--milestone', 'm1']))).code).toBe(0);
+    expect(readBack(cwd, target)).toMatchObject({
+      outcome: 'approved',
+      surfaces: ['modules'],
+      milestone: { slug: 'm1', blob: blobOf(cwd, 'docs/milestones/m1.md') },
+    });
+  });
+
+  it('refuses the wrong binding, a foreign slug, a feature design, a missing milestone file, and both flags', async () => {
+    const cwd = milestoneRepo();
+    const wrong = await run(cwd, argv(['--spec', specRel]));
+    expect([wrong.code, wrong.err]).toEqual([2, expect.stringContaining('is a milestone target')]);
+    writeFileSync(join(cwd, 'docs', 'milestones', 'm2.md'), '---\nname: m2\nstatus: draft\n---\n');
+    const foreign = await run(cwd, argv(['--milestone', 'm2']));
+    expect([foreign.code, foreign.err]).toEqual([2, expect.stringContaining('does not own')]);
+    const featureArgv = approveArgv().filter(
+      (a, i, all) => a !== '--spec' && all[i - 1] !== '--spec',
+    );
+    const feature = await run(cwd, [...featureArgv, '--milestone', 'm1']);
+    expect([feature.code, feature.err]).toEqual([2, expect.stringContaining('does not own')]);
+    rmSync(join(cwd, 'docs', 'milestones', 'm1.md'));
+    const missing = await run(cwd, argv(['--milestone', 'm1']));
+    expect([missing.code, missing.err]).toEqual([
+      2,
+      expect.stringContaining('no docs/milestones/m1.md'),
+    ]);
+    expect(parseVerdictArgs(argv(['--milestone', 'm1', '--spec', specRel])).ok).toBe(false);
+  });
+
+  it('reports drift once the milestone file changes', async () => {
+    const cwd = milestoneRepo();
+    await run(cwd, argv(['--milestone', 'm1']));
+    expect((await run(cwd, ['--pen', target, '--check'])).code).toBe(0);
+    appendFileSync(join(cwd, 'docs', 'milestones', 'm1.md'), 'A later gate.\n');
+    const drift = await run(cwd, ['--pen', target, '--check']);
+    expect(drift.code).toBe(1);
+    expect(drift.out).toContain('docs/milestones/m1.md');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // CLI
 
