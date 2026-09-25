@@ -28,11 +28,22 @@ export interface SuiteLockHolder {
   worktree?: string;
 }
 
-/** One attempt at the lock. `held` without a holder means a concurrent reclaim won; ask again. */
+/**
+ * What a wait is queued behind. `claim` names another suite's reclaim claim on a dead
+ * holder's lock — `holder` is then that dead holder, when its payload was readable. A
+ * live reclaim holds its claim for microseconds, so one still there across a long wait
+ * was stranded by a suite that died mid-reclaim.
+ */
+export interface HeldBy {
+  holder?: SuiteLockHolder;
+  claim?: string;
+}
+
+/** One attempt at the lock. `held` with neither field means a concurrent reclaim won; ask again. */
 export type TryAcquireResult =
   | { kind: 'acquired' }
   | { kind: 'own' }
-  | { kind: 'held'; holder?: SuiteLockHolder }
+  | ({ kind: 'held' } & HeldBy)
   | { kind: 'failed'; reason: string };
 
 type SeenHolder = SuiteLockHolder | 'absent' | 'unreadable';
@@ -67,7 +78,7 @@ function publish(lockPath: string, staged: string, self: SuiteLockHolder): TryAc
     if (seen.pid === self.pid) return { kind: 'own' };
     if (isAlive(seen.pid)) return { kind: 'held', holder: seen };
   }
-  return replaceDead(lockPath, staged) ? { kind: 'acquired' } : { kind: 'held' };
+  return replaceDead(lockPath, staged, seen === 'unreadable' ? undefined : seen);
 }
 
 /**
@@ -80,26 +91,34 @@ function publish(lockPath: string, staged: string, self: SuiteLockHolder): TryAc
  * that inode, so once the lock is confirmed still in place it stays there until the
  * rename swaps ours in, and the path is never free.
  */
-function replaceDead(lockPath: string, staged: string): boolean {
+function replaceDead(
+  lockPath: string,
+  staged: string,
+  dead: SuiteLockHolder | undefined,
+): TryAcquireResult {
+  const lost = { kind: 'held' } as const;
   const ino = inodeOf(lockPath);
-  if (ino === undefined) return false;
+  if (ino === undefined) return lost;
   const claimPath = `${lockPath}.reclaim.${ino}`;
   // noldor:cut a claim is never broken, so a suite killed between the claim and the
-  // rename strands it and later suites wait out the 15-minute bound — upgrade to a
-  // kernel-released lock (flock through a helper process) if that is ever seen.
+  // rename strands it and later suites wait out the 15-minute bound, naming the claim
+  // — upgrade to a kernel-released lock (flock through a helper process) if that is
+  // ever seen.
   try {
     linkSync(lockPath, claimPath);
   } catch (err) {
-    if (errno(err) === 'EEXIST' || errno(err) === 'ENOENT') return false;
+    if (errno(err) === 'EEXIST')
+      return { kind: 'held', claim: claimPath, ...(dead === undefined ? {} : { holder: dead }) };
+    if (errno(err) === 'ENOENT') return lost;
     throw err;
   }
   using claim = removedOnDispose(claimPath);
-  if (inodeOf(claim.path) !== ino) return false;
+  if (inodeOf(claim.path) !== ino) return lost;
   const holder = readHolder(claim.path);
-  if (typeof holder === 'object' && isAlive(holder.pid)) return false;
-  if (inodeOf(lockPath) !== ino) return false;
+  if (typeof holder === 'object' && isAlive(holder.pid)) return lost;
+  if (inodeOf(lockPath) !== ino) return lost;
   renameSync(staged, lockPath);
-  return true;
+  return { kind: 'acquired' };
 }
 
 /** Remove the lock only while its payload is still `self` — never another suite's lock. */
@@ -115,15 +134,15 @@ export function releaseSuiteLock(lockPath: string, self: SuiteLockHolder): void 
 export type AcquireOutcome =
   | { kind: 'acquired'; waited: boolean }
   | { kind: 'own' }
-  | { kind: 'timed-out'; holder?: SuiteLockHolder }
+  | ({ kind: 'timed-out' } & HeldBy)
   | { kind: 'failed'; reason: string };
 
 export interface AcquireOptions {
   timeoutMs: number;
   pollMs: number;
   signal?: AbortSignal;
-  /** Called with each new holder this wait queues behind. */
-  onWait?: (holder: SuiteLockHolder) => void;
+  /** Called each time this wait starts queuing behind a different holder or claim. */
+  onWait?: (by: HeldBy) => void;
 }
 
 /** Poll {@link tryAcquire} until the lock is ours, the deadline passes, or `signal` aborts. */
@@ -136,41 +155,49 @@ export async function acquireSuiteLock(
     AbortSignal.timeout(opts.timeoutMs),
     ...(opts.signal === undefined ? [] : [opts.signal]),
   ]);
-  let announced: SuiteLockHolder | undefined;
+  let announced: HeldBy = {};
   let waited = false;
   while (true) {
     const attempt = tryAcquire(lockPath, self);
     if (attempt.kind === 'acquired') return { kind: 'acquired', waited };
     if (attempt.kind !== 'held') return attempt;
-    const holder = attempt.holder;
-    if (holder !== undefined && (announced === undefined || !sameHolder(holder, announced))) {
-      announced = holder;
-      opts.onWait?.(holder);
+    const { kind: _held, ...by } = attempt;
+    if ((by.holder !== undefined || by.claim !== undefined) && !sameHeldBy(by, announced)) {
+      announced = by;
+      opts.onWait?.(by);
     }
     waited = true;
     try {
       await sleep(opts.pollMs, undefined, { signal: deadline });
     } catch (err) {
       if (!deadline.aborted) throw err;
-      return { kind: 'timed-out', holder: announced };
+      return { kind: 'timed-out', ...announced };
     }
   }
 }
 
 /**
  * Why this run does not queue, or `null` when it takes the lock. Only a full,
- * non-watch run waits: a filtered run is the everyday dev loop and must never sit
- * behind a ~50s suite, and watch mode would hold the lock for as long as it stays
- * open.
+ * non-watch run waits: a filtered run — file filters, `-t <name>`, `--changed`,
+ * `--related` — is the everyday dev loop and must never sit behind a ~50s suite, and
+ * watch mode would hold the lock for as long as it stays open. A `--shard` run still
+ * queues: its worker pool is sized to every core, the very oversubscription the lock
+ * exists to stop.
  */
 export function suiteLockSkipReason(run: {
   env: string | undefined;
   watch: boolean;
   filters: readonly string[] | undefined;
+  testNamePattern?: RegExp | string;
+  changed?: boolean | string;
+  related?: readonly string[];
 }): 'disabled' | 'watch' | 'filtered' | null {
   if (run.env === '0') return 'disabled';
   if (run.watch) return 'watch';
   if (run.filters !== undefined && run.filters.length > 0) return 'filtered';
+  if (run.testNamePattern !== undefined && String(run.testNamePattern) !== '') return 'filtered';
+  if (run.changed !== undefined && run.changed !== false) return 'filtered';
+  if (run.related !== undefined && run.related.length > 0) return 'filtered';
   return null;
 }
 
@@ -181,7 +208,13 @@ export function suiteLockSkipReason(run: {
  * `suite-lock.test.ts` pins its value against the installed vitest.
  */
 interface GlobalSetupProject {
-  config: { root: string; watch: boolean };
+  config: {
+    root: string;
+    watch: boolean;
+    testNamePattern?: RegExp | string;
+    changed?: boolean | string;
+    related?: string[];
+  };
   vitest: { filenamePattern?: string[] };
 }
 
@@ -196,6 +229,9 @@ export default async function setup(project: GlobalSetupProject): Promise<() => 
     env: process.env.NOLDOR_SUITE_LOCK,
     watch: project.config.watch,
     filters: project.vitest.filenamePattern,
+    testNamePattern: project.config.testNamePattern,
+    changed: project.config.changed,
+    related: project.config.related,
   });
   if (skip !== null) return noop;
   const location = resolveLockPath(project.config.root);
@@ -213,10 +249,13 @@ export default async function setup(project: GlobalSetupProject): Promise<() => 
   const outcome = await acquireSuiteLock(lockPath, self, {
     timeoutMs: 15 * 60_000,
     pollMs: 1000,
-    onWait: (holder) =>
+    onWait: ({ holder, claim }) =>
       warn(
-        `waiting for the full suite in ${holder.worktree ?? 'another checkout'} (pid ${holder.pid}` +
-          `${holder.startedAt === undefined ? '' : `, running since ${holder.startedAt}`})`,
+        claim === undefined
+          ? `waiting for the full suite in ${holder?.worktree ?? 'another checkout'} (pid ${holder?.pid}` +
+              `${holder?.startedAt === undefined ? '' : `, running since ${holder.startedAt}`})`
+          : `waiting on the reclaim claim ${claim}${deadHolderText(holder)} — ` +
+              `if it is still there in a minute, the suite reclaiming it died; delete it and ${lockPath}`,
       ),
   });
   switch (outcome.kind) {
@@ -233,8 +272,13 @@ export default async function setup(project: GlobalSetupProject): Promise<() => 
       return noop;
     case 'timed-out':
       warn(
-        `still held by pid ${outcome.holder?.pid ?? 'unknown'} after 15 minutes — running anyway; ` +
-          `if that process is not a test run, delete ${lockPath}`,
+        outcome.claim !== undefined
+          ? `the reclaim claim ${outcome.claim}${deadHolderText(outcome.holder)} blocked the lock for ` +
+              `15 minutes — the suite reclaiming it died; running anyway; delete ${outcome.claim} and ${lockPath}`
+          : outcome.holder !== undefined
+            ? `still held by pid ${outcome.holder.pid} after 15 minutes — running anyway; ` +
+              `if that process is not a test run, delete ${lockPath}`
+            : `still held after 15 minutes — running anyway; if no test run is active, delete ${lockPath}`,
       );
       return noop;
     case 'failed':
@@ -281,6 +325,16 @@ function parseHolder(raw: string): SuiteLockHolder | undefined {
     ...(typeof startedAt === 'string' ? { startedAt } : {}),
     ...(typeof worktree === 'string' ? { worktree } : {}),
   };
+}
+
+function deadHolderText(holder: SuiteLockHolder | undefined): string {
+  return holder === undefined ? '' : ` on the lock of exited pid ${holder.pid}`;
+}
+
+function sameHeldBy(a: HeldBy, b: HeldBy): boolean {
+  const holderMatches =
+    a.holder === undefined ? b.holder === undefined : sameHolder(b.holder ?? 'absent', a.holder);
+  return holderMatches && a.claim === b.claim;
 }
 
 function sameHolder(seen: SeenHolder, expected: SuiteLockHolder): boolean {

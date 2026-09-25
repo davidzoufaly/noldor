@@ -638,5 +638,9 @@
   "Q-0290": {
     "slug": "graph-freshness-reads-git-not-mtime",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0291": {
+    "slug": "suite-lock-follow-ups",
+    "retiredAt": "2026-09-25"
   }
 }

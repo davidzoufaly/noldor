@@ -142,18 +142,6 @@ Milestone membership rots by omission at both ends of the chain, so an active mi
 
 `blocked-by` is all-or-nothing, so a partial dependency degrades into prose the scorer cannot see. Several entries in a real consumer can start, and two-thirds ship, while one part waits — a bar whose five sections are independently blocked; a panel where one row needs a concept that does not exist yet. Marking the whole entry `blocked-by` divides its score by `1 + unshipped_dep_count` for work that is mostly doable today; leaving it off loses the dependency from the graph entirely, so `/noldor-garden` cannot see it and a reader has to find it in a paragraph. Wanted: a `partially-blocked-by:` that joins the blocked-by graph for cycle detection and `show` output but is **excluded from the dependency factor** in `scoreEntry()` — the semantics being "cannot finish" rather than "cannot start". Open question for the spec: whether `/noldor-gate` should surface the partial blocker at pickup so the agent knows which slice to leave alone, or whether that belongs in the entry body. Deletion test: an entry with only `partially-blocked-by` refs scores as unblocked while still appearing in the dependency graph. (found 2026-09-22)
 
-### Suite Lock Follow-Ups
-
-- id: Q-0291
-- area: testing
-- type: fix
-- since: 2026-09-24
-- size: S
-- impact: low
-- confidence: med
-
-Suite lock follow-ups from PR #538's review, all `low`: (a) `vitest run -t <name>` queues behind another worktree's full suite for up to 15 minutes, though a `-t` run is the dev loop the skip rule exists for — `suiteLockSkipReason` reads only vitest's `filenamePattern`, and `-t` sets `testNamePattern` (the reviewer says `--changed` and `--shard` runs queue too). (b) The real-vitest-CLI test in `src/testing/__tests__/suite-lock.test.ts` starts two nested vitest CLIs with a 9s exec timeout under the default 10s `testTimeout`, one of the heaviest tests in the suite it protects. (c) A stranded reclaim claim (the `noldor:cut` in `replaceDead`) makes later runs wait 15 minutes without a word and then print `still held by pid unknown`; naming the dead holder or the claim file would say what is stuck. Deletion test for (a): `vitest run -t probe` on the test's fixture project never sees the lock. (found 2026-09-24, PR #538 review)
-
 ### UI Baseline .pen Layout and Id Contract
 
 - id: Q-0292
