@@ -100,7 +100,7 @@ const INLINE_CODE_RE = /`([^`]+)`/g;
 const MD_LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
 
 /** Recursively collect every `*.md` under a skills root; missing root → []. */
-function collectSkillMd(root: string): string[] {
+export function collectSkillMd(root: string): string[] {
   if (!existsSync(root)) return [];
   const out: string[] = [];
   const walk = (dir: string): void => {

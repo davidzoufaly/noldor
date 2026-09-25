@@ -257,13 +257,13 @@ index d25e92d..21aae53 100644
 - Modify: `src/garden/detectors/skill-code-drift.ts`
 - Test: `src/checks/__tests__/skill-size.test.ts`
 
-- [ ] **Step 1: Brief the rules.**
+- [x] **Step 1: Brief the rules.**
 
   Run: `pnpm noldor rules brief --file src/checks/skill-size.ts --file src/checks/__tests__/skill-size.test.ts --file src/garden/detectors/skill-code-drift.ts --stage code`
 
   Expected: `ENFORCE` includes `self-explanatory-code`, `test-real-behavior` and `test-mocking-boundaries` (a spy on `process.stdout` / `process.stderr` is a system boundary, allowed).
 
-- [ ] **Step 2: Write the failing tests.** Create `src/checks/__tests__/skill-size.test.ts`:
+- [x] **Step 2: Write the failing tests.** Create `src/checks/__tests__/skill-size.test.ts`:
 
   ```ts
   // @tests: gate-skill-loads-only-the-branch-a-session-takes
@@ -449,13 +449,13 @@ index d25e92d..21aae53 100644
   });
   ```
 
-- [ ] **Step 3: Run to verify FAIL.**
+- [x] **Step 3: Run to verify FAIL.**
 
   Run: `pnpm vitest run src/checks/__tests__/skill-size.test.ts`
 
   Expected: FAIL — `Failed to load url ../skill-size.js` (the module does not exist).
 
-- [ ] **Step 4: Export the detector's walker.** Apply this change to `src/garden/detectors/skill-code-drift.ts`:
+- [x] **Step 4: Export the detector's walker.** Apply this change to `src/garden/detectors/skill-code-drift.ts`:
 
 ~~~diff
 diff --git a/src/garden/detectors/skill-code-drift.ts b/src/garden/detectors/skill-code-drift.ts
@@ -469,7 +469,7 @@ index 1a61395..2e4df8e 100644
    if (!existsSync(root)) return [];
 ~~~
 
-- [ ] **Step 5: Implement.** Create `src/checks/skill-size.ts`:
+- [x] **Step 5: Implement.** Create `src/checks/skill-size.ts`:
 
   ```ts
   // @fd: gate-skill-loads-only-the-branch-a-session-takes
@@ -663,19 +663,19 @@ index 1a61395..2e4df8e 100644
   runIfDirect('skill-size', 'skill-size', (argv) => main(argv));
   ```
 
-- [ ] **Step 6: Run to verify PASS.**
+- [x] **Step 6: Run to verify PASS.**
 
   Run: `pnpm vitest run src/checks/__tests__/skill-size.test.ts`
 
   Expected: `Tests  12 passed (12)`.
 
-- [ ] **Step 7: Typecheck, lint, format, and the clone ratchet.**
+- [x] **Step 7: Typecheck, lint, format, and the clone ratchet.**
 
   Run: `pnpm typecheck && pnpm exec oxlint src/checks/skill-size.ts src/checks/__tests__/skill-size.test.ts src/garden/detectors/skill-code-drift.ts && pnpm noldor fmt src/checks/skill-size.ts src/checks/__tests__/skill-size.test.ts src/garden/detectors/skill-code-drift.ts && git add -N src/checks/skill-size.ts && pnpm noldor clones check`
 
   Expected: all exit 0; `clones check: no clone group touches this change - green`.
 
-- [ ] **Step 8: Commit.**
+- [x] **Step 8: Commit.**
 
   ```bash
   msg=$(mktemp)
