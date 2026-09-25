@@ -1,7 +1,7 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile as readFileAsync } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { resolve as resolvePath, sep } from 'node:path';
+import { join, resolve as resolvePath, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { handleDemote, handleMove, handlePromote, handleRemove } from './api/blocks.js';
@@ -394,6 +394,40 @@ async function handleApiRemove(
  */
 const STATIC_ROOT = fileURLToPath(new URL('./static/dist', import.meta.url));
 
+/** Root of the package this server runs from: `dist/dashboard/` (or `src/dashboard/`) → two levels up. */
+const PACKAGE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
+
+function readPackageJson(dir: string): { name?: string; version?: string } | undefined {
+  try {
+    return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
+      name?: string;
+      version?: string;
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The framework version `projectRoot` installs right now — read from the
+ * project's `node_modules/<name>`, which an upgrade repoints, not from the
+ * copy this process loaded, whose `package.json` still names the old version
+ * when the upgrade left it on disk. A project that does not install the
+ * package (the framework repo itself) falls back to the running package.
+ *
+ * @returns The version, or `undefined` when no `package.json` can be read.
+ */
+export function installedVersion(
+  projectRoot: string,
+  packageRoot: string = PACKAGE_ROOT,
+): string | undefined {
+  const own = readPackageJson(packageRoot);
+  const installed = own?.name
+    ? readPackageJson(join(projectRoot, 'node_modules', own.name))
+    : undefined;
+  return (installed ?? own)?.version;
+}
+
 /**
  * How often {@link watchInstall} re-checks that this server's own package files
  * are still on disk. One `existsSync` per tick, so the interval only bounds how
@@ -419,24 +453,43 @@ const INSTALL_WATCHDOG_INTERVAL_MS = 30_000;
  * which is also why a transient miss mid-reinstall needs no guard — respawning
  * is the right answer either way.
  *
+ * An upgrade that leaves the old files on disk is the quieter case: every route
+ * keeps working, but out of the old code. So the watchdog also compares the
+ * version the project installs now against the one it started with, and calls
+ * `onUpgraded` when they differ. A tick where the version cannot be read is
+ * skipped — mid-reinstall `package.json` can be briefly absent.
+ *
  * @param opts - `root` to watch (default {@link STATIC_ROOT}), `intervalMs`,
- *   and `onVanished`, called once with the missing root. The first two are
- *   injection seams for tests.
+ *   `readVersion` (default {@link installedVersion} for this project),
+ *   `onVanished`, called once with the missing root, and `onUpgraded`, called
+ *   once with the old and new version. `root`, `intervalMs` and `readVersion`
+ *   are injection seams for tests.
  * @returns A stop function. The timer is unref'd, so a watchdog never keeps an
  *   otherwise-finished process alive.
  */
 export function watchInstall(opts: {
   root?: string;
   intervalMs?: number;
+  readVersion?: () => string | undefined;
   onVanished: (root: string) => void;
+  onUpgraded?: (from: string, to: string) => void;
 }): () => void {
   const root = opts.root ?? STATIC_ROOT;
+  const readVersion = opts.readVersion ?? (() => installedVersion(serverIdentity().root));
+  const startVersion = opts.onUpgraded ? readVersion() : undefined;
+  // Every report stops the timer first: neither state reverts, so every later
+  // tick would re-report the same thing to a caller that is already shutting down.
   const timer = setInterval(() => {
-    if (existsSync(root)) return;
-    // Stop before reporting: the root does not come back, so every later tick
-    // would re-report the same thing to a caller that is already shutting down.
+    if (!existsSync(root)) {
+      clearInterval(timer);
+      opts.onVanished(root);
+      return;
+    }
+    if (startVersion === undefined || !opts.onUpgraded) return;
+    const current = readVersion();
+    if (current === undefined || current === startVersion) return;
     clearInterval(timer);
-    opts.onVanished(root);
+    opts.onUpgraded(startVersion, current);
   }, opts.intervalMs ?? INSTALL_WATCHDOG_INTERVAL_MS);
   timer.unref();
   return () => clearInterval(timer);
@@ -1057,6 +1110,14 @@ async function main(): Promise<void> {
             `dashboard: ${root} no longer exists — this server is running from a deleted ` +
               `install, so every route that reads a file returns 500. Exiting so the next ` +
               `'noldor dashboard ensure' respawns from the current install.`,
+          );
+          process.exit(0);
+        },
+        onUpgraded: (from, to) => {
+          console.error(
+            `dashboard: the installed framework moved from ${from} to ${to} — this server still ` +
+              `runs ${from} from memory. Exiting so the next 'noldor dashboard ensure' respawns ` +
+              `on ${to}.`,
           );
           process.exit(0);
         },
