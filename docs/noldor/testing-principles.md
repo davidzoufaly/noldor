@@ -183,6 +183,16 @@ that would reach for `Math.random` takes a seeded generator as a parameter
 instead — there is no global seeding helper, and a test that patches the global
 is mocking a boundary it does not own.
 
+**Adding a content check to an artifact turns every placeholder fixture of it
+into a defect.** Once `checks ui-design-freshness` began parsing the baseline
+`.pen`, every test that wrote one as a string like `docs: baseline` or
+`PEN-BYTES` (the freshness, capture and ui-sync suites) read `invalid`, and each
+assertion on an older status failed for a reason unrelated to what it tested.
+The fix was fixtures that are minimal valid documents —
+`{"version":"2.19","children":[…]}`, with a page named after the old string so
+the bytes stay distinct — with the assertions left as they were. Before adding
+a content check to any file, grep the tests for writes of that path. (Q-0247)
+
 ## House patterns
 
 Copy the approach of these files rather than inventing new machinery.

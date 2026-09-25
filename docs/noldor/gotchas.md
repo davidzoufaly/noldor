@@ -212,6 +212,13 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   [git-and-commits.md](git-and-commits.md#piped-commits-mask-hook-failures).
 - **zsh eats a bare `===` / `====`** inside a compound command (parses as the
   `==` command → "=== not found"). Quote separator strings: `echo "==="`.
+- **zsh does not word-split `$var`, and the CLI then blames version skew.**
+  `for c in "checks template-sync" …; do pnpm noldor $c; done` passes
+  `checks template-sync` as ONE argument, and the reply is `Unknown command …
+  This may be framework version skew … run 'noldor upgrade'` — advice that
+  points the wrong way. Use `${=c}`, or write one call per command. This is the
+  `$var` word-splitting trap the `--include` bullet below refers to.
+  (architecture-design-phase)
 - **`tsx -e` cannot top-level await** ("not supported with cjs output"). Write
   a `.mts` script file to the scratchpad and run `pnpm exec tsx <file>.mts`.
 - **`lsof -ti tcp:<port>` matches CLIENT sockets too** (undici keep-alive), so
@@ -297,7 +304,14 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   `cmd > /tmp/out 2>&1; echo "EXIT:$?"; cat /tmp/out`. Same class as the
   `git commit | tail` trap in
   [`git-and-commits.md`](git-and-commits.md) — that one has a purpose-built
-  escape (`pnpm noldor commit`); every other command does not. (Q-0246)
+  escape (`pnpm noldor commit`); every other command does not. The pipe does
+  the most damage in a chain: during a rebase conflict
+  `pnpm noldor commit -F msg | tail -1 && git rebase --continue` ran the
+  continue after the wrapper exited 1, and the rebase reused the original
+  message. To reword a mid-branch commit afterwards without `-i`:
+  `git filter-branch --msg-filter 'sed …' origin/main..HEAD`, then
+  `git update-ref -d refs/original/refs/heads/<branch>`. (Q-0246,
+  architecture-design-phase)
 - **One import added to a hub module moves the indirection ratchet once per
   importer.** `src/cr/findings-schema.ts` sits in the closure of 31 modules
   above the threshold, so a single new edge from it to a leaf moved the ratchet
@@ -320,7 +334,11 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   `noldor-validate-trailer` refused with "specs-only-attach requires a spec file
   at …" — the very check that trailer bypasses. Put every trailer in one final
   paragraph; `git interpret-trailers --parse < msg` shows what git sees.
-  (Q-0261)
+  A multi-line `pnpm noldor commit -m "<value>"` produces the same rejection:
+  the value passes through pnpm's `sh`, the `Noldor-Phase-Revert: 1` trailer
+  did not survive, and the gate again blamed a missing spec, while the same
+  message passed `hooks validate-trailer` from a file. Write a multi-line
+  message to a file and use `git commit -F <file>`. (Q-0261, Q-0292)
 
 ## Pencil / UI design
 
@@ -459,6 +477,12 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   showed the thing behind the glass was a blurred gallery, and that the glass
   layer is a child of the dialog root. Whenever a fidelity diff fails, write
   both PNGs to a scratch dir and look before theorising. (charuy Q-0278)
+- **Two pen.dev extension versions can sit on disk at once, and a glob picks
+  the wrong one.** `highagency.pencildev-0.6.71` stayed installed (listed in
+  `~/.vscode/extensions/.obsolete`) while 0.6.73, with pen schema `2.19`, was
+  active, so `grep … pencildev-*/…/pen-schema.md | head -1` read the obsolete
+  `2.17`. Take the active version from `code --list-extensions
+  --show-versions` and read that directory. (architecture-design-phase)
 - **An architecture arrow is a loose path, not a connector.** pen.dev has no
   sticky arrows, so dragging a box leaves its arrows where they were — and
   `checks arch-baseline` stays green, because it reads layer names, not

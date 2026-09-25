@@ -136,8 +136,15 @@ dependency, so the prompt stays a thin pointer.
   the new HEAD itself, the delta is empty, and the prior-green gate mints a
   synthetic OK — a receipt whose fix was never reviewed. Use the captured sha
   instead — or `git rev-parse HEAD@{1}` right after a single amend, and
-  `git rev-parse <branch>@{1}` after a rebase (HEAD's reflog moves once per
-  replayed commit, so `HEAD@{1}` is an intermediate rebase step).
+  `git rev-parse <branch>@{1}` after a rebase **onto the same base** — a
+  reword or amend inside the branch (HEAD's reflog moves once per replayed
+  commit, so `HEAD@{1}` is an intermediate rebase step). After a rebase onto a
+  MOVED `origin/main`, `<branch>@{1}` is the pre-rebase tip, and orchestrate
+  resolves the base through `git merge-base`, which for that tip is the OLD fork
+  point — so every lane reviews main's new commits as part of the branch. Pass
+  the rebased twin of the last reviewed head instead (see
+  [`worktree-discipline.md`](worktree-discipline.md#resuming-a-parked-or-dead-session)),
+  or `--base-sha origin/main` to review the whole branch. (Q-0292)
 - Ship via `pnpm noldor pr-flow` (auto-merge; polls until the PR merges).
   Under parallel drain the supervisor sets `NOLDOR_DRAIN_OPEN_ONLY=1`:
   `pr-flow` then pushes + opens the PR and returns at PR-open — the
