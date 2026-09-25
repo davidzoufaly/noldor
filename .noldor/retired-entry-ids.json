@@ -681,5 +681,9 @@
   "Q-0303": {
     "slug": "module-map-drops-arrows-no-import-backs",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0304": {
+    "slug": "validate-flags-a-queue-id-carried-twice",
+    "retiredAt": "2026-09-25"
   }
 }

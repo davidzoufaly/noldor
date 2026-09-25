@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Validate Flags a Queue Id Carried Twice
-
-- id: Q-0304
-- area: tooling
-- type: fix
-- since: 2026-09-25
-- size: S
-- impact: med
-- confidence: high
-
-Nothing catches a queue id carried twice. Two ways it happened on 2026-09-25: (1) `architecture-design-phase` minted Q-0274 for its FD `entry-id` on its branch while main spent Q-0274 on `fd-resources-hook-skips-flat-feature-docs` (retired in PR #545) — the rebase showed only an `.noldor/id-counter.json` conflict, and it was re-minted as Q-0296; (2) `pendev-ui-design-phase-baseline-validity` then minted Q-0296 for a split-out roadmap block from the same counter the same day, and after #578 merged the rebase had no conflict at all (both sides moved the counter from 296 to 297), `validate triage` stayed green, and only a `git grep Q-0296` showed the FD `entry-id` and the roadmap `- id:` sharing it (re-minted as Q-0297). Wanted: `validate triage` / `validate features` flag an id carried by two live blocks or FDs, or equal to a retired id in `.noldor/retired-entry-ids.json`. Deletion test: a roadmap block and an FD `entry-id` with the same `Q-NNNN` fail validation naming both. (found 2026-09-25)
-
 ### Unknown-Command Message Echoes Its Argv
 
 - id: Q-0305
