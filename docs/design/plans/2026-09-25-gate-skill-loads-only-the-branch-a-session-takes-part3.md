@@ -957,25 +957,25 @@ The micro-chore stash rationale in line 69 keeps its why in `micro-chore.md`; th
 **Files:**
 - Modify: `.noldor/skill-size-baseline.json`
 
-- [ ] **Step 1: Watch the ratchet refuse the new files.**
+- [x] **Step 1: Watch the ratchet refuse the new files.**
 
   Run: `pnpm noldor skill-size check`
 
   Expected: exit 1, naming the nine branch files as `no baseline entry`; `SKILL.md` is within its baseline (it fell).
 
-- [ ] **Step 2: Re-record.**
+- [x] **Step 2: Re-record.**
 
   Run: `pnpm noldor skill-size baseline && pnpm noldor skill-size check`
 
   Expected: `lowered .claude/skills/noldor-gate/SKILL.md — 2701 words, baseline 13690 (-10989)` and nine `new` lines; then `skill-size: 24 skill files within their baseline`.
 
-- [ ] **Step 3: Verify the whole split.**
+- [x] **Step 3: Verify the whole split.**
 
   Run: `pnpm vitest run src/checks && pnpm noldor checks skill-portability && pnpm noldor validate skill-catalog && pnpm noldor validate noldor && pnpm noldor checks template-sync`
 
   Expected: all exit 0.
 
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
 
   ```bash
   msg=$(mktemp)
