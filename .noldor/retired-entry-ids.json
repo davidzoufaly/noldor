@@ -685,5 +685,9 @@
   "Q-0304": {
     "slug": "validate-flags-a-queue-id-carried-twice",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0305": {
+    "slug": "unknown-command-message-echoes-its-argv",
+    "retiredAt": "2026-09-25"
   }
 }
