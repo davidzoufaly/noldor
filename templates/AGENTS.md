@@ -64,7 +64,7 @@ outputs and exit codes: `docs/noldor/script-catalog.md`.
 - `rules` — Engineering rule store: resolve / list / validate: resolve, brief, list, validate
 - `features` — Feature MD validators + migrations: validate, attach-milestone, fill-links-code-gaps, migrate-features, migrate-code-tags, propose-pointers, seed-test-tags, owners, migrate-fd-commits-to-prs, migrate-link-rot, phase-flip-done, phase-revert
 - `roadmap` — Roadmap/backlog block operations: remove-block, has-block
-- `milestones` — Milestone validators: validate, show
+- `milestones` — Milestone validators: validate, show, assign
 - `sync` — Sync links across docs/tests/FDs: test-links, doc-links, code-links, spec-links, fd-resources
 - `validate` — Validators (noldor config + skill catalog + scope): noldor, noldor-config, noldor-scope, skill-catalog, script-catalog, features, milestones, triage, feature-slug-scope
 - `release` — Release pipeline: run, publish

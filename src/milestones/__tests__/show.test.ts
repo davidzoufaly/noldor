@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { renderMilestoneShow } from '../lib.js';
 
-// @tests: decouple-milestones-from-semver
+// @tests: decouple-milestones-from-semver, milestone-membership-has-no-tagger-and-no-counter
 
 let repo: string;
 
@@ -86,6 +86,54 @@ describe(renderMilestoneShow, () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.message).toContain('nope');
+  });
+
+  it('counts untagged roadmap entries, backlog entries and in-progress features apart', async () => {
+    await writeFile(
+      join(repo, 'docs/roadmap.md'),
+      [
+        '### Tagged',
+        '',
+        '- area: tooling',
+        '- milestone: mvp',
+        '',
+        '### Loose',
+        '',
+        '- area: tooling',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(
+      join(repo, 'docs/backlog.md'),
+      ['### Parked A', '', '- area: tooling', '', '### Parked B', '', '- area: tooling', ''].join(
+        '\n',
+      ),
+    );
+    await writeFile(
+      join(repo, 'docs/features/open-thing.md'),
+      [
+        '---',
+        'name: open-thing',
+        'phase: in-progress',
+        'area: test',
+        'category: Tooling',
+        "packages:\n  - '@acme/web'",
+        'noldor-tier: specs-only',
+        'links:',
+        '  code: []',
+        '  tests: []',
+        '---',
+        'body',
+      ].join('\n'),
+    );
+    const result = await renderMilestoneShow('mvp', repo);
+    expect(result.ok && result.text).toContain('roadmap 1, backlog 2, in-progress features 1');
+  });
+
+  it('states a zero untagged count rather than omitting it', async () => {
+    const result = await renderMilestoneShow('mvp', repo);
+    // The fixture's only untagged entry names another milestone, so nothing is untagged.
+    expect(result.ok && result.text).toContain('roadmap 0, backlog 0, in-progress features 0');
   });
 
   // The queue files are optional; a repo may carry neither.

@@ -204,6 +204,44 @@ export function removeBlock(rawIn: string, slug: string): { newRaw: string; remo
   return { newRaw: newLines.join('\n'), removedBlock };
 }
 
+/**
+ * Set one `- <key>: <value>` field bullet on the block addressed by `slug`.
+ * An existing bullet for `key` is rewritten in place; otherwise the bullet is
+ * appended after the last bullet of the block's leading field list, so it
+ * reads as a field rather than as description text. Everything else in the
+ * file is left byte-for-byte alone.
+ *
+ * @param rawIn - Raw roadmap/backlog markdown.
+ * @param slug - Slug of the block to change.
+ * @param key - Field key, e.g. `milestone`.
+ * @param value - Field value.
+ * @returns The rewritten markdown.
+ */
+export function setBlockField(rawIn: string, slug: string, key: string, value: string): string {
+  const { spans, lines } = scanBlocks(rawIn);
+  const { span } = findBlockBySlug(spans, slug);
+  const bullet = `- ${key}: ${value}`;
+  const keyRe = new RegExp(`^-\\s+${key}:`);
+  const fieldRe = /^-\s+[a-z][a-z-]*:/;
+
+  let lastField = -1;
+  for (let i = span.start + 1; i < span.end; i++) {
+    const line = lines[i];
+    if (line === '' && lastField === -1) continue;
+    if (!fieldRe.test(line)) break;
+    if (keyRe.test(line)) {
+      lines[i] = bullet;
+      return lines.join('\n');
+    }
+    lastField = i;
+  }
+  if (lastField === -1) {
+    throw new Error(`write-blocks: block "${slug}" has no field bullets to extend`);
+  }
+  lines.splice(lastField + 1, 0, bullet);
+  return lines.join('\n');
+}
+
 export function insertBlock(
   rawIn: string,
   block: string,

@@ -1,5 +1,11 @@
-// @tests: dashboard-roadmap-drag-drop, parallel-drain-roadmapmd-conflict-auto-resolution
-import { countEntries, insertBlock, moveBlock, removeBlock } from '../write-blocks.js';
+// @tests: dashboard-roadmap-drag-drop, parallel-drain-roadmapmd-conflict-auto-resolution, milestone-membership-has-no-tagger-and-no-counter
+import {
+  countEntries,
+  insertBlock,
+  moveBlock,
+  removeBlock,
+  setBlockField,
+} from '../write-blocks.js';
 
 const ROADMAP_FIX = `# Roadmap
 
@@ -227,5 +233,44 @@ describe('countEntries', () => {
     const out = insertBlock(BACKLOG_FIX, '### Three\n\n- area: web\n\nThree body.\n', n, 3);
     // New entry lands after the last existing entry.
     expect(out.indexOf('Three body.')).toBeGreaterThan(out.indexOf('Two body.'));
+  });
+});
+
+describe(setBlockField, () => {
+  const RAW = [
+    '### One',
+    '',
+    '- id: Q-0001',
+    '- area: web',
+    '- size: S',
+    '',
+    'One body.',
+    '',
+    '- not-a-field: body bullet',
+    '',
+    '### Two',
+    '',
+    '- area: web',
+    '- milestone: old',
+    '',
+    'Two body.',
+    '',
+  ].join('\n');
+
+  it('appends the bullet after the last field of the addressed block only', () => {
+    const out = setBlockField(RAW, 'one', 'milestone', 'mvp');
+    expect(out).toContain('- size: S\n- milestone: mvp\n\nOne body.');
+    expect(out).toContain('- milestone: old');
+    expect(out.replace('- milestone: mvp\n', '')).toBe(RAW);
+  });
+
+  it('rewrites an existing bullet in place', () => {
+    const out = setBlockField(RAW, 'two', 'milestone', 'mvp');
+    expect(out).toContain('- area: web\n- milestone: mvp\n\nTwo body.');
+    expect(out).not.toContain('- milestone: old');
+  });
+
+  it('throws on an unknown slug', () => {
+    expect(() => setBlockField(RAW, 'three', 'milestone', 'mvp')).toThrow(/three/);
   });
 });
