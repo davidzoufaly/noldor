@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Graph Workflow Publish-Step Hardening
-
-- id: Q-0279
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: XS
-- impact: low
-- confidence: high
-
-Two small hardening items the Q-0260 part 3 reviewer left as optional, both in the `update-knowledge-graph.yml` publish step. The newer-graph check treats every `git fetch` failure as "no graph on that ref" and publishes anyway (`git fetch --quiet origin "$ref" 2>/dev/null || continue`); only a missing ref should read that way, and an auth or network failure deserves a `::warning::`. And a re-run of a merge whose graph PR already landed opens a graph PR with an empty diff; the check could also stop when the default branch holds a graph built at exactly this merge. Deletion test: a re-run of an already-published merge opens no graph PR. (found 2026-09-23, PR #501 round 3)
-
 ### Pin Every localeCompare to a Fixed Locale
 
 - id: Q-0280
