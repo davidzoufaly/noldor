@@ -661,5 +661,9 @@
     "slug": "one-graph-builder-for-the-sweep-and-ci",
     "retiredInto": "self-refreshing-compact-knowledge-graph",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0299": {
+    "slug": "drain-child-waits-for-its-background-tasks",
+    "retiredAt": "2026-09-25"
   }
 }
