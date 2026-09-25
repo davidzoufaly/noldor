@@ -6,123 +6,25 @@
 // `vitest.config.ts`; `NOLDOR_SUITE_LOCK=0` turns it off, which the
 // reproduction recipe in the feature doc relies on.
 import { execFileSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
-import { linkSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { isAlive } from '../autonomous/drain-lock.js';
+import {
+  readHolder,
+  tryAcquire,
+  type HeldBy,
+  type LockHolder,
+  type SeenHolder,
+} from '../autonomous/drain-lock.js';
+
+export { tryAcquire };
 
 /** The lock's file name inside the repository's git common dir. */
 export const SUITE_LOCK_FILE = 'noldor-suite.lock';
 
-/**
- * The lock file's payload. Only `pid` is required on read: a worktree on another
- * branch may run a different version of this module, and liveness is decided by
- * the pid alone, so a missing display field must never make a live lock look
- * reclaimable.
- */
-export interface SuiteLockHolder {
-  pid: number;
-  startedAt?: string;
-  worktree?: string;
-}
-
-/**
- * What a wait is queued behind. `claim` names another suite's reclaim claim on a dead
- * holder's lock — `holder` is then that dead holder, when its payload was readable. A
- * live reclaim holds its claim for microseconds, so one still there across a long wait
- * was stranded by a suite that died mid-reclaim.
- */
-export interface HeldBy {
-  holder?: SuiteLockHolder;
-  claim?: string;
-}
-
-/** One attempt at the lock. `held` with neither field means a concurrent reclaim won; ask again. */
-export type TryAcquireResult =
-  | { kind: 'acquired' }
-  | { kind: 'own' }
-  | ({ kind: 'held' } & HeldBy)
-  | { kind: 'failed'; reason: string };
-
-type SeenHolder = SuiteLockHolder | 'absent' | 'unreadable';
-
-/**
- * Take the lock at `lockPath` once, without waiting.
- *
- * The payload is written to a staged file and hard-linked into place, so the lock
- * appears with its content in one step: `link` fails with `EEXIST` while a lock
- * exists. The drain lock's `openSync(path, 'wx')`-then-write leaves a window in
- * which a reader sees an empty file and reclaims a live lock — which simultaneous
- * suite starts would hit. `own` means the payload already names this process
- * (vitest runs global setup once per project). Any file-system error comes back as
- * `failed`, which the caller turns into an unlocked run.
- */
-export function tryAcquire(lockPath: string, self: SuiteLockHolder): TryAcquireResult {
-  try {
-    using staged = removedOnDispose(`${lockPath}.${self.pid}.${randomUUID()}.tmp`);
-    writeFileSync(staged.path, JSON.stringify(self), { flag: 'wx' });
-    return publish(lockPath, staged.path, self);
-  } catch (err) {
-    return { kind: 'failed', reason: errorText(err) };
-  }
-}
-
-function publish(lockPath: string, staged: string, self: SuiteLockHolder): TryAcquireResult {
-  if (linkIfAbsent(staged, lockPath)) return { kind: 'acquired' };
-  const seen = readHolder(lockPath);
-  if (seen === 'absent')
-    return linkIfAbsent(staged, lockPath) ? { kind: 'acquired' } : { kind: 'held' };
-  if (seen !== 'unreadable') {
-    if (seen.pid === self.pid) return { kind: 'own' };
-    if (isAlive(seen.pid)) return { kind: 'held', holder: seen };
-  }
-  return replaceDead(lockPath, staged, seen === 'unreadable' ? undefined : seen);
-}
-
-/**
- * Replace a dead holder's lock with the staged one. Moving the dead lock aside and
- * checking what moved does not work: until a wrong move is undone the path is free,
- * and another suite can take it while a live lock sits aside. Instead the lock is
- * hard-linked to a claim named after its inode — a name only one suite can hold at a
- * time, and a link that keeps the inode from being reused — and its holder is judged
- * again through the claim. A dead holder cannot release and no other suite can claim
- * that inode, so once the lock is confirmed still in place it stays there until the
- * rename swaps ours in, and the path is never free.
- */
-function replaceDead(
-  lockPath: string,
-  staged: string,
-  dead: SuiteLockHolder | undefined,
-): TryAcquireResult {
-  const lost = { kind: 'held' } as const;
-  const ino = inodeOf(lockPath);
-  if (ino === undefined) return lost;
-  const claimPath = `${lockPath}.reclaim.${ino}`;
-  // noldor:cut a claim is never broken, so a suite killed between the claim and the
-  // rename strands it and later suites wait out the 15-minute bound, naming the claim
-  // — upgrade to a kernel-released lock (flock through a helper process) if that is
-  // ever seen.
-  try {
-    linkSync(lockPath, claimPath);
-  } catch (err) {
-    if (errno(err) === 'EEXIST')
-      return { kind: 'held', claim: claimPath, ...(dead === undefined ? {} : { holder: dead }) };
-    if (errno(err) === 'ENOENT') return lost;
-    throw err;
-  }
-  using claim = removedOnDispose(claimPath);
-  if (inodeOf(claim.path) !== ino) return lost;
-  const holder = readHolder(claim.path);
-  if (typeof holder === 'object' && isAlive(holder.pid)) return lost;
-  if (inodeOf(lockPath) !== ino) return lost;
-  renameSync(staged, lockPath);
-  return { kind: 'acquired' };
-}
-
 /** Remove the lock only while its payload is still `self` — never another suite's lock. */
-export function releaseSuiteLock(lockPath: string, self: SuiteLockHolder): void {
+export function releaseSuiteLock(lockPath: string, self: LockHolder): void {
   try {
     if (sameHolder(readHolder(lockPath), self)) rmSync(lockPath, { force: true });
   } catch (err) {
@@ -148,7 +50,7 @@ export interface AcquireOptions {
 /** Poll {@link tryAcquire} until the lock is ours, the deadline passes, or `signal` aborts. */
 export async function acquireSuiteLock(
   lockPath: string,
-  self: SuiteLockHolder,
+  self: LockHolder,
   opts: AcquireOptions,
 ): Promise<AcquireOutcome> {
   const deadline = AbortSignal.any([
@@ -268,7 +170,7 @@ export default async function setup(project: GlobalSetupProject): Promise<() => 
         release();
       };
     }
-    case 'own':
+    case 'own': // vitest runs global setup once per project
       return noop;
     case 'timed-out':
       warn(
@@ -301,33 +203,7 @@ function resolveLockPath(root: string): { path: string } | { error: string } {
   }
 }
 
-function readHolder(path: string): SeenHolder {
-  let raw: string;
-  try {
-    raw = readFileSync(path, 'utf8');
-  } catch (err) {
-    if (errno(err) === 'ENOENT') return 'absent';
-    throw err;
-  }
-  return parseHolder(raw) ?? 'unreadable';
-}
-
-// No zod here: vitest loads this file as a globalSetup through vite-node, which
-// could not resolve `zod` from it when the setup ran for a project rooted outside
-// this repo — and the one field that matters is a positive integer.
-function parseHolder(raw: string): SuiteLockHolder | undefined {
-  const value = parseJson(raw);
-  if (typeof value !== 'object' || value === null) return undefined;
-  const { pid, startedAt, worktree } = value as Record<string, unknown>;
-  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return undefined;
-  return {
-    pid,
-    ...(typeof startedAt === 'string' ? { startedAt } : {}),
-    ...(typeof worktree === 'string' ? { worktree } : {}),
-  };
-}
-
-function deadHolderText(holder: SuiteLockHolder | undefined): string {
+function deadHolderText(holder: LockHolder | undefined): string {
   return holder === undefined ? '' : ` on the lock of exited pid ${holder.pid}`;
 }
 
@@ -337,40 +213,10 @@ function sameHeldBy(a: HeldBy, b: HeldBy): boolean {
   return holderMatches && a.claim === b.claim;
 }
 
-function sameHolder(seen: SeenHolder, expected: SuiteLockHolder): boolean {
+function sameHolder(seen: SeenHolder, expected: LockHolder): boolean {
   return (
     typeof seen === 'object' && seen.pid === expected.pid && seen.startedAt === expected.startedAt
   );
-}
-
-function inodeOf(path: string): bigint | undefined {
-  return statSync(path, { bigint: true, throwIfNoEntry: false })?.ino;
-}
-
-function removedOnDispose(path: string): { path: string } & Disposable {
-  return { path, [Symbol.dispose]: () => rmSync(path, { force: true }) };
-}
-
-function linkIfAbsent(from: string, to: string): boolean {
-  try {
-    linkSync(from, to);
-    return true;
-  } catch (err) {
-    if (errno(err) === 'EEXIST') return false;
-    throw err;
-  }
-}
-
-function parseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return undefined;
-  }
-}
-
-function errno(err: unknown): string | undefined {
-  return (err as NodeJS.ErrnoException).code;
 }
 
 function errorText(err: unknown): string {
