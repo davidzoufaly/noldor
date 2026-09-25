@@ -198,7 +198,7 @@ export function ratchetOffenders(
     const from = before[file] ?? 0;
     if (to > from) risen.push({ file, from, to, delta: to - from });
   }
-  return risen.sort((a, b) => b.delta - a.delta || a.file.localeCompare(b.file));
+  return risen.sort((a, b) => b.delta - a.delta || a.file.localeCompare(b.file, 'en'));
 }
 
 /**

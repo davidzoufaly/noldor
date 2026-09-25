@@ -395,7 +395,7 @@ export function plansSource(cwd: string): DrainSource {
 
       const rows = fds
         .filter((f) => !skip.has(f.slug))
-        .toSorted((a, b) => a.slug.localeCompare(b.slug)) // deterministic blocked-pick order
+        .toSorted((a, b) => a.slug.localeCompare(b.slug, 'en')) // deterministic blocked-pick order
         .map((f) => ({
           slug: f.slug,
           date: planDate(f.slug),
@@ -405,7 +405,7 @@ export function plansSource(cwd: string): DrainSource {
 
       const eligible = rows
         .filter((r) => r.date !== null && r.spec && r.unmetDeps.length === 0)
-        .toSorted((a, b) => a.date!.localeCompare(b.date!)); // FIFO oldest-plan-first
+        .toSorted((a, b) => a.date!.localeCompare(b.date!, 'en')); // FIFO oldest-plan-first
       if (eligible.length > 0) {
         return { slug: eligible[0]!.slug, description: '', eligible: true };
       }

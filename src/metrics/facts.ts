@@ -151,7 +151,7 @@ function extractReleases(cwd: string): ReleaseFact[] {
     const [tag, date] = line.split(FIELD_SEP);
     if (tag?.startsWith('v') && date) out.push({ version: tag.slice(1), date });
   }
-  return out.sort((a, b) => a.date.localeCompare(b.date));
+  return out.sort((a, b) => a.date.localeCompare(b.date, 'en'));
 }
 
 /**

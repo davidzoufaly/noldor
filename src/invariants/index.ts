@@ -1,4 +1,5 @@
 import { boundaries, makeBoundariesInvariant } from './boundaries.js';
+import { localeComparePinned, makeLocaleComparePinnedInvariant } from './locale-compare-pinned.js';
 import { makePublicApiTsdocInvariant, publicApiTsdoc } from './public-api-tsdoc.js';
 import { makeRuleConflictsInvariant, ruleConflicts } from './rule-conflicts.js';
 import { makeSlugPathChokePointInvariant, slugPathChokePoint } from './slug-path-choke-point.js';
@@ -16,6 +17,7 @@ export const invariants: readonly Invariant[] = [
   boundaries,
   toolchainFloor,
   slugPathChokePoint,
+  localeComparePinned,
 ] as const;
 
 /**
@@ -31,6 +33,7 @@ export function makeInvariants(repoRoot: string): readonly Invariant[] {
     makeBoundariesInvariant(repoRoot),
     makeToolchainFloorInvariant(repoRoot),
     makeSlugPathChokePointInvariant(repoRoot),
+    makeLocaleComparePinnedInvariant(repoRoot),
   ] as const;
 }
 

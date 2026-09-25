@@ -188,7 +188,7 @@ export function detectClones(
 ): CloneReport {
   const { minTokens, minLines, gapTokens } = opts;
   const streams: Stream[] = [...files.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => a.localeCompare(b, 'en'))
     .map(([file, src]) => ({ file, tokens: tokenize(src) }));
 
   const totalTokens = streams.reduce((acc, s) => acc + s.tokens.length, 0);
@@ -367,8 +367,8 @@ export function detectClones(
   }
   merged.sort(
     (p, q) =>
-      p.fileA.localeCompare(q.fileA) ||
-      p.fileB.localeCompare(q.fileB) ||
+      p.fileA.localeCompare(q.fileA, 'en') ||
+      p.fileB.localeCompare(q.fileB, 'en') ||
       p.aStart - q.aStart ||
       p.bStart - q.bStart,
   );
@@ -575,7 +575,7 @@ export function detectClones(
   // by construction rather than a second estimate of the same quantity.
   const perFile: Record<string, number> = {};
   let duplicatedTokens = 0;
-  for (const file of [...coverage.keys()].sort((a, b) => a.localeCompare(b))) {
+  for (const file of [...coverage.keys()].sort((a, b) => a.localeCompare(b, 'en'))) {
     const ranges = coverage.get(file)!;
     ranges.sort((a, b) => a[0] - b[0]);
     let covered = 0;
@@ -601,13 +601,13 @@ export function detectClones(
       tokens: c.tokens,
       lines: c.lines,
       instances: [...c.members.values()].sort(
-        (a, b) => a.file.localeCompare(b.file) || a.startLine - b.startLine,
+        (a, b) => a.file.localeCompare(b.file, 'en') || a.startLine - b.startLine,
       ),
     }))
     .sort(
       (a, b) =>
         b.tokens - a.tokens ||
-        a.instances[0]!.file.localeCompare(b.instances[0]!.file) ||
+        a.instances[0]!.file.localeCompare(b.instances[0]!.file, 'en') ||
         a.instances[0]!.startLine - b.instances[0]!.startLine,
     );
 

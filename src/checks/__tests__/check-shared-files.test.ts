@@ -223,11 +223,11 @@ describe('check-shared-files / evaluate — .pen write guard', () => {
 
   it('reports a shared root and a .pen violation together in one run', () => {
     const result = evaluate(mod('CLAUDE.md', ARCHIVED), WORKTREE, {}, NO_RECORDS);
-    expect(result.toSorted((a, b) => a.path.localeCompare(b.path))).toEqual(
+    expect(result.toSorted((a, b) => a.path.localeCompare(b.path, 'en'))).toEqual(
       [
         { path: 'CLAUDE.md', reason: 'shared-root' },
         { path: ARCHIVED, reason: 'pen-archive' },
-      ].toSorted((a, b) => a.path.localeCompare(b.path)),
+      ].toSorted((a, b) => a.path.localeCompare(b.path, 'en')),
     );
   });
 });

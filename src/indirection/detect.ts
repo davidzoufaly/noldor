@@ -664,7 +664,7 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
       const closure = closureOf(m.source);
       return { source: m.source, closure, excess: Math.max(0, closure - threshold) };
     })
-    .sort((a, b) => b.closure - a.closure || a.source.localeCompare(b.source));
+    .sort((a, b) => b.closure - a.closure || a.source.localeCompare(b.source, 'en'));
 
   // `map` already returns a fresh array, so sorting it in place is safe and the
   // spread would be redundant (oxlint unicorn/no-useless-spread).

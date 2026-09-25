@@ -17,6 +17,7 @@ export const collectRoutingAccuracy: Collector = (facts: RepoFacts): MetricResul
     .sort((a, b) =>
       (tagDates.get(b.fm.introduced as string) as string).localeCompare(
         tagDates.get(a.fm.introduced as string) as string,
+        'en',
       ),
     )
     .slice(0, LAST_N);

@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Pin Every localeCompare to a Fixed Locale
-
-- id: Q-0280
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: S
-- impact: med
-- confidence: high
-
-Every bare `localeCompare` in `src/` sorts by the MACHINE locale, so the same data orders differently on an operator Mac than in CI. On a `cs_CZ.UTF-8` machine Czech collation treats `ch` as one letter sorting after `h`, so `'Charlie'.localeCompare('Delta')` is `1` where an `en` run gives `-1`. #519 fixed the case that surfaced it — `sortEntries` in `src/dashboard/views.ts` now compares through `cmpString` pinned to `'en'` — but 44 non-test call sites remain, including another bare one in `views.ts` itself, and the same pattern orders clone reports (`src/clones/detect.ts`), FD lookups (`src/garden/graph-fd-lookup.ts`), release notes (`src/release/release-notes.ts`) and metrics. Any of those sorting a string containing `ch` reorders across machines, so a committed artifact churns depending on who regenerated it. Wanted: one shared comparator pinned to a fixed locale (or plain code-unit `<`/`>` where the order only needs to be STABLE, not linguistic), applied across every site, plus a lint rule so a bare `localeCompare` cannot come back. Deletion test: a repo-wide grep for an unpinned `localeCompare` returns nothing, and the suite passes under both `LANG=cs_CZ.UTF-8` and `LANG=en_US.UTF-8`. (found 2026-09-22)
-
 ### Design Verdict Check Edge Cases
 
 - id: Q-0281

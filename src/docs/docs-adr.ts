@@ -200,7 +200,7 @@ export async function checkAdr(cwd: string): Promise<AdrReport> {
     return { status: 'absent', findings: [] };
   }
 
-  findings.sort((a, b) => a.file.localeCompare(b.file) || a.rule.localeCompare(b.rule));
+  findings.sort((a, b) => a.file.localeCompare(b.file, 'en') || a.rule.localeCompare(b.rule, 'en'));
   return { status: findings.length > 0 ? 'invalid' : 'ok', findings };
 }
 

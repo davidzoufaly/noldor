@@ -365,5 +365,5 @@ export function getCommunityOwners(
 
   return [...counts.entries()]
     .map(([slug, count]) => ({ slug, count }))
-    .toSorted((a, b) => b.count - a.count || a.slug.localeCompare(b.slug));
+    .toSorted((a, b) => b.count - a.count || a.slug.localeCompare(b.slug, 'en'));
 }

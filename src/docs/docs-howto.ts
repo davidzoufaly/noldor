@@ -55,7 +55,7 @@ export function renderHowToIndex(howtos: Howto[]): string {
     if (!items || items.length === 0) {
       continue;
     }
-    items.sort((a, b) => a.frontmatter.title.localeCompare(b.frontmatter.title));
+    items.sort((a, b) => a.frontmatter.title.localeCompare(b.frontmatter.title, 'en'));
     lines.push(`## ${category}`, '');
     for (const h of items) {
       const suffix = h.oneLiner ? ` — ${h.oneLiner}` : '';

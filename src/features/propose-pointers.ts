@@ -43,7 +43,7 @@ export function rankCandidates(signal: {
       reason: inImp && inCom ? 'import + community' : inImp ? 'import' : 'community',
     });
   }
-  return out.toSorted((a, b) => b.score - a.score || a.file.localeCompare(b.file));
+  return out.toSorted((a, b) => b.score - a.score || a.file.localeCompare(b.file, 'en'));
 }
 
 /**
