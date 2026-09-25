@@ -5,6 +5,15 @@ deps: []
 entry-id: Q-0320
 links:
   code: []
+  plan:
+    - >-
+      docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part1.md
+    - >-
+      docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part2.md
+    - >-
+      docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md
+    - >-
+      docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md
   spec: >-
     docs/design/specs/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-design.md
   tests: []
@@ -51,5 +60,10 @@ As an agent running `/noldor-gate` (interactive, or as a headless drain child), 
 ## Resources
 
 - **Spec:** [`docs/design/specs/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-design.md`](../../docs/design/specs/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-design.md)
+- **Plan:**
+  - [`docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part1.md`](../../docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part1.md)
+  - [`docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part2.md`](../../docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part2.md)
+  - [`docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md`](../../docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md)
+  - [`docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md`](../../docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part4.md)
 
 <!-- /generated: resources -->

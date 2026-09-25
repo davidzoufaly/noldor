@@ -100,7 +100,7 @@ Architecture verdict: skip — the ratchet lives in `src/checks/`, which already
 1. `.claude/skills/noldor-gate/SKILL.md` is at most 3,000 words.
 2. The router's load table has a row for each of the six paths and for the drain, finish and resume modes, and every file it names exists.
 3. `SKILL.md` plus the clean-run files of the `specs-only-new` row total under 6,845 words, asserted by a test that reads the table.
-4. Every section and bullet of the pre-split `SKILL.md` (at `c7bc4bc`) has one row in the plan's move ledger — a table in `docs/design/plans/<date>-gate-skill-loads-only-the-branch-a-session-takes.md` naming the file and heading that now holds it — and that destination holds it.
+4. Every section and bullet of the pre-split `SKILL.md` (at `c7bc4bc`) has one row in the plan's move ledger — the table in `docs/design/plans/2026-09-25-gate-skill-loads-only-the-branch-a-session-takes-part3.md` naming the file and heading that now holds it — and that destination holds it.
 5. The gate skill folder has no drain, finish or drain-resume section; the router sends those runs to `docs/noldor/drain-mode.md`, which holds every rule either rendering held before.
 6. The page's Resume path names every `pnpm noldor` command `fd-close.md` names, and its roadmap path names `checks arch-baseline`; a test asserts both.
 7. No `Q-NNNN` id or `PR #N` reference remains in the gate skill folder; each moved story sits in `gotchas.md` or a runbook, and the rule it motivated keeps a one-line why.
