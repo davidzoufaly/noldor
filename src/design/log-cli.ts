@@ -8,6 +8,7 @@ import {
   digestBody,
   locateForDialogue,
   readArtifact,
+  resolveHeading,
   type ArtifactKind,
 } from './artifact-locate.js';
 import {
@@ -49,7 +50,7 @@ const USAGE =
   'usage: noldor design log --slug <slug> [--entry <roadmap-slug>] [--scope <text>] ' +
   '[--decide <text>]... [--open <text>]... [--resolve <id>]... [--support <text>]... ' +
   '[--because <text>] [--instead-of <text>] [--section <heading>] ' +
-  '[--confirm-section <heading>] [--unconfirm-section <heading>] [--kind spec|plan] [--spec <path>]';
+  '[--confirm-section <heading|number|prefix>] [--unconfirm-section <heading>] [--kind spec|plan] [--spec <path>]';
 
 const LOG_FLAGS = new Set([
   '--slug',
@@ -334,16 +335,29 @@ export function runLog(
       return 1;
     }
     const view = read.view;
-    const body = view.section(parsed.confirmSection);
-    if (body === null) {
-      const legal = view.headings.map((h) => h.name).join(', ') || '(none)';
-      err(
-        `design log: --confirm-section '${parsed.confirmSection}' matches no heading — ` +
-          `legal: ${legal}\n`,
-      );
+    const match = resolveHeading(view, parsed.confirmSection);
+    if (match.status !== 'found') {
+      const legal =
+        match.status === 'ambiguous'
+          ? `fits ${match.names.length} headings: ${match.names.join(', ')}`
+          : `matches no heading — legal: ${view.headings.map((h) => h.name).join(', ') || '(none)'}`;
+      err(`design log: --confirm-section '${parsed.confirmSection}' ${legal}\n`);
       return 1;
     }
-    confirmDigest = digestBody(body);
+    // The ledger keys an approval by the heading's exact name, so a number or a
+    // prefix must be swapped for it — and that name must pass the same
+    // normalize-stable check the typed value did.
+    const problem = validateHeadingName(match.name, '--confirm-section');
+    if (problem) {
+      err(`${problem}\n`);
+      return 1;
+    }
+    if (match.name === parsed.unconfirmSection) {
+      err(`--confirm-section and --unconfirm-section name the same heading\n`);
+      return 1;
+    }
+    parsed.confirmSection = match.name;
+    confirmDigest = digestBody(view.section(match.name) ?? '');
   }
 
   const applied = applyLog(state, parsed, confirmDigest);

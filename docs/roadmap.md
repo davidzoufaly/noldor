@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Design Context Section Matching Without Backticks
-
-- id: Q-0283
-- area: tooling
-- type: fix
-- since: 2026-09-24
-- size: XS
-- impact: low
-- confidence: med
-
-`pnpm noldor …` passes its arguments through `sh`, so a backtick inside an argument runs as a command, and spec headings often carry backticks. `pnpm noldor design context --section '<heading with a backticked flag>'` printed `sh: --approve: command not found` and matched no heading. Part of this is settled: `noldor commit -F <file>` exists (#500) for multi-line messages, and `docs/noldor/gotchas.md` documents the backtick trap — twice, in two near-identical Shell & tooling bullets that should be merged into one. What remains: `design context --section` and `design log --confirm-section` accept a heading's number or a backtick-free prefix, so an agent can name any heading without passing a backtick through pnpm. Deletion test: `design context --section` on a heading that contains backticks renders that heading when called by its number. (found 2026-09-24 shipping Q-0258)
-
 ### Codex Skips FD Scaffold Stubs at Plan and Code
 
 - id: Q-0284
