@@ -6,12 +6,17 @@ entry-id: Q-0260
 links:
   code:
     - .github/workflows/update-knowledge-graph.yml
+    - src/graphify/build-graph.py
+    - src/graphify/build.ts
     - src/graphify/graph-to-toon.ts
+    - src/graphify/graphify-requirements.txt
     - src/templates/manifest.ts
     - templates/.github/workflows/update-knowledge-graph.yml
   spec: >-
     docs/design/specs/archive/2026-09-22-self-refreshing-compact-knowledge-graph-design.md
   tests:
+    - src/graphify/__tests__/build-e2e.test.ts
+    - src/graphify/__tests__/build.test.ts
     - src/graphify/__tests__/graph-to-toon.test.ts
     - src/templates/__tests__/templates.test.ts
 name: 'Self-Refreshing, Compact Knowledge Graph'
@@ -21,6 +26,7 @@ phase: in-progress
 noldor-tier: full
 introduced: 1.12.0
 ---
+
 ## Summary
 
 The committed knowledge graph refreshes itself: a merged `feat`, `fix` or
@@ -28,14 +34,16 @@ The committed knowledge graph refreshes itself: a merged `feat`, `fix` or
 its own, so no feature PR carries the diff. The emitted `.toon` is v3 — about
 two-thirds smaller (697 KB to about 235 KB on noldor's own 3,578-node graph),
 addressed by community-local index, and fronted by a table of contents an agent
-can `Read offset/limit` against.
+can `Read offset/limit` against. CI and the release sweep build it with one
+command, `pnpm noldor graphify build`, from HEAD under pinned Python packages, so
+the graph a release commits is the one CI would commit.
 
 ## Diagram
 
 ```mermaid
 flowchart LR
   M[merged PR<br/>feat / fix / refactor] --> B[build job<br/>read-only, no token]
-  B --> G[clean AST pass, code only<br/>graph-to-toon]
+  B --> G[noldor graphify build<br/>HEAD, pinned packages]
   G --> A[(artifact<br/>graphify-out)]
   A --> P[publish job<br/>token, no deps installed]
   P --> R[(branch<br/>noldor/graph-refresh)]
@@ -60,9 +68,16 @@ instead of a 697 KB file — or, worse, reason from a graph that no longer match
 pnpm noldor init            # writes .github/workflows/update-knowledge-graph.yml
 pnpm noldor init --update   # never overwrites an existing copy
 
-# Locally nothing changes — the renderer just emits v3 now
-pnpm noldor graphify graph-to-toon graphify-out/graph.json
+# Build the graph locally exactly as CI does; the release sweep runs the same command
+pnpm noldor graphify build          # a no-op when only graphify-out/ changed since the build
+pnpm noldor graphify build --force  # rebuild anyway
+NOLDOR_GRAPHIFY_PYTHON=/path/to/python3.13 pnpm noldor graphify build
 ```
+
+The build reads HEAD, so uncommitted edits are not in the graph. The first run installs
+the pinned Python packages into `~/.cache/noldor/graphify/` (about 240 MB) and needs a
+Python of the lock's minor, 3.13; later runs reuse that environment. Exit 2 means no
+usable Python, with the fix on stderr.
 
 On CI, a merged PR titled `feat`, `fix` or `refactor` regenerates `graphify-out/` onto the
 fixed `noldor/graph-refresh` branch and opens one `chore(graph): …` PR, force-updated by
@@ -113,10 +128,15 @@ This release ships a knowledge-graph refresh workflow (#501).
 - **Spec:** [`docs/design/specs/archive/2026-09-22-self-refreshing-compact-knowledge-graph-design.md`](../../docs/design/specs/archive/2026-09-22-self-refreshing-compact-knowledge-graph-design.md)
 - **Code:**
   - [`.github/workflows/update-knowledge-graph.yml`](../../.github/workflows/update-knowledge-graph.yml)
+  - [`src/graphify/build-graph.py`](../../src/graphify/build-graph.py)
+  - [`src/graphify/build.ts`](../../src/graphify/build.ts)
   - [`src/graphify/graph-to-toon.ts`](../../src/graphify/graph-to-toon.ts)
+  - [`src/graphify/graphify-requirements.txt`](../../src/graphify/graphify-requirements.txt)
   - [`src/templates/manifest.ts`](../../src/templates/manifest.ts)
   - [`templates/.github/workflows/update-knowledge-graph.yml`](../../templates/.github/workflows/update-knowledge-graph.yml)
 - **Tests:**
+  - [`src/graphify/__tests__/build-e2e.test.ts`](../../src/graphify/__tests__/build-e2e.test.ts)
+  - [`src/graphify/__tests__/build.test.ts`](../../src/graphify/__tests__/build.test.ts)
   - [`src/graphify/__tests__/graph-to-toon.test.ts`](../../src/graphify/__tests__/graph-to-toon.test.ts)
   - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)
 

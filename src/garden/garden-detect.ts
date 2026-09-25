@@ -968,7 +968,7 @@ if (invokedDirect) {
         }
         if (stale.length > 0) {
           console.error(
-            'garden detect --ci: regenerate the graph (/graphify + pnpm toon), commit graphify-out/graph.json, then re-run.',
+            'garden detect --ci: regenerate the graph (pnpm noldor graphify build), commit graphify-out/, then re-run.',
           );
           process.exitCode = 1;
         }

@@ -47,6 +47,8 @@ graphify-out/.graphify_python
 graphify-out/cache/
 graphify-out/cost.json
 graphify-out/.graphify_incremental.json
+# /graphify's incremental-update record: absolute paths and mtimes of the last machine to run it
+graphify-out/manifest.json
 # Generated HTML viz — 41k-line oxfmt/git churn per sweep, not for review (graph-integration.md)
 graphify-out/graph.html
 # Stray graphify output dumped under a scanned source dir (e.g. src/graphify-out/) — never

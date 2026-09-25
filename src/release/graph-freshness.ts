@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
  * that commits touching ONLY test or doc files don't stale the graph. Graphify
  * scans source *imports* — `*.test.ts`/`*.spec.ts`/`__tests__/` and `*.md`
  * files contribute no graph nodes or edges, so a test-only or doc-only commit
- * cannot have changed the graph and must not force a `/graphify` re-run before
+ * cannot have changed the graph and must not force a graph rebuild before
  * release. Without this relaxation every `src`-touching fast-track (most of
  * which are tests/docs) re-stale'd the graph, forcing a graph-refresh sweep
  * ahead of each release for no semantic gain.

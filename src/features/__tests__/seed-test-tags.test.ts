@@ -343,14 +343,14 @@ describe(renderSeedResult, () => {
   it('names the regen step when the graph is stale', () => {
     const out = renderSeedResult({ kind: 'graph-unusable', stale: true }, true);
     expect(out.code).toBe(1);
-    expect(out.stderr).toMatch(/\/graphify --ast-only/);
+    expect(out.stderr).toMatch(/pnpm noldor graphify build/);
     expect(out.stderr).toMatch(/regenerate between batches/);
   });
 
   it('names the generate step when the graph is missing', () => {
     const out = renderSeedResult({ kind: 'graph-unusable', stale: false }, false);
     expect(out.code).toBe(1);
-    expect(out.stderr).toMatch(/does not exist — generate it with \/graphify --ast-only/);
+    expect(out.stderr).toMatch(/does not exist — generate it with pnpm noldor graphify build/);
   });
 
   it('exits 2 naming a --path that selects nothing', () => {

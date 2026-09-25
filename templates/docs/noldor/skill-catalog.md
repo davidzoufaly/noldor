@@ -101,7 +101,7 @@ Noldor ships 15 user-invocable skills, each owned by a single concern. This page
 ## /noldor-release-sweep
 
 - **Trigger:** `/noldor-release-sweep`. Run when the user signals they're ready to release.
-- **Inputs:** must start on `main` with a clean tree and a passing `pnpm verify`. Sweep stages call `/graphify`, `pnpm toon`, and `/noldor-refactor` in turn.
+- **Inputs:** must start on `main` with a clean tree and a passing `pnpm verify`. Sweep stages call `pnpm noldor graphify build` and `/noldor-refactor` in turn (`/graphify` only under `--full-semantic`).
 - **Outputs:** fresh `graphify-out/` (graph.json, GRAPH_REPORT.md, toon files) twice — pre-refactor and post-refactor; a pre-empted `pnpm noldor garden sdd-report --release` regen; a `/noldor-garden` pass that stamps `.noldor/garden-receipt`; noted README drift (never committed on the sweep branch — `README.md` is outside `RELEASE_SWEEP_GLOBS`); a single `chore(release): pre-release graphify + refactor sweep` commit; final `pnpm verify` pass. Then `pnpm noldor pr-flow` opens and auto-merges the sweep PR, and `pnpm release --preflight` reports every release state gate at once before the explicit `release now` confirmation.
 - **When to use:** the moment between "feature merged to main" and "tag the release". Never runs `pnpm release` without the explicit confirmation. Don't use mid-feature, for routine graph rebuilds, or for one-line hotfixes where structural drift is impossible.
 

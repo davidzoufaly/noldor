@@ -305,7 +305,7 @@ describe('graphContext freshness', () => {
     utimesSync(join(dir, 'src', 'a.ts'), future, future);
     const r = await graphContext({ cwd: dir, paths: [], runGit: git2({ tracked: true }) });
     expect(r.status).toBe('stale');
-    expect(r.detail).toContain('Run /graphify --ast-only');
+    expect(r.detail).toContain('Run pnpm noldor graphify build');
   });
 
   it('reports the toon unusable when it is missing, without demoting the verdict', async () => {

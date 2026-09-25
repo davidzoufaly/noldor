@@ -45,7 +45,7 @@ As a doc-gardening agent, I want plans and specs represented in the knowledge gr
 pnpm graphify:enrich-docs          # reads + rewrites graphify-out/graph.json in place
 
 # Regen chain (release-sweep / garden):
-/graphify .                        # external build → graph.json (code nodes)
+pnpm noldor graphify build         # graph.json (code nodes), report and toons
 pnpm graphify:enrich-docs          # add FD/plan/spec nodes + edges
 pnpm toon graphify-out/graph.json  # graph-to-toon, now includes doc community
 
@@ -64,7 +64,7 @@ in `src/garden/plan-resolution.ts` returns `ResolvedOwner | null`.
 pnpm noldor design graph-context --path src/foo.ts --path src/bar.ts
 
 #   exit 0  "skipped"  -> repo tracks no graph; record a noldor:cut and continue
-#   exit 1  "stale"    -> /graphify --ast-only && pnpm toon, then retry ONCE
+#   exit 1  "stale"    -> pnpm noldor graphify build, then retry ONCE
 #   exit 0  digest     -> write ### Structural context from it
 #   exit 2             -> usage error (unknown arg, or a --path escaping the repo)
 

@@ -848,12 +848,12 @@ describe('staleGraphGaps', () => {
     category: 'Tests with incomplete co-tag',
     itemId: 'graphify-out/graph.json',
     message:
-      'Co-tag detector ran in degraded mode: graphify-out/graph.json regen 2026-08-01, latest source mtime 2026-08-07. Run /graphify + pnpm toon (preferred) or perform a manual co-tag audit.',
+      'Co-tag detector ran in degraded mode: graphify-out/graph.json regen 2026-08-01, latest source mtime 2026-08-07. Run pnpm noldor graphify build (preferred) or perform a manual co-tag audit.',
   };
   const missingGraphGap = {
     category: 'Tests with incomplete co-tag',
     itemId: 'graphify-out/graph.json',
-    message: 'graphify-out/graph.json does not exist. Run /graphify + pnpm toon.',
+    message: 'graphify-out/graph.json does not exist. Run pnpm noldor graphify build.',
   };
   const coTagGap = {
     category: 'Tests with incomplete co-tag',

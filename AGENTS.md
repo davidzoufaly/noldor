@@ -70,7 +70,7 @@ outputs and exit codes: `docs/noldor/script-catalog.md`.
 - `release` — Release pipeline: run, publish
 - `hooks` — Lefthook entrypoints (pre-commit / commit-msg / pre-push): pre-commit, inject-trailers, validate-trailer, enforce-review-receipt, enforce-arbitration, pre-push, pre-edit-guard, open-artifact
 - `checks` — Invariant + shared-file checks: invariants, shared-files, feature-slug-scope, template-sync, ui-design-freshness, arch-baseline, push-gates, readme, skill-portability, pen-bridge
-- `graphify` — Graphify runner + helpers: graph-to-toon, enrich-docs, refactor-precondition
+- `graphify` — Graphify runner + helpers: build, graph-to-toon, enrich-docs, refactor-precondition
 - `dashboard` — Dev dashboard: server, ensure, status
 - `docs` — Docs builders + checks: api, howto, check, transclude, adr, architecture, capability-index
 - `worktrees` — Worktree create + status + launch: create, status, conflicts, launch, up, down
