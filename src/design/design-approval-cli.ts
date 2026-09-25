@@ -29,11 +29,15 @@ import { z } from 'zod';
 import { blobIdOfBytes, blobIdOfWorktreeFile } from '../core/blob-id.js';
 import { runIfDirect } from '../core/cli-entry.js';
 import {
+  ARCH_BASELINE_PATH,
+  ARCH_DESIGN_DIR,
   ARCHIVE_DIR,
+  designKindOfPath,
   penSlugFromFilename,
   specSlugFromFilename,
   UI_BASELINE_DIR,
   UI_DESIGN_DIR,
+  type DesignKind,
 } from '../core/design-artifact-names.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { errMessage } from '../core/err-message.js';
@@ -43,10 +47,12 @@ import {
   writeApproval,
   type DesignApprovalRecord,
 } from './design-approval.js';
+import { ARCH_VIEWS } from './arch-pen.js';
 
 const USAGE =
   'usage: design verdict --pen <path> --approve --surface <s> [--surface <s>...] --spec <path>\n' +
   '                      --editor-page <name> [--editor-page <name>...] [--reservation <text>]\n' +
+  '                      (a docs/design/architecture/ .pen takes views as surfaces: context | containers | modules | flows)\n' +
   '       design verdict --pen <path> --waive --reason <text>\n' +
   '       design verdict --pen <path> --check\n' +
   '       design verdict --pen <path> --reconfirm';
@@ -205,38 +211,50 @@ function resolveUnder(
 }
 
 /**
- * Containment for `--pen`: the path must realpath-resolve inside
- * `<repo>/docs/design/ui/` and outside `baseline/` — symlinks, traversal and
- * absolute paths all resolve BEFORE the test. `archive/` is deliberately
- * inside: gate Step 4 archives the `.pen` in the flip commit before the
- * code-stage lane runs, so a re-verdict on an archived design is a legitimate
- * call, not an error.
+ * Containment for `--pen`: the path must realpath-resolve inside one design
+ * kind's directory — `docs/design/ui/` or `docs/design/architecture/`, the kind
+ * read off the lexical path — and must not be that kind's baseline. Symlinks,
+ * traversal and absolute paths all resolve BEFORE the test. `archive/` is
+ * deliberately inside: gate Step 4 archives the `.pen` in the flip commit
+ * before the code-stage lane runs, so a re-verdict on an archived design is a
+ * legitimate call, not an error.
  */
 export function resolveFeaturePen(
   repoRoot: string,
   penArg: string,
-): { ok: true; abs: string; base: string } | Refusal {
-  const found = resolveUnder(repoRoot, '--pen', penArg, join(repoRoot, UI_DESIGN_DIR));
+): { ok: true; abs: string; base: string; kind: DesignKind } | Refusal {
+  const lexical = relative(repoRoot, resolve(repoRoot, penArg)).split(sep).join('/');
+  const kind = designKindOfPath(lexical) ?? 'ui';
+  const designDir = kind === 'architecture' ? ARCH_DESIGN_DIR : UI_DESIGN_DIR;
+  const found = resolveUnder(repoRoot, '--pen', penArg, join(repoRoot, designDir));
   if (!found.ok) return found;
   const { abs, root: designRoot } = found;
   const rel = relative(designRoot, abs);
   if (rel.startsWith('..') || rel === '') {
-    return { ok: false, error: `--pen must resolve inside ${UI_DESIGN_DIR}/` };
+    return {
+      ok: false,
+      error: `--pen must resolve inside ${UI_DESIGN_DIR}/ or ${ARCH_DESIGN_DIR}/`,
+    };
   }
-  // Baseline exclusion by resolved prefix. The baseline dir may simply not
-  // exist yet (a repo before its first capture), which excludes nothing.
-  const baselineRoot = (() => {
+  // Baseline exclusion, resolved. Either baseline may not exist yet (a repo
+  // before its first capture or bootstrap), which excludes nothing.
+  const resolvedOrNull = (path: string): string | null => {
     try {
-      return realpathSync(join(repoRoot, UI_BASELINE_DIR));
+      return realpathSync(join(repoRoot, path));
     } catch {
       return null;
     }
-  })();
-  if (baselineRoot !== null && abs.startsWith(baselineRoot + sep)) {
+  };
+  if (kind === 'ui') {
+    const baselineRoot = resolvedOrNull(UI_BASELINE_DIR);
+    if (baselineRoot !== null && abs.startsWith(baselineRoot + sep)) {
+      return { ok: false, error: '--pen must not name a baseline .pen' };
+    }
+  } else if (abs === resolvedOrNull(ARCH_BASELINE_PATH)) {
     return { ok: false, error: '--pen must not name a baseline .pen' };
   }
   if (!abs.endsWith('.pen')) return { ok: false, error: '--pen must name a .pen file' };
-  return { ok: true, abs, base: basename(abs) };
+  return { ok: true, abs, base: basename(abs), kind };
 }
 
 /**
@@ -348,7 +366,7 @@ export interface VerdictDeps {
 interface VerdictCtx {
   cwd: string;
   now: () => string;
-  pen: { abs: string; base: string; rel: string; key: string };
+  pen: { abs: string; rel: string; key: string; kind: DesignKind };
 }
 
 function fail(message: string, code: 1 | 2): 1 | 2 {
@@ -369,7 +387,7 @@ function writeValidated(
   if (!parsed.success) {
     return { code: fail(`record would be unusable: ${parsed.error.message}`, 2) };
   }
-  const written = writeApproval(ctx.cwd, ctx.pen.base, parsed.data);
+  const written = writeApproval(ctx.cwd, ctx.pen.rel, parsed.data);
   if (!written.ok) return { code: fail(written.message, 1) };
   return { code: 0, rel: relative(ctx.cwd, written.path).split(sep).join('/') };
 }
@@ -393,6 +411,16 @@ function approve(ctx: VerdictCtx, mode: ApproveMode): number {
         'save the .pen in VS Code, then re-run — nothing was written',
       1,
     );
+  }
+  if (ctx.pen.kind === 'architecture') {
+    const views: readonly string[] = ARCH_VIEWS;
+    const stray = mode.surfaces.filter((surface) => !views.includes(surface));
+    if (stray.length > 0) {
+      return fail(
+        `--surface ${stray.join(', ')} is not an architecture view (${views.join(' | ')})`,
+        2,
+      );
+    }
   }
   const coverage = surfaceCoverageError(mode.surfaces, read.pages);
   if (coverage !== null) return fail(coverage, 2);
@@ -516,7 +544,7 @@ function loadApproval(ctx: VerdictCtx):
       record: ApprovedRecord;
       spec: { name: string; blob: string; rel: string; abs: string };
     } {
-  const read = readApproval(ctx.cwd, ctx.pen.base);
+  const read = readApproval(ctx.cwd, ctx.pen.rel);
   if (!read.ok) return { kind: 'refused', code: fail(`cannot read the record: ${read.error}`, 2) };
   const { record } = read;
   if (record === null) {
@@ -627,7 +655,12 @@ export async function main(argv: readonly string[], deps?: Partial<VerdictDeps>)
   const ctx: VerdictCtx = {
     cwd,
     now,
-    pen: { abs: pen.abs, base: pen.base, rel: relative(cwd, pen.abs).split(sep).join('/'), key },
+    pen: {
+      abs: pen.abs,
+      rel: relative(cwd, pen.abs).split(sep).join('/'),
+      key,
+      kind: pen.kind,
+    },
   };
   switch (args.mode.verb) {
     case 'approve':

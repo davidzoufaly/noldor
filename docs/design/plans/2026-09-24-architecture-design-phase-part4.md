@@ -197,7 +197,7 @@ Records are keyed by the `.pen` stem, so a UI design and an architecture design 
 
 The kind is read from the lexical `--pen` path, which `path.resolve` has already normalised. The file must then realpath-resolve inside that kind's directory and must not be that kind's baseline. For an architecture design a "surface" is a view, so `--surface` must name one of `ARCH_VIEWS`. The `FINAL:<surface>:` coverage rule is reused unchanged.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   In `src/design/__tests__/design-approval.test.ts`, directly after the `describe('design verdict CLI / end to end', …)` block, add:
 
@@ -255,12 +255,12 @@ The kind is read from the lexical `--pen` path, which `path.resolve` has already
   });
   ```
 
-- [ ] **Step 2: Run the tests to verify they fail.**
+- [x] **Step 2: Run the tests to verify they fail.**
 
   Run: `pnpm vitest run src/design/__tests__/design-approval.test.ts -t "architecture designs"`
   Expected: FAIL. `--pen` is refused with `--pen must resolve inside docs/design/ui/`, so the verdict exits 2 where 0 is expected.
 
-- [ ] **Step 3: Make `design verdict` kind-aware.**
+- [x] **Step 3: Make `design verdict` kind-aware.**
 
   In `src/design/design-approval-cli.ts`:
 
@@ -372,7 +372,7 @@ The kind is read from the lexical `--pen` path, which `path.resolve` has already
       },
   ```
 
-- [ ] **Step 4: Run the tests and the typecheck to verify they pass.**
+- [x] **Step 4: Run the tests and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/design-approval.test.ts`
   Expected: PASS — every case, the four new ones included.
@@ -380,7 +380,7 @@ The kind is read from the lexical `--pen` path, which `path.resolve` has already
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 5: Update the catalog entry (both twins).**
+- [x] **Step 5: Update the catalog entry (both twins).**
 
   In `docs/noldor/script-catalog.md`, in the `### \`design:verdict\`` entry, make three replacements:
 
@@ -398,7 +398,7 @@ The kind is read from the lexical `--pen` path, which `path.resolve` has already
 
   Run: `cp docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md`
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
   ```bash
   msg=$(mktemp)

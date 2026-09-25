@@ -221,6 +221,65 @@ describe('design-approval / path containment', () => {
   });
 });
 
+describe('design verdict CLI / architecture designs', () => {
+  const archRel = `docs/design/architecture/${PEN}`;
+  const ARCH_PAGES = ['BASE:modules: as-built', 'FINAL:modules: split cr'];
+
+  function archRepo(): string {
+    const cwd = gitRepo();
+    mkdirSync(join(cwd, 'docs', 'design', 'architecture', 'archive'), { recursive: true });
+    writeFileSync(join(cwd, 'docs', 'design', 'architecture', PEN), penJson(ARCH_PAGES));
+    return cwd;
+  }
+  const archArgv = (surfaces: readonly string[] = ['modules']): string[] => [
+    '--pen',
+    archRel,
+    '--approve',
+    ...surfaces.flatMap((s) => ['--surface', s]),
+    '--spec',
+    specRel,
+    ...ARCH_PAGES.flatMap((p) => ['--editor-page', p]),
+  ];
+
+  it('writes the record under architecture/, beside a UI record of the same stem', async () => {
+    const cwd = archRepo();
+    expect((await run(cwd, approveArgv())).code).toBe(0);
+    expect((await run(cwd, archArgv())).code).toBe(0);
+    expect(readBack(cwd, archRel)).toMatchObject({
+      outcome: 'approved',
+      surfaces: ['modules'],
+      penBlob: blobOf(cwd, archRel),
+    });
+    expect(readBack(cwd, penRel)).toMatchObject({ outcome: 'approved', surfaces: ['app'] });
+  });
+
+  it('refuses a surface that is not an architecture view, writing nothing', async () => {
+    const cwd = archRepo();
+    const r = await run(cwd, archArgv(['app']));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('not an architecture view');
+    expect(readBack(cwd, archRel)).toBeNull();
+  });
+
+  it('refuses the architecture baseline', () => {
+    const cwd = archRepo();
+    writeFileSync(
+      join(cwd, 'docs', 'design', 'architecture', 'baseline.pen'),
+      penJson(['modules']),
+    );
+    expect(resolveFeaturePen(cwd, 'docs/design/architecture/baseline.pen').ok).toBe(false);
+  });
+
+  it('still finds the record after the design moves into archive/', async () => {
+    const cwd = archRepo();
+    expect((await run(cwd, archArgv())).code).toBe(0);
+    renameSync(join(cwd, archRel), join(cwd, 'docs', 'design', 'architecture', 'archive', PEN));
+    const r = await run(cwd, ['--pen', `docs/design/architecture/archive/${PEN}`, '--check']);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('current');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // CLI
 
