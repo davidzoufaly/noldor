@@ -228,8 +228,15 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 - **Refresh the feature-MD body (`/noldor-draft-feature-md --refresh`)** for all FD-carrying paths, *before* the phase-flip below, so refreshed `User Story` / `Usage` ride the same commit and are seen by the code-stage CR. Resolve target + scope by path:
   - **New-FD paths** (`specs-only-new`, `full-new`): target = `slug`; full `links.code` / `links.tests`; both sections. Invoke `/noldor-draft-feature-md <slug> --refresh` (add `--yes` in autonomous mode).
   - **Attach paths** (`specs-only-attach`, `full-attach`): target = `parent`; scoped + Usage-only so a small enhancement can't rewrite the parent FD's story. Changed files = `git diff --name-only origin/main...HEAD` filtered to `/noldor-draft-feature-md`'s source-extension allowlist, excluding the target FD file and anything under `docs/design/`. **If that filter yields zero files, skip the refresh entirely** (treat as no-op — do *not* invoke `/noldor-draft-feature-md`, which aborts on empty scope; this also keeps the autonomous `--yes` pipeline from halting). Otherwise **join the surviving paths with commas** (the `git diff` output is newline-separated; `--scope` wants comma-separated) and invoke `/noldor-draft-feature-md <parent> --refresh --scope <comma-joined paths> --usage-only` (add `--yes` in autonomous mode).
-  - **Fast-track / micro-chore:** skip (no FD).
+  - **Fast-track:** skip — no FD of its own; the doc-impact check below covers the FDs its code belongs to. **Micro-chore:** skip (no FD, no code).
   `/noldor-draft-feature-md` never stages or commits — the flip step below commits the refreshed body together with `phase: done`. In autonomous mode `--yes` runs it non-interactively (no prompt). Because the flip commits the refreshed FD onto the branch, it rides the `origin/main..HEAD` diff that the code-stage CR reviews below (that step passes `--base-sha origin/main`) — that is the mechanism behind "reviewed by the code-stage CR".
+
+- **Doc-impact check (`fast-track` only)**, before the push-gate preflight below. A fast-track has no FD, but the code it changed may be what other FDs document:
+  1. `pnpm noldor features owners --base origin/main` lists every FD owning a changed file. A `candidate` is `phase: done` with a written `## Usage`; an in-progress FD belongs to its own session. Exit 2 means the list could not be built — fix what it names, and never read it as "no owners".
+  2. For each candidate, judge whether this change alters what its User Story or Usage says. For each that it does, update the FD: `/noldor-draft-feature-md <slug> --refresh --scope <its owned changed files, comma-joined> --usage-only` (add `--yes` in autonomous or drain mode), or a hand edit when the change is one flag or one line.
+  3. Record the outcome as a trailer. FDs updated → commit them (`docs(features:<slug>): …`, or `docs(features): …` for several) with `Noldor-Doc-Impact: <slug>, <slug>`. None updated, or no candidates → `git commit --amend --no-edit --trailer 'Noldor-Doc-Impact: none'` on the tip: a message-only amend, so the tree is unchanged. The commit-msg hook refuses a value that is neither `none` nor existing FD slugs.
+
+  A later fix commit that changes documented behaviour updates the FD the same way; the declaration already on the branch stays. `garden detect` reports fast-tracks that skipped this step under `undeclaredDocImpact`.
 
 - **Archive this session's design artifacts** for all FD-carrying paths, immediately before the flip below so the move rides the same commit. The flip commit records the *index*, so assert it is empty first:
 
@@ -529,7 +536,8 @@ loop / retry / skip / lock; each gate run only ships its one entry. Step overrid
   marker, `set-autonomous`, and `pr-flow` all operate from there.
 - **Step 4:** run end-of-flow autonomously — `set-autonomous`, code-stage CR via `crLanes.code`,
   `pr-flow` auto-merge, no prompts. Skip the no-FD seams (phase-flip, `draft-feature-md --refresh` —
-  fast-track carries no FD). `pr-flow` polls until the PR actually merges — **except** under parallel
+  fast-track carries no FD), but run the **doc-impact check** with its `--yes` refresh: the child
+  judges the candidates itself and records `Noldor-Doc-Impact:`. `pr-flow` polls until the PR actually merges — **except** under parallel
   drain, where the supervisor sets `NOLDOR_DRAIN_OPEN_ONLY=1`: `pr-flow` then pushes + opens the PR and
   returns at PR-open (no merge, no poll), and the supervisor's serialized merge coordinator merges it
   one at a time. Escalation uses `cr escalate --autonomous` with `onFailure: abort` (the supervisor
