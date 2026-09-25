@@ -651,5 +651,10 @@
   "Q-0286": {
     "slug": "drain-lock-atomic-publish-and-safe-reclaim",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0292": {
+    "slug": "ui-baseline-pen-layout-and-id-contract",
+    "retiredInto": "pendev-ui-design-phase",
+    "retiredAt": "2026-09-25"
   }
 }

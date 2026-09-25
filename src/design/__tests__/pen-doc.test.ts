@@ -260,12 +260,63 @@ describe('checkCoverage', () => {
 });
 
 describe('inspectBaseline', () => {
+  const rowLabel = { type: 'text', id: 'area-app', content: 'App', fontSize: 200, x: 0, y: 0 };
+
   it('combines validity and coverage findings for one surface', () => {
     const findings = inspectBaseline(
-      pen({ children: [page('rest-dark', 'FINAL:app: rest — dark', { fill: '$gone' })] }),
+      pen({
+        children: [
+          rowLabel,
+          page('rest-dark', 'FINAL:app: rest — dark', { fill: '$gone', y: 240 }),
+        ],
+      }),
       { schema: null, coverage: { states: ['rest'], modes: ['light', 'dark'] }, surface: 'app' },
     );
     expect(codes(findings).toSorted()).toEqual(['missing-page', 'unresolved-variable']);
+  });
+
+  it('adds red layout findings with or without declared coverage or an installed schema', () => {
+    const bytes = pen({
+      variables: {},
+      children: [{ ...rowLabel, fontSize: 48 }, page('rest', 'FINAL:app: rest', { y: 240 })],
+    });
+    for (const schema of [null, SCHEMA]) {
+      for (const coverage of [undefined, { states: ['rest'] }]) {
+        const layout = inspectBaseline(bytes, { schema, coverage, surface: 'app' }).filter(
+          (f) => f.code === 'small-row-label',
+        );
+        expect(layout).toHaveLength(1);
+        expect(layout[0].severity).toBe('red');
+      }
+    }
+  });
+
+  it('leaves a declared page carried twice at the top level to coverage alone', () => {
+    const findings = inspectBaseline(
+      pen({
+        children: [
+          rowLabel,
+          page('rest', 'FINAL:app: rest', { y: 240 }),
+          page('rest', 'FINAL:app: rest again', { x: 140, y: 240 }),
+        ],
+      }),
+      { schema: null, coverage: { states: ['rest'] }, surface: 'app' },
+    );
+    expect(codes(findings)).toEqual(['duplicate-page']);
+  });
+
+  it('reports a declared page id that a top-level text node shares, through coverage', () => {
+    const findings = inspectBaseline(
+      pen({
+        children: [
+          rowLabel,
+          page('rest', 'FINAL:app: rest', { y: 240 }),
+          { type: 'text', id: 'rest', content: 'Rest', fontSize: 200, x: 0, y: 2000 },
+        ],
+      }),
+      { schema: null, coverage: { states: ['rest'] }, surface: 'app' },
+    );
+    expect(codes(findings)).toEqual(['duplicate-page']);
   });
 
   it('reports only unparseable when the bytes are not a .pen, since no page can be read', () => {
