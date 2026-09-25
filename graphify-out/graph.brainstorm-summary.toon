@@ -1,6 +1,6 @@
 # Domain Knowledge Graph — Summary (v3)
 # version: 3
-# 3960 nodes, 5534 edges (contains/imports_from omitted), 227 communities, directed=false
+# 3961 nodes, 5538 edges (contains/imports_from omitted), 222 communities, directed=false
 # Deep dive: graph.brainstorm.toon (TOC at top — use Read offset/limit per community)
 # Compact format used in brainstorm.toon:
 #   Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of ?=other  (contains/imports_from omitted — derivable)
@@ -9,50 +9,50 @@
 #   Cross-edge row (this file + brainstorm.toon ## cross): <rel> <label>@c<src_comm>><label>@c<tgt_comm>
 
 ## community index (top 20 by size)
-  c0 (95): detectors
-  c1 (85): .constructor() · .constructor() · .constructor()
-  c2 (82): applyBump() · architecture-schema.ts · codePathOwnsFile()
-  c3 (78): detectors
-  c4 (73): collect
+  c0 (87): lanes
+  c1 (86): detectors
+  c2 (76): allocatePorts() · bootDevSurfaces() · buildCommunityMap()
+  c3 (75): arbitrationExit() · blocker() · buildSkeleton()
+  c4 (75): collect
   c5 (70): api / detectors
-  c6 (63): ageBucket() · barTable() · cmpOrdinal()
-  c7 (56): .constructor() · .constructor() · LedgerParseError
-  c8 (55): lanes
-  c9 (55): arbitrationExit() · blocker() · buildSkeleton()
-  c10 (54): acquireLock() · allDistFiles() · allSourceFiles()
-  c11 (53): addWorktree() · appBundleFor() · autoOpenEnabled()
-  c12 (45): buildPrompt() · commit() · commit()
-  c13 (41): atomicWriteFileSync() · contained() · context-cli.ts
-  c14 (40): 0.6.0.test.ts · 0.6.0.ts · agent-filter.test.ts
-  c15 (39): dash() · dashboard-ensure.test.ts · dashboard-identity.test.ts
-  c16 (39): dashboard-agents.test.ts · dashboard-server.test.ts · dashboard-stale-install.test.ts
-  c17 (39): approve() · approveArgv() · blob-id.ts
-  c18 (39): detectors
-  c19 (39): backlog-demote.test.ts · backlog-demote.ts · check-parent-opt-in.test.ts
+  c6 (69): arbitration-cli.test.ts · arbitration-cli.ts · arbitration.test.ts
+  c7 (66): adapters
+  c8 (61): ageBucket() · barTable() · cmpOrdinal()
+  c9 (59): answering() · blocker() · buildContext()
+  c10 (57): .constructor() · .constructor() · LedgerParseError
+  c11 (57): backfill-ids-cli.ts · backfillIds() · backlogWithId()
+  c12 (54): area-category.test.ts · area-category.ts · areaToCategory()
+  c13 (52): buildPrompt() · commit() · commit()
+  c14 (52): rules / lanes
+  c15 (50): dashboard-agents.test.ts · dashboard-stale-install.test.ts · dashboard-worktrees.test.ts
+  c16 (49): .constructor() · .constructor() · .constructor()
+  c17 (48): geometry / agent-runner
+  c18 (48): detectors
+  c19 (46): lanes
 
 ## cross-community edges (top 25)
-  f activateMilestone!@c32>atomicWriteFileSync!@c13
-  f aggregate!@c57>readExpectedLanes!@c13
-  f annotateRound!@c7>writeJsonAtomic!@c8
-  f answer!@c30>setLaneSpawn!@c72
-  f appendRound!@c7>writeJsonAtomic!@c8
-  f approvalAtHead!@c28>parseApprovalBytes!@c17
-  f approve!@c17>list!@c52
-  f arbitrationPath!@c37>slugKindJsonPath!@c21
-  f assessEntrySplit!@c59>extractTouches!@c90
-  f auditCodexCrOverrides!@c38>tally!@c3
-  f auditOverrides!@c38>commitOnlyTouchesReport!@c18
-  f auditOverrides!@c38>matchesExpectedOverride!@c18
-  f auditOverrides!@c38>parseTrailers!@c78
-  f autoOpenEnabled!@c11>loadConfigSync!@c64
-  f baselineStamp!@c31>blobIdOfWorktreeFile!@c17
-  f bootDevSurfaces!@c62>atomicWriteFile!@c5
-  f boundSpec!@c17>loadDocRoots!@c29
-  f branchCarriesCode!@c1>touchesCode!@c119
-  f branchHasUnshippedWorkAt!@c27>branchHasUnshippedWork!@c55
-  f buildBlockedByGraph!@c63>parseBacklog!@c19
-  f buildGateComplianceSection!@c18>loadConfigSync!@c64
-  f buildMergeCandidates!@c29>parseBacklog!@c19
-  f buildMergeCandidates!@c29>readQueueFile!@c63
-  f buildMilestoneGroups!@c63>buildMilestoneGroupBases!@c32
-  f capVerdict!@c9>hasClosingRound!@c7
+  f .kill!@c120>.emit!@c17
+  f activateMilestone!@c44>atomicWriteFileSync!@c69
+  f annotateRound!@c10>writeJsonAtomic!@c0
+  f appendRound!@c10>writeJsonAtomic!@c0
+  f applyLog!@c42>normalize!@c78
+  f approve!@c46>blobIdOfWorktreeFile!@c41
+  f approve!@c46>errMessage!@c33
+  f approve!@c46>list!@c17
+  f auditCodexCrOverrides!@c18>tally!@c78
+  f auditOverrides!@c18>commitOnlyTouchesReport!@c22
+  f auditOverrides!@c18>matchesExpectedOverride!@c22
+  f auditOverrides!@c18>parseTrailers!@c58
+  f autoBase!@c122>resolveDefaultBase!@c72
+  f autoOpenEnabled!@c31>loadConfigSync!@c35
+  f bind!@c92>makeReconcileDeps!@c35
+  f bootDevSurfaces!@c2>atomicWriteFile!@c5
+  f boundSpec!@c46>loadDocRoots!@c18
+  f branchCarriesCode!@c16>touchesCode!@c36
+  f branchHasUnshippedWorkAt!@c75>branchHasUnshippedWork!@c55
+  f buildBlockedByGraph!@c132>parseBacklog!@c20
+  f buildGateComplianceSection!@c22>loadConfigSync!@c35
+  f buildMergeCandidates!@c61>loadDocRoots!@c18
+  f buildMergeCandidates!@c61>loadSddFeatures!@c47
+  f buildMergeCandidates!@c61>parseBacklog!@c20
+  f check!@c46>blobIdOfWorktreeFile!@c41
