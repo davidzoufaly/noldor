@@ -689,5 +689,9 @@
   "Q-0305": {
     "slug": "unknown-command-message-echoes-its-argv",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0306": {
+    "slug": "resync-sdd-co-tag-detector-resources",
+    "retiredAt": "2026-09-25"
   }
 }

@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Resync sdd-co-tag-detector Resources
-
-- id: Q-0306
-- area: tooling
-- type: chore
-- since: 2026-09-25
-- size: XS
-- impact: low
-- confidence: high
-
-Main's `docs/features/sdd-co-tag-detector.md` has a stale Resources block since #542: the `src/features/seed-test-tags.ts` code link and its test links are missing, plus a blank line after the frontmatter. So the fd-resources hook rewrites it on every commit in a worktree, and the rewrite has to be discarded each time. Commit the resync on main. Still true on 2026-09-25 at b790f51. Deletion test: `pnpm noldor sync fd-resources` on a clean main changes no file. (found 2026-09-25)
-
 ### Drain-Lock Readers Share readHolder
 
 - id: Q-0307
