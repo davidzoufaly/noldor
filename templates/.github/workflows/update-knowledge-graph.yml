@@ -192,9 +192,23 @@ jobs:
           # but does not order them, and re-running an old run publishes it
           # late. So never replace a graph built from a newer merge than this.
           for ref in "$DEFAULT_BRANCH" "$GRAPH_BRANCH"; do
-            git fetch --quiet origin "$ref" 2>/dev/null || continue
+            if ! git fetch --quiet origin "$ref" 2>/dev/null; then
+              # Only a ref the remote lacks (ls-remote exit 2) means "no graph
+              # there". An auth or network failure means the check never ran.
+              lsr=0
+              git ls-remote --exit-code --heads origin "$ref" >/dev/null 2>&1 || lsr=$?
+              if [ "$lsr" -ne 2 ]; then
+                echo "::warning::could not fetch $ref, so the newer-graph check skipped it — publishing anyway"
+              fi
+              continue
+            fi
             built=$(git show FETCH_HEAD:graphify-out/graph.json 2>/dev/null |
               jq -r '.built_at_commit // empty' || true)
+            # A re-run of a merge whose graph PR already landed: the diff is empty.
+            if [ "$ref" = "$DEFAULT_BRANCH" ] && [ "$built" = "$MERGE_SHA" ]; then
+              echo "$ref already holds the graph built at this merge — nothing to publish"
+              exit 0
+            fi
             if [ -n "$built" ] && [ "$built" != "$MERGE_SHA" ] &&
               git merge-base --is-ancestor "$MERGE_SHA" "$built" 2>/dev/null; then
               echo "$ref holds a graph built from a newer merge ($built) — nothing to publish"
