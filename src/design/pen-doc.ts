@@ -124,34 +124,42 @@ function unresolvedBindings(doc: PenDocument): string[] {
   });
 }
 
+/** One finding naming every offending item, or none when nothing offends. */
+function listFinding(
+  code: PenFindingCode,
+  severity: PenFinding['severity'],
+  lead: string,
+  items: readonly string[],
+): PenFinding[] {
+  return items.length === 0 ? [] : [{ code, severity, message: `${lead}: ${items.join(', ')}` }];
+}
+
 function schemaAdvisories(doc: PenDocument, schema: PenSchemaFacts): PenFinding[] {
-  const findings: PenFinding[] = [];
-  if (schema.version !== null && Object.hasOwn(doc, 'version') && doc.version !== schema.version) {
-    findings.push({
-      code: 'version-drift',
-      severity: 'advisory',
-      message: `declares version ${JSON.stringify(doc.version)}; the installed pen schema (${schema.path}) is ${schema.version}`,
-    });
-  }
-  const unknown = Object.keys(doc).filter((key) => !schema.topLevelKeys.includes(key));
-  if (unknown.length > 0) {
-    findings.push({
-      code: 'unknown-top-level-key',
-      severity: 'advisory',
-      message: `top-level key(s) the installed pen schema does not know: ${unknown.join(', ')}`,
-    });
-  }
-  const absent = schema.required.filter(
-    (key) => !CORE_REQUIRED.includes(key) && !Object.hasOwn(doc, key),
-  );
-  if (absent.length > 0) {
-    findings.push({
-      code: 'schema-required',
-      severity: 'advisory',
-      message: `missing top-level key(s) the installed pen schema requires: ${absent.join(', ')}`,
-    });
-  }
-  return findings;
+  const drifted =
+    schema.version !== null && Object.hasOwn(doc, 'version') && doc.version !== schema.version;
+  return [
+    ...(drifted
+      ? [
+          {
+            code: 'version-drift' as const,
+            severity: 'advisory' as const,
+            message: `declares version ${JSON.stringify(doc.version)}; the installed pen schema (${schema.path}) is ${schema.version}`,
+          },
+        ]
+      : []),
+    ...listFinding(
+      'unknown-top-level-key',
+      'advisory',
+      'top-level key(s) the installed pen schema does not know',
+      Object.keys(doc).filter((key) => !schema.topLevelKeys.includes(key)),
+    ),
+    ...listFinding(
+      'schema-required',
+      'advisory',
+      'missing top-level key(s) the installed pen schema requires',
+      schema.required.filter((key) => !CORE_REQUIRED.includes(key) && !Object.hasOwn(doc, key)),
+    ),
+  ];
 }
 
 /**
@@ -170,25 +178,26 @@ export function validateBaseline(
     ];
   }
   const { doc } = parsed;
-  const findings: PenFinding[] = [];
-  const missing = CORE_REQUIRED.filter((key) => !Object.hasOwn(doc, key));
-  if (missing.length > 0) {
-    findings.push({
-      code: 'missing-required',
-      severity: 'red',
-      message: `missing required top-level key(s): ${missing.join(', ')}`,
-    });
-  }
   const unresolved = unresolvedBindings(doc);
-  if (unresolved.length > 0) {
-    const more = unresolved.length - 1;
-    findings.push({
-      code: 'unresolved-variable',
-      severity: 'red',
-      message: `binds ${unresolved[0]}${more > 0 ? ` and ${more} more variable(s)` : ''} that the document does not declare`,
-    });
-  }
-  return schema === null ? findings : [...findings, ...schemaAdvisories(doc, schema)];
+  const more = unresolved.length - 1;
+  return [
+    ...listFinding(
+      'missing-required',
+      'red',
+      'missing required top-level key(s)',
+      CORE_REQUIRED.filter((key) => !Object.hasOwn(doc, key)),
+    ),
+    ...(unresolved.length === 0
+      ? []
+      : [
+          {
+            code: 'unresolved-variable' as const,
+            severity: 'red' as const,
+            message: `binds ${unresolved[0]}${more > 0 ? ` and ${more} more variable(s)` : ''} that the document does not declare`,
+          },
+        ]),
+    ...(schema === null ? [] : schemaAdvisories(doc, schema)),
+  ];
 }
 
 /**
@@ -212,35 +221,31 @@ export function checkCoverage(
     pages.filter((p) => p.id !== undefined),
     (p) => p.id!,
   );
-  const findings: PenFinding[] = [];
-  const missing = [...ids].filter((id) => !carried.has(id));
-  if (missing.length > 0) {
-    findings.push({
-      code: 'missing-page',
-      severity: 'red',
-      message: `declared page(s) missing: ${missing.join(', ')}`,
-    });
-  }
-  const duplicated = [...ids].filter((id) => (carried.get(id)?.length ?? 0) > 1);
-  if (duplicated.length > 0) {
-    findings.push({
-      code: 'duplicate-page',
-      severity: 'red',
-      message: `declared page id(s) carried by more than one top-level node: ${duplicated.join(', ')}`,
-    });
-  }
   const prefix = `FINAL:${surface}:`;
-  const undeclared = pages.filter(
-    (p) => p.name?.startsWith(prefix) === true && (p.id === undefined || !ids.has(p.id)),
-  );
-  if (undeclared.length > 0) {
-    findings.push({
-      code: 'undeclared-page',
-      severity: 'red',
-      message: `${prefix} page(s) no state declares: ${undeclared.map((p) => p.id ?? p.name).join(', ')}`,
-    });
-  }
-  return findings;
+  return [
+    ...listFinding(
+      'missing-page',
+      'red',
+      'declared page(s) missing',
+      [...ids].filter((id) => !carried.has(id)),
+    ),
+    ...listFinding(
+      'duplicate-page',
+      'red',
+      'declared page id(s) carried by more than one top-level node',
+      [...ids].filter((id) => (carried.get(id)?.length ?? 0) > 1),
+    ),
+    ...listFinding(
+      'undeclared-page',
+      'red',
+      `${prefix} page(s) no state declares`,
+      pages
+        .filter(
+          (p) => p.name?.startsWith(prefix) === true && (p.id === undefined || !ids.has(p.id)),
+        )
+        .map((p) => p.id ?? p.name!),
+    ),
+  ];
 }
 
 /**

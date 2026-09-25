@@ -272,6 +272,21 @@ async function ancestryVerdict(
   };
 }
 
+/** The row for an ancestry probe git could not answer: an unknown, never a red. */
+function unknownAncestry(
+  surface: string,
+  uiCommit: string,
+  failure: { detail: string; baselineCommit?: string },
+): UiSurfaceFreshness {
+  return {
+    surface,
+    status: 'indeterminate',
+    uiCommit,
+    ...(failure.baselineCommit === undefined ? {} : { baselineCommit: failure.baselineCommit }),
+    detail: failure.detail,
+  };
+}
+
 /**
  * The pre-adoption read, for a surface that has never had a receipt: derive the
  * verdict from the baseline file's own commit exactly as this check always did,
@@ -290,15 +305,7 @@ async function legacyFallback(
   uiCommit: string,
 ): Promise<UiSurfaceFreshness> {
   const a = await ancestryVerdict(cwd, uiCommit, { path: baselineFile });
-  if (!a.ok) {
-    return {
-      surface,
-      status: 'indeterminate',
-      uiCommit,
-      ...(a.baselineCommit === undefined ? {} : { baselineCommit: a.baselineCommit }),
-      detail: a.detail,
-    };
-  }
+  if (!a.ok) return unknownAncestry(surface, uiCommit, a);
   const { baselineCommit } = a;
   if (a.status === 'stale') {
     return {
@@ -501,15 +508,7 @@ async function receiptVerdict(
   }
 
   const a = await ancestryVerdict(cwd, uiCommit, { sha: receiptHistory.sha });
-  if (!a.ok) {
-    return {
-      surface,
-      status: 'indeterminate',
-      uiCommit,
-      ...(a.baselineCommit === undefined ? {} : { baselineCommit: a.baselineCommit }),
-      detail: a.detail,
-    };
-  }
+  if (!a.ok) return unknownAncestry(surface, uiCommit, a);
   const { baselineCommit, status } = a;
   return {
     surface,
