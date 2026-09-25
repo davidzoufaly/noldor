@@ -610,5 +610,9 @@
   "Q-0282": {
     "slug": "verify-whether-subagents-load-claudemd",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0283": {
+    "slug": "design-context-section-matching-without-backticks",
+    "retiredAt": "2026-09-25"
   }
 }
