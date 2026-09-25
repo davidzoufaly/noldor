@@ -598,5 +598,9 @@
   "Q-0279": {
     "slug": "graph-workflow-publish-step-hardening",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0280": {
+    "slug": "pin-every-localecompare-to-a-fixed-locale",
+    "retiredAt": "2026-09-25"
   }
 }
