@@ -5,7 +5,12 @@
 
 import { runIfDirect } from '../core/cli-entry.js';
 import { isSlug, slugErrorMessage } from '../core/slug.js';
-import { locateForDialogue, readArtifact, type ArtifactKind } from './artifact-locate.js';
+import {
+  locateForDialogue,
+  readArtifact,
+  resolveHeading,
+  type ArtifactKind,
+} from './artifact-locate.js';
 import { loadScope, readLedger, validateHeadingName, validateSlugs } from './ledger.js';
 import { renderContext, type RenderHeading } from './render.js';
 
@@ -13,7 +18,7 @@ export interface ContextArgs {
   slug: string;
   kind: ArtifactKind;
   fd?: string;
-  /** The heading under discussion. */
+  /** The heading under discussion: its name, its number, or a backtick-free prefix. */
   section?: string;
   /** Explicit artifact path, when the slug does not resolve to one file. */
   spec?: string;
@@ -23,7 +28,7 @@ export interface ContextArgs {
 
 const USAGE =
   'usage: noldor design context --slug <slug> [--kind spec|plan] [--fd <fd-slug>] ' +
-  '[--section <heading>] [--spec <path>] [--full]';
+  '[--section <heading|number|prefix>] [--spec <path>] [--full]';
 
 /** Flags that take no value. Checked before the value lookup below. */
 const BOOLEAN_FLAGS = new Set(['--full']);
@@ -153,7 +158,20 @@ export function runContext(
     view = read.view;
   }
   const headings: RenderHeading[] = view === null ? [] : view.headings;
-  const prose = view !== null && parsed.section !== undefined ? view.section(parsed.section) : null;
+  // Resolved to the heading's exact name, so a number or prefix focuses the same
+  // heading its full name would. Anything that does not resolve stays as typed
+  // and the block's own `matches no heading` warning reports it.
+  let section = parsed.section;
+  if (view !== null && section !== undefined) {
+    const match = resolveHeading(view, section);
+    if (match.status === 'found') section = match.name;
+    if (match.status === 'ambiguous') {
+      err(
+        `design context: --section '${section}' fits ${match.names.length} headings: ${match.names.join(', ')}\n`,
+      );
+    }
+  }
+  const prose = view !== null && section !== undefined ? view.section(section) : null;
 
   const state = readLedger(cwd, parsed.slug);
   const scope = loadScope(cwd, {
@@ -169,7 +187,7 @@ export function runContext(
       scope,
       full: parsed.full,
       headings,
-      ...(parsed.section === undefined ? {} : { section: parsed.section }),
+      ...(section === undefined ? {} : { section }),
       ...(prose === null ? {} : { sectionProse: prose }),
       ...(view === null
         ? { artifactNote: `(no ${parsed.kind} on disk yet — draft one before the next question)` }

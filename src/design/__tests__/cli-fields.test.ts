@@ -329,3 +329,80 @@ describe('design context — new flags', () => {
     expect(r.out).toContain("⚠ confirmed heading 'Design' has changed since it was confirmed");
   });
 });
+
+describe('heading references without backticks', () => {
+  // `pnpm noldor …` runs its arguments through `sh`, so a heading that carries a
+  // backticked flag cannot be named verbatim. Its number or a backtick-free
+  // prefix must reach the same heading.
+  const TICKED = [
+    '## Problem',
+    '',
+    'the problem',
+    '',
+    '## The `--approve` flag',
+    '',
+    'approve body',
+    '',
+    '## The `--reject` flag',
+    '',
+    'reject body',
+    '',
+  ].join('\n');
+
+  it('design context renders a backticked heading called by its number', () => {
+    const r = context(repo(TICKED), '--section', '2');
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('The `--approve` flag — current draft');
+    expect(r.out).toContain('    approve body');
+    expect(r.out).toContain('heading 2/3');
+  });
+
+  it('design context renders a backticked heading called by a backtick-free prefix', () => {
+    const r = context(repo(TICKED), '--section', 'The --reject');
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('The `--reject` flag — current draft');
+  });
+
+  it('design context names the candidates for an ambiguous prefix', () => {
+    const r = context(repo(TICKED), '--section', 'The --');
+    expect(r.code).toBe(0);
+    expect(r.err).toContain('fits 2 headings');
+    expect(r.out).not.toContain('current draft');
+  });
+
+  it('design context treats an out-of-range number as no heading', () => {
+    const r = context(repo(TICKED), '--section', '4');
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("⚠ --section '4' matches no heading");
+  });
+
+  it('design log confirms by number under the exact heading name', () => {
+    const cwd = repo(TICKED);
+    expect(log(cwd, '--confirm-section', '2').code).toBe(0);
+    expect(ledger(cwd)).toContain(`- The \`--approve\` flag · ${digestBody('approve body')}`);
+  });
+
+  it('design log confirms by backtick-free prefix', () => {
+    const cwd = repo(TICKED);
+    expect(log(cwd, '--confirm-section', 'The --reject').code).toBe(0);
+    expect(ledger(cwd)).toContain(`- The \`--reject\` flag · ${digestBody('reject body')}`);
+  });
+
+  it('design log refuses an ambiguous prefix', () => {
+    const r = log(repo(TICKED), '--confirm-section', 'The');
+    expect(r.code).toBe(1);
+    expect(r.err).toMatch(/fits 2 headings/);
+  });
+
+  it('an exact name wins over a number', () => {
+    const cwd = repo('## Intro\n\nintro\n\n## 1\n\none body\n');
+    expect(log(cwd, '--confirm-section', '1').code).toBe(0);
+    expect(ledger(cwd)).toContain(`- 1 · ${digestBody('one body')}`);
+  });
+
+  it('design log refuses confirming and unconfirming one heading by two names', () => {
+    const r = log(repo(TICKED), '--confirm-section', '1', '--unconfirm-section', 'Problem');
+    expect(r.code).toBe(1);
+    expect(r.err).toMatch(/name the same heading/);
+  });
+});

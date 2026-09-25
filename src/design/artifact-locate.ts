@@ -322,6 +322,37 @@ export function readArtifact(paths: readonly string[]): ReadResult {
   };
 }
 
+export type HeadingMatch =
+  | { status: 'found'; name: string }
+  | { status: 'ambiguous'; names: string[] }
+  | { status: 'none' };
+
+/**
+ * Resolve a heading reference to the heading's exact name.
+ *
+ * `pnpm noldor …` hands its arguments to `sh`, so a backtick inside a heading
+ * name runs as a command before the CLI ever sees it. Spec headings carry
+ * backticked flags often enough that naming them verbatim is not a workable
+ * contract, so a reference may also be the heading's 1-based position in the
+ * checklist `design context` prints (the `heading N/M` number), or a prefix of
+ * the name with its backticks dropped. The exact name always wins, so a heading
+ * literally titled `3` still resolves to itself.
+ *
+ * A prefix that fits several headings is `ambiguous` rather than a guess: an
+ * approval digest stored against the wrong heading would look valid forever.
+ */
+export function resolveHeading(view: ArtifactView, ref: string): HeadingMatch {
+  const names = view.headings.map((h) => h.name);
+  if (names.includes(ref)) return { status: 'found', name: ref };
+  if (/^[1-9]\d*$/.test(ref)) {
+    const name = names[Number(ref) - 1];
+    return name === undefined ? { status: 'none' } : { status: 'found', name };
+  }
+  const hits = [...new Set(names.filter((n) => n.replaceAll('`', '').startsWith(ref)))];
+  if (hits.length === 1) return { status: 'found', name: hits[0]! };
+  return hits.length === 0 ? { status: 'none' } : { status: 'ambiguous', names: hits };
+}
+
 /**
  * Locate the artifact for a dialogue from parsed CLI arguments.
  *

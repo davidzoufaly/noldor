@@ -279,11 +279,16 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   `sh: isEntrypoint: command not found` / `sh: src/core/cli-entry.ts:
   Permission denied`, and the CLI then receives the heading with both code
   spans **deleted** (`'Unit 1 —  in '`) — which it correctly refuses. Single
-  quotes do not help: the expansion happens inside pnpm's own shell, after the
-  outer shell is done. It hits any `pnpm noldor` argument containing backticks,
-  and spec H3 headings are full of inline code, so `design context --section`
-  and `--confirm-section` are the routine casualties. Call
-  `node bin/noldor.mjs …` directly when a backtick is unavoidable.
+  quotes do not help: pnpm hands script arguments to `sh -c` inside double
+  quotes, so the expansion happens in pnpm's own shell, after the outer shell is
+  done. It hits any `pnpm noldor` argument containing backticks, and spec H3
+  headings are full of inline code, so `design context --section` and
+  `design log --confirm-section` were the routine casualties. Both now take a
+  heading's number (the `heading N/M` position in the checklist) or a
+  backtick-free prefix of its name — `--section 3` or `--section 'Unit 1 —
+  isEntrypoint'` — so name the heading that way. For any other argument, call
+  `node bin/noldor.mjs …` directly when a backtick is unavoidable. (Q-0261,
+  Q-0283)
 - **Piping ANY exit-code-bearing noldor command to `tail` reports `tail`'s
   status.** `cr aggregate … | tail -20` then `echo $?` prints `0` over text that
   says `ok=false` — during Q-0246 that turned a genuine red round into an
@@ -308,13 +313,6 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   extracting to lower the ratchet; if the edge is the price of the change,
   re-record the baseline as its own `chore(indirection)` commit. (Q-0263,
   PR #535)
-- **A backtick in a `pnpm noldor` argument runs as a shell command.** pnpm hands
-  script arguments to `sh -c` inside double quotes, so backticks are command
-  substitution even when the caller single-quoted them. `pnpm noldor design
-  context --section 'Unit 4 — … in `re-round.ts`'` printed `sh: re-round.ts:
-  command not found` and the CLI then refused the truncated heading. Call `node
-  bin/noldor.mjs …` directly for any argument that carries backticks, or keep
-  backticks out of spec headings. (Q-0261)
 - **A `Co-Authored-By` paragraph after the `Noldor-*` trailers hides them, and
   the rejection names the wrong cause.** git reads trailers from the message's
   last paragraph only. A blank line between `Noldor-Phase-Revert: 1` and
