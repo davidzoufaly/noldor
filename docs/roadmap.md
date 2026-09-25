@@ -33,18 +33,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Deletion tests: several processes calling `acquireLock` at the same instant leave exactly one holder; and while a claim on the dead lock's inode is held, `acquireLock` leaves the lock alone. (found 2026-09-24 in the Q-0238 spec review and fixing PR #538's review blocker)
 
-### Upgrade Restarts the Dashboard
-
-- id: Q-0289
-- area: tooling
-- type: feat
-- since: 2026-09-24
-- size: S
-- impact: med
-- confidence: med
-
-After `noldor upgrade` (or `init --update`), a dashboard server that was already running keeps serving the old code from memory, so new features and fixes do not show until someone restarts it by hand. `watchInstall` (`src/dashboard/server.ts`, PR #476) only exits a zombie whose file routes have started to 500; an upgrade that leaves every file route valid is never noticed. Wanted: the update flow restarts the project's dashboard when one is running — or `watchInstall` treats a changed installed version as a reason to exit so the SessionStart hook brings up a fresh one. Deletion test: after an upgrade that changes a dashboard page, the next request to that page serves the new version without a manual restart. (operator request, 2026-09-24)
-
 ### Graph Freshness Reads Git, Not mtime
 
 - id: Q-0290
