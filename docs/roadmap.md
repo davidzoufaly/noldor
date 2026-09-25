@@ -52,6 +52,18 @@ seed-test-tags' "Every --apply leaves the graph older than the files it wrote, s
 
 `/noldor-refactor` Phase 6 still regenerates with `/graphify` and reads `graphify-out/.graphify_python` for its before/after comparison, so its graph differs from the one `graphify build` commits. Moving Phase 6 onto the builder needs the comparison script rewritten, and the refactor committed before it builds (the build reads HEAD). (PR #589)
 
+### Gate Skill Loads Only the Branch a Session Takes
+
+- id: Q-0320
+- area: tooling
+- type: refactor
+- since: 2026-09-25
+- size: M
+- impact: high
+- confidence: med
+
+`.claude/skills/noldor-gate/SKILL.md` is 13,637 words (~19k tokens, 597 lines) and loads whole into every gate session, interactive or drain. By section: Step 4 end-of-flow 4,290 words, the Step 2.5 CR gate 3,236, drain and finish mode about 1,500, roadmap retirement 519, attach phase-revert 446. About a third is branches a given session never takes (drain, finish, resume, micro-chore, attach, the UI and architecture write-backs), and much of the rest is incident history an agent does not need to run a step. A rule that applies on only some paths sits deep in the file, where a long context holds it least reliably, and every drain child pays the full load. Wanted: `SKILL.md` becomes a router of roughly 3k words holding the steps every path runs, with a hard "read `<branch>.md` now" line at each fork; each branch moves to its own file in the skill folder (drain and finish can point at `docs/noldor/drain-mode.md`, the single-canonical-page answer Q-0191 weighs); incident history moves to `docs/noldor/gotchas.md` and the runbooks, each rule keeping a one-line why. `checks template-sync`, `skill-code-drift` and `checks skill-portability` must cover the branch files. Then hold the win: a skill-size ratchet in the style of `clones` / `indirection` records each `SKILL.md`'s word count and refuses a push that grows one past its baseline. Deletion test: a `specs-only-new` session reads the router plus its own branch files, under half of today's load; every rule in today's skill lives in exactly one file; and a push that adds 200 words to any `SKILL.md` is refused until the baseline is re-recorded. (found 2026-09-25 shipping Q-0233)
+
 ### Geometry-Compare Lane — the Automated Half
 
 - id: Q-0180
@@ -133,3 +145,16 @@ Milestone membership rots by omission at both ends of the chain, so an active mi
 - confidence: med
 
 `blocked-by` is all-or-nothing, so a partial dependency degrades into prose the scorer cannot see. Several entries in a real consumer can start, and two-thirds ship, while one part waits — a bar whose five sections are independently blocked; a panel where one row needs a concept that does not exist yet. Marking the whole entry `blocked-by` divides its score by `1 + unshipped_dep_count` for work that is mostly doable today; leaving it off loses the dependency from the graph entirely, so `/noldor-garden` cannot see it and a reader has to find it in a paragraph. Wanted: a `partially-blocked-by:` that joins the blocked-by graph for cycle detection and `show` output but is **excluded from the dependency factor** in `scoreEntry()` — the semantics being "cannot finish" rather than "cannot start". Open question for the spec: whether `/noldor-gate` should surface the partial blocker at pickup so the agent knows which slice to leave alone, or whether that belongs in the entry body. Deletion test: an entry with only `partially-blocked-by` refs scores as unblocked while still appearing in the dependency graph. (found 2026-09-22)
+
+### Spec Skill Loads Its Design Steps Only When Required
+
+- id: Q-0321
+- area: tooling
+- type: refactor
+- since: 2026-09-25
+- size: S
+- impact: med
+- confidence: med
+- blocked-by: Q-0320
+
+`.claude/skills/noldor-spec/SKILL.md` is 5,899 words (~8k tokens) in 123 lines, and most of it is step 1.5 (UI design) and step 1.6 (architecture design): pen.dev hazards, seeding, iteration and ratification that every spec session reads in full, even when both verdicts come back `skip`, as Q-0233's did. Apply the router pattern Q-0320 sets: the verdict questions stay in `SKILL.md`, and each `required` procedure moves to its own file (`ui-design.md`, `arch-design.md`) read only on `required`; then re-record the skill-size baseline down. Deletion test: a spec session with both verdicts `skip` never loads the UI or architecture procedure, and every rule in today's steps 1.5 and 1.6 lives in exactly one file. (found 2026-09-25 shipping Q-0233)
