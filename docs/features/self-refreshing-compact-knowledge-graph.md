@@ -12,6 +12,7 @@ links:
     - src/graphify/graphify-requirements.txt
     - src/templates/manifest.ts
     - templates/.github/workflows/update-knowledge-graph.yml
+    - src/core/scratch-dir.ts
   spec: >-
     docs/design/specs/archive/2026-09-22-self-refreshing-compact-knowledge-graph-design.md
   tests:
@@ -139,6 +140,7 @@ This release ships a knowledge-graph refresh workflow (#501).
   - [`src/graphify/graphify-requirements.txt`](../../src/graphify/graphify-requirements.txt)
   - [`src/templates/manifest.ts`](../../src/templates/manifest.ts)
   - [`templates/.github/workflows/update-knowledge-graph.yml`](../../templates/.github/workflows/update-knowledge-graph.yml)
+  - [`src/core/scratch-dir.ts`](../../src/core/scratch-dir.ts)
 - **Tests:**
   - [`src/core/__tests__/scratch-dir.test.ts`](../../src/core/__tests__/scratch-dir.test.ts)
   - [`src/graphify/__tests__/build-e2e.test.ts`](../../src/graphify/__tests__/build-e2e.test.ts)

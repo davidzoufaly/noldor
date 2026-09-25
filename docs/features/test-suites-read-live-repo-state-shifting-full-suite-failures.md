@@ -33,9 +33,20 @@ The entry blamed live `.noldor/session.json` and the dashboard port. Reading the
 
 ## Diagram
 
-<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
-     two beside it for readers that do not render mermaid. No shape worth drawing?
-     Replace this comment with: noldor:cut <reason> -->
+Two seams. Every release preflight probe reaches `gh` and `npm` through one injectable
+`RunCommand`, so a test hands it a fake and nothing spawns. Every full suite, from any
+worktree, takes one lock in the git common dir before its workers start, so concurrent
+suites run one after another instead of oversubscribing the machine.
+
+```mermaid
+flowchart LR
+  probes["preflight probes<br/>(runProbe, per-probe budget)"] --> rc["RunCommand<br/>src/release/run-command.ts"]
+  rc -->|default| spawn["gh / npm"]
+  rc -->|tests| fake["injected fake"]
+  suites["pnpm test / pnpm verify<br/>(any worktree)"] --> lock["suite lock globalSetup<br/>src/testing/suite-lock.ts"]
+  lock --> file[("noldor-suite.lock<br/>git common dir")]
+  lock -->|acquired| vitest["vitest workers"]
+```
 
 ## User Story
 

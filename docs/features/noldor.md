@@ -67,6 +67,9 @@ links:
     - src/features/fill-links-code-gaps.ts
     - src/sync/sync-spec-links.ts
     - src/triage/has-block-cli.ts
+    - src/checks/check-install-freshness.ts
+    - src/checks/check-oxfmt-ignores.ts
+    - src/checks/check-parent-opt-in.ts
   tests:
     - src/checks/__tests__/check-install-freshness.test.ts
     - src/checks/__tests__/check-oxfmt-ignores.test.ts
@@ -299,6 +302,9 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/features/fill-links-code-gaps.ts`](../../src/features/fill-links-code-gaps.ts)
   - [`src/sync/sync-spec-links.ts`](../../src/sync/sync-spec-links.ts)
   - [`src/triage/has-block-cli.ts`](../../src/triage/has-block-cli.ts)
+  - [`src/checks/check-install-freshness.ts`](../../src/checks/check-install-freshness.ts)
+  - [`src/checks/check-oxfmt-ignores.ts`](../../src/checks/check-oxfmt-ignores.ts)
+  - [`src/checks/check-parent-opt-in.ts`](../../src/checks/check-parent-opt-in.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-install-freshness.test.ts`](../../src/checks/__tests__/check-install-freshness.test.ts)
   - [`src/checks/__tests__/check-oxfmt-ignores.test.ts`](../../src/checks/__tests__/check-oxfmt-ignores.test.ts)

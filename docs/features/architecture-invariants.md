@@ -18,6 +18,8 @@ links:
     - src/invariants/toolchain-floor.ts
     - src/invariants/types.ts
     - src/invariants/rule-pairs.ts
+    - src/invariants/locale-compare-pinned.ts
+    - src/invariants/source-scan.ts
   tests:
     - src/checks/__tests__/check-invariants.test.ts
     - src/checks/__tests__/invariants-boundaries.test.ts
@@ -77,6 +79,8 @@ Adding a new invariant:
   - [`src/invariants/toolchain-floor.ts`](../../src/invariants/toolchain-floor.ts)
   - [`src/invariants/types.ts`](../../src/invariants/types.ts)
   - [`src/invariants/rule-pairs.ts`](../../src/invariants/rule-pairs.ts)
+  - [`src/invariants/locale-compare-pinned.ts`](../../src/invariants/locale-compare-pinned.ts)
+  - [`src/invariants/source-scan.ts`](../../src/invariants/source-scan.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-invariants.test.ts`](../../src/checks/__tests__/check-invariants.test.ts)
   - [`src/checks/__tests__/invariants-boundaries.test.ts`](../../src/checks/__tests__/invariants-boundaries.test.ts)
