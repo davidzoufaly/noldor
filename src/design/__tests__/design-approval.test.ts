@@ -1,4 +1,4 @@
-// @tests: pendev-ui-design-phase
+// @tests: pendev-ui-design-phase, architecture-design-phase
 
 import { execFileSync } from 'node:child_process';
 import {
@@ -96,6 +96,37 @@ describe('design-approval / record round-trip', () => {
 
   it('reads null for an absent record', () => {
     expect(readBack(tempRepo(), PEN)).toBeNull();
+  });
+});
+
+describe('design-approval / records by design kind', () => {
+  const ARCH = 'docs/design/architecture/2026-08-30-my-feature.pen';
+  const ARCH_APPROVED: DesignApprovalRecord = {
+    outcome: 'approved',
+    at: '2026-08-30T00:00:00.000Z',
+    penBlob: 'e'.repeat(40),
+    surfaces: ['modules'],
+  };
+
+  it('records an architecture design under architecture/, archived or not, and leaves UI paths alone', () => {
+    expect(approvalRelPath(ARCH)).toBe(
+      '.noldor/design-approval/architecture/2026-08-30-my-feature.json',
+    );
+    expect(approvalRelPath('docs/design/architecture/archive/2026-08-30-my-feature.pen')).toBe(
+      '.noldor/design-approval/architecture/2026-08-30-my-feature.json',
+    );
+    expect(approvalRelPath(`docs/design/ui/${PEN}`)).toBe(
+      '.noldor/design-approval/2026-08-30-my-feature.json',
+    );
+    expect(approvalRelPath(PEN)).toBe('.noldor/design-approval/2026-08-30-my-feature.json');
+  });
+
+  it('keeps a UI record and an architecture record with the same stem apart', () => {
+    const cwd = tempRepo();
+    expect(writeApproval(cwd, `docs/design/ui/${PEN}`, APPROVED).ok).toBe(true);
+    expect(writeApproval(cwd, ARCH, ARCH_APPROVED).ok).toBe(true);
+    expect(readBack(cwd, `docs/design/ui/${PEN}`)).toEqual(APPROVED);
+    expect(readBack(cwd, ARCH)).toEqual(ARCH_APPROVED);
   });
 });
 

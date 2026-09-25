@@ -52,6 +52,20 @@ export const ARCH_DESIGN_DIR = 'docs/design/architecture';
 export const ARCH_BASELINE_PATH = `${ARCH_DESIGN_DIR}/baseline.pen`;
 
 /**
+ * The design-artifact kinds. Each has its own design directory and baseline;
+ * every other piece of the lifecycle — approval record, `.pen` guard, archive,
+ * bridge — is shared and takes the kind from the path (ADR 0007).
+ */
+export type DesignKind = 'ui' | 'architecture';
+
+/** A design `.pen`'s kind from its repo-relative POSIX path, or `null` for a path under neither design directory. */
+export function designKindOfPath(path: string): DesignKind | null {
+  if (path.startsWith(`${ARCH_DESIGN_DIR}/`)) return 'architecture';
+  if (path.startsWith(`${UI_DESIGN_DIR}/`)) return 'ui';
+  return null;
+}
+
+/**
  * Derive the feature slug from a plan filename.
  *
  * @param filename - The basename, e.g. `2026-04-19-tooltips.md` or

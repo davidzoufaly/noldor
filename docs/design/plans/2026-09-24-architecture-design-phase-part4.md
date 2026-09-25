@@ -43,7 +43,7 @@
 
 Records are keyed by the `.pen` stem, so a UI design and an architecture design dated the same day with the same key would share one record. The directory now comes from the path. `archive/` is transparent: the record for `docs/design/architecture/archive/<stem>.pen` is the one the file had before the move. A bare basename still means the UI root. The `ui-reviewer` lane (`src/cr/lanes/ui-design-resolve.ts`) and every existing test pass basenames, so none of them changes.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
   In `src/design/__tests__/design-approval.test.ts`, directly after the `describe('design-approval / record round-trip', …)` block, add:
 
@@ -76,12 +76,12 @@ Records are keyed by the `.pen` stem, so a UI design and an architecture design 
   });
   ```
 
-- [ ] **Step 2: Run the tests to verify they fail.**
+- [x] **Step 2: Run the tests to verify they fail.**
 
   Run: `pnpm vitest run src/design/__tests__/design-approval.test.ts -t "records by design kind"`
   Expected: FAIL. `approvalRelPath(ARCH)` returns `.noldor/design-approval/2026-08-30-my-feature.json`, and the round-trip case reads the UI record back for both paths.
 
-- [ ] **Step 3: Add the kind.**
+- [x] **Step 3: Add the kind.**
 
   In `src/core/design-artifact-names.ts`, directly after the `ARCH_BASELINE_PATH` export, add:
 
@@ -101,7 +101,7 @@ Records are keyed by the `.pen` stem, so a UI design and an architecture design 
   }
   ```
 
-- [ ] **Step 4: Derive the record directory from the path.**
+- [x] **Step 4: Derive the record directory from the path.**
 
   In `src/design/design-approval.ts`:
 
@@ -154,7 +154,7 @@ Records are keyed by the `.pen` stem, so a UI design and an architecture design 
   }
   ```
 
-- [ ] **Step 5: Run the tests and the typecheck to verify they pass.**
+- [x] **Step 5: Run the tests and the typecheck to verify they pass.**
 
   Run: `pnpm vitest run src/design/__tests__/design-approval.test.ts`
   Expected: PASS — every case, the two new ones included.
@@ -165,7 +165,7 @@ Records are keyed by the `.pen` stem, so a UI design and an architecture design 
   Run: `pnpm typecheck`
   Expected: exit 0, no output.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
   ```bash
   msg=$(mktemp)

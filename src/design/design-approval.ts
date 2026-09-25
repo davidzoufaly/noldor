@@ -1,6 +1,6 @@
 // @tests: pendev-ui-design-phase
 // The design-approval record: one file per design artifact at
-// `.noldor/design-approval/<pen-stem>.json`, written only by the verdict step
+// `.noldor/design-approval/[architecture/]<pen-stem>.json`, written only by the verdict step
 // of /noldor-spec step 1.5 (via `design verdict`). A discriminated union on
 // `outcome`, because a UI-bearing session has two legitimate ways to commit a
 // `.pen` — ratified, or explicitly waived when the editor was unreachable —
@@ -18,7 +18,7 @@ import { basename, join } from 'node:path';
 import { z } from 'zod';
 
 import { parseReceiptWith } from '../core/blob-id.js';
-import { specSlugFromFilename } from '../core/design-artifact-names.js';
+import { designKindOfPath, specSlugFromFilename } from '../core/design-artifact-names.js';
 import { errMessage } from '../core/err-message.js';
 import { writeReceiptFile } from '../core/receipt-store.js';
 
@@ -78,9 +78,22 @@ export const designApprovalRecordSchema = z.discriminatedUnion('outcome', [
 
 export type DesignApprovalRecord = z.infer<typeof designApprovalRecordSchema>;
 
+/**
+ * The record directory for a design `.pen`, as repo-relative segments. A path
+ * under `docs/design/architecture/` records under `architecture/`; anything
+ * else — a UI path, or a bare basename (the ui-reviewer lane, older callers) —
+ * keeps the UI root. `archive/` never enters the path: `design archive` moves
+ * the `.pen` and the record stays where it is.
+ */
+export function approvalDirSegments(pen: string): readonly string[] {
+  return designKindOfPath(pen) === 'architecture'
+    ? [...APPROVAL_DIR_SEGMENTS, 'architecture']
+    : APPROVAL_DIR_SEGMENTS;
+}
+
 /** Record path relative to the repo root, for git pathspecs and staged-set lookups. */
-export function approvalRelPath(penBasename: string): string {
-  return `${APPROVAL_DIR_SEGMENTS.join('/')}/${basename(penBasename, '.pen')}.json`;
+export function approvalRelPath(pen: string): string {
+  return `${approvalDirSegments(pen).join('/')}/${basename(pen, '.pen')}.json`;
 }
 
 /**
@@ -103,9 +116,9 @@ export function parseApprovalBytes(bytes: Buffer | string): DesignApprovalRecord
  */
 export function readApproval(
   repoRoot: string,
-  penBasename: string,
+  pen: string,
 ): { ok: true; record: DesignApprovalRecord | null } | { ok: false; error: string } {
-  const rel = approvalRelPath(penBasename);
+  const rel = approvalRelPath(pen);
   const path = join(repoRoot, rel);
   let bytes: Buffer;
   try {
@@ -126,14 +139,16 @@ export function readApproval(
 /**
  * Write a design's record (atomic, slug-contained; see the receipt store —
  * the stem comes from a caller-supplied `--pen` argument, Q-0097 discipline).
- * An existing record for the same stem is OVERWRITTEN: re-taking the verdict
- * on a revised design is the normal remedy for a stale record, and
- * refuse-if-exists would make that state unrecoverable.
+ * `pen` is the `.pen`'s repo path or basename; the kind it implies picks the
+ * directory (see {@link approvalDirSegments}). An existing record for the same
+ * stem is OVERWRITTEN: re-taking the verdict on a revised design is the normal
+ * remedy for a stale record, and refuse-if-exists would make that state
+ * unrecoverable.
  */
 export function writeApproval(
   repoRoot: string,
-  penBasename: string,
+  pen: string,
   record: DesignApprovalRecord,
 ): { ok: true; path: string } | { ok: false; message: string } {
-  return writeReceiptFile(repoRoot, APPROVAL_DIR_SEGMENTS, basename(penBasename, '.pen'), record);
+  return writeReceiptFile(repoRoot, approvalDirSegments(pen), basename(pen, '.pen'), record);
 }
