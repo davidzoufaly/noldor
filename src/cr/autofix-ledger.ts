@@ -97,6 +97,15 @@ export const autofixRoundSchema = z.object({
    */
   verdict: roundVerdictSchema.optional(),
   /**
+   * A red round whose every filed blocker came from a lane that never reviewed —
+   * a timeout or spawn failure (Q-0310). It stays red, so no receipt mints on it,
+   * but the cap does not count it: a sleeping machine must not spend the budget on
+   * reviews that did not happen. A round where NO lane wrote a sink is not marked,
+   * so a lane that never starts still reaches the cap. Only `cr orchestrate` writes
+   * this; absent reads as a counted round.
+   */
+  laneError: z.boolean().optional(),
+  /**
    * The closing round: the single dispatch allowed past the cap once a fix
    * changed `HEAD`. Its own field rather than a value in {@link
    * autofixRoundSchema.shape.stopped} because `stopped` is caller-writable free
@@ -239,14 +248,22 @@ export function roundVerdict(round: AutofixRound): RoundVerdict {
 }
 
 /**
- * Rounds that found something — the only ones the cap counts.
+ * Rounds the cap sees: every round but a lane-error one, which reviewed nothing.
+ */
+export function countedRounds(rounds: readonly AutofixRound[]): AutofixRound[] {
+  return rounds.filter((r) => r.laneError !== true);
+}
+
+/**
+ * Rounds that found something — the only ones the cap counts. A lane-error round
+ * is red but not counted ({@link countedRounds}).
  *
  * Takes the rounds rather than the ledger so a caller can count a SUBSET: the
  * seam counts among rounds excluding the one being decided, while the cap counts
  * the whole series.
  */
 export function redRounds(rounds: readonly AutofixRound[]): number {
-  return rounds.filter((r) => roundVerdict(r) === 'red').length;
+  return countedRounds(rounds).filter((r) => roundVerdict(r) === 'red').length;
 }
 
 /**

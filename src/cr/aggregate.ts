@@ -7,6 +7,7 @@ import { laneFindingsSchema } from './findings-schema.js';
 import { inferLaneFromFilename } from './filename.js';
 import { readExpectedLanes, type DispatchedHead } from './expected-lanes.js';
 import { PROMPT_TEMPLATE_PATH } from './deep-review-spawn.js';
+import { isLaneFailureBlocker } from './re-round.js';
 
 /**
  * A blocker as this module surfaces it — a {@link Finding} plus the lane that
@@ -67,6 +68,13 @@ export interface AggregateResult {
    * Its own channel for the same reason as {@link AggregateResult.stale}, and it never gates.
    */
   refuted: (RefutedFinding & { lane: Lane })[];
+  /**
+   * Lanes whose sink says their own review never ran: a `<lane>` failure blocker
+   * (reviewer, codex) or `reason: 'dispatch-failed'` (a spawn failure or a timeout).
+   * Their blockers still gate; this channel only lets the round cap tell "the review
+   * found something" from "the review did not happen" (Q-0310).
+   */
+  errored: Lane[];
   summaries: Partial<Record<Lane, string>>;
   notes: Partial<Record<Lane, string[]>>;
 }
@@ -92,6 +100,7 @@ export async function aggregate(
   const blockers: LaneBlocker[] = [];
   const refuted: AggregateResult['refuted'] = [];
   const unresolved: Lane[] = [];
+  const errored: Lane[] = [];
   const summaries: Partial<Record<Lane, string>> = {};
   const notes: Partial<Record<Lane, string[]>> = {};
   const seen = new Set<Lane>();
@@ -163,6 +172,8 @@ export async function aggregate(
     summaries[filenameLane] = parsed.data.summary;
     if (parsed.data.notes) notes[filenameLane] = [...parsed.data.notes];
     if (!parsed.data.finishedAt) unresolved.push(filenameLane);
+    if (parsed.data.reason === 'dispatch-failed' || parsed.data.blockers.some(isLaneFailureBlocker))
+      errored.push(filenameLane);
     blockers.push(...parsed.data.blockers.map((b) => ({ ...b, lane: filenameLane })));
     refuted.push(...(parsed.data.refuted ?? []).map((x) => ({ ...x, lane: filenameLane })));
 
@@ -207,6 +218,7 @@ export async function aggregate(
     unresolved,
     stale,
     refuted,
+    errored,
     summaries,
     notes,
   };
