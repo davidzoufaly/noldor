@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { acquireLock, releaseLock } from '../drain-lock.js';
+import { acquireLock, liveLockPid, releaseLock } from '../drain-lock.js';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../../..');
 const MODULE_URL = pathToFileURL(join(REPO_ROOT, 'src/autonomous/drain-lock.ts')).href;
@@ -97,6 +97,21 @@ describe('drain lock', () => {
     expect(existsSync(join(dir, '.noldor/drain.lock'))).toBe(true);
     releaseLock(dir, { startedAt: 'T1' }); // matching token → removed
     expect(existsSync(join(dir, '.noldor/drain.lock'))).toBe(false);
+  });
+
+  it('liveLockPid names a live holder and refuses a pid readHolder rejects', () => {
+    acquireLock(dir, 'T1');
+    expect(liveLockPid(dir)).toBe(process.pid);
+    // pid 0 passes a bare typeof check, and process.kill(0, 0) probes the process
+    // group — so a hand-parsed reader would report 0 as a live holder.
+    writeFileSync(join(dir, '.noldor/drain.lock'), JSON.stringify({ pid: 0 }));
+    expect(liveLockPid(dir)).toBeNull();
+  });
+
+  it('releaseLock swallows a read error other than a missing lock (crash-handler safety)', () => {
+    mkdirSync(join(dir, '.noldor/drain.lock'), { recursive: true }); // EISDIR on read
+    expect(() => releaseLock(dir)).not.toThrow();
+    expect(liveLockPid(dir)).toBeNull();
   });
 });
 

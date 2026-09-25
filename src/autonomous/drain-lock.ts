@@ -46,14 +46,8 @@ export function isAlive(pid: number): boolean {
  * @param cwd - Repo root (the worktree's main workspace).
  */
 export function liveLockPid(cwd: string): number | null {
-  let holder: { pid: number } | null;
-  try {
-    holder = JSON.parse(readFileSync(join(cwd, LOCK_REL), 'utf8')) as { pid: number };
-  } catch {
-    return null; // no lock or unreadable payload
-  }
-  if (holder && typeof holder.pid === 'number' && isAlive(holder.pid)) return holder.pid;
-  return null;
+  const holder = readHolderOrAbsent(join(cwd, LOCK_REL));
+  return typeof holder === 'object' && isAlive(holder.pid) ? holder.pid : null;
 }
 
 /**
@@ -142,13 +136,10 @@ export function acquireLock(cwd: string, now = ''): { ok: boolean; reason?: stri
  */
 export function releaseLock(cwd: string, token?: { startedAt: string }): void {
   const lockPath = join(cwd, LOCK_REL);
-  let holder: { pid?: number; startedAt?: string } | null;
-  try {
-    holder = JSON.parse(readFileSync(lockPath, 'utf8')) as { pid?: number; startedAt?: string };
-  } catch {
-    return; // no lock, or unreadable payload — nothing this process owns to remove
-  }
-  if (!holder || holder.pid !== process.pid) return; // foreign owner — never touch
+  // Swallows read errors too: this runs in crash handlers, which must not throw.
+  const holder = readHolderOrAbsent(lockPath);
+  if (typeof holder !== 'object') return; // no lock, or unreadable payload — nothing this process owns to remove
+  if (holder.pid !== process.pid) return; // foreign owner — never touch
   if (token && holder.startedAt !== token.startedAt) return; // pid reused — not our lock
   try {
     unlinkSync(lockPath);
@@ -239,6 +230,15 @@ export function readHolder(path: string): SeenHolder {
     throw err;
   }
   return parseHolder(raw) ?? 'unreadable';
+}
+
+/** {@link readHolder}, with any read error read as `absent`. */
+function readHolderOrAbsent(path: string): SeenHolder {
+  try {
+    return readHolder(path);
+  } catch {
+    return 'absent';
+  }
 }
 
 function parseHolder(raw: string): LockHolder | undefined {
