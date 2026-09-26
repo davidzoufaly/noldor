@@ -20,11 +20,15 @@ import { loadConfig } from '../core/config.js';
 
 export type LaneMode = 'blocking' | 'advisory';
 
+/** The autonomous-config knobs a lane can own. */
+export type LaneModeKey =
+  | 'verifyMode'
+  | 'uiReviewMode'
+  | 'renderCompareMode'
+  | 'geometryCompareMode';
+
 /** `key` names the autonomous-config knob this lane owns. */
-export async function loadLaneMode(
-  repoRoot: string,
-  key: 'verifyMode' | 'uiReviewMode' | 'renderCompareMode',
-): Promise<LaneMode> {
+export async function loadLaneMode(repoRoot: string, key: LaneModeKey): Promise<LaneMode> {
   const cfg = await loadConfig(join(repoRoot, '.noldor', 'config.json')).catch(() => null);
   return cfg?.autonomous?.[key] ?? 'advisory';
 }

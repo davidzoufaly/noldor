@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { errMessage } from '../../core/err-message.js';
 import type { Lane } from '../findings-schema.js';
 import { loadLaneMode } from '../lane-mode.js';
-import type { LaneMode } from '../lane-mode.js';
+import type { LaneMode, LaneModeKey } from '../lane-mode.js';
 import { openLaneSink } from '../lane-sink.js';
 import type { LaneSink } from '../lane-sink.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
@@ -120,7 +120,8 @@ export interface DesignRoundCtx {
 export async function openDesignReviewRound(
   input: LaneInput,
   lane: Lane,
-  modeKey: 'uiReviewMode' | 'renderCompareMode',
+  // Every design lane's knob; `verifyMode` belongs to the verifier, which never opens a design round.
+  modeKey: Exclude<LaneModeKey, 'verifyMode'>,
   scratchPrefix: string,
 ): Promise<
   { kind: 'done'; result: LaneResult } | { kind: 'ready'; ctx: DesignRoundCtx; mode: LaneMode }

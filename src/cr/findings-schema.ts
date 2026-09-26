@@ -142,6 +142,15 @@ export const laneReasonCodeSchema = z.enum([
   // The round computed its verdicts but could not persist the evidence images
   // that make them auditable — its own class, not a dispatch problem.
   'persist-failed',
+  // cannot-review classes owned by the geometry-compare lane (spec D6), one per
+  // stage that can decline. An ordinary layout mismatch carries NO reason code:
+  // it is a `fail` whose findings name the family and the unmatched values.
+  'no-geometry-recipe',
+  'geometry-extract-failed',
+  'geometry-capture-failed',
+  'geometry-unparseable',
+  'geometry-empty',
+  'viewport-mismatch',
   // integrity
   'pen-modified',
 ]);
