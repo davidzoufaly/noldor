@@ -29,6 +29,7 @@ links:
     - src/cr/__tests__/geometry/geometry-compare-core.test.ts
     - src/cr/__tests__/geometry/geometry-diff-cli.test.ts
     - src/cr/__tests__/geometry/geometry-doc.test.ts
+    - src/cr/__tests__/geometry/geometry-recipe.test.ts
     - src/cr/__tests__/geometry/geometry-validate-cli.test.ts
     - src/cr/__tests__/lanes/render-compare-core.test.ts
     - src/cr/__tests__/lanes/render-compare.test.ts
@@ -190,6 +191,7 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/cr/__tests__/geometry/geometry-compare-core.test.ts`](../../src/cr/__tests__/geometry/geometry-compare-core.test.ts)
   - [`src/cr/__tests__/geometry/geometry-diff-cli.test.ts`](../../src/cr/__tests__/geometry/geometry-diff-cli.test.ts)
   - [`src/cr/__tests__/geometry/geometry-doc.test.ts`](../../src/cr/__tests__/geometry/geometry-doc.test.ts)
+  - [`src/cr/__tests__/geometry/geometry-recipe.test.ts`](../../src/cr/__tests__/geometry/geometry-recipe.test.ts)
   - [`src/cr/__tests__/geometry/geometry-validate-cli.test.ts`](../../src/cr/__tests__/geometry/geometry-validate-cli.test.ts)
   - [`src/cr/__tests__/lanes/render-compare-core.test.ts`](../../src/cr/__tests__/lanes/render-compare-core.test.ts)
   - [`src/cr/__tests__/lanes/render-compare.test.ts`](../../src/cr/__tests__/lanes/render-compare.test.ts)

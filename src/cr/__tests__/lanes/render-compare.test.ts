@@ -285,6 +285,31 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
     expect(String(blockers[0].message)).toContain('no-boot-recipe');
   });
 
+  it('a recipe without screenshotCommand is no-boot-recipe, never exported or booted', async () => {
+    const log = seams(DESIGN_PNG);
+    let dispatched = 0;
+    setRenderExportDispatcher(async () => {
+      dispatched++;
+      return report({ surfaces: [] });
+    });
+    const { cwd, input } = repo({
+      uiBoot: {
+        dashboard: {
+          verifyCommand: 'dashboard',
+          route: '/',
+          geometryCommand: 'geo {url} {out} {width} {height}',
+        },
+      },
+    });
+    const r = await runRenderCompare(input);
+    expect(r.ok).toBe(true); // advisory default
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'no-boot-recipe' });
+    expect(String(s.notes)).toContain('has a uiBoot recipe but no screenshotCommand');
+    expect(dispatched).toBe(0);
+    expect(log.boots).toHaveLength(0);
+  });
+
   it('exporter dispatch failure marks every recipe surface export-failed', async () => {
     seams(DESIGN_PNG);
     setRenderExportDispatcher(async () => {

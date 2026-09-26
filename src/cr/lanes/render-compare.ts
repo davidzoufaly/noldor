@@ -91,11 +91,15 @@ export function setRenderCompareDeps(partial: Partial<RenderCompareDeps>): void 
   deps = { ...deps, ...partial };
 }
 
+/** A recipe the pixel lane can run: `withRecipe` admits only these. */
+type ScreenshotRecipe = UiBootRecipe & { screenshotCommand: string };
+
 /** A surface's per-round working state, keyed off its recipe + design raster. */
 interface SurfaceJob {
   surface: string;
   sanitized: string;
-  recipe: UiBootRecipe;
+  /** Built only from `withRecipe`, so `screenshotCommand` is always present. */
+  recipe: ScreenshotRecipe;
   /** Raw bytes, persisted as the design artifact. */
   designBuf: Buffer;
   /** Decoded once at export validation; feeds {width}/{height} and the diff. */
@@ -200,10 +204,22 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     // R3 addition: an affected surface with no recipe is a full per-surface
     // outcome, so a round with an unconfigured affected surface never
     // aggregates to `pass`.
-    const withRecipe = surfaces.filter((s) => recipes.has(s));
+    // A recipe without `screenshotCommand` is as unusable to THIS lane as no
+    // recipe at all — the field became optional when `geometryCommand` landed
+    // — so both get the same row with different details.
+    const withRecipe = surfaces.filter((s) => recipes.get(s)?.screenshotCommand !== undefined);
     for (const s of surfaces) {
-      if (!recipes.has(s)) {
+      const recipe = recipes.get(s);
+      if (recipe === undefined) {
         outcomes.push(cannot(s, 'no-boot-recipe', `surface '${s}' has no consumer.uiBoot recipe`));
+      } else if (recipe.screenshotCommand === undefined) {
+        outcomes.push(
+          cannot(
+            s,
+            'no-boot-recipe',
+            `surface '${s}' has a uiBoot recipe but no screenshotCommand`,
+          ),
+        );
       }
     }
 
@@ -338,7 +354,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           jobs.push({
             surface: r.surface,
             sanitized: sanitizeSurfaceName(r.surface),
-            recipe: recipes.get(r.surface) as UiBootRecipe,
+            recipe: recipes.get(r.surface) as ScreenshotRecipe,
             designBuf: buf,
             designPng: decoded.png,
           });
