@@ -55,7 +55,7 @@ outputs and exit codes: `docs/noldor/script-catalog.md`.
 
 - `autonomous` — Autonomous runners (queue-drain / plan-runner): run, queue-drain, watch, inbox, unpark, branch-state, status
 - `prep` — Parallel prep: fan out spec/plan drafts, then promote approved ones to FDs: fanout, promote, format
-- `design` — Running design context for a spec/plan dialogue (ledger + inline block): archive, ui-sync, capture, pen-bridge, arch-route, arch-progress, open, verdict, context, graph-context, log, support-check, geometry-diff, geometry-validate
+- `design` — Running design context for a spec/plan dialogue (ledger + inline block): archive, ui-sync, capture, pen-bridge, arch-route, arch-progress, open, verdict, context, graph-context, log, support-check, geometry-diff, geometry-export, geometry-review, geometry-validate
 - `research` — Parallel read-only research agents (fanout + opt-in synthesis): fanout
 - `garden` — Garden drift detection + SDD report + receipts: detect, receipt, sdd-report, demote-stale
 - `metrics` — Effectiveness metrics derived from repo history: compute

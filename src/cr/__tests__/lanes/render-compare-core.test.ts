@@ -61,14 +61,32 @@ describe('sanitizeSurfaceName', () => {
 
 describe('screenshotCommand template contract', () => {
   it('requires all four placeholders and rejects unknown tokens', () => {
-    expect(screenshotTemplateIssues('shot --size={width},{height} {url} {out}')).toEqual([]);
-    expect(screenshotTemplateIssues('shot {url} {out}')).toEqual([
+    expect(
+      screenshotTemplateIssues('shot --size={width},{height} {url} {out}', 'screenshotCommand'),
+    ).toEqual([]);
+    expect(screenshotTemplateIssues('shot {url} {out}', 'screenshotCommand')).toEqual([
       'screenshotCommand is missing {width}',
       'screenshotCommand is missing {height}',
     ]);
-    expect(screenshotTemplateIssues('shot {url} {out} {width} {height} {state}')).toEqual([
-      'screenshotCommand carries unknown placeholder {state}',
+    expect(
+      screenshotTemplateIssues('shot {url} {out} {width} {height} {state}', 'screenshotCommand'),
+    ).toEqual(['screenshotCommand carries unknown placeholder {state}']);
+  });
+
+  it('names whichever field the caller is validating, in every message', () => {
+    expect(screenshotTemplateIssues('cap {url} {out}', 'geometryCommand')).toEqual([
+      'geometryCommand is missing {width}',
+      'geometryCommand is missing {height}',
     ]);
+    expect(
+      screenshotTemplateIssues('cap {url} {out} {width} {height} {zoom}', 'geometryCommand'),
+    ).toEqual(['geometryCommand carries unknown placeholder {zoom}']);
+    const quoted = screenshotTemplateIssues(
+      `cap '{url}' "{out}" {width} {height}`,
+      'geometryCommand',
+    );
+    expect(quoted).toHaveLength(2);
+    expect(quoted.every((i) => i.startsWith('geometryCommand may not contain'))).toBe(true);
   });
 });
 

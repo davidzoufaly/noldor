@@ -8,13 +8,8 @@ import { readFile } from 'node:fs/promises';
 
 import { readValueFlags, runIfDirect } from '../../core/cli-entry.js';
 import { errMessage } from '../../core/err-message.js';
-import { stdoutEmit, type Emit } from './geometry-cli-emit.js';
-import {
-  compareGeometry,
-  DEFAULT_BUDGET,
-  DEFAULT_TOLERANCE,
-  GEOMETRY_FAMILIES,
-} from './geometry-compare-core.js';
+import { emitFamilyLines, stdoutEmit, type Emit } from './geometry-cli-emit.js';
+import { compareGeometry, DEFAULT_BUDGET, DEFAULT_TOLERANCE } from './geometry-compare-core.js';
 import { parseGeometryDoc } from './geometry-doc.js';
 
 const LABEL = 'geometry-diff';
@@ -22,8 +17,6 @@ const USAGE = `usage: noldor design ${LABEL} <design.json> <impl.json> --surface
 
 /** Viewports may differ by less than a pixel (rounding), never more (spec D4). */
 const VIEWPORT_EPSILON = 1;
-
-const list = (xs: readonly number[]): string => xs.map((v) => v.toFixed(2)).join(', ');
 
 /**
  * Exit 0 = within budget, 1 = drift, 2 = usage error or a document that could
@@ -85,14 +78,7 @@ export async function runGeometryDiff(
   }
   const cmp = compareGeometry(design.doc, impl.doc, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
   emit(`surface '${surface}' — ${cmp.verdict}`);
-  for (const family of GEOMETRY_FAMILIES) {
-    const o = cmp.families[family];
-    emit(
-      `  ${family}: ${o.unmatched} unmatched (budget ${o.budget})` +
-        (o.designOnly.length > 0 ? ` design-only [${list(o.designOnly)}]` : '') +
-        (o.implOnly.length > 0 ? ` impl-only [${list(o.implOnly)}]` : ''),
-    );
-  }
+  emitFamilyLines(cmp, emit);
   return cmp.verdict === 'fail' ? 1 : 0;
 }
 

@@ -742,5 +742,10 @@
   "Q-0321": {
     "slug": "spec-skill-loads-its-design-steps-only-when-required",
     "retiredAt": "2026-09-26"
+  },
+  "Q-0180": {
+    "slug": "geometry-compare-lane-the-automated-half",
+    "retiredInto": "ui-design-review-lane",
+    "retiredAt": "2026-09-25"
   }
 }

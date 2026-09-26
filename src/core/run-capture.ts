@@ -25,8 +25,8 @@ export interface CaptureResult {
 }
 
 /**
- * Run `command` via `/bin/sh -c` under `timeoutMs`, with cwd = `cwd` and env
- * inherited. The child leads its own process group so a timeout kills the whole
+ * Run `command` via `/bin/sh -c` under `timeoutMs`, with cwd = `cwd` and the
+ * environment inherited, `env` merged over it when given. The child leads its own process group so a timeout kills the whole
  * tree — a `pnpm …` capture spawns node, a bundler, sometimes a browser, and a
  * bare child-pid kill would orphan every one of them.
  *
@@ -39,12 +39,17 @@ export function runCapture(
   command: string,
   cwd: string,
   timeoutMs: number,
+  env?: NodeJS.ProcessEnv,
 ): Promise<CaptureResult> {
   return new Promise((resolve) => {
     const child = spawn('/bin/sh', ['-c', command], {
       cwd,
       detached: true,
       stdio: ['ignore', 'ignore', 'pipe'],
+      // Merged, not replaced: a capture command still needs PATH and HOME. The
+      // geometry capture script learns its surface from NOLDOR_GEOMETRY_SURFACE
+      // this way, since the placeholder contract has no {surface}.
+      ...(env !== undefined ? { env: { ...process.env, ...env } } : {}),
     });
     // Byte tail, decoded ONCE at the end: per-chunk decoding plus a UTF-16
     // slice can still split characters at the tail seam. A byte-boundary

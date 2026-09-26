@@ -72,6 +72,11 @@ export const autonomousConfigSchema = z.object({
   // in a booted-app pixel pipeline diverge (spec D6). Same posture otherwise:
   // advisory default, `pen-modified` reds in BOTH modes.
   renderCompareMode: z.enum(['blocking', 'advisory']).default('advisory'),
+  // Governs the geometry-compare lane's review outcomes only. A third knob,
+  // because an adopter can trust a layout-value diff and a pixel diff to
+  // different degrees. Same posture: advisory default, `pen-modified` reds in
+  // BOTH modes.
+  geometryCompareMode: z.enum(['blocking', 'advisory']).default('advisory'),
   // Wall-clock cap per item is the existing --iteration-timeout flag (30 min default), not a
   // duplicate rail here. Token-budget rail deliberately omitted: no token accounting exists yet.
   watch: watchConfigSchema.optional(),

@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { errMessage } from '../../core/err-message.js';
 import type { Lane } from '../findings-schema.js';
 import { loadLaneMode } from '../lane-mode.js';
-import type { LaneMode } from '../lane-mode.js';
+import type { LaneMode, LaneModeKey } from '../lane-mode.js';
 import { openLaneSink } from '../lane-sink.js';
 import type { LaneSink } from '../lane-sink.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
@@ -27,8 +27,9 @@ export const sha256File = async (path: string): Promise<string> =>
     .update(await readFile(path))
     .digest('hex');
 
-/** A staged scratch copy plus everything needed to check integrity later. */
-export interface PenScratch {
+/** A staged scratch copy plus everything needed to check integrity later.
+ * Disposing it removes the scratch dir, so an `await using` owner releases it on every path. */
+export interface PenScratch extends AsyncDisposable {
   /** Private temp dir (mode 0700 via mkdtemp); remove with {@link cleanupPenScratch}. */
   dir: string;
   /** Absolute path of the scratch `.pen` copy handed to children. */
@@ -58,14 +59,16 @@ export async function stagePenScratch(
   let dir: string | null = null;
   try {
     const hashBefore = await sha256File(absPenPath);
-    dir = await mkdtemp(join(tmpdir(), `${prefix}-`));
-    const penPath = join(dir, `${slug}.pen`);
+    const staged = await mkdtemp(join(tmpdir(), `${prefix}-`));
+    dir = staged;
+    const penPath = join(staged, `${slug}.pen`);
     await copyFile(absPenPath, penPath);
     return {
       scratch: {
-        dir,
+        dir: staged,
         penPath,
         hashBefore,
+        [Symbol.asyncDispose]: () => cleanupPenScratch(staged, prefix),
         designChanged: async () => {
           try {
             return { changed: (await sha256File(absPenPath)) !== hashBefore, detail: '' };
@@ -120,7 +123,8 @@ export interface DesignRoundCtx {
 export async function openDesignReviewRound(
   input: LaneInput,
   lane: Lane,
-  modeKey: 'uiReviewMode' | 'renderCompareMode',
+  // Every design lane's knob; `verifyMode` belongs to the verifier, which never opens a design round.
+  modeKey: Exclude<LaneModeKey, 'verifyMode'>,
   scratchPrefix: string,
 ): Promise<
   { kind: 'done'; result: LaneResult } | { kind: 'ready'; ctx: DesignRoundCtx; mode: LaneMode }

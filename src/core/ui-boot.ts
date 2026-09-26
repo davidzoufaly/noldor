@@ -63,27 +63,33 @@ export function sanitizationIssues(names: readonly string[]): string[] {
 }
 
 /**
- * Template problems `validate noldor-config` rejects: a missing required
- * placeholder, any `{token}` outside the four the lane substitutes, or ANY
- * single quote. The lane wraps every substituted value in single quotes, so a
- * consumer-quoted placeholder (`cap '{url}' …`) would produce `''…''` — the
- * value lands OUTSIDE the quoting and its permitted `&` could split the
- * command. Write templates with bare placeholders; static arguments that need
- * quoting use double quotes.
+ * Template problems `validate noldor-config` rejects in a capture template
+ * (`screenshotCommand` or `geometryCommand` — one contract, so the quoting
+ * guard cannot drift between two copies): a missing required placeholder, any
+ * `{token}` outside the four the lane substitutes, or ANY quote character. The
+ * lane wraps every substituted value in single quotes, so a consumer-quoted
+ * placeholder (`cap '{url}' …`) would produce `''…''` — the value lands OUTSIDE
+ * the quoting and its permitted `&` could split the command. Write templates
+ * with bare placeholders and no quotes at all.
+ *
+ * @param template - The consumer's capture template.
+ * @param field - The config key being validated; every message names it, so a
+ *   bad `geometryCommand` is never reported as a `screenshotCommand` problem.
+ * @returns One message per problem, empty when the template is in contract.
  */
-export function screenshotTemplateIssues(template: string): string[] {
+export function screenshotTemplateIssues(template: string, field: string): string[] {
   const issues: string[] = [];
   for (const p of SCREENSHOT_PLACEHOLDERS) {
-    if (!template.includes(`{${p}}`)) issues.push(`screenshotCommand is missing {${p}}`);
+    if (!template.includes(`{${p}}`)) issues.push(`${field} is missing {${p}}`);
   }
   for (const m of template.matchAll(/\{([^{}]*)\}/g)) {
     if (!(SCREENSHOT_PLACEHOLDERS as readonly string[]).includes(m[1])) {
-      issues.push(`screenshotCommand carries unknown placeholder {${m[1]}}`);
+      issues.push(`${field} carries unknown placeholder {${m[1]}}`);
     }
   }
   if (template.includes("'")) {
     issues.push(
-      'screenshotCommand may not contain single quotes — the lane single-quotes every substituted placeholder itself',
+      `${field} may not contain single quotes — the lane single-quotes every substituted placeholder itself`,
     );
   }
   // Double quotes are rejected too: a placeholder inside them ("{url}") would
@@ -92,7 +98,7 @@ export function screenshotTemplateIssues(template: string): string[] {
   // placeholders in an otherwise quote-free template.
   if (template.includes('"')) {
     issues.push(
-      'screenshotCommand may not contain double quotes — write bare placeholders; the lane owns all quoting',
+      `${field} may not contain double quotes — write bare placeholders; the lane owns all quoting`,
     );
   }
   return issues;

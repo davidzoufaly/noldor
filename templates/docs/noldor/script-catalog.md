@@ -180,6 +180,22 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** validating that a capture script produces a conformant document, and reading a round's evidence without booting the app.
 - **Source:** [`src/cr/geometry/geometry-diff-cli.ts`](../../src/cr/geometry/geometry-diff-cli.ts)
 
+### `design:geometry-export`
+
+- **Trigger:** `pnpm noldor design geometry-export --pen <file.pen> --surface <name> --out <doc.json> [--page <name>] [--slug <slug>]`. Needs a live pencil bridge — run `pnpm noldor design pen-bridge` first if a call reports that a file needs to be open in the editor.
+- **Inputs:** a `.pen` design, the surface whose `FINAL:<surface>:` page to read, an output path, an optional page selector when the surface has several, and an optional slug for the child's answer file (default `geometry-adhoc`, since a hand run belongs to no CR round).
+- **Outputs:** a `geometryDocSchema` design document at `--out`, plus the page it read, the node count, the viewport, and any clipped nodes it excluded. Exit 0 = written and conformant, 1 = this surface could not be read (no usable answer, ambiguous page, missing or non-conformant document), 2 = usage error or the dispatch failed.
+- **When to use:** producing the design half of a comparison by hand — pair it with a captured implementation document and `pnpm noldor design geometry-diff`.
+- **Source:** [`src/cr/geometry/geometry-export-cli.ts`](../../src/cr/geometry/geometry-export-cli.ts)
+
+### `design:geometry-review`
+
+- **Trigger:** `pnpm noldor design geometry-review --pen <file.pen> --surface <name> --url <url> --capture <template> [--page <name>] [--slug <slug>]`. The app must already be running at `--url`, and the design side needs a live pencil bridge.
+- **Inputs:** a `.pen` design, the surface to compare, the URL its route renders at, the `geometryCommand` template to capture with (`{url}`, `{out}`, `{width}`, `{height}`; the script also receives `NOLDOR_GEOMETRY_SURFACE`), an optional page selector, and an optional slug for the reader child's answer file (default `geometry-adhoc`).
+- **Outputs:** one line per family (unmatched count, budget, and the design-only and implementation-only values), plus the temp directory holding both documents. Exit 0 = within budget, 1 = drift, 2 = declined (the `geometry-compare` reason code is printed) or usage error.
+- **When to use:** reproducing a `geometry-compare` lane row by hand, or checking a surface before opting in to the lane.
+- **Source:** [`src/cr/geometry/geometry-review-cli.ts`](../../src/cr/geometry/geometry-review-cli.ts)
+
 ### `design:geometry-validate`
 
 - **Trigger:** `pnpm noldor design geometry-validate <doc.json> --side design|impl --surface <name>`. Run while writing or debugging a `geometryCommand` capture script.

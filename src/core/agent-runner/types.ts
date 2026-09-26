@@ -11,6 +11,11 @@ export const AGENT_ROLES = [
   // through pencil MCP and exports pages to PNG; no judgment, no findings.
   // Exists so a consumer can pin it to a pencil-capable runner.
   'render-compare',
+  // The geometry-compare lane's design reader — opens the scratch `.pen`
+  // through pencil MCP and writes a normalized geometry document per surface.
+  // No judgment, no findings; separate from `render-compare` so a consumer can
+  // pin the two pencil roles independently.
+  'geometry-extract',
   'researcher',
   // The CR refutation judge (Q-0262) — tries to refute a round's blockers before the verdict.
   // Its own role so a consumer can pin it to a cheaper model than the reviewer's.

@@ -9,9 +9,9 @@ import type { GeometryDoc } from './geometry-doc.js';
 
 /** The families a surface is compared on. Edges are split by axis all the way
  * through — an unmatched value is only actionable if the operator knows whether
- * it is an x or a y coordinate. These are also the keys the parked lane's
- * per-surface `geometryTolerance`/`geometryBudget` recipe fields will carry
- * (Q-0180); today the two commands compare at the defaults below. */
+ * it is an x or a y coordinate. These are also the keys of the per-surface
+ * `geometryTolerance`/`geometryBudget` recipe fields the lane reads; the
+ * hand-run commands compare at the defaults below. */
 export const GEOMETRY_FAMILIES = ['edgesX', 'edgesY', 'fontSize', 'spacing'] as const;
 /** One of the families a surface is compared on. */
 export type GeometryFamily = (typeof GEOMETRY_FAMILIES)[number];
@@ -113,8 +113,8 @@ export function unmatchedValues(
 /** One family's comparison result. `implOnly` is always empty for `spacing`.
  * Severity is deliberately absent: it is a pure function of `unmatched` that
  * ignores `budget`, so storing it would put a `med` on a family with zero
- * unmatched values. Whichever caller reports findings derives it there — the
- * parked lane (Q-0180) is the first that will need to. */
+ * unmatched values. Whichever caller reports findings derives it there, as
+ * the geometry-compare lane does. */
 export interface FamilyOutcome {
   unmatched: number;
   budget: number;

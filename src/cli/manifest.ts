@@ -123,6 +123,14 @@ export const MANIFEST: Record<string, Group> = {
         src: 'cr/geometry/geometry-diff-cli.ts',
         desc: 'Compare two normalized geometry documents (design vs implementation) by hand',
       },
+      'geometry-export': {
+        src: 'cr/geometry/geometry-export-cli.ts',
+        desc: "Read one surface's resolved geometry out of a .pen into a normalized document",
+      },
+      'geometry-review': {
+        src: 'cr/geometry/geometry-review-cli.ts',
+        desc: 'Compare one surface of a running app against its .pen design (no CR round)',
+      },
       'geometry-validate': {
         src: 'cr/geometry/geometry-validate-cli.ts',
         desc: 'Validate a normalized geometry document against geometryDocSchema (--side design|impl)',

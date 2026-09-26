@@ -18,6 +18,9 @@ vi.mock('../lanes/subagent.js', () => ({
 vi.mock('../lanes/render-compare.js', () => ({
   runRenderCompare: vi.fn(async () => ({ lane: 'render-compare', sinkPath: 'rc', ok: true })),
 }));
+vi.mock('../lanes/geometry-compare.js', () => ({
+  runGeometryCompare: vi.fn(async () => ({ lane: 'geometry-compare', sinkPath: 'gc', ok: true })),
+}));
 import {
   capVerdict,
   priorBlockerIds,
@@ -33,6 +36,8 @@ import { buildSkeleton, renderSkeletonExit } from '../orchestrate.js';
 import type { ArbitrationRecord } from '../arbitration.js';
 import { fingerprintBlockers, ledgerDir, ledgerPath, redRounds } from '../autofix-ledger.js';
 import { runRenderCompare } from '../lanes/render-compare.js';
+import { runGeometryCompare } from '../lanes/geometry-compare.js';
+import type { Lane } from '../../core/lanes.js';
 import { runSubagent as subagentLane } from '../lanes/subagent.js';
 import { runManual as manualLane } from '../lanes/manual.js';
 import { setSmokeRunner } from '../lanes/verify.js';
@@ -797,6 +802,122 @@ describe('render-compare lane wiring', () => {
     });
     expect(vi.mocked(runRenderCompare)).toHaveBeenCalledTimes(1);
     expect(result.lanesRun).toContain('render-compare');
+  });
+});
+
+describe('geometry-compare lane wiring', () => {
+  const code = (cwd: string, lanes: Lane[]) =>
+    run({
+      args: {
+        slug: 's',
+        artifact: 'a.ts',
+        kind: 'code',
+        lanes,
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd,
+    });
+  const smokeAfter = (events: string[]): void =>
+    setSmokeRunner(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+      events.push('verifier-smoke-done');
+      return {
+        ok: false,
+        surfaces: [{ name: 'doctor', ok: false, evidence: { command: 'x', observed: 'boom' } }],
+        notes: [],
+      };
+    });
+  const repoDir = (tag: string): string => {
+    const cwd = mkdtempSync(join(tmpdir(), `noldor-orch-gc-${tag}-`));
+    mkdirSync(join(cwd, '.noldor', 'cr'), { recursive: true });
+    return cwd;
+  };
+
+  it('rejects geometry-compare for non-code kinds at entry', async () => {
+    for (const kind of ['spec', 'plan'] as const) {
+      await expect(
+        run({
+          args: {
+            slug: 's',
+            artifact: 'spec.md',
+            kind,
+            lanes: ['geometry-compare'],
+            fullReview: false,
+            autonomous: true,
+          },
+          cwd: repoDir('kind'),
+        }),
+      ).rejects.toThrow(/code-only/);
+    }
+  });
+
+  it('never mints a synthetic OK for geometry-compare on an empty artifact diff', async () => {
+    const cwd = repoDir('delta');
+    writeFileSync(
+      join(cwd, '.noldor', 'cr', 's-code-geometry-compare.json'),
+      JSON.stringify({
+        lane: 'geometry-compare',
+        artifact: 'a.ts',
+        kind: 'code',
+        slug: 's',
+        blockers: [],
+        suggestions: [],
+        summary: 'cannot-review: boot-failed',
+        verdict: 'cannot-review',
+        reason: 'boot-failed',
+        startedAt: new Date().toISOString(),
+      }),
+    );
+    const result = await run({
+      args: {
+        slug: 's',
+        artifact: 'a.ts',
+        kind: 'code',
+        lanes: ['geometry-compare'],
+        baseSha: 'base',
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd,
+      isEmptyDiff: async () => true,
+    });
+    expect(result.syntheticOks).not.toContain('geometry-compare');
+    expect(vi.mocked(runGeometryCompare)).toHaveBeenCalled();
+  });
+
+  it('runs verifier, then render-compare, then geometry-compare, never two at once (AC2)', async () => {
+    const events: string[] = [];
+    smokeAfter(events);
+    vi.mocked(runRenderCompare).mockImplementationOnce(async () => {
+      events.push('render-compare-start');
+      await new Promise((r) => setTimeout(r, 50));
+      events.push('render-compare-done');
+      return { lane: 'render-compare', sinkPath: 'rc', ok: true };
+    });
+    vi.mocked(runGeometryCompare).mockImplementationOnce(async () => {
+      events.push('geometry-compare-start');
+      return { lane: 'geometry-compare', sinkPath: 'gc', ok: true };
+    });
+    // Listed in reverse: the chain order must not depend on the lane list's order.
+    await code(repoDir('chain'), ['geometry-compare', 'render-compare', 'verifier']);
+    expect(events).toEqual([
+      'verifier-smoke-done',
+      'render-compare-start',
+      'render-compare-done',
+      'geometry-compare-start',
+    ]);
+  });
+
+  it('follows the verifier directly when render-compare is absent', async () => {
+    const events: string[] = [];
+    smokeAfter(events);
+    vi.mocked(runGeometryCompare).mockImplementationOnce(async () => {
+      events.push('geometry-compare-start');
+      return { lane: 'geometry-compare', sinkPath: 'gc', ok: true };
+    });
+    await code(repoDir('pair'), ['geometry-compare', 'verifier']);
+    expect(events).toEqual(['verifier-smoke-done', 'geometry-compare-start']);
   });
 });
 

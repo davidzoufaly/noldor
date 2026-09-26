@@ -1,0 +1,185 @@
+// @tests: ui-design-review-lane
+// Prompt + child contract for the `geometry-compare` lane's DESIGN READER (spec
+// D3). The child opens the scratch `.pen` through pencil MCP, resolves each
+// surface's `FINAL:` page, walks it with a `Get` visitor, and writes one
+// normalized geometry document per surface. Its answer carries the page
+// ENUMERATION and the clipped-node exclusions only — the caller re-derives the
+// selection with `selectFinalPage`, checks the answer against the named `.pen`
+// on disk with `selectVerifiedPage`, and trusts the written file, parsed by
+// `parseGeometryDoc`, as the evidence.
+
+import { readFile } from 'node:fs/promises';
+
+import { z } from 'zod';
+
+import { errMessage } from '../../core/err-message.js';
+import { parsePenDocument, topLevelPages } from '../../design/pen-doc.js';
+
+import {
+  defineSurfaceLane,
+  finalPageJobs,
+  PenDispatchError,
+  surfaceCandidatesSchema,
+  type PenSurfacesInput,
+} from './pen-dispatch.js';
+import { selectFinalPage } from './render-compare-core.js';
+
+/** Each request's `outPath` is where that surface's geometry document lands. */
+export type GeometryExtractInput = PenSurfacesInput;
+
+/**
+ * Per-surface answer row: the page enumeration, plus the nodes the child
+ * dropped because pen reported problems on them. No outcome field — the
+ * document on disk is what gets validated, so the child has nothing to be
+ * wrong about in its answer.
+ */
+export const extractOutcomeSchema = surfaceCandidatesSchema
+  .extend({
+    /** Nodes excluded because pen reported them clipped (spec D3). */
+    excluded: z.array(z.string()).default([]),
+    /** Node id of the page the child read — checked against the `.pen` on disk. */
+    pageId: z.string().min(1).optional(),
+  })
+  .strict();
+export type ExtractOutcome = z.infer<typeof extractOutcomeSchema>;
+
+export function buildGeometryExtractPrompt(input: GeometryExtractInput): string {
+  return `You are a design GEOMETRY READER for a mechanical layout-diff pipeline. You read resolved geometry out of a Pencil \`.pen\` design and write it as JSON documents. You make no judgments and report no findings.
+
+The design is a scratch COPY at \`${input.penPath}\`. Read it through pencil MCP only: call \`get_app_state\` (with \`include_schema\`) once for the SCHEMA AND API DOCS ONLY, then do ALL reading via \`execute({ filePath: "${input.penPath}", input: ... })\`. get_app_state describes whatever file the editor has active — which may be a DIFFERENT design — so page names and node ids taken from it are invalid: enumerate pages exclusively through \`execute\` against the filePath above. Do not read a \`.pen\` with a file-reading tool (its raw JSON holds declared values, not resolved geometry), and never touch any design file under the repository.
+
+${finalPageJobs(input, 'Extraction', "write that surface's file")}
+3. Read the selected page with ONE visitor pass, resolving variables:
+
+\`\`\`js
+const abs = (c) => { let x = 0, y = 0; for (let k = c; k; k = k.parentCtx) { x += k.bounds.x; y += k.bounds.y; } return { x, y }; };
+Get(pageId, (n, c) => { const o = abs(c); return { id: n.id, name: n.name, type: n.type, problems: c.problems,
+  x: o.x, y: o.y, w: c.bounds.width, h: c.bounds.height,
+  content: n.content, fontSize: n.fontSize, layout: n.layout, gap: n.gap, padding: n.padding }; }, { resolveVariables: true })
+\`\`\`
+
+\`ctx.bounds\` is resolved in the PARENT's coordinate space, so the accumulation up \`parentCtx\` is required, and it must happen inside the callback, where the ancestor chain is still reachable. Never read a node's own \`x\`/\`y\`/\`width\`/\`height\`: \`x\`/\`y\` are ignored under a flex layout, and \`width\`/\`height\` may be \`fit_content\`, \`fill_container\`, or a variable. Then subtract the page node's own accumulated origin from every node's \`x\`/\`y\`, so the page's top-left is \`{0,0}\` and every box is page-relative.
+4. Write the surface's output path as ONE JSON object in exactly this shape:
+
+\`\`\`json
+{"surface":"dashboard","viewport":{"width":1440,"height":900},
+ "nodes":[{"name":"Card","kind":"container","box":{"x":24,"y":16,"w":320,"h":180},"spacing":{"rowGap":16,"padding":[24,24,24,24]}},
+          {"name":"Title","kind":"text","box":{"x":48,"y":40,"w":200,"h":24},"fontSize":20,"text":"Revenue"},
+          {"name":"Divider","kind":"shape","box":{"x":24,"y":200,"w":320,"h":1}}]}
+\`\`\`
+
+Rules for that file, all mandatory — the parent validates it and refuses the whole document on any violation:
+- \`surface\` is the surface name exactly as listed in the jobs above.
+- \`viewport\` is the selected page node's own resolved size (its \`ctx.bounds.width\` and \`ctx.bounds.height\`), both positive. The page node is the viewport, not an entry in \`nodes\`.
+- \`nodes\` is a FLAT list of every node under the page, at any depth, in visit order.
+- \`box\` is the page-relative \`{"x","y","w","h"}\` from step 3, in CSS pixels: every value a finite number, \`w\` and \`h\` at least 0.
+- \`name\` is the pen node's name; omit the key when the node has none.
+- \`kind\`: a pen \`text\` node whose \`content\` is non-empty after trimming → \`"text"\`; a pen \`text\` node with empty or whitespace-only \`content\` → \`"shape"\`; a pen \`frame\` → \`"container"\`; every other pen type → \`"shape"\`.
+- Every \`"text"\` node carries \`text\` (its \`content\` as a plain, non-empty string; if \`content\` is not a plain string, join its runs' text) and \`fontSize\` (the resolved font size, a positive number). A text node whose font size does not resolve to a positive number is emitted as \`"shape"\`.
+- \`text\` and \`fontSize\` appear on \`"text"\` nodes and NOWHERE else.
+- \`spacing\`: pen \`gap\` becomes \`rowGap\` under \`layout: "vertical"\` and \`columnGap\` under \`layout: "horizontal"\` (drop it under any other layout); pen \`padding\` becomes the four-tuple \`[top, right, bottom, left]\` (a number becomes all four, \`[v, h]\` becomes \`[v, h, v, h]\`). Every spacing value is at least 0. Omit \`spacing\` entirely when the node declares neither. NEVER emit \`margin\` — pen has no margin property, and the parent rejects a design document that carries one.
+- Exclude any node whose \`problems\` is set (pen reported it clipped): leave it out of \`nodes\` and list its name in that surface's \`excluded\` report entry (its id when it has no name).
+- No other keys, at any level.
+
+Do not create, modify, or save anything in the design; write no file except the listed output paths.
+
+Report one entry per surface — its candidates, its excluded nodes, and \`pageId\` (the node id of the page you selected and read; omit it when you selected none) are the report; there is no verdict field.`;
+}
+
+/** The example the answer instruction shows the reader — valid JSON, so an echo still parses. */
+export const GEOMETRY_EXTRACT_SHAPE =
+  '{"surfaces": [{"surface": "dashboard", "candidates": ["overview"], "excluded": [], "pageId": "k3Xq9"}, {"surface": "settings", "candidates": ["default", "expanded"], "excluded": ["Badge"], "pageId": "Ab12c"}]}';
+
+/** A surface's page, or why the reader's answer cannot be trusted to have read it. */
+export type VerifiedPage =
+  | { ok: true; page: string }
+  | { ok: false; reason: 'page-ambiguous' | 'geometry-extract-failed'; detail: string };
+
+/**
+ * Select the surface's page from the child's candidates, then confirm the child
+ * read the `.pen` at `penPath`: pencil's `execute({ filePath })` falls back to
+ * whatever canvas the editor has active, so a child can enumerate and extract a
+ * different open document without noticing. The candidates must equal the
+ * file's own `FINAL:<surface>:` pages, and `pageId` must be the selected one.
+ */
+export async function selectVerifiedPage(
+  penPath: string,
+  surface: string,
+  row: ExtractOutcome,
+  pageSelector: string | undefined,
+): Promise<VerifiedPage> {
+  const selection = selectFinalPage(surface, row.candidates, pageSelector);
+  if (!selection.ok) return { ok: false, reason: 'page-ambiguous', detail: selection.detail };
+  const failed = (detail: string): VerifiedPage => ({
+    ok: false,
+    reason: 'geometry-extract-failed',
+    detail,
+  });
+  let parsed: ReturnType<typeof parsePenDocument>;
+  try {
+    parsed = parsePenDocument(await readFile(penPath));
+  } catch (err) {
+    return failed(`cannot read ${penPath} to verify the page the reader read: ${errMessage(err)}`);
+  }
+  if (!parsed.ok) {
+    return failed(`cannot parse ${penPath} to verify the page the reader read: ${parsed.error}`);
+  }
+  const prefix = `FINAL:${surface}:`;
+  const onDisk = topLevelPages(parsed.doc).flatMap((p) =>
+    p.name?.startsWith(prefix) === true
+      ? [{ id: p.id, name: p.name.slice(prefix.length).trim() }]
+      : [],
+  );
+  const reported = new Set(row.candidates.map((c) => c.trim()));
+  const held = new Set(onDisk.map((p) => p.name));
+  const otherDocument = 'the pencil bridge likely read a different open document';
+  if (reported.size !== held.size || [...reported].some((c) => !held.has(c))) {
+    return failed(
+      `surface '${surface}': the reader reported ${prefix} candidates [${[...reported].join(', ')}] but the .pen on disk holds [${[...held].join(', ')}] — ${otherDocument}`,
+    );
+  }
+  if (!onDisk.some((p) => p.id === row.pageId && p.name === selection.page)) {
+    return failed(
+      `surface '${surface}': the reader reported page id '${row.pageId ?? '(none)'}', which is not page '${prefix} ${selection.page}' in the .pen on disk — ${otherDocument}`,
+    );
+  }
+  return selection;
+}
+
+/** The reader's dispatch failure; `reason` picks the sink's reason detail. */
+export class GeometryExtractError extends PenDispatchError {
+  override readonly name = 'GeometryExtractError';
+}
+
+/**
+ * The reader's report schema and answer contract, plus its dispatch seam
+ * (`setGeometryExtractDispatcher` is the test seam — production code never
+ * calls it). The repair round restates the reader's page enumeration and
+ * exclusions as a valid report; it opens no design and reads or writes no
+ * geometry document.
+ */
+export const {
+  reportSchema: geometryExtractReportSchema,
+  contract: GEOMETRY_EXTRACT_ANSWER,
+  repairPrompt: buildGeometryExtractRepairPrompt,
+  setDispatcher: setGeometryExtractDispatcher,
+  dispatch: dispatchGeometryExtract,
+} = defineSurfaceLane({
+  lane: 'geometry-extract',
+  site: 'cr.geometry-extract-dispatch',
+  label: 'geometry-extract',
+  error: GeometryExtractError,
+  row: extractOutcomeSchema,
+  shape: GEOMETRY_EXTRACT_SHAPE,
+  prompt: buildGeometryExtractPrompt,
+  repair: {
+    lead: 'A previous design geometry reader finished its work, but its report was rejected',
+    job: 'Your ONLY job is to restate the per-surface report that reader gave — do not open the design, do not read or write any geometry document.',
+    rules: [
+      'One entry per surface the reader reported, carrying the `FINAL:<surface>:` page names it found, the node names it excluded, and the `pageId` it read, verbatim.',
+      'Invent no surface, page name, or node name the output does not state; an entry whose exclusions are not stated gets `"excluded": []`.',
+      'If nothing above states the enumeration, write no answer at all.',
+    ],
+  },
+});
+export type GeometryExtractReport = z.infer<typeof geometryExtractReportSchema>;

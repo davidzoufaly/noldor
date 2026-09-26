@@ -111,13 +111,50 @@ const UiGlobSchema = z
 const SURFACE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
- * One render-compare boot recipe (spec R2), keyed by surface name in
- * `consumer.uiBoot`. `verifyCommand` references a `consumer.verifyCommands`
- * entry of `kind: "server"` (boot/health are not respecified); `route` is the
- * path that renders the surface; `page` selects among several
- * `FINAL:<surface>: <name>` design pages; `screenshotCommand` is the
- * consumer-owned capture template — the lane substitutes every placeholder as
- * a single-quoted shell token.
+ * A capture-command template field: the shared quoting contract, with every
+ * message naming `field`. Optional — which of the two a recipe needs is the
+ * object-level refine's call, not the field's.
+ */
+const captureTemplate = (field: 'screenshotCommand' | 'geometryCommand') =>
+  z
+    .string()
+    .min(1)
+    .superRefine((tpl, ctx) => {
+      for (const issue of screenshotTemplateIssues(tpl, field)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
+      }
+    })
+    .optional();
+
+/**
+ * A per-family record over the four families the geometry lane compares. The
+ * keys mirror `GEOMETRY_FAMILIES` in `src/cr/geometry/geometry-compare-core.ts`
+ * and are restated because core may not import lane code;
+ * `src/cr/__tests__/geometry/geometry-recipe.test.ts` pins the two together.
+ * Every key is optional — the lane fills omitted families from
+ * `DEFAULT_TOLERANCE` / `DEFAULT_BUDGET` — and the object is strict, so a
+ * misspelt or retired key (`edges`) is rejected rather than ignored.
+ */
+const familyRecord = (value: z.ZodNumber) =>
+  z
+    .object({
+      edgesX: value.optional(),
+      edgesY: value.optional(),
+      fontSize: value.optional(),
+      spacing: value.optional(),
+    })
+    .strict()
+    .optional();
+
+/**
+ * One boot recipe (spec R2), keyed by surface name in `consumer.uiBoot` and
+ * shared by `render-compare` and `geometry-compare`. `verifyCommand` references
+ * a `consumer.verifyCommands` entry of `kind: "server"` (boot/health are not
+ * respecified); `route` is the path that renders the surface; `page` selects
+ * among several `FINAL:<surface>: <name>` design pages. `screenshotCommand`
+ * (pixel lane) and `geometryCommand` (geometry lane) are consumer-owned
+ * capture templates — each lane substitutes every placeholder as a
+ * single-quoted shell token — and a recipe carries at least one of them.
  */
 export const UiBootRecipeSchema = z
   .object({
@@ -139,19 +176,31 @@ export const UiBootRecipeSchema = z
         message: 'page selector may not contain backticks or newlines',
       })
       .optional(),
-    screenshotCommand: z
-      .string()
-      .min(1)
-      .superRefine((tpl, ctx) => {
-        for (const issue of screenshotTemplateIssues(tpl)) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
-        }
-      }),
+    // Optional since the geometry lane exists: a consumer who never runs the
+    // pixel lane has no screenshot tool to name. `render-compare` reports
+    // `no-boot-recipe` for a surface whose recipe omits it.
+    screenshotCommand: captureTemplate('screenshotCommand'),
+    // Writes a `geometryDocSchema` document rather than a PNG; same
+    // placeholders, same quoting contract.
+    geometryCommand: captureTemplate('geometryCommand'),
     maxDiffRatio: z.number().finite().min(0).max(1).default(0.25),
     // Rejected at validate when out of contract, never clamped (spec R2).
     captureTimeoutMs: z.number().int().min(1).max(120_000).default(60_000),
+    // Covering tolerance in CSS px per family, and the unmatched values a
+    // family may carry before it fails (spec D2).
+    geometryTolerance: familyRecord(z.number().finite().min(0)),
+    geometryBudget: familyRecord(z.number().int().min(0)),
   })
-  .strict();
+  .strict()
+  .superRefine((recipe, ctx) => {
+    if (recipe.screenshotCommand === undefined && recipe.geometryCommand === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'a uiBoot recipe needs at least one of screenshotCommand (render-compare) or geometryCommand (geometry-compare)',
+      });
+    }
+  });
 
 export type UiBootRecipe = z.infer<typeof UiBootRecipeSchema>;
 
