@@ -32,6 +32,7 @@ links:
     - src/cr/__tests__/geometry/geometry-doc.test.ts
     - src/cr/__tests__/geometry/geometry-export-cli.test.ts
     - src/cr/__tests__/geometry/geometry-recipe.test.ts
+    - src/cr/__tests__/geometry/geometry-report.test.ts
     - src/cr/__tests__/geometry/geometry-review-cli.test.ts
     - src/cr/__tests__/geometry/geometry-review.test.ts
     - src/cr/__tests__/geometry/geometry-validate-cli.test.ts
@@ -203,6 +204,7 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/cr/__tests__/geometry/geometry-doc.test.ts`](../../src/cr/__tests__/geometry/geometry-doc.test.ts)
   - [`src/cr/__tests__/geometry/geometry-export-cli.test.ts`](../../src/cr/__tests__/geometry/geometry-export-cli.test.ts)
   - [`src/cr/__tests__/geometry/geometry-recipe.test.ts`](../../src/cr/__tests__/geometry/geometry-recipe.test.ts)
+  - [`src/cr/__tests__/geometry/geometry-report.test.ts`](../../src/cr/__tests__/geometry/geometry-report.test.ts)
   - [`src/cr/__tests__/geometry/geometry-review-cli.test.ts`](../../src/cr/__tests__/geometry/geometry-review-cli.test.ts)
   - [`src/cr/__tests__/geometry/geometry-review.test.ts`](../../src/cr/__tests__/geometry/geometry-review.test.ts)
   - [`src/cr/__tests__/geometry/geometry-validate-cli.test.ts`](../../src/cr/__tests__/geometry/geometry-validate-cli.test.ts)
