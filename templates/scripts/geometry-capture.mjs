@@ -76,29 +76,52 @@ try {
       const n = Number.parseFloat(v);
       return Number.isFinite(n) ? n : 0;
     };
+    const textBounds = (textNodes) => {
+      const range = document.createRange();
+      const acc = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+      for (const n of textNodes) {
+        range.selectNodeContents(n);
+        const q = range.getBoundingClientRect();
+        acc.left = Math.min(acc.left, q.left);
+        acc.top = Math.min(acc.top, q.top);
+        acc.right = Math.max(acc.right, q.right);
+        acc.bottom = Math.max(acc.bottom, q.bottom);
+      }
+      return acc;
+    };
     const found = [];
     const walk = (el) => {
       const style = window.getComputedStyle(el);
-      // Excluded per the document contract: invisible and
-      // hidden-from-assistive-tech subtrees are not layout.
-      if (style.visibility === 'hidden' || el.getAttribute('aria-hidden') === 'true') return;
+      // aria-hidden is not a visibility signal: icon libraries set it on every
+      // decorative SVG, and excluding it drops each icon the design draws.
+      if (style.visibility === 'hidden') return;
       if (style.display === 'contents') {
         for (const child of el.children) walk(child);
         return;
       }
       const r = el.getBoundingClientRect();
       if (r.width > 0 && r.height > 0) {
-        // Both rects are viewport-relative, so the scroll offset cancels and
-        // the difference puts the capture root at {0,0}.
-        const box = { x: r.left - origin.left, y: r.top - origin.top, w: r.width, h: r.height };
-        const hasText = [...el.childNodes].some(
+        const textNodes = [...el.childNodes].filter(
           (n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== '',
         );
+        const hasText = textNodes.length > 0;
         const fontSize = num(style.fontSize);
         // The document requires a positive fontSize and non-empty text on
         // every text node; an element failing either is not text-bearing.
         const text = (el.textContent ?? '').trim().slice(0, 120);
         const isText = hasText && fontSize > 0 && text !== '';
+        // A text element's own box spans its container (a block <p> is as wide
+        // as its column), while pen sizes a text node to its glyphs; measure the
+        // text itself so the two sides report the same right edge.
+        const rect = isText ? textBounds(textNodes) : r;
+        // Both rects are viewport-relative, so the scroll offset cancels and
+        // the difference puts the capture root at {0,0}.
+        const box = {
+          x: rect.left - origin.left,
+          y: rect.top - origin.top,
+          w: rect.right - rect.left,
+          h: rect.bottom - rect.top,
+        };
         const spacing = {
           padding: [
             num(style.paddingTop),
