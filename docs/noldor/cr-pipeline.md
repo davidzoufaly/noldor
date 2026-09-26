@@ -666,7 +666,13 @@ app boots per round. The capture script is scaffold-only, so a later
 `geometryDocSchema` change does not reach a consumer through `init --update`; a
 stale producer shows up as `geometry-unparseable`, not as a wrong comparison. The
 design side needs a live pencil bridge, so headless CI degrades to
-`cannot-review` (`geometry-extract-failed`), advisory by default.
+`cannot-review` (`geometry-extract-failed`), advisory by default. Text width is
+partly paint: the browser and pen lay out the same font at slightly different
+advances, so a text node's right edge (and both edges of centered text) can land a
+few pixels off a faithful design while its left edge, height and `fontSize`
+agree. On a surface where that shows up, raise that recipe's
+`geometryTolerance.edgesX` rather than the budget, so drift beyond the font
+difference still fails.
 
 Opt in per consumer:
 
