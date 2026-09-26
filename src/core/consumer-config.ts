@@ -143,7 +143,7 @@ export const UiBootRecipeSchema = z
       .string()
       .min(1)
       .superRefine((tpl, ctx) => {
-        for (const issue of screenshotTemplateIssues(tpl)) {
+        for (const issue of screenshotTemplateIssues(tpl, 'screenshotCommand')) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
         }
       }),
