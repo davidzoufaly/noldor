@@ -91,7 +91,16 @@ function repo(
   );
   mkdirSync(join(cwd, 'src', 'ui'), { recursive: true });
   writeFileSync(join(cwd, 'src', 'ui', 'Panel.tsx'), 'export const P = 1;\n');
-  writeFileSync(join(cwd, 'docs', 'design', 'ui', PEN), 'PEN-BYTES\n');
+  writeFileSync(
+    join(cwd, 'docs', 'design', 'ui', PEN),
+    `${JSON.stringify({
+      version: '2.6',
+      children: [
+        { id: 'p-dashboard', name: 'FINAL:dashboard: overview' },
+        { id: 'p-settings', name: 'FINAL:settings: overview' },
+      ],
+    })}\n`,
+  );
   // A matching design-approval record (Q-0196), or resolution refuses the design.
   mkdirSync(join(cwd, '.noldor', 'design-approval'), { recursive: true });
   writeFileSync(
@@ -164,6 +173,7 @@ function seams(
         surface: r.surface,
         candidates: ['overview'],
         excluded: [],
+        pageId: `p-${r.surface}`,
       })),
     });
   });

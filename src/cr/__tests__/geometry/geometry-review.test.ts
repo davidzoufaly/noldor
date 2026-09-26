@@ -24,7 +24,17 @@ import {
 let dir: string;
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'geo-review-'));
-  await writeFile(join(dir, 'design.pen'), 'encrypted', 'utf8');
+  await writeFile(
+    join(dir, 'design.pen'),
+    JSON.stringify({
+      version: '2.6',
+      children: [
+        { id: 'p-dash-overview', name: 'FINAL:dashboard: overview', type: 'frame' },
+        { id: 'p-settings-overview', name: 'FINAL:settings: overview', type: 'frame' },
+      ],
+    }),
+    'utf8',
+  );
 });
 
 afterEach(() => {
@@ -43,7 +53,9 @@ const OK: CaptureResult = { code: 0, timedOut: false, stderrTail: '' };
 function extractWriting(design: unknown, candidates = ['overview']): void {
   setGeometryExtractDispatcher(async (input) => {
     await writeFile(input.requests[0].outPath, JSON.stringify(design), 'utf8');
-    return JSON.stringify({ surfaces: [{ surface: 'dashboard', candidates, excluded: [] }] });
+    return JSON.stringify({
+      surfaces: [{ surface: 'dashboard', candidates, excluded: [], pageId: 'p-dash-overview' }],
+    });
   });
 }
 
@@ -204,6 +216,7 @@ describe('extractDesignDocs', () => {
         surface: r.surface,
         candidates: ['overview'],
         excluded: [],
+        pageId: r.surface === 'dashboard' ? 'p-dash-overview' : 'p-settings-overview',
       }));
       return JSON.stringify({ surfaces: rows });
     });
@@ -219,11 +232,85 @@ describe('extractDesignDocs', () => {
     expect([...m.values()].map((e) => e.kind)).toEqual(['extracted', 'extracted']);
   });
 
+  it('declines only the surface whose reported pages are not the named .pen, and says why', async () => {
+    setGeometryExtractDispatcher(async (input) => {
+      for (const r of input.requests) {
+        await writeFile(
+          r.outPath,
+          JSON.stringify({ ...(doc(24) as object), surface: r.surface }),
+          'utf8',
+        );
+      }
+      return JSON.stringify({
+        surfaces: [
+          { surface: 'dashboard', candidates: ['home'], excluded: [], pageId: 'elsewhere' },
+          {
+            surface: 'settings',
+            candidates: ['overview'],
+            excluded: [],
+            pageId: 'p-settings-overview',
+          },
+        ],
+      });
+    });
+    const m = await extractDesignDocs({
+      penPath: join(dir, 'design.pen'),
+      surfaces: [{ surface: 'dashboard' }, { surface: 'settings' }],
+      outDir: dir,
+      repoRoot: dir,
+      slug: 'feat-ui' as Slug,
+    });
+    const dashboard = m.get('dashboard');
+    expect(dashboard?.kind === 'declined' && dashboard.reason).toBe('geometry-extract-failed');
+    expect(dashboard?.kind === 'declined' && dashboard.detail).toContain(
+      'candidates [home] but the .pen on disk holds [overview]',
+    );
+    expect(dashboard?.kind === 'declined' && dashboard.detail).toContain(
+      'likely read a different open document',
+    );
+    expect(m.get('settings')?.kind).toBe('extracted');
+  });
+
+  it('declines a surface whose reported page id is not its selected page on disk', async () => {
+    setGeometryExtractDispatcher(async (input) => {
+      await writeFile(input.requests[0].outPath, JSON.stringify(doc(24)), 'utf8');
+      return JSON.stringify({
+        surfaces: [
+          {
+            surface: 'dashboard',
+            candidates: ['overview'],
+            excluded: [],
+            pageId: 'p-settings-overview',
+          },
+        ],
+      });
+    });
+    const r = await review();
+    expect(r.kind === 'declined' && r.reason).toBe('geometry-extract-failed');
+    expect(r.kind === 'declined' && r.detail).toContain("page id 'p-settings-overview'");
+  });
+
+  it('declines when the named .pen cannot be parsed from disk', async () => {
+    const encrypted = join(dir, 'encrypted.pen');
+    await writeFile(encrypted, 'encrypted', 'utf8');
+    extractWriting(doc(24));
+    const r = await review({ penPath: encrypted });
+    expect(r.kind === 'declined' && r.reason).toBe('geometry-extract-failed');
+    expect(r.kind === 'declined' && r.detail).toContain('cannot parse');
+  });
+
   it("never passes a stale design document off as this dispatch's output", async () => {
     await writeFile(join(dir, 'dashboard.design.json'), JSON.stringify(doc(24)), 'utf8');
     setGeometryExtractDispatcher(async () =>
       JSON.stringify({
-        surfaces: [{ surface: 'dashboard', candidates: ['overview'], excluded: [] }],
+        surfaces: [
+          {
+            surface: 'dashboard',
+            candidates: ['overview'],
+            excluded: [],
+            pageId: 'p-dash-overview',
+          },
+        ],
       }),
     );
     const r = await review();

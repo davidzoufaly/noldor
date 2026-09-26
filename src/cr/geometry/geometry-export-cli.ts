@@ -14,9 +14,9 @@ import type { LaneAnswer } from '../lane-answer.js';
 import {
   dispatchGeometryExtract,
   GeometryExtractError,
+  selectVerifiedPage,
   type GeometryExtractReport,
 } from '../lanes/geometry-extract-dispatch.js';
-import { selectFinalPage } from '../lanes/render-compare-core.js';
 import { designCommand } from './geometry-cli-emit.js';
 import { parseGeometryDoc } from './geometry-doc.js';
 
@@ -69,8 +69,9 @@ export const runGeometryExport = designCommand(
     }
     // The child ENUMERATES, this side SELECTS: re-run the shared selection rule
     // over the reported candidates so the child's own judgment never decides
-    // which page was read.
-    const selection = selectFinalPage(surface, row.candidates, pageSelector);
+    // which page was read, then confirm against the file on disk that the
+    // child read the named .pen and not the editor's active one.
+    const selection = await selectVerifiedPage(penPath, surface, row, pageSelector);
     if (!selection.ok) {
       emit(`${LABEL}: ${selection.detail}`);
       return 1;

@@ -18,9 +18,10 @@ import type { LaneAnswer } from '../lane-answer.js';
 import {
   dispatchGeometryExtract,
   GeometryExtractError,
+  selectVerifiedPage,
   type GeometryExtractReport,
 } from '../lanes/geometry-extract-dispatch.js';
-import { selectFinalPage, substituteScreenshotCommand } from '../lanes/render-compare-core.js';
+import { substituteScreenshotCommand } from '../lanes/render-compare-core.js';
 import {
   compareGeometry,
   DEFAULT_BUDGET,
@@ -191,9 +192,9 @@ export async function extractDesignDocs(
       continue;
     }
     // The child ENUMERATES, this side SELECTS.
-    const selection = selectFinalPage(s.surface, rows[0].candidates, s.pageSelector);
+    const selection = await selectVerifiedPage(input.penPath, s.surface, rows[0], s.pageSelector);
     if (!selection.ok) {
-      out.set(s.surface, declined('page-ambiguous', selection.detail));
+      out.set(s.surface, declined(selection.reason, selection.detail));
       continue;
     }
     const doc = await readDoc(pathOf(s.surface), 'design', s.surface);

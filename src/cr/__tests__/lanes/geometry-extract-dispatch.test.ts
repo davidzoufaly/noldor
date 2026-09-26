@@ -75,6 +75,12 @@ describe('buildGeometryExtractPrompt', () => {
     expect(p).toContain('NEVER emit `margin`');
     expect(p).toContain("list its name in that surface's `excluded` report entry");
   });
+
+  it("asks for the selected page's node id, which the parent checks against the .pen on disk", () => {
+    expect(buildGeometryExtractPrompt(input)).toContain(
+      '`pageId` (the node id of the page you selected and read',
+    );
+  });
 });
 
 describe('the answer contract', () => {

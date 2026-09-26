@@ -18,12 +18,22 @@ const doc = (surface: string, nodes: unknown[] = []): string =>
     nodes: [{ kind: 'shape', box: { x: 24, y: 0, w: 100, h: 40 } }, ...nodes],
   });
 
-const report = (candidates: string[], excluded: string[] = []): string =>
-  JSON.stringify({ surfaces: [{ surface: 'dashboard', candidates, excluded }] });
+const report = (candidates: string[], excluded: string[] = [], pageId = 'p-overview'): string =>
+  JSON.stringify({ surfaces: [{ surface: 'dashboard', candidates, excluded, pageId }] });
 
 const dir = mkdtempSync(join(tmpdir(), 'geo-export-'));
 const pen = join(dir, 'design.pen');
-writeFileSync(pen, 'encrypted-bytes', 'utf8');
+writeFileSync(
+  pen,
+  JSON.stringify({
+    version: '2.6',
+    children: [
+      { id: 'p-overview', name: 'FINAL:dashboard: overview', type: 'frame' },
+      { id: 'p-settings', name: 'FINAL:settings: default', type: 'frame' },
+    ],
+  }),
+  'utf8',
+);
 
 /** Run the CLI for surface `dashboard`, collecting its lines. */
 async function run(out: string, extra: string[] = []): Promise<{ code: number; text: string }> {
@@ -53,6 +63,30 @@ describe('runGeometryExport', () => {
     expect(JSON.parse(readFileSync(out, 'utf8')).surface).toBe('dashboard');
     expect(text).toContain("from page 'overview'");
     expect(text).toContain('excluded 1 clipped node(s): Badge');
+  });
+
+  it('exits 1 without writing when the reported pages are not the ones in the named .pen', async () => {
+    setGeometryExtractDispatcher(async (input) => {
+      writeFileSync(input.requests[0].outPath, doc('dashboard'), 'utf8');
+      return report(['home'], [], 'other-doc-page');
+    });
+    const { code, text } = await run(join(dir, 'other-doc.json'));
+    expect(code).toBe(1);
+    expect(text).not.toContain('wrote');
+    expect(text).toContain('candidates [home] but the .pen on disk holds [overview]');
+    expect(text).toContain('likely read a different open document');
+  });
+
+  it('exits 1 when the reported page id is not the selected page in the named .pen', async () => {
+    setGeometryExtractDispatcher(async (input) => {
+      writeFileSync(input.requests[0].outPath, doc('dashboard'), 'utf8');
+      return report(['overview'], [], 'p-settings');
+    });
+    const { code, text } = await run(join(dir, 'wrong-id.json'));
+    expect(code).toBe(1);
+    expect(text).not.toContain('wrote');
+    expect(text).toContain("page id 'p-settings'");
+    expect(text).toContain('likely read a different open document');
   });
 
   it('exits 1 when the page selection is ambiguous', async () => {

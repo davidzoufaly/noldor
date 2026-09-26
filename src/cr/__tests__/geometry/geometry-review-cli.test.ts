@@ -12,7 +12,13 @@ import { setGeometryExtractDispatcher } from '../../lanes/geometry-extract-dispa
 
 const root = mkdtempSync(join(tmpdir(), 'geo-review-cli-'));
 const pen = join(root, 'design.pen');
-writeFileSync(pen, 'encrypted');
+writeFileSync(
+  pen,
+  JSON.stringify({
+    version: '2.6',
+    children: [{ id: 'p-overview', name: 'FINAL:dashboard: overview' }],
+  }),
+);
 const TPL = 'node cap.mjs {url} {out} {width} {height}';
 const base = [
   '--pen',
@@ -37,7 +43,9 @@ function stub(implX: number | 'fail'): void {
   setGeometryExtractDispatcher(async (input) => {
     writeFileSync(input.requests[0].outPath, doc(24));
     return JSON.stringify({
-      surfaces: [{ surface: 'dashboard', candidates: ['overview'], excluded: [] }],
+      surfaces: [
+        { surface: 'dashboard', candidates: ['overview'], excluded: [], pageId: 'p-overview' },
+      ],
     });
   });
   setGeometryReviewDeps({

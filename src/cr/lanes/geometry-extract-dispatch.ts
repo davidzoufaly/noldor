@@ -4,10 +4,16 @@
 // surface's `FINAL:` page, walks it with a `Get` visitor, and writes one
 // normalized geometry document per surface. Its answer carries the page
 // ENUMERATION and the clipped-node exclusions only — the caller re-derives the
-// selection with `selectFinalPage` and trusts the written file, parsed by
+// selection with `selectFinalPage`, checks the answer against the named `.pen`
+// on disk with `selectVerifiedPage`, and trusts the written file, parsed by
 // `parseGeometryDoc`, as the evidence.
 
+import { readFile } from 'node:fs/promises';
+
 import { z } from 'zod';
+
+import { errMessage } from '../../core/err-message.js';
+import { parsePenDocument, topLevelPages } from '../../design/pen-doc.js';
 
 import {
   defineSurfaceLane,
@@ -16,6 +22,7 @@ import {
   surfaceCandidatesSchema,
   type PenSurfacesInput,
 } from './pen-dispatch.js';
+import { selectFinalPage } from './render-compare-core.js';
 
 /** Each request's `outPath` is where that surface's geometry document lands. */
 export type GeometryExtractInput = PenSurfacesInput;
@@ -30,6 +37,8 @@ export const extractOutcomeSchema = surfaceCandidatesSchema
   .extend({
     /** Nodes excluded because pen reported them clipped (spec D3). */
     excluded: z.array(z.string()).default([]),
+    /** Node id of the page the child read — checked against the `.pen` on disk. */
+    pageId: z.string().min(1).optional(),
   })
   .strict();
 export type ExtractOutcome = z.infer<typeof extractOutcomeSchema>;
@@ -74,12 +83,68 @@ Rules for that file, all mandatory — the parent validates it and refuses the w
 
 Do not create, modify, or save anything in the design; write no file except the listed output paths.
 
-Report one entry per surface — its candidates and its excluded nodes are the report; there is no verdict field.`;
+Report one entry per surface — its candidates, its excluded nodes, and \`pageId\` (the node id of the page you selected and read; omit it when you selected none) are the report; there is no verdict field.`;
 }
 
 /** The example the answer instruction shows the reader — valid JSON, so an echo still parses. */
 export const GEOMETRY_EXTRACT_SHAPE =
-  '{"surfaces": [{"surface": "dashboard", "candidates": ["overview"], "excluded": []}, {"surface": "settings", "candidates": ["default", "expanded"], "excluded": ["Badge"]}]}';
+  '{"surfaces": [{"surface": "dashboard", "candidates": ["overview"], "excluded": [], "pageId": "k3Xq9"}, {"surface": "settings", "candidates": ["default", "expanded"], "excluded": ["Badge"], "pageId": "Ab12c"}]}';
+
+/** A surface's page, or why the reader's answer cannot be trusted to have read it. */
+export type VerifiedPage =
+  | { ok: true; page: string }
+  | { ok: false; reason: 'page-ambiguous' | 'geometry-extract-failed'; detail: string };
+
+/**
+ * Select the surface's page from the child's candidates, then confirm the child
+ * read the `.pen` at `penPath`: pencil's `execute({ filePath })` falls back to
+ * whatever canvas the editor has active, so a child can enumerate and extract a
+ * different open document without noticing. The candidates must equal the
+ * file's own `FINAL:<surface>:` pages, and `pageId` must be the selected one.
+ */
+export async function selectVerifiedPage(
+  penPath: string,
+  surface: string,
+  row: ExtractOutcome,
+  pageSelector: string | undefined,
+): Promise<VerifiedPage> {
+  const selection = selectFinalPage(surface, row.candidates, pageSelector);
+  if (!selection.ok) return { ok: false, reason: 'page-ambiguous', detail: selection.detail };
+  const failed = (detail: string): VerifiedPage => ({
+    ok: false,
+    reason: 'geometry-extract-failed',
+    detail,
+  });
+  let parsed: ReturnType<typeof parsePenDocument>;
+  try {
+    parsed = parsePenDocument(await readFile(penPath));
+  } catch (err) {
+    return failed(`cannot read ${penPath} to verify the page the reader read: ${errMessage(err)}`);
+  }
+  if (!parsed.ok) {
+    return failed(`cannot parse ${penPath} to verify the page the reader read: ${parsed.error}`);
+  }
+  const prefix = `FINAL:${surface}:`;
+  const onDisk = topLevelPages(parsed.doc).flatMap((p) =>
+    p.name?.startsWith(prefix) === true
+      ? [{ id: p.id, name: p.name.slice(prefix.length).trim() }]
+      : [],
+  );
+  const reported = new Set(row.candidates.map((c) => c.trim()));
+  const held = new Set(onDisk.map((p) => p.name));
+  const otherDocument = 'the pencil bridge likely read a different open document';
+  if (reported.size !== held.size || [...reported].some((c) => !held.has(c))) {
+    return failed(
+      `surface '${surface}': the reader reported ${prefix} candidates [${[...reported].join(', ')}] but the .pen on disk holds [${[...held].join(', ')}] — ${otherDocument}`,
+    );
+  }
+  if (!onDisk.some((p) => p.id === row.pageId && p.name === selection.page)) {
+    return failed(
+      `surface '${surface}': the reader reported page id '${row.pageId ?? '(none)'}', which is not page '${prefix} ${selection.page}' in the .pen on disk — ${otherDocument}`,
+    );
+  }
+  return selection;
+}
 
 /** The reader's dispatch failure; `reason` picks the sink's reason detail. */
 export class GeometryExtractError extends PenDispatchError {
@@ -111,7 +176,7 @@ export const {
     lead: 'A previous design geometry reader finished its work, but its report was rejected',
     job: 'Your ONLY job is to restate the per-surface report that reader gave — do not open the design, do not read or write any geometry document.',
     rules: [
-      'One entry per surface the reader reported, carrying the `FINAL:<surface>:` page names it found and the node names it excluded, verbatim.',
+      'One entry per surface the reader reported, carrying the `FINAL:<surface>:` page names it found, the node names it excluded, and the `pageId` it read, verbatim.',
       'Invent no surface, page name, or node name the output does not state; an entry whose exclusions are not stated gets `"excluded": []`.',
       'If nothing above states the enumeration, write no answer at all.',
     ],
