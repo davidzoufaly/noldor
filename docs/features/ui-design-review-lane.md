@@ -26,6 +26,7 @@ links:
   tests:
     - src/core/__tests__/err-message.test.ts
     - src/core/__tests__/lanes.test.ts
+    - src/core/__tests__/run-capture.test.ts
     - src/cr/__tests__/geometry/geometry-compare-core.test.ts
     - src/cr/__tests__/geometry/geometry-diff-cli.test.ts
     - src/cr/__tests__/geometry/geometry-doc.test.ts
@@ -192,6 +193,7 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
 - **Tests:**
   - [`src/core/__tests__/err-message.test.ts`](../../src/core/__tests__/err-message.test.ts)
   - [`src/core/__tests__/lanes.test.ts`](../../src/core/__tests__/lanes.test.ts)
+  - [`src/core/__tests__/run-capture.test.ts`](../../src/core/__tests__/run-capture.test.ts)
   - [`src/cr/__tests__/geometry/geometry-compare-core.test.ts`](../../src/cr/__tests__/geometry/geometry-compare-core.test.ts)
   - [`src/cr/__tests__/geometry/geometry-diff-cli.test.ts`](../../src/cr/__tests__/geometry/geometry-diff-cli.test.ts)
   - [`src/cr/__tests__/geometry/geometry-doc.test.ts`](../../src/cr/__tests__/geometry/geometry-doc.test.ts)
