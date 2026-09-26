@@ -7,8 +7,7 @@
 // writes exactly one sink (Q-0100), and a per-surface failure never aborts the
 // round — outcomes aggregate by `fail` > `cannot-review` > `pass` (spec R7).
 
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { PNG } from 'pngjs';
@@ -39,6 +38,7 @@ import {
   dispatchRenderExport,
   type RenderExportReport,
 } from './render-export-dispatch.js';
+import { swapRoundArtifacts, type RoundArtifact } from './round-artifacts.js';
 import type { LaneAnswer } from '../lane-answer.js';
 import { writeFailByMode, writePenModified } from './ui-design-resolve.js';
 
@@ -596,82 +596,25 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     }
 
     // ---- R6: persist artifacts, atomically per round ----
-    // Skipped entirely when the round produced NO rasters (exporter dispatch
-    // failed, every surface no-boot-recipe/export-failed): swapping in an
-    // empty directory would destroy the prior round's evidence to record
-    // nothing. The prior set stays put; this round's sink references no image.
-    // noldor:cut — deliberate arbitration between two review rounds that asked
-    // for opposite behaviors here (round 8: never delete prior evidence on a
-    // no-raster round; round 9: rebuild unconditionally). Evidence-preserving
-    // wins: images are only ever interpreted through the sink that references
-    // them, and a zero-raster round's sink references none.
-    const artifactRoot = join(input.repoRoot, '.noldor', 'cr', 'render-compare');
-    const finalDir = join(artifactRoot, input.slug);
-    const unique = `${input.slug}-${process.pid}-${Date.now()}`;
-    const tmpDir = join(artifactRoot, `.tmp-${unique}`);
-    const trashDir = join(artifactRoot, `.trash-${unique}`);
-    let persistFailure: string | null = null;
-    const persistJobs = async (): Promise<void> => {
-      await mkdir(tmpDir, { recursive: true });
-      for (const job of jobs) {
-        await writeFile(join(tmpDir, `${job.sanitized}.design.png`), job.designBuf);
-        if (job.shotBuf !== undefined) {
-          await writeFile(join(tmpDir, `${job.sanitized}.shot.png`), job.shotBuf);
-        }
-        if (job.diffBuf !== undefined) {
-          await writeFile(join(tmpDir, `${job.sanitized}.diff.png`), job.diffBuf);
-        }
+    // A round with no raster hands the swap an empty list, which keeps the prior
+    // round's evidence (see round-artifacts.ts for why).
+    const artifacts: RoundArtifact[] = [];
+    for (const job of jobs) {
+      artifacts.push({ name: `${job.sanitized}.design.png`, body: job.designBuf });
+      if (job.shotBuf !== undefined) {
+        artifacts.push({ name: `${job.sanitized}.shot.png`, body: job.shotBuf });
       }
-      // Swap without a delete-then-rename window: the prior round moves ASIDE
-      // first, so a failure between the two renames still leaves one complete
-      // evidence set on disk (restored below on failure, deleted on success).
-      // noldor:cut — spec R6's contract is "a crashed round never leaves a
-      // MIXED set", which this satisfies; a hard crash exactly between the two
-      // renames can leave finalDir absent-with-trash-intact, and closing that
-      // window would need an atomic directory exchange Node does not expose.
-      // Absent-but-recoverable beats mixed-and-wrong.
-      try {
-        await rename(finalDir, trashDir);
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-      }
-      try {
-        await rename(tmpDir, finalDir);
-      } catch (err) {
-        await rename(trashDir, finalDir).catch(() => {
-          /* no prior round to restore */
-        });
-        throw err;
-      }
-      await rm(trashDir, { recursive: true, force: true }).catch(() => {
-        /* stale trash is disk cost only; the fresh set is already in place */
-      });
-    };
-    if (jobs.length > 0) {
-      try {
-        await persistJobs();
-      } catch (err) {
-        // The round downgrades to cannot-review below. Only the per-round temp
-        // and trash dirs are removed (unique names would pile up across failed
-        // rounds) — NEVER finalDir: whatever it holds is a complete coherent set
-        // (the untouched prior round, or the one the inner catch just restored),
-        // and deleting a restore we deliberately performed would be a
-        // contradiction. This round's sink references no image either way.
-        persistFailure = errMessage(err);
-        notes.push(`artifact persist failed: ${persistFailure}`);
-        await rm(tmpDir, { recursive: true, force: true }).catch(() => {
-          /* best-effort */
-        });
-        // trashDir may be the ONLY surviving evidence set when both renames
-        // failed (restore included) — remove it only when finalDir still holds
-        // a set, otherwise leave it as the recoverable copy.
-        if (existsSync(finalDir)) {
-          await rm(trashDir, { recursive: true, force: true }).catch(() => {
-            /* best-effort */
-          });
-        }
+      if (job.diffBuf !== undefined) {
+        artifacts.push({ name: `${job.sanitized}.diff.png`, body: job.diffBuf });
       }
     }
+    const swap = await swapRoundArtifacts(
+      join(input.repoRoot, '.noldor', 'cr', 'render-compare'),
+      input.slug,
+      artifacts,
+    );
+    const persistFailure = swap.ok ? null : swap.detail;
+    if (persistFailure !== null) notes.push(`artifact persist failed: ${persistFailure}`);
 
     // ---- rows (per-surface record, deterministic order) ----
     const sorted = [...outcomes].sort((a, b) =>

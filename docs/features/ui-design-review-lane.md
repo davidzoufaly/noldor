@@ -37,6 +37,7 @@ links:
     - src/cr/__tests__/lanes/geometry-registration.test.ts
     - src/cr/__tests__/lanes/render-compare-core.test.ts
     - src/cr/__tests__/lanes/render-compare.test.ts
+    - src/cr/__tests__/lanes/round-artifacts.test.ts
     - src/cr/__tests__/lanes/ui-review-dispatch.test.ts
     - src/cr/__tests__/lanes/ui-review.test.ts
     - src/cr/__tests__/orchestrate.test.ts
@@ -204,6 +205,7 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/cr/__tests__/lanes/geometry-registration.test.ts`](../../src/cr/__tests__/lanes/geometry-registration.test.ts)
   - [`src/cr/__tests__/lanes/render-compare-core.test.ts`](../../src/cr/__tests__/lanes/render-compare-core.test.ts)
   - [`src/cr/__tests__/lanes/render-compare.test.ts`](../../src/cr/__tests__/lanes/render-compare.test.ts)
+  - [`src/cr/__tests__/lanes/round-artifacts.test.ts`](../../src/cr/__tests__/lanes/round-artifacts.test.ts)
   - [`src/cr/__tests__/lanes/ui-review-dispatch.test.ts`](../../src/cr/__tests__/lanes/ui-review-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/ui-review.test.ts`](../../src/cr/__tests__/lanes/ui-review.test.ts)
   - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
