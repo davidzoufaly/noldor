@@ -5,11 +5,12 @@ deps:
   - registry-distribution
 links:
   code:
-    - src/cli/commands/init.ts
-    - src/cli/commands/upgrade.ts
     - docs/noldor/adoption-guide.md
     - docs/noldor/versioning.md
+    - src/cli/commands/init.ts
+    - src/cli/commands/upgrade.ts
     - src/core/framework-skew.ts
+    - src/garden/detectors/migration-coverage.ts
     - src/migrations/0.4.0.ts
     - src/migrations/0.5.0.ts
     - src/migrations/0.6.0.ts
@@ -123,11 +124,12 @@ Added semver parse and compare helpers (#104).
 - **Plan:**
   - [`docs/design/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md`](../../docs/design/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md)
 - **Code:**
-  - [`src/cli/commands/init.ts`](../../src/cli/commands/init.ts)
-  - [`src/cli/commands/upgrade.ts`](../../src/cli/commands/upgrade.ts)
   - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
   - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
+  - [`src/cli/commands/init.ts`](../../src/cli/commands/init.ts)
+  - [`src/cli/commands/upgrade.ts`](../../src/cli/commands/upgrade.ts)
   - [`src/core/framework-skew.ts`](../../src/core/framework-skew.ts)
+  - [`src/garden/detectors/migration-coverage.ts`](../../src/garden/detectors/migration-coverage.ts)
   - [`src/migrations/0.4.0.ts`](../../src/migrations/0.4.0.ts)
   - [`src/migrations/0.5.0.ts`](../../src/migrations/0.5.0.ts)
   - [`src/migrations/0.6.0.ts`](../../src/migrations/0.6.0.ts)

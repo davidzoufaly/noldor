@@ -4,24 +4,25 @@ category: Tooling
 deps: []
 links:
   code:
-    - .claude/skills/noldor-spec/
-    - .claude/skills/noldor-plan/
-    - src/utils/markdown-sections.ts
-    - src/utils/tally.ts
-    - src/prep/draft.ts
-    - src/prep/formats.ts
-    - src/prep/print-format.ts
-    - .claude/skills/noldor-gate/SKILL.md
-    - .claude/skills/noldor-garden/SKILL.md
     - .claude/skills/noldor-draft-feature-md/SKILL.md
+    - .claude/skills/noldor-garden/SKILL.md
+    - .claude/skills/noldor-gate/SKILL.md
+    - .claude/skills/noldor-plan/
+    - .claude/skills/noldor-spec/
     - docs/noldor/complexity-gating.md
-    - docs/noldor/workflow.md
     - docs/noldor/skill-catalog.md
+    - docs/noldor/workflow.md
     - src/design/artifact-locate.ts
     - src/design/context-cli.ts
+    - src/design/ledger.ts
     - src/design/log-cli.ts
     - src/design/render.ts
     - src/design/support-check-cli.ts
+    - src/prep/draft.ts
+    - src/prep/formats.ts
+    - src/prep/print-format.ts
+    - src/utils/markdown-sections.ts
+    - src/utils/tally.ts
     - src/worktrees/create-worktree.ts
     - src/worktrees/worktree-conflicts.ts
   tests:
@@ -98,24 +99,25 @@ Draft-first dialogues with a decision-context digest (#362).
 
 - **Spec:** [`docs/design/specs/archive/2026-06-11-de-superpowers-vendor-spec-plan-and-worktree-flows-design.md`](../../docs/design/specs/archive/2026-06-11-de-superpowers-vendor-spec-plan-and-worktree-flows-design.md)
 - **Code:**
-  - [`.claude/skills/noldor-spec/`](../../.claude/skills/noldor-spec/)
-  - [`.claude/skills/noldor-plan/`](../../.claude/skills/noldor-plan/)
-  - [`src/utils/markdown-sections.ts`](../../src/utils/markdown-sections.ts)
-  - [`src/utils/tally.ts`](../../src/utils/tally.ts)
-  - [`src/prep/draft.ts`](../../src/prep/draft.ts)
-  - [`src/prep/formats.ts`](../../src/prep/formats.ts)
-  - [`src/prep/print-format.ts`](../../src/prep/print-format.ts)
-  - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
-  - [`.claude/skills/noldor-garden/SKILL.md`](../../.claude/skills/noldor-garden/SKILL.md)
   - [`.claude/skills/noldor-draft-feature-md/SKILL.md`](../../.claude/skills/noldor-draft-feature-md/SKILL.md)
+  - [`.claude/skills/noldor-garden/SKILL.md`](../../.claude/skills/noldor-garden/SKILL.md)
+  - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
+  - [`.claude/skills/noldor-plan/`](../../.claude/skills/noldor-plan/)
+  - [`.claude/skills/noldor-spec/`](../../.claude/skills/noldor-spec/)
   - [`docs/noldor/complexity-gating.md`](../../docs/noldor/complexity-gating.md)
-  - [`docs/noldor/workflow.md`](../../docs/noldor/workflow.md)
   - [`docs/noldor/skill-catalog.md`](../../docs/noldor/skill-catalog.md)
+  - [`docs/noldor/workflow.md`](../../docs/noldor/workflow.md)
   - [`src/design/artifact-locate.ts`](../../src/design/artifact-locate.ts)
   - [`src/design/context-cli.ts`](../../src/design/context-cli.ts)
+  - [`src/design/ledger.ts`](../../src/design/ledger.ts)
   - [`src/design/log-cli.ts`](../../src/design/log-cli.ts)
   - [`src/design/render.ts`](../../src/design/render.ts)
   - [`src/design/support-check-cli.ts`](../../src/design/support-check-cli.ts)
+  - [`src/prep/draft.ts`](../../src/prep/draft.ts)
+  - [`src/prep/formats.ts`](../../src/prep/formats.ts)
+  - [`src/prep/print-format.ts`](../../src/prep/print-format.ts)
+  - [`src/utils/markdown-sections.ts`](../../src/utils/markdown-sections.ts)
+  - [`src/utils/tally.ts`](../../src/utils/tally.ts)
   - [`src/worktrees/create-worktree.ts`](../../src/worktrees/create-worktree.ts)
   - [`src/worktrees/worktree-conflicts.ts`](../../src/worktrees/worktree-conflicts.ts)
 - **Tests:**

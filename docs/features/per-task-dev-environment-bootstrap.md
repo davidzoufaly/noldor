@@ -5,13 +5,16 @@ deps: []
 links:
   code:
     - src/verify/health.ts
+    - src/worktrees/dev-surfaces.ts
+    - src/worktrees/down-worktree.ts
+    - src/worktrees/open-editor.ts
+    - src/worktrees/up-worktree.ts
   docs: []
   tests:
     - src/verify/__tests__/health.test.ts
   spec: >-
     docs/design/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md
-  plan: >-
-    docs/design/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md
+  plan: docs/design/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md
 name: Per-Task Dev Environment Bootstrap
 packages:
   - scripts
@@ -92,6 +95,10 @@ Add a `consumer.dev` surface config block (#103).
   - [`docs/design/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md`](../../docs/design/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md)
 - **Code:**
   - [`src/verify/health.ts`](../../src/verify/health.ts)
+  - [`src/worktrees/dev-surfaces.ts`](../../src/worktrees/dev-surfaces.ts)
+  - [`src/worktrees/down-worktree.ts`](../../src/worktrees/down-worktree.ts)
+  - [`src/worktrees/open-editor.ts`](../../src/worktrees/open-editor.ts)
+  - [`src/worktrees/up-worktree.ts`](../../src/worktrees/up-worktree.ts)
 - **Tests:**
   - [`src/verify/__tests__/health.test.ts`](../../src/verify/__tests__/health.test.ts)
 

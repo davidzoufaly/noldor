@@ -8,12 +8,19 @@ packages:
 links:
   spec: lost-pre-extraction
   code:
+    - src/design/archive-cli.ts
+    - src/design/archive-resolve.ts
     - src/docs/docs-api.ts
     - src/docs/docs-check.ts
     - src/docs/docs-transclude.ts
-    - src/garden/garden-detect.ts
-    - src/sync/sync-fd-resources.ts
     - src/fixtures/docs-check/target.ts
+    - src/garden/backlog-demote.ts
+    - src/garden/detectors/malformed-fd.ts
+    - src/garden/garden-detect-runner.ts
+    - src/garden/garden-detect.ts
+    - src/garden/garden-receipt.ts
+    - src/garden/plan-resolution.ts
+    - src/sync/sync-fd-resources.ts
   tests:
     - src/core/__tests__/branch-added.test.ts
     - src/design/__tests__/archive-cli.test.ts
@@ -60,12 +67,19 @@ The skill runs `pnpm garden:detect`, presents a unified checklist grouped by sig
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
+  - [`src/design/archive-cli.ts`](../../src/design/archive-cli.ts)
+  - [`src/design/archive-resolve.ts`](../../src/design/archive-resolve.ts)
   - [`src/docs/docs-api.ts`](../../src/docs/docs-api.ts)
   - [`src/docs/docs-check.ts`](../../src/docs/docs-check.ts)
   - [`src/docs/docs-transclude.ts`](../../src/docs/docs-transclude.ts)
-  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
-  - [`src/sync/sync-fd-resources.ts`](../../src/sync/sync-fd-resources.ts)
   - [`src/fixtures/docs-check/target.ts`](../../src/fixtures/docs-check/target.ts)
+  - [`src/garden/backlog-demote.ts`](../../src/garden/backlog-demote.ts)
+  - [`src/garden/detectors/malformed-fd.ts`](../../src/garden/detectors/malformed-fd.ts)
+  - [`src/garden/garden-detect-runner.ts`](../../src/garden/garden-detect-runner.ts)
+  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
+  - [`src/garden/garden-receipt.ts`](../../src/garden/garden-receipt.ts)
+  - [`src/garden/plan-resolution.ts`](../../src/garden/plan-resolution.ts)
+  - [`src/sync/sync-fd-resources.ts`](../../src/sync/sync-fd-resources.ts)
 - **Tests:**
   - [`src/core/__tests__/branch-added.test.ts`](../../src/core/__tests__/branch-added.test.ts)
   - [`src/design/__tests__/archive-cli.test.ts`](../../src/design/__tests__/archive-cli.test.ts)

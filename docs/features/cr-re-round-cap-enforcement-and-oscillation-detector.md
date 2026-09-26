@@ -5,12 +5,17 @@ deps: []
 entry-id: Q-0170
 links:
   code:
+    - src/core/structural-context-contract.ts
+    - src/cr/arbitration-cli.ts
+    - src/cr/arbitration.ts
+    - src/cr/autofix-cli.ts
     - src/cr/autofix-ledger.ts
     - src/cr/autofix.ts
-    - src/cr/autofix-cli.ts
-    - src/cr/run-codex.ts
-    - src/core/structural-context-contract.ts
+    - src/cr/decisions.ts
     - src/cr/fingerprint.ts
+    - src/cr/re-round.ts
+    - src/cr/reflag.ts
+    - src/cr/run-codex.ts
   tests:
     - src/cr/__tests__/amend-receipt.test.ts
     - src/cr/__tests__/arbitration-cli.test.ts
@@ -189,12 +194,17 @@ This release adds `fingerprintBlocker` for single-finding identity (#434) and en
 ## Resources
 
 - **Code:**
+  - [`src/core/structural-context-contract.ts`](../../src/core/structural-context-contract.ts)
+  - [`src/cr/arbitration-cli.ts`](../../src/cr/arbitration-cli.ts)
+  - [`src/cr/arbitration.ts`](../../src/cr/arbitration.ts)
+  - [`src/cr/autofix-cli.ts`](../../src/cr/autofix-cli.ts)
   - [`src/cr/autofix-ledger.ts`](../../src/cr/autofix-ledger.ts)
   - [`src/cr/autofix.ts`](../../src/cr/autofix.ts)
-  - [`src/cr/autofix-cli.ts`](../../src/cr/autofix-cli.ts)
-  - [`src/cr/run-codex.ts`](../../src/cr/run-codex.ts)
-  - [`src/core/structural-context-contract.ts`](../../src/core/structural-context-contract.ts)
+  - [`src/cr/decisions.ts`](../../src/cr/decisions.ts)
   - [`src/cr/fingerprint.ts`](../../src/cr/fingerprint.ts)
+  - [`src/cr/re-round.ts`](../../src/cr/re-round.ts)
+  - [`src/cr/reflag.ts`](../../src/cr/reflag.ts)
+  - [`src/cr/run-codex.ts`](../../src/cr/run-codex.ts)
 - **Tests:**
   - [`src/cr/__tests__/amend-receipt.test.ts`](../../src/cr/__tests__/amend-receipt.test.ts)
   - [`src/cr/__tests__/arbitration-cli.test.ts`](../../src/cr/__tests__/arbitration-cli.test.ts)

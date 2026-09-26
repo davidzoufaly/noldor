@@ -4,7 +4,9 @@ category: Tooling
 deps: []
 entry-id: Q-0255
 links:
-  code: []
+  code:
+    - src/milestones/assign-cli.ts
+    - src/milestones/assign.ts
   tests:
     - src/milestones/__tests__/assign.test.ts
     - src/milestones/__tests__/show.test.ts
@@ -53,6 +55,9 @@ As an operator (human or agent) running a milestone, I want to tag already-filed
 ## Resources
 
 - **Spec:** [`docs/design/specs/archive/2026-09-25-milestone-membership-has-no-tagger-and-no-counter-design.md`](../../docs/design/specs/archive/2026-09-25-milestone-membership-has-no-tagger-and-no-counter-design.md)
+- **Code:**
+  - [`src/milestones/assign-cli.ts`](../../src/milestones/assign-cli.ts)
+  - [`src/milestones/assign.ts`](../../src/milestones/assign.ts)
 - **Tests:**
   - [`src/milestones/__tests__/assign.test.ts`](../../src/milestones/__tests__/assign.test.ts)
   - [`src/milestones/__tests__/show.test.ts`](../../src/milestones/__tests__/show.test.ts)
