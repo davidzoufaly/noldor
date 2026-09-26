@@ -18,7 +18,7 @@ import { templateFiles, TEMPLATES_ROOT, SCAFFOLD_ONLY_TEMPLATES } from '../manif
 import { filterTemplatesByAgents } from '../agent-filter.js';
 import { parse as parseYaml } from 'yaml';
 
-// @tests: noldor-package-lift, self-refreshing-compact-knowledge-graph, make-noldor-agent-agnostic, noldor
+// @tests: noldor-package-lift, self-refreshing-compact-knowledge-graph, make-noldor-agent-agnostic, noldor, ui-design-review-lane
 
 describe('computeDrift', () => {
   let dir: string;
@@ -579,5 +579,53 @@ describe('.github/workflows/update-knowledge-graph.yml template (graph refresh)'
     // `check-template-sync` and `doctor` both filter on this set — membership is
     // what makes a consumer's edited runner labels not read as drift.
     expect(templateFiles().filter((f) => !SCAFFOLD_ONLY_TEMPLATES.has(f))).not.toContain(rel);
+  });
+});
+
+describe('scripts/geometry-capture.mjs template (geometry-compare producer)', () => {
+  const rel = 'scripts/geometry-capture.mjs';
+  const run = (args: string[], surface?: string) => {
+    const env = { ...process.env };
+    delete env.NOLDOR_GEOMETRY_SURFACE;
+    if (surface !== undefined) env.NOLDOR_GEOMETRY_SURFACE = surface;
+    return spawnSync(process.execPath, [join(TEMPLATES_ROOT, rel), ...args], {
+      env,
+      encoding: 'utf8',
+    });
+  };
+
+  it('ships in the template manifest', () => {
+    expect(templateFiles()).toContain(rel);
+  });
+
+  it('is scaffold-only and excluded from the template-sync drift set', () => {
+    expect(SCAFFOLD_ONLY_TEMPLATES.has(rel)).toBe(true);
+    expect(templateFiles().filter((f) => !SCAFFOLD_ONLY_TEMPLATES.has(f))).not.toContain(rel);
+  });
+
+  // noldor has no playwright dependency, so these cases also prove the inputs
+  // are checked BEFORE the lazy import: loading it first would exit 1 on
+  // ERR_MODULE_NOT_FOUND instead of 2 with the usage line.
+  it('exits 2 with usage when its four arguments are missing', () => {
+    const r = run([], 'dashboard');
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('usage:');
+  });
+
+  it('exits 2 without NOLDOR_GEOMETRY_SURFACE instead of guessing a surface name', () => {
+    const r = run(['http://127.0.0.1:4001/', '/tmp/out.json', '1440', '900']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('NOLDOR_GEOMETRY_SURFACE');
+  });
+
+  it('exits 2 on a width or height that is not a positive number', () => {
+    for (const [w, h] of [
+      ['abc', '900'],
+      ['1440', '0'],
+    ]) {
+      const r = run(['http://127.0.0.1:4001/', '/tmp/out.json', w, h], 'dashboard');
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain('positive');
+    }
   });
 });

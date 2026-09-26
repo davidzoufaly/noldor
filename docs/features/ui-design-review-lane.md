@@ -36,6 +36,7 @@ links:
     - src/cr/__tests__/lanes/ui-review-dispatch.test.ts
     - src/cr/__tests__/lanes/ui-review.test.ts
     - src/cr/__tests__/orchestrate.test.ts
+    - src/templates/__tests__/templates.test.ts
 name: UI-Design Review Lane
 packages:
   - package.json
@@ -198,5 +199,6 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/cr/__tests__/lanes/ui-review-dispatch.test.ts`](../../src/cr/__tests__/lanes/ui-review-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/ui-review.test.ts`](../../src/cr/__tests__/lanes/ui-review.test.ts)
   - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
+  - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)
 
 <!-- /generated: resources -->

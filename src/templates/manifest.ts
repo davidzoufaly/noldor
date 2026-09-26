@@ -53,6 +53,10 @@ export const SCAFFOLD_ONLY_TEMPLATES: ReadonlySet<string> = new Set([
   'docs/architecture/containers.md',
   'docs/architecture/modules.md',
   'docs/architecture/flows.md',
+  // Reference `geometryCommand` producer for the geometry-compare lane. Every
+  // real app adds its own waits, auth and capture root here, so a synced twin
+  // would turn each of those edits into a template-sync red.
+  'scripts/geometry-capture.mjs',
 ]);
 
 /**
