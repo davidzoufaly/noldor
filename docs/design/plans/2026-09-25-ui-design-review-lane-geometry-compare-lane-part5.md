@@ -3,10 +3,10 @@
 > **For agentic workers:** Execute this plan task-by-task inline — read each task, use your normal file-edit and shell tools, follow the TDD step order exactly, commit at each task's Commit step, tick `- [ ] → - [x]` as you go. Do not delegate execution to a sub-skill or separate executor.
 
 **Goal:** `crLanes.code: ["reviewer", "geometry-compare"]` runs a real lane: it resolves the affected surfaces, boots the app once per `verifyCommand` group, compares each surface, persists evidence whose report names the nodes behind every unmatched value, and writes a standard lane sink. Orchestrate runs it code-only, never short-circuits it on an empty delta, and chains it after `verifier` and `render-compare`.
-**Architecture:** The lane is a thin shell. `openDesignReviewRound` opens the round with `geometryCompareMode`; part 3's `forEachBootedSurface` supplies booted, probed URLs; part 4's `reviewSurfaceGeometry` compares each surface; `aggregateOutcomes` picks the verdict. New here: a pure report builder that maps each unmatched value back to its producing nodes by re-scanning that side's document, a severity derived per family (`FamilyOutcome` carries none), the `CANONICAL_LANES` literal landing with its runner, and a sequential boot chain in orchestrate.
+**Architecture:** The lane is a thin shell. `openDesignReviewRound` opens the round with `geometryCompareMode`; part 3's `forEachBootedSurface` supplies booted, probed URLs; part 4's `extractDesignDocs` reads every surface's design in one dispatch before any boot and `compareSurfaceGeometry` compares each booted surface; `aggregateOutcomes` picks the verdict. New here: a pure report builder that maps each unmatched value back to its producing nodes by re-scanning that side's document, a severity derived per family (`FamilyOutcome` carries none), the `CANONICAL_LANES` literal landing with its runner, and a sequential boot chain in orchestrate.
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), zod 3, vitest.
 
-**Depends on:** part 1 (recipe fields), part 2 (`setGeometryExtractDispatcher`, the `geometry-extract` role), part 3 (`geometryCompareMode` and the mode-key type, the six reason codes, `swapRoundArtifacts`, `forEachBootedSurface`, `BootProbeDeps`, `AggregableOutcome`) and part 4 (`reviewSurfaceGeometry`, `setGeometryReviewDeps`).
+**Depends on:** part 1 (recipe fields), part 2 (`setGeometryExtractDispatcher`, the `geometry-extract` role), part 3 (`geometryCompareMode` and the mode-key type, the six reason codes, `swapRoundArtifacts`, `forEachBootedSurface`, `BootProbeDeps`, `AggregableOutcome`) and part 4 (`extractDesignDocs`, `compareSurfaceGeometry`, `setGeometryReviewDeps`).
 
 ---
 
@@ -297,7 +297,7 @@ function repo(
         name: 'fixture', repoUrl: 'https://example.com/fixture', lockstepPackages: ['.'],
         e2ePrefix: 'e2e', samplesPath: 'samples', packagePrefix: '@fixture/', appPathPrefix: 'apps/',
         uiPaths: ['src/ui/**'],
-        uiSurfaces: { dashboard: ['src/ui/**'] },
+        uiSurfaces: Object.fromEntries(Object.keys(uiBoot).map((k) => [k, ['src/ui/**']])),
         verifyCommands: { dashboard: { command: 'serve --port {port}', kind: 'server', healthPath: '/' } },
         uiBoot,
       },
@@ -346,22 +346,15 @@ const sink = (cwd: string): Record<string, unknown> =>
   JSON.parse(readFileSync(join(cwd, '.noldor', 'cr', `${SLUG}-code-geometry-compare.json`), 'utf8'));
 
 /** A Card at `x`; the design's Card also declares 16px padding. */
-const doc = (x: number, padded: boolean): GeometryDoc => ({
-  surface: 'dashboard',
+const doc = (x: number, padded: boolean, surface = 'dashboard'): GeometryDoc => ({
+  surface,
   viewport: { width: 1440, height: 900 },
-  nodes: [
-    {
-      kind: 'container',
-      name: 'Card',
-      box: { x, y: 0, w: 100, h: 40 },
-      ...(padded ? { spacing: { padding: [16, 16, 16, 16] as [number, number, number, number] } } : {}),
-    },
-  ],
+  nodes: [{ kind: 'container', name: 'Card', box: { x, y: 0, w: 100, h: 40 }, ...(padded ? { spacing: { padding: [16, 16, 16, 16] } } : {}) }],
 });
 
 /** Stub every seam: the reader writes the design Card at 24; the capture writes `impl`. */
-function seams(impl: GeometryDoc, onCapture: () => void = () => {}): { boots: number } {
-  const log = { boots: 0 };
+function seams(impl: GeometryDoc, onCapture: () => void = () => {}): { boots: number; dispatches: number; requests: number } {
+  const log = { boots: 0, dispatches: 0, requests: 0 };
   setGeometryCompareDeps({
     resolvePort: async () => 4001,
     routeProbeBudgetMs: 100,
@@ -372,15 +365,18 @@ function seams(impl: GeometryDoc, onCapture: () => void = () => {}): { boots: nu
     fetchImpl: (async () => new Response('', { status: 200 })) as typeof fetch,
   });
   setGeometryExtractDispatcher(async (input) => {
-    for (const r of input.requests) writeFileSync(r.outPath, JSON.stringify(doc(24, true)));
+    log.dispatches++;
+    log.requests += input.requests.length;
+    for (const r of input.requests) writeFileSync(r.outPath, JSON.stringify(doc(24, true, r.surface)));
     return JSON.stringify({
       surfaces: input.requests.map((r) => ({ surface: r.surface, candidates: ['overview'], excluded: [] })),
     });
   });
   setGeometryReviewDeps({
-    capture: async (command) => {
+    capture: async (command, _cwd, _ms, env) => {
       const out = /'([^']+\.impl\.json)'/.exec(command)?.[1];
-      if (out !== undefined) writeFileSync(out, JSON.stringify(impl));
+      const surface = env?.NOLDOR_GEOMETRY_SURFACE ?? impl.surface;
+      if (out !== undefined) writeFileSync(out, JSON.stringify({ ...impl, surface }));
       onCapture();
       return { code: 0, timedOut: false, stderrTail: '' };
     },
@@ -403,6 +399,17 @@ describe('runGeometryCompare', () => {
     const evidence = join(cwd, '.noldor', 'cr', 'geometry-compare', SLUG);
     expect(existsSync(join(evidence, 'dashboard.design.json'))).toBe(true);
     expect(JSON.parse(readFileSync(join(evidence, 'dashboard.report.json'), 'utf8')).unmatched).toEqual([]);
+  });
+
+  it('extracts every surface with ONE reader dispatch before booting', async () => {
+    const log = seams(doc(24, true));
+    const { cwd, input } = repo('blocking', {
+      dashboard: GEO_BOOT.dashboard,
+      settings: { ...GEO_BOOT.dashboard, route: '/settings' },
+    });
+    await runGeometryCompare(input);
+    expect(sink(cwd)).toMatchObject({ verdict: 'pass' });
+    expect([log.dispatches, log.requests, log.boots]).toEqual([1, 2, 1]);
   });
 
   it('writes a two-family failure to blockers under blocking mode', async () => {
@@ -492,7 +499,8 @@ import { resolvePort } from '../../verify/port.js';
 import type { Finding, LaneReasonCode } from '../findings-schema.js';
 import { GEOMETRY_FAMILIES } from '../geometry/geometry-compare-core.js';
 import { buildSurfaceReport, familySeverity, nodeLabel, type SurfaceReport, type UnmatchedValue } from '../geometry/geometry-report.js';
-import { reviewSurfaceGeometry } from '../geometry/geometry-review.js';
+import type { GeometryDoc } from '../geometry/geometry-doc.js';
+import { compareSurfaceGeometry, extractDesignDocs } from '../geometry/geometry-review.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { forEachBootedSurface, type BootProbeDeps } from './boot-probe.js';
 import { cleanupPenScratch, openDesignReviewRound } from './pen-scratch.js';
@@ -623,12 +631,32 @@ export async function runGeometryCompare(input: LaneInput): Promise<LaneResult> 
     const { jobs, declined } = planSurfaceJobs(surfaces, recipes);
     const outcomes: Outcome[] = [...declined];
     const artifacts: RoundArtifact[] = [];
-    // Inside the scratch dir, so cleanupPenScratch removes it on every exit path.
-    const workDir = join(scratchDir, 'geometry');
+    const workDir = join(scratchDir, 'geometry'); // removed with the scratch dir
     await mkdir(workDir, { recursive: true });
 
+    // ONE reader dispatch for every surface, BEFORE any boot: no dev server waits
+    // on an agent, and a surface whose design cannot be read is never booted.
+    const extractions = await extractDesignDocs({
+      penPath: scratchPen,
+      surfaces: jobs.map((j) => ({ surface: j.surface, ...(j.recipe.page !== undefined ? { pageSelector: j.recipe.page } : {}) })),
+      outDir: workDir,
+      repoRoot: input.repoRoot,
+      slug: input.slug,
+      ...(input.dispatchTimeoutMs !== undefined ? { dispatchTimeoutMs: input.dispatchTimeoutMs } : {}),
+    });
+    const ready: Array<SurfaceJob & { design: GeometryDoc }> = [];
+    for (const job of jobs) {
+      const e = extractions.get(job.surface);
+      if (e?.kind !== 'extracted') {
+        outcomes.push(cannot(job.surface, e?.reason ?? 'geometry-extract-failed', e?.detail ?? 'no extraction result'));
+        continue;
+      }
+      if (e.excluded.length > 0) notes.push(`[${job.surface}] clipped design nodes excluded: ${e.excluded.join(', ')}`);
+      ready.push({ ...job, design: e.design });
+    }
+
     await forEachBootedSurface({
-      jobs,
+      jobs: ready,
       verifyCommands,
       repoRoot: input.repoRoot,
       deps,
@@ -636,27 +664,20 @@ export async function runGeometryCompare(input: LaneInput): Promise<LaneResult> 
         outcomes.push(cannot(job.surface, reason, detail));
       },
       reached: async (job, url) => {
-        const result = await reviewSurfaceGeometry({
-          penPath: scratchPen,
+        const result = await compareSurfaceGeometry({
           surface: job.surface,
-          ...(job.recipe.page !== undefined ? { pageSelector: job.recipe.page } : {}),
+          design: job.design,
           url,
           geometryCommand: job.recipe.geometryCommand,
-          outDir: workDir,
           implPath: join(workDir, `${job.sanitized}.impl.json`),
           repoRoot: input.repoRoot,
-          slug: input.slug,
           captureTimeoutMs: job.recipe.captureTimeoutMs,
           tolerance: job.recipe.geometryTolerance,
           budget: job.recipe.geometryBudget,
-          ...(input.dispatchTimeoutMs !== undefined ? { dispatchTimeoutMs: input.dispatchTimeoutMs } : {}),
         });
         if (result.kind === 'declined') {
           outcomes.push(cannot(job.surface, result.reason, result.detail));
           return;
-        }
-        if (result.excluded.length > 0) {
-          notes.push(`[${job.surface}] clipped design nodes excluded: ${result.excluded.join(', ')}`);
         }
         const report = buildSurfaceReport(job.surface, result.design, result.impl, result.comparison);
         artifacts.push(
@@ -675,7 +696,6 @@ export async function runGeometryCompare(input: LaneInput): Promise<LaneResult> 
     if (integrity.changed) {
       return writePenModified(write, design.repoRelPath, integrity.detail, [...notes, ...rows]);
     }
-    // A verdict whose evidence could not be written is not auditable.
     if (!swap.ok) return await terminal('persist-failed', `evidence unavailable: ${swap.detail}`, rows);
 
     const all = [...notes, ...rows];
@@ -686,19 +706,8 @@ export async function runGeometryCompare(input: LaneInput): Promise<LaneResult> 
       return write({ verdict: 'pass', blockers: [], suggestions: [], summary, notes: all }, true);
     }
     if (agg.verdict === 'cannot-review') {
-      const reds = mode === 'blocking';
-      const message = `${agg.reason}: ${agg.detail ?? 'geometry-compare could not review'}`;
-      return write(
-        {
-          verdict: 'cannot-review',
-          reason: agg.reason,
-          blockers: reds ? [{ file: input.artifact, severity: 'high', message }] : [],
-          suggestions: [],
-          summary: `cannot-review: ${agg.reason}`,
-          notes: all,
-        },
-        !reds,
-      );
+      const detail = agg.detail ?? 'geometry-compare could not review';
+      return writeTerminal({ verdict: 'cannot-review', reason: agg.reason ?? 'dispatch-failed', detail }, all);
     }
     const findings = roundFindings(input.slug, outcomes);
     return writeFailByMode(write, mode, findings, 'implemented layout drifts from the design', all);
@@ -719,7 +728,7 @@ export async function runGeometryCompare(input: LaneInput): Promise<LaneResult> 
 pnpm vitest run src/cr/__tests__/lanes/geometry-compare.test.ts src/cr/__tests__/lanes/geometry-registration.test.ts src/cr/__tests__/filename.test.ts src/cr/__tests__/orchestrate.test.ts && pnpm typecheck && pnpm lint
 ```
 
-Expected output: `Test Files  4 passed (4)`: the lane file's 5 tests, the registration file's 3, and `filename.test.ts` still resolving `-render-compare.json` and `-ui-reviewer.json` next to the longer new suffix. `tsc` and `oxlint` exit 0.
+Expected output: `Test Files  4 passed (4)`: the lane file's 6 tests, the registration file's 3, and `filename.test.ts` still resolving `-render-compare.json` and `-ui-reviewer.json` next to the longer new suffix. `tsc` and `oxlint` exit 0.
 
 - [ ] **Step 7: Commit.**
 
@@ -727,16 +736,12 @@ Expected output: `Test Files  4 passed (4)`: the lane file's 5 tests, the regist
 cat > /tmp/geo-p5t2.msg <<'MSG'
 feat(cr): add the geometry-compare lane
 
-A CR round has to answer for every surface a diff affects: resolve the scope,
-boot the app once per verifyCommand group, keep a row for every surface it
-could not review, persist the evidence, and turn the rows into one verdict
-under the advisory-or-blocking knob. The lane is a thin shell over parts 3 and
-4. A surface with no geometryCommand lands a no-geometry-recipe row, a round
-where no affected surface resolves falls back to every declared surface, and
-pen-modified outranks every outcome, an unexpected throw included. Findings
-come one per failing family, severity derived from the unmatched count, each
-value naming the nodes behind it. The lane literal and its LANES entry land
-here because neither compiles without the other.
+A thin shell over parts 3 and 4: one reader dispatch for every surface before
+any boot, one boot per verifyCommand group, a row for every surface (a missing
+geometryCommand is no-geometry-recipe), durable evidence, and one verdict under
+the mode knob, pen-modified outranking everything. Findings come one per
+failing family, severity derived from the unmatched count, each value naming its
+nodes. The lane literal and its LANES entry land together: neither compiles alone.
 
 Noldor-FD: ui-design-review-lane
 MSG
@@ -940,12 +945,10 @@ Expected output: every orchestrate case passes. That includes the four new ones 
 cat > /tmp/geo-p5t3.msg <<'MSG'
 feat(cr): chain the three booting lanes and exempt geometry-compare
 
-verifier, render-compare and geometry-compare all boot the consumer's servers,
-and two dev servers over one project contend on its build cache whatever their
-ports. BOOTING_LANES is an explicit chain, each lane starting when the previous
-resolves either way; other lanes still launch concurrently. geometry-compare
-also joins the empty-delta exemption (its review object is the booted app) and
-the code-only list, now the named CODE_ONLY_LANES.
+The three booting lanes contend on one build cache whatever their ports, so
+BOOTING_LANES chains them, each starting when the previous resolves; other lanes
+launch concurrently. geometry-compare joins the empty-delta exemption and the
+now-named CODE_ONLY_LANES.
 
 Noldor-FD: ui-design-review-lane
 MSG
@@ -959,7 +962,7 @@ git commit -F /tmp/geo-p5t3.msg
 pnpm noldor clones check --against main
 ```
 
-Expected output: exit 0. If the lane's `pass` / `cannot-review` writes are reported as a group with `render-compare`'s, hoist the shared write into `ui-design-resolve.ts` next to `writeFailByMode`, switch both lanes to it, and amend Task 2's commit. Do not re-record the clones baseline.
+Expected output: exit 0. The lane's `cannot-review` path already goes through `makeTerminalWriter`'s `writeTerminal`, so only its `pass` write mirrors `render-compare`'s. If that is reported as a group, hoist the shared write into `ui-design-resolve.ts` next to `writeFailByMode`, switch both lanes to it, and amend Task 2's commit. Do not re-record the clones baseline.
 
 - [ ] **Step 9: Check the indirection ratchet.**
 

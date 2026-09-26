@@ -3,7 +3,7 @@
 > **For agentic workers:** Execute this plan task-by-task inline — read each task, use your normal file-edit and shell tools, follow the TDD step order exactly, commit at each task's Commit step, tick `- [ ] → - [x]` as you go. Do not delegate execution to a sub-skill or separate executor.
 
 **Goal:** Compare one surface of a running app against its design, by hand: `pnpm noldor design geometry-review --pen <f> --surface <s> --url <u> --capture <tpl>` reports drift per family, or the reason code when the surface cannot be compared.
-**Architecture:** `reviewSurfaceGeometry` does the per-surface work: dispatch the pencil-MCP reader (part 2), reselect the `FINAL:` page from its candidates, capture the implementation at the design page's own viewport through `runCapture` with `NOLDOR_GEOMETRY_SURFACE` set (part 3), and run the shipped `compareGeometry` with partial per-family overrides filled from the defaults. It takes a URL and boots nothing, so the CLI can call it against an app the operator already runs and the lane in part 5 can reuse it per surface.
+**Architecture:** Two steps. `extractDesignDocs` reads every requested surface's design through ONE pencil-MCP reader dispatch (part 2), reselecting each `FINAL:` page from the child's candidates and never trusting a document left from an earlier run. `compareSurfaceGeometry` captures one surface at a URL through `runCapture` with `NOLDOR_GEOMETRY_SURFACE` set (part 3), at the design page's own viewport, and runs the shipped `compareGeometry` with partial per-family overrides filled from the defaults. `reviewSurfaceGeometry` runs both for one surface, which is what the CLI calls; the lane in part 5 extracts once for all surfaces before it boots anything, then compares per surface.
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), zod 3, vitest.
 
 **Depends on:** part 1 (the `geometryCommand` / `geometryTolerance` / `geometryBudget` recipe fields, `screenshotTemplateIssues(template, field)`), part 2 (`dispatchGeometryExtract`, `setGeometryExtractDispatcher`, `GeometryExtractError`, `GEOMETRY_ADHOC_SLUG`, `runGeometryExport`), and part 3 (the six reason codes, `runCapture`'s `env` argument).
@@ -12,7 +12,7 @@
 
 ## File Structure
 
-- `src/cr/geometry/geometry-review.ts` — `reviewSurfaceGeometry`, `withFamilyDefaults`, `viewportsAgree`, `setGeometryReviewDeps` (Create).
+- `src/cr/geometry/geometry-review.ts` — `extractDesignDocs`, `compareSurfaceGeometry`, `reviewSurfaceGeometry`, `withFamilyDefaults`, `viewportsAgree`, `setGeometryReviewDeps` (Create).
 - `src/cr/geometry/geometry-cli-emit.ts` — `readGeometrySlug` and `emitFamilyLines`, shared by the geometry CLIs (Modify).
 - `src/cr/geometry/geometry-diff-cli.ts`, `src/cr/geometry/geometry-export-cli.ts` — switched to those two helpers (Modify).
 - `src/cr/geometry/geometry-review-cli.ts` — `noldor design geometry-review` (Create).
@@ -42,6 +42,7 @@ import type { CaptureResult } from '../../../core/run-capture.js';
 import type { Slug } from '../../../core/slug.js';
 import { DEFAULT_TOLERANCE } from '../../geometry/geometry-compare-core.js';
 import {
+  extractDesignDocs,
   reviewSurfaceGeometry,
   setGeometryReviewDeps,
   viewportsAgree,
@@ -218,6 +219,33 @@ describe('reviewSurfaceGeometry', () => {
   });
 });
 
+describe('extractDesignDocs', () => {
+  it('reads every requested surface with ONE reader dispatch', async () => {
+    let calls = 0;
+    setGeometryExtractDispatcher(async (input) => {
+      calls++;
+      for (const r of input.requests) {
+        await writeFile(r.outPath, JSON.stringify({ ...(doc(24) as object), surface: r.surface }), 'utf8');
+      }
+      const rows = input.requests.map((r) => ({ surface: r.surface, candidates: ['overview'], excluded: [] }));
+      return JSON.stringify({ surfaces: rows });
+    });
+    const surfaces = [{ surface: 'dashboard' }, { surface: 'settings' }];
+    const m = await extractDesignDocs({ penPath: join(dir, 'design.pen'), surfaces, outDir: dir, repoRoot: dir, slug: 'feat-ui' as Slug });
+    expect(calls).toBe(1);
+    expect([...m.values()].map((e) => e.kind)).toEqual(['extracted', 'extracted']);
+  });
+
+  it('never passes a stale design document off as this dispatch\'s output', async () => {
+    await writeFile(join(dir, 'dashboard.design.json'), JSON.stringify(doc(24)), 'utf8');
+    setGeometryExtractDispatcher(async () =>
+      JSON.stringify({ surfaces: [{ surface: 'dashboard', candidates: ['overview'], excluded: [] }] }),
+    );
+    const r = await review();
+    expect(r.kind === 'declined' && r.reason).toBe('geometry-extract-failed');
+  });
+});
+
 describe('viewportsAgree', () => {
   it('tolerates rounding but not a real difference', () => {
     expect(viewportsAgree({ width: 1440, height: 900 }, { width: 1440.5, height: 900 })).toBe(true);
@@ -238,14 +266,14 @@ Expected output: `Failed to resolve import "../../geometry/geometry-review.js"`.
 
 ```ts
 // @tests: ui-design-review-lane
-// One surface, one comparison: read the design through the pencil-MCP reader
-// child, run the consumer's capture command against a URL, and compare the two
-// documents. The lane (part 5) calls this per surface after booting the app; the
-// CLI beside it calls it once against an app the operator already has running.
-// Both get the same reason codes, so a hand-run answer and a lane row cannot
-// disagree.
+// Layout comparison in two steps. `extractDesignDocs` reads every requested
+// surface's design through ONE pencil-MCP reader dispatch; `compareSurfaceGeometry`
+// captures one surface at a URL and compares it with its pre-extracted design.
+// The lane (part 5) extracts once before booting, so no dev server waits on an
+// agent; `reviewSurfaceGeometry` runs the two back to back for the hand-run CLI.
+// Both paths use the same reason codes, so a hand run and a lane row agree.
 
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { errMessage } from '../../core/err-message.js';
@@ -254,20 +282,9 @@ import type { Slug } from '../../core/slug.js';
 import { sanitizeSurfaceName } from '../../core/ui-boot.js';
 import type { LaneReasonCode } from '../findings-schema.js';
 import type { LaneAnswer } from '../lane-answer.js';
-import {
-  dispatchGeometryExtract,
-  GeometryExtractError,
-  type GeometryExtractReport,
-} from '../lanes/geometry-extract-dispatch.js';
+import { dispatchGeometryExtract, GeometryExtractError, type GeometryExtractReport } from '../lanes/geometry-extract-dispatch.js';
 import { selectFinalPage, substituteScreenshotCommand } from '../lanes/render-compare-core.js';
-import {
-  compareGeometry,
-  DEFAULT_BUDGET,
-  DEFAULT_TOLERANCE,
-  GEOMETRY_FAMILIES,
-  type FamilyRecord,
-  type GeometryComparison,
-} from './geometry-compare-core.js';
+import { compareGeometry, DEFAULT_BUDGET, DEFAULT_TOLERANCE, GEOMETRY_FAMILIES, type FamilyRecord, type GeometryComparison } from './geometry-compare-core.js';
 import { parseGeometryDoc, type GeometryDoc } from './geometry-doc.js';
 
 /** Byte ceiling before a producer's document is read into memory. */
@@ -277,40 +294,63 @@ const VIEWPORT_EPSILON = 1;
 /** The recipe schema's own `captureTimeoutMs` default. */
 const DEFAULT_CAPTURE_TIMEOUT_MS = 60_000;
 
-export interface ReviewSurfaceInput {
+/** A stage that could not go on, with its reason code. */
+export type Declined = { kind: 'declined'; reason: LaneReasonCode; detail: string };
+
+export interface ExtractDesignInput {
   /** Scratch COPY of the design — never the repo's own file. */
   penPath: string;
-  surface: string;
-  /** `FINAL:<surface>: <name>` selector, when the surface has several pages. */
-  pageSelector?: string;
-  /** Where the implementation renders — already booted by the caller. */
-  url: string;
-  geometryCommand: string;
-  /** Directory the design document is written into. */
+  /** Every surface to read, with its `FINAL:<surface>: <name>` selector when it has one. */
+  surfaces: readonly { surface: string; pageSelector?: string }[];
+  /** Directory the design documents are written into. */
   outDir: string;
-  /** Path the capture command must write the implementation document to. */
-  implPath: string;
   repoRoot: string;
   /** Slug the reader child's answer file is filed under: the round's, or `GEOMETRY_ADHOC_SLUG`. */
   slug: Slug;
+  dispatchTimeoutMs?: number;
+}
+
+/** One surface's design: the document, or why it could not be read. */
+export type DesignExtraction =
+  | { kind: 'extracted'; design: GeometryDoc; excluded: string[] }
+  | Declined;
+
+export interface CompareSurfaceInput {
+  surface: string;
+  /** The surface's design, from {@link extractDesignDocs}. */
+  design: GeometryDoc;
+  /** Where the implementation renders — already booted by the caller. */
+  url: string;
+  geometryCommand: string;
+  /** Path the capture command must write the implementation document to. */
+  implPath: string;
+  repoRoot: string;
   captureTimeoutMs?: number;
   /** Per-family overrides; families left out keep {@link DEFAULT_TOLERANCE}. */
   tolerance?: Partial<FamilyRecord<number>>;
   /** Per-family overrides; families left out keep {@link DEFAULT_BUDGET}. */
   budget?: Partial<FamilyRecord<number>>;
+}
+
+export type SurfaceComparison =
+  | { kind: 'compared'; comparison: GeometryComparison; design: GeometryDoc; impl: GeometryDoc }
+  | Declined;
+
+/** Both steps for one surface, as the hand-run CLI needs them. */
+export interface ReviewSurfaceInput extends Omit<CompareSurfaceInput, 'design'> {
+  penPath: string;
+  pageSelector?: string;
+  outDir: string;
+  slug: Slug;
   dispatchTimeoutMs?: number;
 }
 
 export type ReviewSurfaceResult =
-  | {
-      kind: 'compared';
-      comparison: GeometryComparison;
-      design: GeometryDoc;
-      impl: GeometryDoc;
+  | (Extract<SurfaceComparison, { kind: 'compared' }> & {
       /** Design nodes pen reported clipped, which the reader therefore dropped. */
       excluded: string[];
-    }
-  | { kind: 'declined'; reason: LaneReasonCode; detail: string };
+    })
+  | Declined;
 
 interface ReviewDeps {
   capture: typeof runCapture;
@@ -348,66 +388,87 @@ export function withFamilyDefaults(
   return out;
 }
 
-const declined = (reason: LaneReasonCode, detail: string): ReviewSurfaceResult => ({
+const declined = (reason: LaneReasonCode, detail: string): Declined => ({
   kind: 'declined',
   reason,
   detail,
 });
 
-export async function reviewSurfaceGeometry(
-  input: ReviewSurfaceInput,
-): Promise<ReviewSurfaceResult> {
-  const designPath = join(input.outDir, `${sanitizeSurfaceName(input.surface)}.design.json`);
+/**
+ * Read every requested surface's design with ONE reader dispatch. A failed or
+ * unusable dispatch declines every surface; otherwise each surface is judged on
+ * its own answer row, page selection and document.
+ */
+export async function extractDesignDocs(
+  input: ExtractDesignInput,
+): Promise<Map<string, DesignExtraction>> {
+  const out = new Map<string, DesignExtraction>();
+  if (input.surfaces.length === 0) return out;
+  const pathOf = (surface: string): string =>
+    join(input.outDir, `${sanitizeSurfaceName(surface)}.design.json`);
+  // A document left from an earlier run (possibly another page) must never pass
+  // as this dispatch's output: a child that answers but writes nothing declines.
+  for (const s of input.surfaces) await rm(pathOf(s.surface), { force: true });
+  const declineAll = (detail: string): Map<string, DesignExtraction> => {
+    for (const s of input.surfaces) out.set(s.surface, declined('geometry-extract-failed', detail));
+    return out;
+  };
   let answer: LaneAnswer<GeometryExtractReport>;
   try {
     answer = await dispatchGeometryExtract(
       {
         penPath: input.penPath,
-        requests: [
-          {
-            surface: input.surface,
-            ...(input.pageSelector !== undefined ? { pageSelector: input.pageSelector } : {}),
-            outPath: designPath,
-          },
-        ],
+        requests: input.surfaces.map((s) => ({
+          surface: s.surface,
+          ...(s.pageSelector !== undefined ? { pageSelector: s.pageSelector } : {}),
+          outPath: pathOf(s.surface),
+        })),
         ...(input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {}),
       },
       { repoRoot: input.repoRoot, slug: input.slug, kind: 'code' },
     );
   } catch (err) {
-    return declined(
-      'geometry-extract-failed',
+    return declineAll(
       err instanceof GeometryExtractError ? err.message : `dispatch failed: ${errMessage(err)}`,
     );
   }
   if (!answer.ok) {
     // Without a valid answer there is no trustworthy page enumeration, so a
     // document on disk could describe the WRONG page.
-    return declined(
-      'geometry-extract-failed',
-      `the reader gave no usable answer, so page selection is unverified — ${answer.detail}`,
+    return declineAll(`the reader gave no usable answer, so page selection is unverified — ${answer.detail}`);
+  }
+  for (const s of input.surfaces) {
+    const rows = answer.answer.surfaces.filter((r) => r.surface === s.surface);
+    if (rows.length !== 1) {
+      const detail = `the reader's answer carries ${rows.length} rows for surface '${s.surface}'`;
+      out.set(s.surface, declined('geometry-extract-failed', detail));
+      continue;
+    }
+    // The child ENUMERATES, this side SELECTS.
+    const selection = selectFinalPage(s.surface, rows[0].candidates, s.pageSelector);
+    if (!selection.ok) {
+      out.set(s.surface, declined('page-ambiguous', selection.detail));
+      continue;
+    }
+    const doc = await readDoc(pathOf(s.surface), 'design', s.surface);
+    out.set(
+      s.surface,
+      doc.ok ? { kind: 'extracted', design: doc.doc, excluded: rows[0].excluded } : declined(doc.reason, doc.detail),
     );
   }
-  const rows = answer.answer.surfaces.filter((s) => s.surface === input.surface);
-  if (rows.length !== 1) {
-    return declined(
-      'geometry-extract-failed',
-      `the reader's answer carries ${rows.length} rows for surface '${input.surface}'`,
-    );
-  }
-  // The child ENUMERATES, this side SELECTS.
-  const selection = selectFinalPage(input.surface, rows[0].candidates, input.pageSelector);
-  if (!selection.ok) return declined('page-ambiguous', selection.detail);
-  const design = await readDoc(designPath, 'design', input.surface);
-  if (!design.ok) return declined(design.reason, design.detail);
+  return out;
+}
 
+/** Capture one surface at `url` and compare it with its pre-extracted design. */
+export async function compareSurfaceGeometry(input: CompareSurfaceInput): Promise<SurfaceComparison> {
+  const { design } = input;
   // The design page's own size IS the capture viewport, so both sides measure
   // the same box rather than agreeing by luck.
   const command = substituteScreenshotCommand(input.geometryCommand, {
     url: input.url,
     out: input.implPath,
-    width: String(design.doc.viewport.width),
-    height: String(design.doc.viewport.height),
+    width: String(design.viewport.width),
+    height: String(design.viewport.height),
   });
   if (command === null) {
     return declined(
@@ -415,6 +476,8 @@ export async function reviewSurfaceGeometry(
       `a substitution value contains a single quote and cannot be safely quoted (out=${input.implPath})`,
     );
   }
+  // Same staleness rule as the design side: an earlier capture must not pass as this one.
+  await rm(input.implPath, { force: true });
   const timeoutMs = input.captureTimeoutMs ?? DEFAULT_CAPTURE_TIMEOUT_MS;
   let cap: CaptureResult;
   try {
@@ -434,7 +497,7 @@ export async function reviewSurfaceGeometry(
   }
   const impl = await readDoc(input.implPath, 'impl', input.surface);
   if (!impl.ok) return declined(impl.reason, impl.detail);
-  const dv = design.doc.viewport;
+  const dv = design.viewport;
   const iv = impl.doc.viewport;
   if (!viewportsAgree(dv, iv)) {
     return declined(
@@ -445,15 +508,32 @@ export async function reviewSurfaceGeometry(
   return {
     kind: 'compared',
     comparison: compareGeometry(
-      design.doc,
+      design,
       impl.doc,
       withFamilyDefaults(input.tolerance, DEFAULT_TOLERANCE),
       withFamilyDefaults(input.budget, DEFAULT_BUDGET),
     ),
-    design: design.doc,
+    design,
     impl: impl.doc,
-    excluded: rows[0].excluded,
   };
+}
+
+/** Extract then compare one surface — the hand-run path. It boots nothing. */
+export async function reviewSurfaceGeometry(input: ReviewSurfaceInput): Promise<ReviewSurfaceResult> {
+  const { penPath, pageSelector, outDir, slug, dispatchTimeoutMs, ...compare } = input;
+  const extractions = await extractDesignDocs({
+    penPath,
+    surfaces: [{ surface: input.surface, ...(pageSelector !== undefined ? { pageSelector } : {}) }],
+    outDir,
+    repoRoot: input.repoRoot,
+    slug,
+    ...(dispatchTimeoutMs !== undefined ? { dispatchTimeoutMs } : {}),
+  });
+  const extracted =
+    extractions.get(input.surface) ?? declined('geometry-extract-failed', 'no extraction result');
+  if (extracted.kind === 'declined') return extracted;
+  const result = await compareSurfaceGeometry({ ...compare, design: extracted.design });
+  return result.kind === 'declined' ? result : { ...result, excluded: extracted.excluded };
 }
 
 /** Read one side's document, mapping every failure onto its own reason code. */
@@ -505,7 +585,7 @@ async function readDoc(
 pnpm vitest run src/cr/__tests__/geometry/geometry-review.test.ts && pnpm typecheck
 ```
 
-Expected output: `Tests  12 passed (12)`. `tsc` exits 0.
+Expected output: `Tests  14 passed (14)`. `tsc` exits 0.
 
 - [ ] **Step 5: Commit.**
 
@@ -513,14 +593,13 @@ Expected output: `Tests  12 passed (12)`. `tsc` exits 0.
 cat > /tmp/geo-p4t1.msg <<'MSG'
 feat(cr): compare one surface's layout against its design
 
-reviewSurfaceGeometry turns the separate pieces into one answer for one
-surface. It dispatches the reader child, reselects the FINAL: page from the
-child's candidates, captures the implementation at the design page's own
-viewport, and compares at the recipe's tolerances and budgets. A partial
-override keeps the defaults for the families it leaves out. The capture script
-gets its surface through NOLDOR_GEOMETRY_SURFACE. Every stage that cannot go on
-declines with its own reason code, a dispatch that throws included, so the lane
-and a hand run report the same way. It takes a URL and boots nothing.
+extractDesignDocs reads every requested surface's design with one reader
+dispatch and reselects each FINAL: page from the child's candidates; a stale
+document never passes as fresh. compareSurfaceGeometry captures one surface at
+the design page's own viewport, with NOLDOR_GEOMETRY_SURFACE set, and compares
+at the recipe's tolerances and budgets, partial overrides keeping the defaults.
+reviewSurfaceGeometry runs both for one surface. Every stage that cannot go on
+declines with its own reason code, so the lane and a hand run agree.
 
 Noldor-FD: ui-design-review-lane
 MSG

@@ -542,6 +542,16 @@ describe('runGeometryExport', () => {
     expect(text).toContain('page selection is unverified');
   });
 
+  it('never reports a stale --out file as fresh when the child writes nothing', async () => {
+    const out = join(dir, 'stale.json');
+    writeFileSync(out, doc('dashboard'), 'utf8');
+    setGeometryExtractDispatcher(async () => report(['overview']));
+    const { code, text } = await run(out);
+    expect(code).toBe(1);
+    expect(text).toContain('the reader wrote no readable document');
+    expect(text).not.toContain(`wrote ${out}`);
+  });
+
   it('exits 2 when the dispatch itself fails', async () => {
     setGeometryExtractDispatcher(async () => {
       throw new Error('pencil bridge down');
@@ -648,7 +658,7 @@ export const GEOMETRY_ADHOC_SLUG: Slug = adhoc.slug;
 // implementation document without booting anything.
 
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { readValueFlags, runIfDirect } from '../../core/cli-entry.js';
@@ -714,6 +724,9 @@ export async function runGeometryExport(
     emit(`${LABEL}: no such design file: ${penPath}`);
     return 2;
   }
+  // A document left from an earlier run (possibly another page) must never pass
+  // as this dispatch's output: a child that answers but writes nothing fails.
+  await rm(outPath, { force: true });
   let answer: LaneAnswer<GeometryExtractReport>;
   try {
     answer = await dispatchGeometryExtract(
@@ -781,7 +794,7 @@ runIfDirect('geometry-export-cli', `design ${LABEL}`, (argv) => runGeometryExpor
 pnpm vitest run src/cr/__tests__/geometry/geometry-export-cli.test.ts src/cr/__tests__/geometry/geometry-validate-cli.test.ts src/cr/__tests__/geometry/geometry-diff-cli.test.ts && pnpm typecheck
 ```
 
-Expected output: `Test Files  3 passed (3)`. The new file contributes 9 passing tests; the two existing geometry CLI suites stay green over the edited `geometry-cli-emit.ts`. `tsc` exits 0 with no output.
+Expected output: `Test Files  3 passed (3)`. The new file contributes 10 passing tests; the two existing geometry CLI suites stay green over the edited `geometry-cli-emit.ts`. `tsc` exits 0 with no output.
 
 - [ ] **Step 6: Commit.**
 
