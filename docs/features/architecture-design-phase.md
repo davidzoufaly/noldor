@@ -32,10 +32,9 @@ links:
 name: pen.dev Architecture Design Phase
 packages:
   - package.json
-phase: done
+phase: in-progress
 noldor-tier: full
 ---
-
 ## Summary
 
 An as-built architecture baseline on the pen.dev canvas — `docs/design/architecture/baseline.pen`, one page per `docs/architecture/` view — that architecture designs start from and ship back into, the loop UI designs already run. `checks arch-baseline` holds its `modules` view to the code: every module boxed once, every arrow backed by a real import. `/noldor-spec` step 1.6 seeds, iterates and approves an architecture `.pen`, gate Step 4 writes the approved change back, and a milestone can carry a target architecture whose gap `design arch-progress` reports — all on the approval, guard, archive and bridge machinery UI uses, through one design-kind seam (ADR 0007).
