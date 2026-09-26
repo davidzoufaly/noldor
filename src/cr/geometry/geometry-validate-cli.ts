@@ -7,9 +7,9 @@
 
 import { readFile } from 'node:fs/promises';
 
-import { readValueFlags, runIfDirect } from '../../core/cli-entry.js';
+import { runIfDirect } from '../../core/cli-entry.js';
 import { errMessage } from '../../core/err-message.js';
-import { stdoutEmit, type Emit } from './geometry-cli-emit.js';
+import { readGeometryFlags, stdoutEmit, type Emit } from './geometry-cli-emit.js';
 import { parseGeometryDoc, type GeometrySide } from './geometry-doc.js';
 
 const LABEL = 'geometry-validate';
@@ -17,8 +17,6 @@ const USAGE = `usage: noldor design ${LABEL} <doc.json> --side design|impl --sur
 
 /** Narrowing predicate, not a cast: `side` arrives as untrusted argv text. */
 const isSide = (s: string): s is GeometrySide => s === 'design' || s === 'impl';
-/** Every flag this command takes a value for — an unknown flag is user error. */
-const VALUE_FLAGS = ['--side', '--surface'] as const;
 
 /**
  * Exit 0 = conformant, 1 = the document violates the contract, 2 = usage error
@@ -29,18 +27,17 @@ export async function runGeometryValidate(
   argv: readonly string[],
   emit: Emit = stdoutEmit,
 ): Promise<number> {
-  const read = readValueFlags(argv, VALUE_FLAGS, LABEL);
-  if (!read.ok) {
-    emit(`${read.error}\n${USAGE}`);
-    return 2;
-  }
-  const { values, positional } = read;
-  const side = values.get('--side');
-  const surface = values.get('--surface');
   // `--surface` is REQUIRED: defaulting it to whatever the document claims would
   // make the surface-equality check self-satisfying, and that check is the whole
   // point of passing a side and a surface separately.
-  if (positional.length !== 1 || side === undefined || surface === undefined || !isSide(side)) {
+  const flags = readGeometryFlags(
+    argv,
+    { label: LABEL, usage: USAGE, required: ['--side', '--surface'], optional: [], positional: 1 },
+    emit,
+  );
+  if (flags === null) return 2;
+  const { '--side': side, '--surface': surface } = flags.required;
+  if (!isSide(side)) {
     emit(USAGE);
     return 2;
   }
@@ -50,9 +47,9 @@ export async function runGeometryValidate(
     // its bytes are not JSON. Exit 1 is reserved for a document that parsed and
     // then violated the contract, which is the only case where the tool has an
     // answer ABOUT a document.
-    raw = JSON.parse(await readFile(positional[0], 'utf8'));
+    raw = JSON.parse(await readFile(flags.positional[0], 'utf8'));
   } catch (err) {
-    emit(`${LABEL}: could not read ${positional[0]} as JSON: ${errMessage(err)}`);
+    emit(`${LABEL}: could not read ${flags.positional[0]} as JSON: ${errMessage(err)}`);
     return 2;
   }
   // `side` is narrowed by `isSide`, never asserted: this is an external-input
@@ -63,7 +60,7 @@ export async function runGeometryValidate(
     return 1;
   }
   emit(
-    `${LABEL}: ${positional[0]} is a valid ${side} document for surface '${surface}' — ${parsed.doc.nodes.length} node(s), viewport ${parsed.doc.viewport.width}x${parsed.doc.viewport.height}`,
+    `${LABEL}: ${flags.positional[0]} is a valid ${side} document for surface '${surface}' — ${parsed.doc.nodes.length} node(s), viewport ${parsed.doc.viewport.width}x${parsed.doc.viewport.height}`,
   );
   return 0;
 }

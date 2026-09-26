@@ -5,13 +5,11 @@
 // operator produce the design half by hand and diff it against a captured
 // implementation document without booting anything.
 
-import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { readValueFlags, runIfDirect } from '../../core/cli-entry.js';
+import { runIfDirect } from '../../core/cli-entry.js';
 import { errMessage } from '../../core/err-message.js';
-import { parseSlug } from '../../core/slug.js';
 import type { LaneAnswer } from '../lane-answer.js';
 import {
   dispatchGeometryExtract,
@@ -19,13 +17,11 @@ import {
   type GeometryExtractReport,
 } from '../lanes/geometry-extract-dispatch.js';
 import { selectFinalPage } from '../lanes/render-compare-core.js';
-import { GEOMETRY_ADHOC_SLUG, stdoutEmit, type Emit } from './geometry-cli-emit.js';
+import { readGeometryFlags, stdoutEmit, type Emit } from './geometry-cli-emit.js';
 import { parseGeometryDoc } from './geometry-doc.js';
 
 const LABEL = 'geometry-export';
 const USAGE = `usage: noldor design ${LABEL} --pen <file.pen> --surface <name> --out <doc.json> [--page <name>] [--slug <slug>]`;
-/** Every flag this command takes a value for — an unknown flag is user error. */
-const VALUE_FLAGS = ['--pen', '--surface', '--out', '--page', '--slug'] as const;
 
 /**
  * Exit 0 = a conformant document was written, 1 = the design could not be read
@@ -38,40 +34,15 @@ export async function runGeometryExport(
   argv: readonly string[],
   emit: Emit = stdoutEmit,
 ): Promise<number> {
-  const read = readValueFlags(argv, VALUE_FLAGS, LABEL);
-  if (!read.ok) {
-    emit(`${read.error}\n${USAGE}`);
-    return 2;
-  }
-  const { values, positional } = read;
-  const pen = values.get('--pen');
-  const surface = values.get('--surface');
-  const out = values.get('--out');
-  const pageSelector = values.get('--page');
-  if (positional.length !== 0 || pen === undefined || surface === undefined || out === undefined) {
-    emit(USAGE);
-    return 2;
-  }
-  // No CR round owns a hand run, so the answer file needs a slug of its own;
-  // `--slug` lets an operator file it beside a round they are debugging.
-  let slug = GEOMETRY_ADHOC_SLUG;
-  const slugFlag = values.get('--slug');
-  if (slugFlag !== undefined) {
-    const parsed = parseSlug(slugFlag);
-    if (!parsed.ok) {
-      emit(`${LABEL}: ${parsed.error.message}\n${USAGE}`);
-      return 2;
-    }
-    slug = parsed.slug;
-  }
-  // Absolute paths: the child runs in its own process and is told to write
-  // exactly where the prompt says.
-  const penPath = resolve(pen);
-  const outPath = resolve(out);
-  if (!existsSync(penPath)) {
-    emit(`${LABEL}: no such design file: ${penPath}`);
-    return 2;
-  }
+  const flags = readGeometryFlags(
+    argv,
+    { label: LABEL, usage: USAGE, required: ['--out'], optional: [], positional: 0, design: true },
+    emit,
+  );
+  if (flags?.design === undefined) return 2;
+  const { penPath, surface, pageSelector, slug } = flags.design;
+  // Absolute: the child is told to write exactly where the prompt says.
+  const outPath = resolve(flags.required['--out']);
   // A document left from an earlier run (possibly another page) must never pass
   // as this dispatch's output: a child that answers but writes nothing fails.
   await rm(outPath, { force: true });
