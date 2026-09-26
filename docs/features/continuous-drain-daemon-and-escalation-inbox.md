@@ -8,13 +8,14 @@ links:
   docs:
     - docs/noldor/autonomy.md
   code:
-    - src/autonomous/watch.ts
-    - src/autonomous/salvage.ts
     - src/autonomous/escalations.ts
-    - src/autonomous/watch-state.ts
-    - src/autonomous/notify.ts
     - src/autonomous/inbox-cli.ts
+    - src/autonomous/notify.ts
+    - src/autonomous/salvage.ts
     - src/autonomous/unpark-cli.ts
+    - src/autonomous/watch-detach.ts
+    - src/autonomous/watch-state.ts
+    - src/autonomous/watch.ts
   tests:
     - src/autonomous/__tests__/branch-work.test.ts
     - src/autonomous/__tests__/build-pool.test.ts
@@ -102,13 +103,14 @@ touch .noldor/drain-stop                # one-shot stop (exit 130), cleared at n
 - **Plan:**
   - [`docs/design/plans/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md`](../../docs/design/plans/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md)
 - **Code:**
-  - [`src/autonomous/watch.ts`](../../src/autonomous/watch.ts)
-  - [`src/autonomous/salvage.ts`](../../src/autonomous/salvage.ts)
   - [`src/autonomous/escalations.ts`](../../src/autonomous/escalations.ts)
-  - [`src/autonomous/watch-state.ts`](../../src/autonomous/watch-state.ts)
-  - [`src/autonomous/notify.ts`](../../src/autonomous/notify.ts)
   - [`src/autonomous/inbox-cli.ts`](../../src/autonomous/inbox-cli.ts)
+  - [`src/autonomous/notify.ts`](../../src/autonomous/notify.ts)
+  - [`src/autonomous/salvage.ts`](../../src/autonomous/salvage.ts)
   - [`src/autonomous/unpark-cli.ts`](../../src/autonomous/unpark-cli.ts)
+  - [`src/autonomous/watch-detach.ts`](../../src/autonomous/watch-detach.ts)
+  - [`src/autonomous/watch-state.ts`](../../src/autonomous/watch-state.ts)
+  - [`src/autonomous/watch.ts`](../../src/autonomous/watch.ts)
 - **Tests:**
   - [`src/autonomous/__tests__/branch-work.test.ts`](../../src/autonomous/__tests__/branch-work.test.ts)
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)

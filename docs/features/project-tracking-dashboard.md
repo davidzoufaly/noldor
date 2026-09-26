@@ -8,10 +8,14 @@ packages:
 deps: []
 links:
   code:
-    - src/dashboard/server.ts
     - src/dashboard/data.ts
-    - src/dashboard/views.ts
+    - src/dashboard/ensure.ts
+    - src/dashboard/host.ts
+    - src/dashboard/identity.ts
     - src/dashboard/layout.ts
+    - src/dashboard/server.ts
+    - src/dashboard/status.ts
+    - src/dashboard/views.ts
   tests:
     - src/dashboard/__tests__/blocked-by.test.ts
     - src/dashboard/__tests__/dashboard-agents.test.ts
@@ -82,10 +86,14 @@ As a maintainer (human or agent), I want to see live, filterable project state i
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
   - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
-  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
+  - [`src/dashboard/ensure.ts`](../../src/dashboard/ensure.ts)
+  - [`src/dashboard/host.ts`](../../src/dashboard/host.ts)
+  - [`src/dashboard/identity.ts`](../../src/dashboard/identity.ts)
   - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
+  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
+  - [`src/dashboard/status.ts`](../../src/dashboard/status.ts)
+  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/blocked-by.test.ts`](../../src/dashboard/__tests__/blocked-by.test.ts)
   - [`src/dashboard/__tests__/dashboard-agents.test.ts`](../../src/dashboard/__tests__/dashboard-agents.test.ts)

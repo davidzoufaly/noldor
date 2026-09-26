@@ -6,23 +6,35 @@ deps:
   - fix-multiterminal-dev-flow-bug
 links:
   code:
-    - src/cr/orchestrate.ts
-    - src/cr/aggregate.ts
-    - src/cr/aggregate-cli.ts
-    - src/cr/filename.ts
-    - src/core/prompt-stdin.ts
-    - src/cr/orchestrate-args.ts
-    - src/cr/codex.ts
-    - src/cr/lanes/manual.ts
-    - src/cr/lanes/subagent.ts
-    - src/cr/lanes/subagent-dispatch.ts
-    - src/cr/standalone-prompt.md
-    - src/cr/lanes/escalate-prompt.md
-    - src/validate/noldor-config.ts
     - .claude/skills/noldor-gate/SKILL.md
     - .noldor/config.json
+    - src/core/prompt-stdin.ts
     - src/core/sha.ts
+    - src/cr/aggregate-cli.ts
+    - src/cr/aggregate.ts
+    - src/cr/amend-receipt.ts
+    - src/cr/cli-args.ts
+    - src/cr/codex-failure.ts
+    - src/cr/codex.ts
+    - src/cr/context.ts
+    - src/cr/deep-review-spawn.ts
+    - src/cr/escalate-cli.ts
+    - src/cr/escalate.ts
+    - src/cr/expected-lanes.ts
+    - src/cr/filename.ts
+    - src/cr/findings-schema.ts
+    - src/cr/lane-sink.ts
+    - src/cr/lane-types.ts
+    - src/cr/lanes/escalate-prompt.md
+    - src/cr/lanes/manual.ts
+    - src/cr/lanes/subagent-dispatch.ts
+    - src/cr/lanes/subagent.ts
+    - src/cr/locations.ts
+    - src/cr/orchestrate-args.ts
+    - src/cr/orchestrate.ts
+    - src/cr/standalone-prompt.md
     - src/hooks/noldor-enforce-arbitration.ts
+    - src/validate/noldor-config.ts
   tests:
     - src/core/__tests__/config.test.ts
     - src/core/__tests__/lanes.test.ts
@@ -126,23 +138,35 @@ This release threads prior-round reviewer context into re-round prompts (#328).
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts)
-  - [`src/cr/aggregate.ts`](../../src/cr/aggregate.ts)
-  - [`src/cr/aggregate-cli.ts`](../../src/cr/aggregate-cli.ts)
-  - [`src/cr/filename.ts`](../../src/cr/filename.ts)
-  - [`src/core/prompt-stdin.ts`](../../src/core/prompt-stdin.ts)
-  - [`src/cr/orchestrate-args.ts`](../../src/cr/orchestrate-args.ts)
-  - [`src/cr/codex.ts`](../../src/cr/codex.ts)
-  - [`src/cr/lanes/manual.ts`](../../src/cr/lanes/manual.ts)
-  - [`src/cr/lanes/subagent.ts`](../../src/cr/lanes/subagent.ts)
-  - [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts)
-  - [`src/cr/standalone-prompt.md`](../../src/cr/standalone-prompt.md)
-  - [`src/cr/lanes/escalate-prompt.md`](../../src/cr/lanes/escalate-prompt.md)
-  - [`src/validate/noldor-config.ts`](../../src/validate/noldor-config.ts)
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`.noldor/config.json`](../../.noldor/config.json)
+  - [`src/core/prompt-stdin.ts`](../../src/core/prompt-stdin.ts)
   - [`src/core/sha.ts`](../../src/core/sha.ts)
+  - [`src/cr/aggregate-cli.ts`](../../src/cr/aggregate-cli.ts)
+  - [`src/cr/aggregate.ts`](../../src/cr/aggregate.ts)
+  - [`src/cr/amend-receipt.ts`](../../src/cr/amend-receipt.ts)
+  - [`src/cr/cli-args.ts`](../../src/cr/cli-args.ts)
+  - [`src/cr/codex-failure.ts`](../../src/cr/codex-failure.ts)
+  - [`src/cr/codex.ts`](../../src/cr/codex.ts)
+  - [`src/cr/context.ts`](../../src/cr/context.ts)
+  - [`src/cr/deep-review-spawn.ts`](../../src/cr/deep-review-spawn.ts)
+  - [`src/cr/escalate-cli.ts`](../../src/cr/escalate-cli.ts)
+  - [`src/cr/escalate.ts`](../../src/cr/escalate.ts)
+  - [`src/cr/expected-lanes.ts`](../../src/cr/expected-lanes.ts)
+  - [`src/cr/filename.ts`](../../src/cr/filename.ts)
+  - [`src/cr/findings-schema.ts`](../../src/cr/findings-schema.ts)
+  - [`src/cr/lane-sink.ts`](../../src/cr/lane-sink.ts)
+  - [`src/cr/lane-types.ts`](../../src/cr/lane-types.ts)
+  - [`src/cr/lanes/escalate-prompt.md`](../../src/cr/lanes/escalate-prompt.md)
+  - [`src/cr/lanes/manual.ts`](../../src/cr/lanes/manual.ts)
+  - [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts)
+  - [`src/cr/lanes/subagent.ts`](../../src/cr/lanes/subagent.ts)
+  - [`src/cr/locations.ts`](../../src/cr/locations.ts)
+  - [`src/cr/orchestrate-args.ts`](../../src/cr/orchestrate-args.ts)
+  - [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts)
+  - [`src/cr/standalone-prompt.md`](../../src/cr/standalone-prompt.md)
   - [`src/hooks/noldor-enforce-arbitration.ts`](../../src/hooks/noldor-enforce-arbitration.ts)
+  - [`src/validate/noldor-config.ts`](../../src/validate/noldor-config.ts)
 - **Tests:**
   - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)
   - [`src/core/__tests__/lanes.test.ts`](../../src/core/__tests__/lanes.test.ts)
