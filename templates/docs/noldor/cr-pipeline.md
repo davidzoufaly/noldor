@@ -248,7 +248,7 @@ lanes wrote them and adds a `judge:` note to the sink. The judge never sees:
 
 - suggestions;
 - a lane's own failure blocker (`<reviewer>` / `<codex>`);
-- anything from the `manual`, `verifier`, `ui-reviewer` or `render-compare` lanes.
+- anything from the `manual`, `verifier`, `ui-reviewer`, `render-compare` or `geometry-compare` lanes.
 
 A demoted blocker moves out of `blockers` into the sink's `refuted` list, whole, with the judge's
 reason and evidence. Everything downstream reads the sinks as the judge left them: the exit code,
@@ -519,8 +519,10 @@ How it runs:
   drift, and any surface-name set whose artifact-name sanitization collides.
 - **Boot** groups surfaces by `verifyCommand`; each group boots once on a fresh
   port (pre-boot occupancy check, own process group, SIGKILL on every exit
-  path). When `verifier` shares the round, render-compare starts only after it
-  resolves — the two lanes boot the same servers. A failed boot marks only its
+  path). The booting lanes run as a chain — `verifier`, then `render-compare`, then
+  `geometry-compare` — each starting only after the previous resolves, because
+  they boot the same servers and two dev servers over one project directory
+  contend on the same build cache. A failed boot marks only its
   group's surfaces `boot-failed`; the round continues.
 - **Per surface**: a route probe (final status must be 2xx — a 404/500 route is
   `route-unreachable`, never a confident pixel verdict against an error page),
@@ -585,6 +587,115 @@ Opt in per consumer:
 The lane is opt-in (never in the defaults), code-only, and excluded from the
 delta short-circuit for the same reason `ui-reviewer` is. On a `fail`, open the
 persisted diff image before arguing with the ratio.
+
+## Geometry-compare lane
+
+The `geometry-compare` lane (code artifacts only) is a **second verification
+mode** beside `render-compare`'s pixel comparison. It is for surfaces whose
+design cannot be pixel-faithful: SVG-driven effects, shaders, generated artwork,
+platform text rendering. It compares **layout values** (alignment edges, font
+sizes, declared margins and paddings) instead of diffing rasters, so a faithful
+implementation of an effect pen cannot draw does not read as drift. It is not a
+pixel diff with loose thresholds: no raster is taken on either side.
+
+How it runs:
+
+- **Firing, design resolution and boot** match `render-compare`: the same
+  `resolveUiReviewTarget`, the same fallback to every declared surface and recipe
+  key when no affected surface resolves, and the same per-`verifyCommand` boot
+  with a retried route probe (`forEachBootedSurface`). A surface without a
+  recipe, or whose recipe has no `geometryCommand`, is a full
+  `no-geometry-recipe` outcome, so partial coverage never reads `pass`.
+- **Design side:** one dispatched child (`role: geometry-extract`) reads every
+  surface of the round, **before any app boots**, so no dev server waits on an
+  agent and a surface whose design cannot be read is never booted. It opens a
+  scratch copy of the `.pen` through pencil MCP and, for each selected `FINAL:`
+  page, writes a normalized document (`geometryDocSchema`): each node's
+  page-relative box, the `fontSize` and text of text nodes, and the declared
+  `rowGap` / `columnGap` / `padding` of frames. The child reports the page
+  candidates and Node re-runs the page selection. Nodes pen reports clipped are
+  left out and named in the round's notes.
+- **Implementation side:** the recipe's `geometryCommand` renders the route at the
+  design page's own size and writes the same document. It takes `{url}` `{out}`
+  `{width}` `{height}`, single-quoted exactly like `screenshotCommand`, and
+  receives the surface name as `NOLDOR_GEOMETRY_SURFACE`. `noldor init` scaffolds a
+  reference Playwright producer at `scripts/geometry-capture.mjs`, which the
+  consumer owns from then on.
+- **Comparison:** four families. `edgesX` and `edgesY` hold every box's two edges
+  on each axis, `fontSize` holds text nodes only, and `spacing` holds non-zero
+  declared gaps, padding and (implementation side) margin. Each family is a
+  **covering test** at its tolerance (defaults: `edgesX` / `edgesY` 2px,
+  `fontSize` 1px, `spacing` 1px), never a clustering or a one-to-one matching. A
+  value is unmatched when nothing on the other side sits within tolerance of it
+  (`unmatchedValues` in `geometry-compare-core.ts`). The edge and font-size
+  families count both directions. `spacing` counts design-only values alone, so
+  an implementation `margin` can satisfy a design `gap`, and UA-stylesheet
+  margins and negative gutters fail nothing. A family fails when its unmatched
+  count exceeds its budget, which defaults to 0. Viewports that differ by more
+  than 1px give `viewport-mismatch`, and a side with no nodes gives
+  `geometry-empty`.
+- **Verdicts** land in `.noldor/cr/<slug>-code-geometry-compare.json`. Each failing
+  family gets one finding that names the unmatched values and the nodes behind
+  them. Severity is `med` for 1–2 unmatched values and `high` for 3 or more. The
+  worst outcome wins (`fail` > `cannot-review` > `pass`), and `pen-modified`
+  overrides everything in both modes.
+- **Evidence:** `.noldor/cr/geometry-compare/<slug>/<surface>.{design,impl,report}.json`,
+  swapped in atomically per round. A round that produced no documents keeps the
+  prior set, and a round that cannot persist its evidence is `persist-failed`.
+  The report lists every value per side and, for each unmatched value, its family,
+  side and producing nodes. Open it before arguing with a count.
+
+Reason codes for a surface that could not be compared: `no-geometry-recipe`,
+`geometry-extract-failed`, `geometry-capture-failed`, `geometry-unparseable`,
+`geometry-empty`, `viewport-mismatch`, plus the shared `boot-failed`,
+`route-unreachable`, `page-ambiguous` and `persist-failed`. A round whose
+`consumer.uiBoot` config cannot be loaded ends `config-unreadable`, and an
+unexpected pipeline failure ends `dispatch-failed`. An ordinary layout mismatch
+has no reason code: it is a `fail` with findings.
+
+Policy: `autonomous.geometryCompareMode: "blocking" | "advisory"` (default
+`advisory`). It is separate from `renderCompareMode` because trust in a layout
+diff and trust in a pixel diff diverge. Advisory mode turns fail findings into
+`low` suggestions and greens `cannot-review`; blocking mode reds both.
+
+Known limits (accepted, not bugs): the comparison is over populations of values,
+not per element, so a node that moves onto an alignment value the surface already
+uses is invisible. Spacing is one-directional, so padding the implementation adds
+without the design declaring it is invisible. Running both design lanes costs two
+app boots per round. The capture script is scaffold-only, so a later
+`geometryDocSchema` change does not reach a consumer through `init --update`; a
+stale producer shows up as `geometry-unparseable`, not as a wrong comparison. The
+design side needs a live pencil bridge, so headless CI degrades to
+`cannot-review` (`geometry-extract-failed`), advisory by default.
+
+Opt in per consumer:
+
+```json
+{
+  "consumer": {
+    "uiBoot": {
+      "dashboard": {
+        "verifyCommand": "dashboard",
+        "route": "/",
+        "geometryCommand": "node scripts/geometry-capture.mjs {url} {out} {width} {height}",
+        "geometryTolerance": { "edgesX": 2, "edgesY": 2 },
+        "geometryBudget": { "edgesX": 0, "edgesY": 0, "fontSize": 0, "spacing": 0 }
+      }
+    }
+  },
+  "crLanes": { "code": ["reviewer", "geometry-compare"] },
+  "autonomous": { "geometryCompareMode": "advisory" }
+}
+```
+
+Each piece can be run by hand: `design geometry-export` (design side),
+`design geometry-validate` (a capture script's output), `design geometry-diff`
+(two documents), and `design geometry-review` (a whole surface against an
+already-running app; it boots nothing, and otherwise uses the lane's reason
+codes). The hand-run commands compare at the default tolerances and budgets:
+they do not read a recipe's `geometryTolerance` / `geometryBudget`. The lane is
+opt-in, code-only, and excluded from the delta short-circuit for the same reason
+`render-compare` is.
 
 ## Deferred (post-MVP)
 

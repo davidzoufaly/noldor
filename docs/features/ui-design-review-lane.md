@@ -19,6 +19,16 @@ links:
     - src/cr/geometry/geometry-diff-cli.ts
     - src/cr/geometry/geometry-doc.ts
     - src/cr/geometry/geometry-validate-cli.ts
+    - src/cr/lanes/geometry-compare.ts
+    - src/cr/lanes/boot-probe.ts
+    - src/cr/lanes/round-artifacts.ts
+    - src/cr/geometry/geometry-review.ts
+    - src/cr/geometry/geometry-review-cli.ts
+    - src/cr/geometry/geometry-report.ts
+    - src/cr/extract-json.ts
+    - src/cr/findings-schema.ts
+    - src/cr/filename.ts
+    - src/cr/orchestrate.ts
     - src/core/lanes.ts
     - src/core/ui-boot.ts
     - src/verify/boot.ts
@@ -56,6 +66,7 @@ noldor-tier: specs-only
 opt-in:
   - crLanes.code=ui-reviewer
   - crLanes.code=render-compare
+  - crLanes.code=geometry-compare
 introduced: 1.4.0
 updated: 1.6.0
 ---
@@ -130,13 +141,34 @@ pnpm noldor design geometry-validate impl.json --side impl --surface dashboard
 pnpm noldor design geometry-diff design.json impl.json --surface dashboard
 ```
 
-Both take normalized geometry documents (`geometryDocSchema` in [`src/cr/geometry/geometry-doc.ts`](../../src/cr/geometry/geometry-doc.ts)) — no pen, no browser, no lane involved. Three families are compared. The comparison is a two-way **covering** test at the family's tolerance (`edgesX`/`edgesY` 2px, `fontSize` 1px, `spacing` 1px), not a pairing: a value counts as unmatched when NOTHING on the opposite side sits within tolerance of it. The guarantee is therefore exact and needs no qualification — a value at or under the tolerance from any counterpart is explained, one past it is reported, and neighbouring values cannot compose their tolerances to bridge a larger gap. Duplicate and near-duplicate values need no special handling: a wrapper stack repeating its child's edge is explained by whatever design value the child's edge is. Closest-pair greedy is not: design `{0,3}` against impl `{2,5}` at tolerance 2 matches fully, but taking the smallest difference first pairs 3 with 2 and invents two unmatched values. What is left over is the verdict, against a per-family budget defaulting to 0:
+Both take normalized geometry documents (`geometryDocSchema` in [`src/cr/geometry/geometry-doc.ts`](../../src/cr/geometry/geometry-doc.ts)) — no pen, no browser, no lane involved. Four families are compared. The comparison is a two-way **covering** test at the family's tolerance (`edgesX`/`edgesY` 2px, `fontSize` 1px, `spacing` 1px), not a pairing: a value counts as unmatched when NOTHING on the opposite side sits within tolerance of it. The guarantee is therefore exact and needs no qualification — a value at or under the tolerance from any counterpart is explained, one past it is reported, and neighbouring values cannot compose their tolerances to bridge a larger gap. Duplicate and near-duplicate values need no special handling: a wrapper stack repeating its child's edge is explained by whatever design value the child's edge is. Closest-pair greedy is not: design `{0,3}` against impl `{2,5}` at tolerance 2 matches fully, but taking the smallest difference first pairs 3 with 2 and invents two unmatched values. What is left over is the verdict, against a per-family budget defaulting to 0:
 
 - **`edgesX` / `edgesY`** — every box's `x` and `x + w` on one axis, `y` and `y + h` on the other. Separate families all the way through, because a bare coordinate is not actionable unless you know which axis it is on. Counted in **both** directions, unlike spacing: an implementation-only edge is the signal the whole comparison exists for, and a wrapper element shares its child's box, so a wrapper stack is explained by whatever design value its child's edge is. A surface that genuinely gains edges the design never had — a scrollbar, a truncation — is what that axis's `geometryBudget` entry is for. A card offset from its siblings by more than the tolerance shows up here and nowhere else; nothing else in the comparison can see it, since a mispositioned element declares no property to compare.
 - **`fontSize`** — values from text-bearing nodes only, so an inherited wrapper `font-size` never enters the population.
 - **`spacing`** — declared `rowGap`/`columnGap`/`padding`, compared **design-only**: an implementation `margin: 16` can satisfy a design `gap: 16` (pen has no margin property), while UA-stylesheet margins on `h1`/`p`/`ul` and negative gutters cannot fail anything.
 
-Exit 0 within budget, 1 on drift, 2 when a document could not be read or parsed, is empty, or disagrees with the other on viewport. A `fail` names the exact values with no counterpart, per family and per axis. Reading them back against the two documents is how you find the node responsible; the persisted per-round evidence report that lists nodes beside each value belongs to the parked lane (`Q-0180`), not to these commands. The blind spot is deliberate and worth knowing: a node that relocates onto an alignment value the surface already uses moves no value into or out of either set, so moving a card between two columns of the same grid is invisible, while nudging it off its own column past the tolerance is caught. The lane that runs this per surface against a booted app is parked as roadmap entry `Q-0180`; the design of record for it is `docs/design/specs/archive/2026-08-25-ui-design-review-lane-geometry-compare-design.md`.
+Exit 0 within budget, 1 on drift, 2 when a document could not be read or parsed, is empty, or disagrees with the other on viewport. A `fail` names the exact values with no counterpart, per family and per axis. Reading them back against the two documents is how you find the node responsible; the lane's per-round report does that for you. The blind spot is deliberate and worth knowing: a node that relocates onto an alignment value the surface already uses moves no value into or out of either set, so moving a card between two columns of the same grid is invisible, while nudging it off its own column past the tolerance is caught.
+
+**Geometry-compare lane (Q-0180).** The `geometry-compare` lane runs this comparison per affected surface against the booted app in a code-stage CR round. It is a second verification mode beside `render-compare`'s pixel diff, not a pixel diff with loose thresholds. The design side comes from one pencil-MCP reader child (`geometry-extract`) that reads every surface before any app boots, and the implementation side from your recipe's `geometryCommand`, which gets the surface name as `NOLDOR_GEOMETRY_SURFACE`. `noldor init` scaffolds `scripts/geometry-capture.mjs` as a starting producer. Opt in alongside `render-compare` or instead of it:
+
+```json
+{
+  "crLanes": { "code": ["reviewer", "render-compare", "geometry-compare"] },
+  "autonomous": { "geometryCompareMode": "advisory" },
+  "consumer": {
+    "uiBoot": {
+      "app": {
+        "verifyCommand": "web",
+        "route": "/",
+        "geometryCommand": "node scripts/geometry-capture.mjs {url} {out} {width} {height}",
+        "geometryBudget": { "edgesX": 0, "edgesY": 0, "fontSize": 0, "spacing": 0 }
+      }
+    }
+  }
+}
+```
+
+Sink: `.noldor/cr/<slug>-code-geometry-compare.json`, with one finding per failing family (`med` for 1–2 unmatched values, `high` for 3+). A surface with no `geometryCommand` is `no-geometry-recipe`, so partial coverage never reads `pass`. Evidence: `.noldor/cr/geometry-compare/<slug>/<surface>.report.json` lists every value and the nodes behind each unmatched one. Spacing stays design-only here too. To reproduce a lane row by hand against a running app, run `pnpm noldor design geometry-review --pen <file.pen> --surface app --url http://localhost:5173/ --capture "node scripts/geometry-capture.mjs {url} {out} {width} {height}"`; for the design half alone, run `pnpm noldor design geometry-export --pen <file.pen> --surface app --out design.json`. The hand-run commands compare at the default tolerances and budgets, not the recipe's overrides. The booting lanes run one after another (`verifier`, `render-compare`, `geometry-compare`). The design side needs a live pencil bridge, so headless CI degrades to `cannot-review` (`geometry-extract-failed`), advisory by default.
 
 ## PRs
 
@@ -192,6 +224,16 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/cr/geometry/geometry-diff-cli.ts`](../../src/cr/geometry/geometry-diff-cli.ts)
   - [`src/cr/geometry/geometry-doc.ts`](../../src/cr/geometry/geometry-doc.ts)
   - [`src/cr/geometry/geometry-validate-cli.ts`](../../src/cr/geometry/geometry-validate-cli.ts)
+  - [`src/cr/lanes/geometry-compare.ts`](../../src/cr/lanes/geometry-compare.ts)
+  - [`src/cr/lanes/boot-probe.ts`](../../src/cr/lanes/boot-probe.ts)
+  - [`src/cr/lanes/round-artifacts.ts`](../../src/cr/lanes/round-artifacts.ts)
+  - [`src/cr/geometry/geometry-review.ts`](../../src/cr/geometry/geometry-review.ts)
+  - [`src/cr/geometry/geometry-review-cli.ts`](../../src/cr/geometry/geometry-review-cli.ts)
+  - [`src/cr/geometry/geometry-report.ts`](../../src/cr/geometry/geometry-report.ts)
+  - [`src/cr/extract-json.ts`](../../src/cr/extract-json.ts)
+  - [`src/cr/findings-schema.ts`](../../src/cr/findings-schema.ts)
+  - [`src/cr/filename.ts`](../../src/cr/filename.ts)
+  - [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts)
   - [`src/core/lanes.ts`](../../src/core/lanes.ts)
   - [`src/core/ui-boot.ts`](../../src/core/ui-boot.ts)
   - [`src/verify/boot.ts`](../../src/verify/boot.ts)
