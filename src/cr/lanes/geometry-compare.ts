@@ -6,11 +6,7 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import {
-  loadConsumerConfig,
-  type UiBootRecipe,
-  type VerifySurface,
-} from '../../core/consumer-config.js';
+import type { UiBootRecipe } from '../../core/consumer-config.js';
 import { errMessage } from '../../core/err-message.js';
 import { sanitizeSurfaceName } from '../../core/ui-boot.js';
 import { bootServer } from '../../verify/boot.js';
@@ -27,8 +23,13 @@ import {
 import type { GeometryDoc } from '../geometry/geometry-doc.js';
 import { compareSurfaceGeometry, extractDesignDocs } from '../geometry/geometry-review.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
-import { forEachBootedSurface, type BootProbeDeps } from './boot-probe.js';
-import { cleanupPenScratch, openDesignReviewRound } from './pen-scratch.js';
+import {
+  forEachBootedSurface,
+  loadBootConfig,
+  roundSurfaces,
+  type BootProbeDeps,
+} from './boot-probe.js';
+import { openDesignReviewRound } from './pen-scratch.js';
 import { aggregateOutcomes } from './render-compare-core.js';
 import { swapRoundArtifacts, type RoundArtifact } from './round-artifacts.js';
 import { writeFailByMode, writePenModified } from './ui-design-resolve.js';
@@ -145,16 +146,16 @@ export async function runGeometryCompare(input: LaneInput): Promise<LaneResult> 
     'noldor-geometry-compare',
   );
   if (opened.kind === 'done') return opened.result;
-  const { mode } = opened;
-  const { write, writeTerminal, design, notes } = opened.ctx;
-  const { dir: scratchDir, penPath: scratchPen, designChanged } = opened.ctx.scratch;
+  const { ctx: round, mode } = opened;
+  await using scratch = round.scratch;
+  const { write, writeTerminal, design, notes } = round;
   /** `pen-modified` precedence is absolute (spec D5): checked before every terminal. */
   const terminal = async (
     reason: LaneReasonCode,
     detail: string,
     rows: string[] = [],
   ): Promise<LaneResult> => {
-    const integrity = await designChanged();
+    const integrity = await scratch.designChanged();
     if (integrity.changed) {
       return writePenModified(write, design.repoRelPath, integrity.detail || detail, [
         ...notes,
@@ -165,46 +166,30 @@ export async function runGeometryCompare(input: LaneInput): Promise<LaneResult> 
   };
 
   try {
-    // Maps, not raw records: Object.entries copies OWN keys only, so a surface
-    // named like an inherited property cannot alias a prototype member.
-    let recipes: Map<string, UiBootRecipe>;
-    let declaredSurfaces: string[];
-    let verifyCommands: Map<string, VerifySurface>;
-    try {
-      const consumer = loadConsumerConfig(input.repoRoot);
-      recipes = new Map(Object.entries(consumer.uiBoot ?? {}));
-      declaredSurfaces = Object.keys(consumer.uiSurfaces ?? {});
-      verifyCommands = new Map(Object.entries(consumer.verifyCommands));
-    } catch (err) {
-      return await terminal('config-unreadable', errMessage(err));
-    }
+    const loaded = loadBootConfig(input.repoRoot);
+    if (!loaded.ok) return await terminal('config-unreadable', loaded.detail);
+    const { config } = loaded;
+    const { recipes, verifyCommands } = config;
 
-    // Zero AFFECTED surfaces must not aggregate to a "0 surfaces" pass (a
-    // blocking-mode bypass); same whole-design fallback render-compare uses.
-    let surfaces = design.surfaces;
-    if (surfaces.length === 0) {
-      surfaces = [...new Set([...declaredSurfaces, ...recipes.keys()])].sort();
-      if (surfaces.length === 0) {
-        return await terminal(
-          'no-geometry-recipe',
-          'zero affected surfaces resolved and no consumer.uiBoot recipe to fall back to',
-        );
-      }
-      notes.push(
-        `zero affected surfaces resolved — reviewing every declared surface: ${surfaces.join(', ')}`,
+    const planned = roundSurfaces(design.surfaces, config);
+    if (planned.surfaces.length === 0) {
+      return await terminal(
+        'no-geometry-recipe',
+        'zero affected surfaces resolved and no consumer.uiBoot recipe to fall back to',
       );
     }
+    if (planned.note !== undefined) notes.push(planned.note);
 
-    const { jobs, declined } = planSurfaceJobs(surfaces, recipes);
+    const { jobs, declined } = planSurfaceJobs(planned.surfaces, recipes);
     const outcomes: Outcome[] = [...declined];
     const artifacts: RoundArtifact[] = [];
-    const workDir = join(scratchDir, 'geometry'); // removed with the scratch dir
+    const workDir = join(scratch.dir, 'geometry'); // removed with the scratch dir
     await mkdir(workDir, { recursive: true });
 
     // ONE reader dispatch for every surface, BEFORE any boot: no dev server waits
     // on an agent, and a surface whose design cannot be read is never booted.
     const extractions = await extractDesignDocs({
-      penPath: scratchPen,
+      penPath: scratch.penPath,
       surfaces: jobs.map((j) => ({
         surface: j.surface,
         ...(j.recipe.page !== undefined ? { pageSelector: j.recipe.page } : {}),
@@ -237,9 +222,7 @@ export async function runGeometryCompare(input: LaneInput): Promise<LaneResult> 
       verifyCommands,
       repoRoot: input.repoRoot,
       deps,
-      unreachable: (job, reason, detail) => {
-        outcomes.push(cannot(job.surface, reason, detail));
-      },
+      declined: outcomes,
       reached: async (job, url) => {
         const result = await compareSurfaceGeometry({
           surface: job.surface,
@@ -282,7 +265,7 @@ export async function runGeometryCompare(input: LaneInput): Promise<LaneResult> 
       input.slug,
       artifacts,
     );
-    const integrity = await designChanged();
+    const integrity = await scratch.designChanged();
     if (integrity.changed) {
       return writePenModified(write, design.repoRelPath, integrity.detail, [...notes, ...rows]);
     }
@@ -307,7 +290,5 @@ export async function runGeometryCompare(input: LaneInput): Promise<LaneResult> 
   } catch (err) {
     // A round never terminates without its sink; pen-modified still wins.
     return await terminal('dispatch-failed', `unexpected pipeline failure: ${errMessage(err)}`);
-  } finally {
-    await cleanupPenScratch(scratchDir, LANE);
   }
 }

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { VerifySurface } from '../../../core/consumer-config.js';
-import { forEachBootedSurface, type BootProbeDeps } from '../../lanes/boot-probe.js';
+import { forEachBootedSurface, roundSurfaces, type BootProbeDeps } from '../../lanes/boot-probe.js';
 
 interface Job {
   surface: string;
@@ -59,8 +59,9 @@ const walk = (
     repoRoot: '/repo',
     deps,
     ...(opts.budgetMs !== undefined ? { budgetMs: opts.budgetMs } : {}),
-    unreachable: (j, reason, detail) => {
-      log.unreachable.push(`${j.surface} ${reason}: ${detail}`);
+    declined: {
+      push: (row) =>
+        log.unreachable.push(`${row.surface} ${row.kind} ${row.reason}: ${row.detail}`),
     },
     reached: async (j, url) => {
       log.reached.push(`${j.surface} ${url}`);
@@ -89,7 +90,7 @@ describe('forEachBootedSurface', () => {
     await walk([job('a', 'api')], h);
     expect(h.log.boots).toBe(0);
     expect(h.log.unreachable).toEqual([
-      "a boot-failed: verifyCommand 'api' is missing from consumer.verifyCommands",
+      "a cannot-review boot-failed: verifyCommand 'api' is missing from consumer.verifyCommands",
     ]);
   });
 
@@ -104,8 +105,8 @@ describe('forEachBootedSurface', () => {
     });
     await walk([job('a'), job('b')], h);
     expect(h.log.unreachable).toEqual([
-      'a boot-failed: no 200 in 1000ms',
-      'b boot-failed: no 200 in 1000ms',
+      'a cannot-review boot-failed: no 200 in 1000ms',
+      'b cannot-review boot-failed: no 200 in 1000ms',
     ]);
     expect(h.log.kills).toBe(0);
   });
@@ -115,7 +116,7 @@ describe('forEachBootedSurface', () => {
     await walk([job('a')], h, { budgetMs: 0 });
     expect(h.log.boots).toBe(0);
     expect(h.log.unreachable).toEqual([
-      'a boot-failed: round budget (0ms) exhausted before this group booted',
+      'a cannot-review boot-failed: round budget (0ms) exhausted before this group booted',
     ]);
   });
 
@@ -140,7 +141,7 @@ describe('forEachBootedSurface', () => {
     });
     await walk([job('a')], h);
     expect(h.log.unreachable).toEqual([
-      'a route-unreachable: GET http://127.0.0.1:4100/a → 404 (want 2xx)',
+      'a cannot-review route-unreachable: GET http://127.0.0.1:4100/a → 404 (want 2xx)',
     ]);
     expect(h.log.kills).toBe(1);
   });
@@ -153,7 +154,7 @@ describe('forEachBootedSurface', () => {
     });
     await walk([job('a')], h);
     expect(h.log.unreachable).toEqual([
-      'a route-unreachable: GET http://127.0.0.1:4100/a got no response within 100ms: ECONNREFUSED',
+      'a cannot-review route-unreachable: GET http://127.0.0.1:4100/a got no response within 100ms: ECONNREFUSED',
     ]);
   });
 
@@ -172,5 +173,32 @@ describe('forEachBootedSurface', () => {
       }),
     ).rejects.toThrow('boom');
     expect(h.log.kills).toBe(1);
+  });
+});
+
+describe('roundSurfaces', () => {
+  const config = {
+    recipes: new Map([
+      ['settings', { verifyCommand: 'web', route: '/settings' }],
+      ['dashboard', { verifyCommand: 'web', route: '/' }],
+    ]),
+    declaredSurfaces: ['onboarding', 'dashboard'],
+    verifyCommands: new Map([['web', server]]),
+  };
+
+  it('reviews the affected surfaces as given when there are any', () => {
+    expect(roundSurfaces(['dashboard'], config)).toEqual({ surfaces: ['dashboard'] });
+  });
+
+  it('falls back to every declared surface and recipe, sorted, and says so', () => {
+    expect(roundSurfaces([], config)).toEqual({
+      surfaces: ['dashboard', 'onboarding', 'settings'],
+      note: 'zero affected surfaces resolved — reviewing every declared surface: dashboard, onboarding, settings',
+    });
+  });
+
+  it('is empty when nothing is affected and nothing is configured', () => {
+    const none = { recipes: new Map(), declaredSurfaces: [], verifyCommands: new Map() };
+    expect(roundSurfaces([], none)).toEqual({ surfaces: [] });
   });
 });

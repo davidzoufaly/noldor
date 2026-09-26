@@ -13,7 +13,6 @@ import { join } from 'node:path';
 import type { PNG } from 'pngjs';
 
 import { errMessage } from '../../core/err-message.js';
-import { loadConsumerConfig } from '../../core/consumer-config.js';
 import type { UiBootRecipe } from '../../core/consumer-config.js';
 import { runCapture } from '../../core/run-capture.js';
 import type { CaptureResult } from '../../core/run-capture.js';
@@ -23,7 +22,12 @@ import { resolvePort } from '../../verify/port.js';
 import type { Finding, LaneReasonCode } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { cleanupPenScratch, openDesignReviewRound } from './pen-scratch.js';
-import { forEachBootedSurface, type BootProbeDeps } from './boot-probe.js';
+import {
+  forEachBootedSurface,
+  loadBootConfig,
+  roundSurfaces,
+  type BootProbeDeps,
+} from './boot-probe.js';
 import {
   MAX_RASTER_BYTES,
   aggregateOutcomes,
@@ -109,35 +113,23 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
   // touch it, and no hash is taken of it.
   const { dir: scratchDir, penPath: scratchPen, designChanged } = opened.ctx.scratch;
 
-  // One config parse for the whole round: `uiBoot` and `verifyCommands` come
-  // from the same validated object, so the superRefine cross-checks (recipe
-  // keys ⊆ uiSurfaces, verifyCommand → kind "server") hold for exactly the
-  // values used below. The scratch dir is already staged, so this failure path
-  // must release it too.
-  // Maps, not raw records: Object.entries copies OWN keys only, so a surface
-  // named like an inherited property ('constructor') cannot alias prototype
-  // members in lookups.
-  let recipes: Map<string, UiBootRecipe>;
-  let declaredSurfaces: string[];
-  let verifyCommands: Map<string, ReturnType<typeof loadConsumerConfig>['verifyCommands'][string]>;
-  try {
-    const consumer = loadConsumerConfig(input.repoRoot);
-    recipes = new Map(Object.entries(consumer.uiBoot ?? {}));
-    declaredSurfaces = Object.keys(consumer.uiSurfaces ?? {});
-    verifyCommands = new Map(Object.entries(consumer.verifyCommands));
-  } catch (err) {
+  const loaded = loadBootConfig(input.repoRoot);
+  if (!loaded.ok) {
     // pen-modified precedence is absolute (spec R7) — checked even on this
-    // pre-pipeline terminal, since the reference hash already exists.
+    // pre-pipeline terminal, since the reference hash already exists. The
+    // scratch dir is already staged, so this failure path must release it too.
     const integrity = await designChanged();
     await cleanupPenScratch(scratchDir, 'render-compare');
     if (integrity.changed) {
       return writePenModified(write, design.repoRelPath, integrity.detail, notes);
     }
     return writeTerminal(
-      { verdict: 'cannot-review', reason: 'config-unreadable', detail: errMessage(err) },
+      { verdict: 'cannot-review', reason: 'config-unreadable', detail: loaded.detail },
       notes,
     );
   }
+  const { config } = loaded;
+  const { recipes, verifyCommands } = config;
 
   /** The one absolute red (spec R7): the shared shape, with per-surface rows as forensics. */
   const penModified = (detail: string, rowNotes: string[]): Promise<LaneResult> =>
@@ -149,35 +141,24 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     const rel = (sanitized: string, kind: 'design' | 'shot' | 'diff'): string =>
       `${artifactRelDir}/${sanitized}.${kind}.png`;
 
-    // Zero AFFECTED surfaces (an FD `design: required` override with no changed
-    // path matching `uiPaths`) must not aggregate to a "0 surfaces" pass —
-    // that would be a blocking-mode bypass for exactly the operator-forced
-    // sessions. Mirror the sibling lane's whole-design posture: review every
-    // configured recipe; with none configured there is nothing honest to boot.
-    let surfaces = design.surfaces;
+    // With none configured there is nothing honest to boot.
+    const planned = roundSurfaces(design.surfaces, config);
+    const { surfaces } = planned;
     if (surfaces.length === 0) {
-      // The union of DECLARED surfaces and recipe keys, not recipes alone: a
-      // declared surface without a recipe must still land as a no-boot-recipe
-      // row, or partial coverage would silently read as a whole-design pass.
-      surfaces = [...new Set([...declaredSurfaces, ...recipes.keys()])].sort();
-      if (surfaces.length === 0) {
-        // pen-modified precedence holds on this terminal too (spec R7).
-        const integrity = await designChanged();
-        if (integrity.changed) return penModified(integrity.detail, []);
-        return writeTerminal(
-          {
-            verdict: 'cannot-review',
-            reason: 'no-boot-recipe',
-            detail:
-              'zero affected surfaces resolved (FD design override with no matching changed paths) and no consumer.uiBoot recipe to fall back to',
-          },
-          notes,
-        );
-      }
-      notes.push(
-        `zero affected surfaces resolved — reviewing every declared surface: ${surfaces.join(', ')}`,
+      // pen-modified precedence holds on this terminal too (spec R7).
+      const integrity = await designChanged();
+      if (integrity.changed) return penModified(integrity.detail, []);
+      return writeTerminal(
+        {
+          verdict: 'cannot-review',
+          reason: 'no-boot-recipe',
+          detail:
+            'zero affected surfaces resolved (FD design override with no matching changed paths) and no consumer.uiBoot recipe to fall back to',
+        },
+        notes,
       );
     }
+    if (planned.note !== undefined) notes.push(planned.note);
 
     // R3 addition: an affected surface with no recipe is a full per-surface
     // outcome, so a round with an unconfigured affected surface never
@@ -346,9 +327,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
       verifyCommands,
       repoRoot: input.repoRoot,
       deps,
-      unreachable: (job, reason, detail) => {
-        outcomes.push(cannot(job.surface, reason, detail));
-      },
+      declined: outcomes,
       reached: async (job, url) => {
         const failShot = (detail: string): void => {
           outcomes.push(cannot(job.surface, 'screenshot-failed', detail));
