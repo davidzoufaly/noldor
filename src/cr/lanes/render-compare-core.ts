@@ -228,17 +228,26 @@ export interface Aggregated {
 }
 
 /**
+ * The only fields aggregation reads. Each lane keeps its own outcome payload
+ * (render-compare's ratios, geometry-compare's report) and passes it straight
+ * in: every lane's outcome union satisfies this structurally.
+ */
+export type AggregableOutcome =
+  | { surface: string; kind: 'pass' | 'fail' }
+  | { surface: string; kind: 'cannot-review'; reason: LaneReasonCode; detail: string };
+
+/**
  * Deterministic, total multi-surface aggregation (spec R7/D9): worst outcome by
  * `fail` > `cannot-review` > `pass`; the headline reason is the failing class of
  * the highest-precedence surface, ties broken by surface name ascending. Every
  * per-surface outcome stays in the sink regardless — the single reason is a
  * headline, not the record.
  */
-export function aggregateOutcomes(outcomes: readonly SurfaceOutcome[]): Aggregated {
+export function aggregateOutcomes(outcomes: readonly AggregableOutcome[]): Aggregated {
   if (outcomes.some((o) => o.kind === 'fail')) return { verdict: 'fail' };
   const cannots = outcomes
     .filter(
-      (o): o is Extract<SurfaceOutcome, { kind: 'cannot-review' }> => o.kind === 'cannot-review',
+      (o): o is Extract<AggregableOutcome, { kind: 'cannot-review' }> => o.kind === 'cannot-review',
     )
     .sort((a, b) => (a.surface < b.surface ? -1 : a.surface > b.surface ? 1 : 0));
   if (cannots.length > 0) {

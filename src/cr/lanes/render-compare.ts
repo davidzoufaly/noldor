@@ -23,6 +23,7 @@ import { resolvePort } from '../../verify/port.js';
 import type { Finding, LaneReasonCode } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { cleanupPenScratch, openDesignReviewRound } from './pen-scratch.js';
+import { forEachBootedSurface, type BootProbeDeps } from './boot-probe.js';
 import {
   MAX_RASTER_BYTES,
   aggregateOutcomes,
@@ -44,24 +45,6 @@ import { writeFailByMode, writePenModified } from './ui-design-resolve.js';
 
 const LANE = 'render-compare' as const;
 
-/** Bounds the route probe — same cap the health check's probe fetches use. */
-const ROUTE_PROBE_TIMEOUT_MS = 2000;
-/**
- * Aggregate wall-clock ceiling across the whole group loop — the same posture
- * as smoke's total cap. Everything the loop does consumes it: boots (whose
- * `readyTimeoutMs` the schema does not bound), route probes, and captures —
- * the deadline is fixed once, so a slow early group shrinks what later groups
- * may spend booting.
- *
- * noldor:cut — enforcement is deliberately at BOOT ADMISSION only (once per
- * group): every step inside a group is already individually bounded (route
- * probe ≤ 15s, capture ≤ `captureTimeoutMs` ≤ 120s, both schema/constant
- * enforced), and the surface count is the consumer's declared config, so the
- * only unbounded quantity the budget must cap is boot time. Checking mid-group
- * would abandon surfaces whose own caps were about to hold anyway.
- */
-const TOTAL_ROUND_BUDGET_MS = 300_000;
-
 /**
  * Ratio formatting for findings and notes: six decimals so a boundary failure
  * like 0.250001 > 0.25 stays visibly consistent with the strict comparison —
@@ -69,13 +52,8 @@ const TOTAL_ROUND_BUDGET_MS = 300_000;
  */
 const fmtRatio = (r: number): string => r.toFixed(6);
 
-interface RenderCompareDeps {
-  boot: typeof bootServer;
+interface RenderCompareDeps extends BootProbeDeps {
   capture: typeof runCapture;
-  fetchImpl: typeof fetch;
-  resolvePort: typeof resolvePort;
-  /** Total retry budget for the route probe (cold dev routes compile on demand). */
-  routeProbeBudgetMs: number;
 }
 
 let deps: RenderCompareDeps = {
@@ -363,237 +341,96 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     }
 
     // ---- R4: boot per verifyCommand group, probe + capture per surface ----
-    const groups = new Map<string, SurfaceJob[]>();
-    for (const job of jobs) {
-      groups.set(job.recipe.verifyCommand, [...(groups.get(job.recipe.verifyCommand) ?? []), job]);
-    }
-    const roundDeadline = Date.now() + TOTAL_ROUND_BUDGET_MS;
-    for (const [cmdName, groupJobs] of groups) {
-      const entry = verifyCommands.get(cmdName);
-      // noldor:cut — unreachable under a schema-valid config (the superRefine
-      // guarantees the reference resolves to a server entry); kept because the
-      // Record index type is honest about `undefined` and a boot against a
-      // missing entry must degrade to rows, never throw.
-      if (entry === undefined || entry.kind !== 'server') {
-        for (const job of groupJobs) {
-          outcomes.push(
-            cannot(
-              job.surface,
-              'boot-failed',
-              `verifyCommand '${cmdName}' is ${entry === undefined ? 'missing from consumer.verifyCommands' : `kind "${entry.kind}", not "server"`}`,
-            ),
+    await forEachBootedSurface({
+      jobs,
+      verifyCommands,
+      repoRoot: input.repoRoot,
+      deps,
+      unreachable: (job, reason, detail) => {
+        outcomes.push(cannot(job.surface, reason, detail));
+      },
+      reached: async (job, url) => {
+        const failShot = (detail: string): void => {
+          outcomes.push(cannot(job.surface, 'screenshot-failed', detail));
+        };
+        const outAbs = join(shotDir, `${job.sanitized}.shot.png`);
+        const command = substituteScreenshotCommand(job.recipe.screenshotCommand, {
+          url,
+          out: outAbs,
+          width: String(job.designPng.width),
+          height: String(job.designPng.height),
+        });
+        if (command === null) {
+          failShot(
+            `a substitution value contains a single quote and cannot be safely quoted (out=${outAbs})`,
           );
+          return;
         }
-        continue;
-      }
-      let port: number;
-      try {
-        port = await deps.resolvePort(input.repoRoot);
-      } catch (err) {
-        for (const job of groupJobs) {
-          outcomes.push(cannot(job.surface, 'boot-failed', `no free port: ${errMessage(err)}`));
+        let cap: CaptureResult;
+        try {
+          cap = await deps.capture(command, input.repoRoot, job.recipe.captureTimeoutMs);
+        } catch (err) {
+          failShot(`capture threw: ${errMessage(err)}`);
+          return;
         }
-        continue;
-      }
-      // An injected/edge boot rejection must land as this group's boot-failed
-      // rows, never escape the round without per-surface outcomes (AC11).
-      let boot: Awaited<ReturnType<typeof deps.boot>>;
-      try {
-        const remaining = roundDeadline - Date.now();
-        if (remaining <= 0) {
-          for (const job of groupJobs) {
-            outcomes.push(
-              cannot(
-                job.surface,
-                'boot-failed',
-                `round budget (${TOTAL_ROUND_BUDGET_MS}ms) exhausted before this group booted`,
-              ),
-            );
-          }
-          continue;
+        // The stderr tail rides `notes` for EVERY failed-capture class (spec R4):
+        // a timeout or an undecodable output needs the diagnosis as much as an exit.
+        const failCapture = (detail: string): void => {
+          if (cap.stderrTail !== '')
+            notes.push(`[${job.surface}] capture stderr: ${cap.stderrTail}`);
+          failShot(detail);
+        };
+        if (cap.timedOut) {
+          failCapture(`capture timed out after ${job.recipe.captureTimeoutMs}ms`);
+          return;
         }
-        boot = await deps.boot(entry, port, input.repoRoot, deps.fetchImpl, remaining);
-      } catch (err) {
-        for (const job of groupJobs) {
-          outcomes.push(cannot(job.surface, 'boot-failed', `boot threw: ${errMessage(err)}`));
+        if (cap.code !== 0) {
+          failCapture(`capture exited ${cap.code}`);
+          return;
         }
-        continue;
-      }
-      if (!boot.ok) {
-        for (const job of groupJobs) {
-          outcomes.push(cannot(job.surface, 'boot-failed', boot.observed));
+        let shotBuf: Buffer;
+        try {
+          const size = (await stat(outAbs)).size;
+          if (size > MAX_RASTER_BYTES) {
+            failCapture(
+              `capture output is ${size} bytes (cap ${MAX_RASTER_BYTES}) — refusing to read`,
+            );
+            return;
+          }
+          shotBuf = await readFile(outAbs);
+        } catch (err) {
+          failCapture(`capture wrote no output file: ${errMessage(err)}`);
+          return;
         }
-        continue;
-      }
-      try {
-        for (const job of groupJobs) {
-          const url = `http://127.0.0.1:${port}${job.recipe.route}`;
-          // Route probe: keeps a 404/500 route from producing a confident pixel
-          // verdict against an error page. Redirects are followed; the FINAL
-          // status must be 2xx. RETRIED under a small budget because dev
-          // servers compile routes on demand — the first hit on a cold route
-          // routinely outlives one 2s fetch even after the health path
-          // answered. Any HTTP status is a real answer and ends the loop;
-          // only no-response shapes (timeout, refused) retry.
-          let status: number | null = null;
-          let probeErr = '';
-          const probeDeadline = Date.now() + deps.routeProbeBudgetMs;
-          for (;;) {
-            try {
-              const res = await deps.fetchImpl(url, {
-                signal: AbortSignal.timeout(ROUTE_PROBE_TIMEOUT_MS),
-                redirect: 'follow',
-              });
-              status = res.status;
-              // Release the connection: an unconsumed body keeps the socket busy
-              // until timeout/GC, which the capture right behind it competes with.
-              await res.body?.cancel().catch(() => {
-                /* already consumed or closed */
-              });
-              break;
-            } catch (err) {
-              probeErr = errMessage(err);
-              if (Date.now() >= probeDeadline) break;
-              await new Promise((r) => setTimeout(r, 250));
-            }
-          }
-          if (status === null) {
-            outcomes.push(
-              cannot(
-                job.surface,
-                'route-unreachable',
-                `GET ${url} got no response within ${deps.routeProbeBudgetMs}ms: ${probeErr}`,
-              ),
-            );
-            continue;
-          }
-          if (status < 200 || status >= 300) {
-            outcomes.push(
-              cannot(job.surface, 'route-unreachable', `GET ${url} → ${status} (want 2xx)`),
-            );
-            continue;
-          }
-          const outAbs = join(shotDir, `${job.sanitized}.shot.png`);
-          const command = substituteScreenshotCommand(job.recipe.screenshotCommand, {
-            url,
-            out: outAbs,
-            width: String(job.designPng.width),
-            height: String(job.designPng.height),
-          });
-          if (command === null) {
-            outcomes.push(
-              cannot(
-                job.surface,
-                'screenshot-failed',
-                `a substitution value contains a single quote and cannot be safely quoted (out=${outAbs})`,
-              ),
-            );
-            continue;
-          }
-          let cap: CaptureResult;
-          try {
-            cap = await deps.capture(command, input.repoRoot, job.recipe.captureTimeoutMs);
-          } catch (err) {
-            outcomes.push(
-              cannot(job.surface, 'screenshot-failed', `capture threw: ${errMessage(err)}`),
-            );
-            continue;
-          }
-          // The stderr tail rides `notes` for EVERY failed-capture class (spec
-          // R4) — a timeout or an undecodable output needs the diagnosis at
-          // least as much as a non-zero exit does.
-          const noteStderr = (): void => {
-            if (cap.stderrTail !== '') {
-              notes.push(`[${job.surface}] capture stderr: ${cap.stderrTail}`);
-            }
-          };
-          if (cap.timedOut) {
-            noteStderr();
-            outcomes.push(
-              cannot(
-                job.surface,
-                'screenshot-failed',
-                `capture timed out after ${job.recipe.captureTimeoutMs}ms`,
-              ),
-            );
-            continue;
-          }
-          if (cap.code !== 0) {
-            noteStderr();
-            outcomes.push(cannot(job.surface, 'screenshot-failed', `capture exited ${cap.code}`));
-            continue;
-          }
-          let shotBuf: Buffer;
-          try {
-            const size = (await stat(outAbs)).size;
-            if (size > MAX_RASTER_BYTES) {
-              noteStderr();
-              outcomes.push(
-                cannot(
-                  job.surface,
-                  'screenshot-failed',
-                  `capture output is ${size} bytes (cap ${MAX_RASTER_BYTES}) — refusing to read`,
-                ),
-              );
-              continue;
-            }
-            shotBuf = await readFile(outAbs);
-          } catch (err) {
-            noteStderr();
-            outcomes.push(
-              cannot(
-                job.surface,
-                'screenshot-failed',
-                `capture wrote no output file: ${errMessage(err)}`,
-              ),
-            );
-            continue;
-          }
-          job.shotBuf = shotBuf;
-          // ---- R6: the diff engine (design already decoded at export time) ----
-          const diff = diffDecoded(job.designPng, shotBuf);
-          if (diff.kind === 'undecodable') {
-            noteStderr();
-            outcomes.push(
-              cannot(job.surface, 'screenshot-failed', `shot raster undecodable: ${diff.detail}`),
-            );
-            continue;
-          }
-          if (diff.kind === 'dimension-mismatch') {
-            outcomes.push(cannot(job.surface, 'dimension-mismatch', diff.detail));
-            continue;
-          }
-          job.diffBuf = diff.diffPng;
-          const threshold = job.recipe.maxDiffRatio;
-          // Strict: ratios exactly at the threshold pass (spec R6).
-          if (diff.diffRatio > threshold) {
-            outcomes.push({
-              surface: job.surface,
-              kind: 'fail',
-              diffRatio: diff.diffRatio,
-              threshold,
-              severity: severityForRatio(diff.diffRatio, threshold),
-              designPath: rel(job.sanitized, 'design'),
-              shotPath: rel(job.sanitized, 'shot'),
-              diffPath: rel(job.sanitized, 'diff'),
-            });
-          } else {
-            outcomes.push({
-              surface: job.surface,
-              kind: 'pass',
-              diffRatio: diff.diffRatio,
-              threshold,
-            });
-          }
+        job.shotBuf = shotBuf;
+        // ---- R6: the diff engine (design already decoded at export time) ----
+        const diff = diffDecoded(job.designPng, shotBuf);
+        if (diff.kind === 'undecodable') {
+          failCapture(`shot raster undecodable: ${diff.detail}`);
+          return;
         }
-      } finally {
-        // Fire-and-forget SIGKILL is sufficient here: every group boots on its
-        // own fresh ephemeral port (resolvePort binds :0 per group), so a
-        // dying predecessor cannot contend with the next boot, and bootServer's
-        // pre-boot occupancy check is the backstop for anything external.
-        boot.kill();
-      }
-    }
+        if (diff.kind === 'dimension-mismatch') {
+          outcomes.push(cannot(job.surface, 'dimension-mismatch', diff.detail));
+          return;
+        }
+        job.diffBuf = diff.diffPng;
+        const threshold = job.recipe.maxDiffRatio;
+        const base = { surface: job.surface, diffRatio: diff.diffRatio, threshold };
+        // Strict: ratios exactly at the threshold pass (spec R6).
+        outcomes.push(
+          diff.diffRatio > threshold
+            ? {
+                ...base,
+                kind: 'fail',
+                severity: severityForRatio(diff.diffRatio, threshold),
+                designPath: rel(job.sanitized, 'design'),
+                shotPath: rel(job.sanitized, 'shot'),
+                diffPath: rel(job.sanitized, 'diff'),
+              }
+            : { ...base, kind: 'pass' },
+        );
+      },
+    });
 
     // ---- R6: persist artifacts, atomically per round ----
     // A round with no raster hands the swap an empty list, which keeps the prior
