@@ -117,7 +117,28 @@ const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<L
  * green and a synthetic OK would overwrite it with a payload carrying no `verdict`
  * at all — a lane that compared nothing then reads as reviewed.
  */
-const NO_DELTA_SHORTCIRCUIT: ReadonlySet<Lane> = new Set<Lane>(['ui-reviewer', 'render-compare']);
+const NO_DELTA_SHORTCIRCUIT: ReadonlySet<Lane> = new Set<Lane>([
+  'ui-reviewer',
+  'render-compare',
+  'geometry-compare',
+]);
+
+/** Lanes whose review object only exists at code stage; `run()` rejects them for spec/plan. */
+const CODE_ONLY_LANES: readonly Lane[] = [
+  'verifier',
+  'ui-reviewer',
+  'render-compare',
+  'geometry-compare',
+];
+
+/**
+ * Lanes that boot the consumer's `verifyCommands` servers, in the order they run.
+ * Distinct ports do NOT make concurrent boots safe: two dev servers over one
+ * project directory contend on the same build cache (`.next`, vite's dep cache).
+ * So these run as a chain while every other lane launches concurrently; a lane
+ * absent from the round contributes no link.
+ */
+const BOOTING_LANES: readonly Lane[] = ['verifier', 'render-compare', 'geometry-compare'];
 
 export function resolveLanes(
   args: { slug: string; kind: ArtifactKind; lanes?: Lane[]; autonomous?: boolean },
@@ -887,7 +908,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       "lane 'standalone' is no longer an orchestrate lane — deep review spawns via 'noldor cr escalate' (spawn-deep-review)",
     );
   }
-  for (const codeOnly of ['verifier', 'ui-reviewer', 'render-compare'] as const) {
+  for (const codeOnly of CODE_ONLY_LANES) {
     if (requested.includes(codeOnly) && opts.args.kind !== 'code') {
       throw new Error(
         `lane '${codeOnly}' is code-only — remove it from --lanes / crLanes for spec/plan artifacts`,
@@ -1113,11 +1134,10 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       contexts.set(l, { blockers, mode: priorMode, ...(decided.length > 0 ? { decided } : {}) });
   }
 
-  // Port contention is real: `verifier` boots the same `verifyCommands` servers
-  // this lane boots, and the batch below is concurrent. When both share the
-  // round, `render-compare` starts only after the verifier lane RESOLVES —
-  // success or failure — with its own pre-boot occupancy check still guarding
-  // contention from outside the round (spec R4).
+  // Port and build-cache contention are real: the BOOTING_LANES all boot the same
+  // `verifyCommands` servers, so they run as a chain, each starting when the
+  // previous RESOLVES (success or failure), with every boot's own pre-boot
+  // occupancy check still guarding contention from outside the round (spec R4).
   const launch = (l: Lane): Promise<LaneResult> => {
     const context = contexts.get(l);
     const laneInput =
@@ -1126,25 +1146,20 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     // standalone can't reach here — run() rejects it at entry.
     return LANES[l as Exclude<Lane, 'standalone'>](laneInput);
   };
-  // Two passes so the pre-dep exists before its dependent chains onto it,
-  // regardless of lane order; `promises[i]` stays index-aligned with
-  // `effective[i]` for the result mapping below.
+  // `promises[i]` stays index-aligned with `effective[i]` for the result mapping below.
   const promises: Promise<LaneResult>[] = Array.from({ length: effective.length });
-  let verifierRun: Promise<LaneResult> | undefined;
   for (let i = 0; i < effective.length; i++) {
-    if (effective[i] === 'render-compare') continue;
+    if (BOOTING_LANES.includes(effective[i])) continue;
     promises[i] = launch(effective[i]);
-    if (effective[i] === 'verifier') verifierRun = promises[i];
   }
-  for (let i = 0; i < effective.length; i++) {
-    if (effective[i] !== 'render-compare') continue;
-    promises[i] =
-      verifierRun !== undefined
-        ? verifierRun.then(
-            () => launch(effective[i]),
-            () => launch(effective[i]),
-          )
-        : launch(effective[i]);
+  let previous: Promise<LaneResult> | undefined;
+  for (const lane of BOOTING_LANES) {
+    const i = effective.indexOf(lane);
+    if (i < 0) continue;
+    const start = (): Promise<LaneResult> => launch(lane);
+    // `.then(start, start)` on purpose: a failed verifier must not strand the round.
+    promises[i] = previous === undefined ? start() : previous.then(start, start);
+    previous = promises[i];
   }
   const settled = await Promise.allSettled(promises);
 
