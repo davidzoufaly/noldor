@@ -9,27 +9,16 @@
 
 import { z } from 'zod';
 
-import { penBridgeRecipe } from '../../design/pen-bridge.js';
-import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
-import { createAnswerSeam } from '../lane-spawn.js';
-import { repairEvidence } from './prompt-parts.js';
+import {
+  defineSurfaceLane,
+  finalPageJobs,
+  PenDispatchError,
+  surfaceCandidatesSchema,
+  type PenSurfacesInput,
+} from './pen-dispatch.js';
 
-/** One surface's extraction instruction. */
-export interface ExtractRequest {
-  surface: string;
-  /** The recipe's `page` selector, when declared. */
-  pageSelector?: string;
-  /** Absolute path the surface's geometry document must land at. */
-  outPath: string;
-}
-
-export interface GeometryExtractInput {
-  /** Scratch COPY of the design — never the repo's own file. */
-  penPath: string;
-  requests: ExtractRequest[];
-  /** Wall-clock cap; DEFAULT_DISPATCH_TIMEOUT_MS when the caller omits it. */
-  timeoutMs?: number;
-}
+/** Each request's `outPath` is where that surface's geometry document lands. */
+export type GeometryExtractInput = PenSurfacesInput;
 
 /**
  * Per-surface answer row: the page enumeration, plus the nodes the child
@@ -37,41 +26,20 @@ export interface GeometryExtractInput {
  * document on disk is what gets validated, so the child has nothing to be
  * wrong about in its answer.
  */
-export const extractOutcomeSchema = z
-  .object({
-    surface: z.string().min(1),
-    /** `FINAL:<surface>:` page names found, `<name>` segment only. */
-    candidates: z.array(z.string()).default([]),
+export const extractOutcomeSchema = surfaceCandidatesSchema
+  .extend({
     /** Nodes excluded because pen reported them clipped (spec D3). */
     excluded: z.array(z.string()).default([]),
   })
   .strict();
 export type ExtractOutcome = z.infer<typeof extractOutcomeSchema>;
 
-export const geometryExtractReportSchema = z
-  .object({ surfaces: z.array(extractOutcomeSchema) })
-  .strict();
-export type GeometryExtractReport = z.infer<typeof geometryExtractReportSchema>;
-
 export function buildGeometryExtractPrompt(input: GeometryExtractInput): string {
-  const jobs = input.requests
-    .map(
-      (r) =>
-        `- surface \`${r.surface}\`${r.pageSelector !== undefined ? ` (page selector: \`${r.pageSelector}\`)` : ' (no page selector)'} → \`${r.outPath}\``,
-    )
-    .join('\n');
   return `You are a design GEOMETRY READER for a mechanical layout-diff pipeline. You read resolved geometry out of a Pencil \`.pen\` design and write it as JSON documents. You make no judgments and report no findings.
 
 The design is a scratch COPY at \`${input.penPath}\`. Read it through pencil MCP only: call \`get_app_state\` (with \`include_schema\`) once for the SCHEMA AND API DOCS ONLY, then do ALL reading via \`execute({ filePath: "${input.penPath}", input: ... })\`. get_app_state describes whatever file the editor has active — which may be a DIFFERENT design — so page names and node ids taken from it are invalid: enumerate pages exclusively through \`execute\` against the filePath above. Do not read a \`.pen\` with a file-reading tool (its raw JSON holds declared values, not resolved geometry), and never touch any design file under the repository.
 
-${penBridgeRecipe(input.penPath)}
-
-Extraction jobs (one selected page per surface):
-${jobs}
-
-For each surface:
-1. Enumerate the design's top-level pages named \`FINAL:<surface>: <name>\` for that surface (exact surface segment). Collect the trimmed \`<name>\` segments as the candidates — report them ALL, verbatim, even when zero or ambiguous.
-2. Select the page: with a page selector, the candidate exactly equal to it (trimmed, case-sensitive); without one, the single candidate if there is exactly one. Zero candidates, several candidates without a selector, a selector matching none, or two candidates with identical names — do NOT write that surface's file (the parent recomputes the same rule from your candidates and classifies it).
+${finalPageJobs(input, 'Extraction', "write that surface's file")}
 3. Read the selected page with ONE visitor pass, resolving variables:
 
 \`\`\`js
@@ -113,56 +81,40 @@ Report one entry per surface — its candidates and its excluded nodes are the r
 export const GEOMETRY_EXTRACT_SHAPE =
   '{"surfaces": [{"surface": "dashboard", "candidates": ["overview"], "excluded": []}, {"surface": "settings", "candidates": ["default", "expanded"], "excluded": ["Badge"]}]}';
 
+/** The reader's dispatch failure; `reason` picks the sink's reason detail. */
+export class GeometryExtractError extends PenDispatchError {
+  override readonly name = 'GeometryExtractError';
+}
+
 /**
- * The repair round's prompt: restate the reader's page enumeration and exclusions as a
- * valid report. It opens no design and reads or writes no geometry document.
+ * The reader's report schema and answer contract, plus its dispatch seam
+ * (`setGeometryExtractDispatcher` is the test seam — production code never
+ * calls it). The repair round restates the reader's page enumeration and
+ * exclusions as a valid report; it opens no design and reads or writes no
+ * geometry document.
  */
-export function buildGeometryExtractRepairPrompt(ctx: RepairContext): string {
-  return `A previous design geometry reader finished its work, but its report was rejected: ${ctx.error}. Your ONLY job is to restate the per-surface report that reader gave — do not open the design, do not read or write any geometry document.
-
-${repairEvidence(ctx)}
-
-Transcription rules:
-1. One entry per surface the reader reported, carrying the \`FINAL:<surface>:\` page names it found and the node names it excluded, verbatim.
-2. Invent no surface, page name, or node name the output does not state; an entry whose exclusions are not stated gets \`"excluded": []\`.
-3. If nothing above states the enumeration, write no answer at all.`;
-}
-
-/** What the reader child hands back, and how the seam reads it. */
-export const GEOMETRY_EXTRACT_ANSWER: LaneAnswerContract<GeometryExtractReport> = {
-  lane: 'geometry-extract',
-  shape: GEOMETRY_EXTRACT_SHAPE,
-  schema: geometryExtractReportSchema,
+export const {
+  reportSchema: geometryExtractReportSchema,
+  contract: GEOMETRY_EXTRACT_ANSWER,
   repairPrompt: buildGeometryExtractRepairPrompt,
-};
-
-/** Carries which reason detail the caller should record, so the sink stays specific. */
-export class GeometryExtractError extends Error {
-  readonly reason: 'timeout' | 'dispatch-failed';
-
-  constructor(reason: 'timeout' | 'dispatch-failed', message: string) {
-    super(message);
-    this.name = 'GeometryExtractError';
-    this.reason = reason;
-  }
-}
-
-const seam = createAnswerSeam<GeometryExtractInput, GeometryExtractReport>(
-  buildGeometryExtractPrompt,
-  {
-    site: 'cr.geometry-extract-dispatch',
-    contract: GEOMETRY_EXTRACT_ANSWER,
-    onFailure: (f) => {
-      throw new GeometryExtractError(
-        f.reason,
-        f.timedOut
-          ? 'geometry-extract dispatch timed out'
-          : `geometry-extract dispatch failed: ${f.detail ?? `exit ${f.exitCode}`}`,
-      );
-    },
+  setDispatcher: setGeometryExtractDispatcher,
+  dispatch: dispatchGeometryExtract,
+} = defineSurfaceLane({
+  lane: 'geometry-extract',
+  site: 'cr.geometry-extract-dispatch',
+  label: 'geometry-extract',
+  error: GeometryExtractError,
+  row: extractOutcomeSchema,
+  shape: GEOMETRY_EXTRACT_SHAPE,
+  prompt: buildGeometryExtractPrompt,
+  repair: {
+    lead: 'A previous design geometry reader finished its work, but its report was rejected',
+    job: 'Your ONLY job is to restate the per-surface report that reader gave — do not open the design, do not read or write any geometry document.',
+    rules: [
+      'One entry per surface the reader reported, carrying the `FINAL:<surface>:` page names it found and the node names it excluded, verbatim.',
+      'Invent no surface, page name, or node name the output does not state; an entry whose exclusions are not stated gets `"excluded": []`.',
+      'If nothing above states the enumeration, write no answer at all.',
+    ],
   },
-);
-
-/** Test seam — production code never calls this. */
-export const setGeometryExtractDispatcher = seam.setDispatcher;
-export const dispatchGeometryExtract = seam.dispatch;
+});
+export type GeometryExtractReport = z.infer<typeof geometryExtractReportSchema>;

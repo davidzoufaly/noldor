@@ -8,8 +8,8 @@ import { z } from 'zod';
 
 import { penBridgeRecipe } from '../../design/pen-bridge.js';
 import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
-import { createAnswerSeam } from '../lane-spawn.js';
-import { repairEvidence } from './prompt-parts.js';
+import { createPenDispatchSeam, PenDispatchError } from './pen-dispatch.js';
+import { transcriptionPrompt } from './prompt-parts.js';
 
 /**
  * One finding from the child. `designPage` + `designElement` are REQUIRED: a
@@ -125,14 +125,16 @@ export const UI_REVIEW_SHAPE =
  * design, reads no code, and never upgrades a hedged report into `pass`.
  */
 export function buildUiReviewRepairPrompt(ctx: RepairContext): string {
-  return `A previous UI-Design Reviewer finished its review, but its answer was rejected: ${ctx.error}. Your ONLY job is to restate that reviewer's conclusion as a valid answer — do not open the design, do not read the code, do not review anything yourself.
-
-${repairEvidence(ctx)}
-
-Transcription rules:
-1. Use exactly one of the three shapes: pass with an empty findings array; fail with at least one finding naming its file, severity, message, designPage and designElement; or cannot-review with reason pen-unreadable or no-final-pages.
-2. Never upgrade a partial or hedged report into pass, and invent no finding the output does not state.
-3. If nothing above clearly states a verdict, write no answer at all.`;
+  return transcriptionPrompt(
+    ctx,
+    'A previous UI-Design Reviewer finished its review, but its answer was rejected',
+    "Your ONLY job is to restate that reviewer's conclusion as a valid answer — do not open the design, do not read the code, do not review anything yourself.",
+    [
+      'Use exactly one of the three shapes: pass with an empty findings array; fail with at least one finding naming its file, severity, message, designPage and designElement; or cannot-review with reason pen-unreadable or no-final-pages.',
+      'Never upgrade a partial or hedged report into pass, and invent no finding the output does not state.',
+      'If nothing above clearly states a verdict, write no answer at all.',
+    ],
+  );
 }
 
 /** What the ui-reviewer child hands back, and how the seam reads it. */
@@ -144,28 +146,16 @@ export const UI_REVIEW_ANSWER: LaneAnswerContract<UiReviewReport> = {
   repairPrompt: buildUiReviewRepairPrompt,
 };
 
-/** Carries which reason code the lane should record, so the sink stays specific. */
-export class UiDispatchError extends Error {
-  readonly reason: 'timeout' | 'dispatch-failed';
-
-  constructor(reason: 'timeout' | 'dispatch-failed', message: string) {
-    super(message);
-    this.name = 'UiDispatchError';
-    this.reason = reason;
-  }
+/** The reviewer's dispatch failure; `reason` is the reason code the lane records. */
+export class UiDispatchError extends PenDispatchError {
+  override readonly name = 'UiDispatchError';
 }
 
-const seam = createAnswerSeam<UiDispatchInput, UiReviewReport>(buildUiReviewPrompt, {
+const seam = createPenDispatchSeam<UiDispatchInput, UiReviewReport>(buildUiReviewPrompt, {
   site: 'cr.ui-review-dispatch',
   contract: UI_REVIEW_ANSWER,
-  onFailure: (f) => {
-    throw new UiDispatchError(
-      f.reason,
-      f.timedOut
-        ? 'ui-review dispatch timed out'
-        : `ui-review dispatch failed: ${f.detail ?? `exit ${f.exitCode}`}`,
-    );
-  },
+  label: 'ui-review',
+  error: UiDispatchError,
 });
 
 /** Test seam — production code never calls this. */

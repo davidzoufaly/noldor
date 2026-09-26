@@ -36,3 +36,22 @@ ${ctx.rejected ?? '(it wrote no answer file)'}
 Its output:
 ${ctx.stdout.trim() === '' ? '(none captured)' : ctx.stdout}`;
 }
+
+/**
+ * A repair prompt: `lead` says who finished and that its answer was rejected (the seam's
+ * error follows it), `job` narrows the transcriber to restating, then the
+ * {@link repairEvidence} block and the numbered transcription rules.
+ */
+export function transcriptionPrompt(
+  ctx: RepairContext,
+  lead: string,
+  job: string,
+  rules: readonly string[],
+): string {
+  return `${lead}: ${ctx.error}. ${job}
+
+${repairEvidence(ctx)}
+
+Transcription rules:
+${rules.map((rule, i) => `${i + 1}. ${rule}`).join('\n')}`;
+}

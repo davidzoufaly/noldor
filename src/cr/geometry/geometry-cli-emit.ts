@@ -102,6 +102,37 @@ export function readGeometryFlags<R extends string, O extends string>(
   return design === null ? null : { ...out, design };
 }
 
+/** A geometry CLI's entry point: argv in, exit code out, lines to `emit` (stdout by default). */
+export type GeometryCommand = (argv: readonly string[], emit?: Emit) => Promise<number>;
+
+/**
+ * Wrap a geometry CLI's body in the opening every command shares: read argv
+ * per `spec`, and return exit 2 on a usage error (already emitted) without
+ * running `body`.
+ */
+export function geometryCommand<R extends string, O extends string>(
+  spec: GeometryFlagSpec<R, O>,
+  body: (flags: GeometryFlags<R, O>, emit: Emit) => Promise<number>,
+): GeometryCommand {
+  return async (argv, emit = stdoutEmit) => {
+    const flags = readGeometryFlags(argv, spec, emit);
+    return flags === null ? 2 : body(flags, emit);
+  };
+}
+
+/**
+ * {@link geometryCommand} for a command that reads a surface out of a `.pen`:
+ * it also takes the design flags, and `body` receives them resolved.
+ */
+export function designCommand<R extends string, O extends string>(
+  spec: Omit<GeometryFlagSpec<R, O>, 'design'>,
+  body: (flags: GeometryFlags<R, O>, design: DesignFlags, emit: Emit) => Promise<number>,
+): GeometryCommand {
+  return geometryCommand({ ...spec, design: true }, async (flags, emit) =>
+    flags.design === undefined ? 2 : body(flags, flags.design, emit),
+  );
+}
+
 function readDesignFlags(
   values: ReadonlyMap<string, string>,
   spec: { label: string; usage: string },
