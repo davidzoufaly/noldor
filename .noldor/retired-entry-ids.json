@@ -738,5 +738,9 @@
     "slug": "drain-the-incomplete-test-co-tags",
     "retiredInto": "sdd-co-tag-detector",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0321": {
+    "slug": "spec-skill-loads-its-design-steps-only-when-required",
+    "retiredAt": "2026-09-26"
   }
 }

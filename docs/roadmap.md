@@ -85,16 +85,3 @@ Extract the shared tsconfig reader into a neutral module. `src/invariants/toolch
 - confidence: med
 
 `blocked-by` is all-or-nothing, so a partial dependency degrades into prose the scorer cannot see. Several entries in a real consumer can start, and two-thirds ship, while one part waits — a bar whose five sections are independently blocked; a panel where one row needs a concept that does not exist yet. Marking the whole entry `blocked-by` divides its score by `1 + unshipped_dep_count` for work that is mostly doable today; leaving it off loses the dependency from the graph entirely, so `/noldor-garden` cannot see it and a reader has to find it in a paragraph. Wanted: a `partially-blocked-by:` that joins the blocked-by graph for cycle detection and `show` output but is **excluded from the dependency factor** in `scoreEntry()` — the semantics being "cannot finish" rather than "cannot start". Open question for the spec: whether `/noldor-gate` should surface the partial blocker at pickup so the agent knows which slice to leave alone, or whether that belongs in the entry body. Deletion test: an entry with only `partially-blocked-by` refs scores as unblocked while still appearing in the dependency graph. (found 2026-09-22)
-
-### Spec Skill Loads Its Design Steps Only When Required
-
-- id: Q-0321
-- area: tooling
-- type: refactor
-- since: 2026-09-25
-- size: S
-- impact: med
-- confidence: med
-- blocked-by: Q-0320
-
-`.claude/skills/noldor-spec/SKILL.md` is 5,899 words (~8k tokens) in 123 lines, and most of it is step 1.5 (UI design) and step 1.6 (architecture design): pen.dev hazards, seeding, iteration and ratification that every spec session reads in full, even when both verdicts come back `skip`, as Q-0233's did. Apply the router pattern Q-0320 sets: the verdict questions stay in `SKILL.md`, and each `required` procedure moves to its own file (`ui-design.md`, `arch-design.md`) read only on `required`; then re-record the skill-size baseline down. Deletion test: a spec session with both verdicts `skip` never loads the UI or architecture procedure, and every rule in today's steps 1.5 and 1.6 lives in exactly one file. (found 2026-09-25 shipping Q-0233)
