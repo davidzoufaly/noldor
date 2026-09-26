@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { autonomousConfigSchema } from '../../../core/config.js';
+import { LANE_NAMES, laneSchema } from '../../../core/lanes.js';
 import { laneReasonCodeSchema } from '../../findings-schema.js';
 
 describe('geometry-compare registration', () => {
@@ -26,5 +27,10 @@ describe('geometry-compare registration', () => {
     ]) {
       expect(laneReasonCodeSchema.safeParse(code).success).toBe(true);
     }
+  });
+
+  it('is a canonical lane', () => {
+    expect(LANE_NAMES).toContain('geometry-compare');
+    expect(laneSchema.safeParse('geometry-compare').success).toBe(true);
   });
 });

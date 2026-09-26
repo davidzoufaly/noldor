@@ -518,7 +518,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
                 {
                   file: input.artifact,
                   severity: 'high',
-                  message: `${agg.reason}: ${agg.detail ?? 'render-compare could not review'}`,
+                  message: `${agg.reason}: ${agg.detail}`,
                 },
               ]
             : [],

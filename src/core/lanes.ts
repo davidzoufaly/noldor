@@ -23,6 +23,10 @@ const CANONICAL_LANES = [
   // pixel-diffs real routes against the session's `.pen` (no dispatched judgment
   // in the verdict; its one agent role is the MCP-mediated design exporter).
   'render-compare',
+  // Code-only layout sibling of `render-compare`: boots the consumer's app and
+  // compares alignment edges, font sizes and declared spacing against the
+  // session's `.pen`. Its one agent role is the design reader (`geometry-extract`).
+  'geometry-compare',
 ] as const;
 
 /** The canonical lane names as a plain array (the preprocess-wrapped `laneSchema`

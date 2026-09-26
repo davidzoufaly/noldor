@@ -71,6 +71,7 @@ import type { OrchestrateArgs } from './orchestrate-args.js';
 import { runManual } from './lanes/manual.js';
 import { runCodex } from './lanes/codex.js';
 import { runRenderCompare } from './lanes/render-compare.js';
+import { runGeometryCompare } from './lanes/geometry-compare.js';
 import { runSubagent } from './lanes/subagent.js';
 import { runUiReview } from './lanes/ui-review.js';
 import { runVerify } from './lanes/verify.js';
@@ -105,6 +106,7 @@ const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<L
   verifier: runVerify,
   'ui-reviewer': runUiReview,
   'render-compare': runRenderCompare,
+  'geometry-compare': runGeometryCompare,
 };
 
 /**

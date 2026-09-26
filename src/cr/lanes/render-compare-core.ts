@@ -219,13 +219,11 @@ export type SurfaceOutcome =
     }
   | { surface: string; kind: 'cannot-review'; reason: LaneReasonCode; detail: string };
 
-export interface Aggregated {
-  verdict: 'pass' | 'fail' | 'cannot-review';
-  /** Headline reason + detail — set only for `cannot-review` (spec R7;
-   * `pen-modified` is the caller's override). */
-  reason?: LaneReasonCode;
-  detail?: string;
-}
+/** The round's verdict; a `cannot-review` always carries its headline reason and
+ * detail (spec R7; `pen-modified` is the caller's override). */
+export type Aggregated =
+  | { verdict: 'pass' | 'fail' }
+  | { verdict: 'cannot-review'; reason: LaneReasonCode; detail: string };
 
 /**
  * The only fields aggregation reads. Each lane keeps its own outcome payload

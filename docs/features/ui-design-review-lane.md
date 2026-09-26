@@ -37,6 +37,7 @@ links:
     - src/cr/__tests__/geometry/geometry-review.test.ts
     - src/cr/__tests__/geometry/geometry-validate-cli.test.ts
     - src/cr/__tests__/lanes/boot-probe.test.ts
+    - src/cr/__tests__/lanes/geometry-compare.test.ts
     - src/cr/__tests__/lanes/geometry-extract-dispatch.test.ts
     - src/cr/__tests__/lanes/geometry-registration.test.ts
     - src/cr/__tests__/lanes/render-compare-core.test.ts
@@ -209,6 +210,7 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/cr/__tests__/geometry/geometry-review.test.ts`](../../src/cr/__tests__/geometry/geometry-review.test.ts)
   - [`src/cr/__tests__/geometry/geometry-validate-cli.test.ts`](../../src/cr/__tests__/geometry/geometry-validate-cli.test.ts)
   - [`src/cr/__tests__/lanes/boot-probe.test.ts`](../../src/cr/__tests__/lanes/boot-probe.test.ts)
+  - [`src/cr/__tests__/lanes/geometry-compare.test.ts`](../../src/cr/__tests__/lanes/geometry-compare.test.ts)
   - [`src/cr/__tests__/lanes/geometry-extract-dispatch.test.ts`](../../src/cr/__tests__/lanes/geometry-extract-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/geometry-registration.test.ts`](../../src/cr/__tests__/lanes/geometry-registration.test.ts)
   - [`src/cr/__tests__/lanes/render-compare-core.test.ts`](../../src/cr/__tests__/lanes/render-compare-core.test.ts)
