@@ -21,6 +21,7 @@ import {
   resolveMainRoot,
   type PortProbe,
 } from './identity.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * Widest `--scan` accepted. Probes are serial and a free port costs a full
@@ -123,6 +124,6 @@ async function main(): Promise<void> {
   process.exitCode = statuses.some((s) => s.mine) ? 0 : 1;
 }
 
-if (process.argv[1]?.endsWith('status.ts') || process.argv[1]?.endsWith('status.js')) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

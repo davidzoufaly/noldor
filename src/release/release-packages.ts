@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { basename } from 'node:path';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * Rewrite a package.json's `version` field, preserving whitespace and
@@ -48,7 +48,6 @@ async function main(): Promise<void> {
   console.log(`Bumped ${touched.length} package.json file(s) to ${newVersion}.`);
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('release-packages');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

@@ -1,9 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { basename } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
 import { parseBacklog } from '../utils/parse-blocks.js';
 import { slugify } from '../utils/slugify.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * Age threshold (in days) past which a backlog entry counts as stale.
@@ -156,8 +156,7 @@ export function demoteStaleBacklog(raw: string, opts: DemoteOptions = {}): Demot
   return { demoted, newRaw: out.join('\n') };
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('backlog-demote');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   const argv = process.argv.slice(2);
   const dryRun = argv.includes('--dry-run');
   const json = argv.includes('--json');

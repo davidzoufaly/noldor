@@ -23,6 +23,7 @@ import {
   shouldWarnPartialStaging,
   type FmtRunResult,
 } from './fmt-guard.js';
+import { invokedDirectly } from './cli-entry.js';
 
 /** Resolve the cwd-local oxfmt binary, falling back to `oxfmt` on PATH. */
 export function resolveOxfmt(cwd: string): string {
@@ -86,7 +87,6 @@ export function main(
   return decision.code;
 }
 
-const invokedDirect = /[\\/]fmt-guard-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) {
+if (invokedDirectly('fmt-guard-cli')) {
   process.exit(main(process.argv.slice(2)));
 }

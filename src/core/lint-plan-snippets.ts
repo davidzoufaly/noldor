@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { isEntrypoint } from './cli-entry.js';
 
 /**
  * One fenced code block extracted from a markdown artifact. Line spans point
@@ -279,8 +279,6 @@ function main(argv: readonly string[]): number {
   return 2;
 }
 
-const invokedDirect =
-  typeof process.argv[1] === 'string' && basename(process.argv[1]).startsWith('lint-plan-snippets');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main(process.argv));
 }

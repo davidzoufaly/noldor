@@ -8,6 +8,7 @@ import { atomicWriteFileSync } from '../core/atomic-write.js';
 import { pathErrorMessage, readFileNoFollow } from '../core/slug-paths.js';
 import { parseSlug } from '../core/slug.js';
 import { revertPhaseForAttach } from '../core/phase-revert.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 function main(): void {
   const slug = process.argv.slice(2).find((a) => !a.startsWith('--'));
@@ -42,5 +43,4 @@ function main(): void {
   process.stdout.write(`phase-revert: ${slug} → in-progress\n`);
 }
 
-const invokedDirect = /[\\/]phase-revert-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirectly('phase-revert-cli')) main();

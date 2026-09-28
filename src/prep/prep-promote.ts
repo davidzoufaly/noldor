@@ -21,6 +21,7 @@ import {
 } from './staging.js';
 
 import type { FeatureDraft, PrepEntry, StagingManifest } from './types.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 interface PromoteArgs {
   date?: string;
@@ -509,8 +510,7 @@ function main(): void {
   );
 }
 
-const invokedDirect = /[\\/]prep-promote\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirectly('prep-promote')) main();
 
 export {
   parseArgs,

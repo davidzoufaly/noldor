@@ -12,6 +12,7 @@ import {
   assessSpecSplit,
   type SplitSignal,
 } from './split-suggestion.js';
+import { invokedDirectly } from './cli-entry.js';
 
 /**
  * `pnpm noldor noldor split-check` — suggest a split when an entry/FD/plan/spec
@@ -138,7 +139,6 @@ function main(): void {
   process.exit(result.exitCode);
 }
 
-const invokedDirect = /[\\/]split-check-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) {
+if (invokedDirectly('split-check-cli')) {
   main();
 }

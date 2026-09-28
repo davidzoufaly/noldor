@@ -8,6 +8,7 @@ import { atomicWriteFileSync } from '../core/atomic-write.js';
 import { pathErrorMessage, readFileNoFollow } from '../core/slug-paths.js';
 import { parseSlug } from '../core/slug.js';
 import { flipPhaseToDone } from '../core/phase-flip-done.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 function main(): void {
   const slug = process.argv.slice(2).find((a) => !a.startsWith('--'));
@@ -42,5 +43,4 @@ function main(): void {
   process.stdout.write(`phase-flip-done: ${slug} → done\n`);
 }
 
-const invokedDirect = /[\\/]phase-flip-done-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirectly('phase-flip-done-cli')) main();

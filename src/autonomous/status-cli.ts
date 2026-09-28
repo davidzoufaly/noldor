@@ -4,6 +4,7 @@
 // progress (shipped / skip / in-flight) from the drain-state heartbeat.
 import { liveLockPid } from './drain-lock.js';
 import { readState, type DrainState } from './drain-state.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 export interface AutonomousStatus {
   /** True iff `.noldor/drain.lock` names a live process. */
@@ -59,5 +60,4 @@ function main(): void {
   process.stdout.write(formatStatus(s));
 }
 
-const invokedDirect = /[\\/]status-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirectly('status-cli')) main();

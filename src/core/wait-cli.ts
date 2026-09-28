@@ -16,6 +16,7 @@ import {
   waitUntil,
   type Predicate,
 } from './wait.js';
+import { runIfDirect } from './cli-entry.js';
 
 const DEFAULT_INTERVAL_MS = 2000;
 const DEFAULT_TIMEOUT_MS = 600_000;
@@ -163,12 +164,4 @@ export async function main(argv: string[]): Promise<number> {
   return 2;
 }
 
-const invokedDirect = /[\\/]wait-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) {
-  main(process.argv.slice(2))
-    .then((code) => process.exit(code))
-    .catch((e: unknown) => {
-      process.stderr.write(`wait: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}\n`);
-      process.exit(1);
-    });
-}
+runIfDirect('wait-cli', 'wait', main);

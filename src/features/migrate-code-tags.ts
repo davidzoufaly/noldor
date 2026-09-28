@@ -1,9 +1,9 @@
 // @fd: dynamic-fd-file-pointers-via-frontmatter
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename } from 'node:path';
 
 import { loadSddFeatures } from '../core/fd-load.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 // Trailing match is horizontal whitespace only ([^\S\n]) so the replace path
 // can't swallow the newline(s) that follow the tag line.
@@ -62,7 +62,6 @@ async function main(): Promise<void> {
   }
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('migrate-code-tags');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

@@ -1,10 +1,11 @@
 import type { Dirent } from 'node:fs';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
 import { extractSpecSlug } from '../core/fd-load.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * A spec file path paired with the feature slug derived from its filename.
@@ -86,7 +87,6 @@ async function main(): Promise<void> {
   );
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('sync-spec-links');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

@@ -46,6 +46,7 @@ import {
   type WatchRails,
 } from './watch-state.js';
 import { notify } from './notify.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 export interface WatchArgs {
   intervalMinutes: number;
@@ -467,8 +468,7 @@ async function main(): Promise<void> {
 }
 
 // Match the entrypoint exactly (watch.ts/.js/.mjs) — NOT watch-args.test.ts.
-const invokedDirect = /[\\/]watch\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) {
+if (invokedDirectly('watch')) {
   void main().catch((e: unknown) => {
     process.stderr.write(`watch crashed: ${e instanceof Error ? e.message : String(e)}\n`);
     // Module-scope: main()'s `startedAt` is out of reach here, so release pid-only.

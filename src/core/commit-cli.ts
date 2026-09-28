@@ -23,6 +23,7 @@ import { spawnSync } from 'node:child_process';
 
 import { defaultRunGit } from './branch-added.js';
 import { decideCommitVerdict, type CommitObservation } from './commit-wrapper.js';
+import { invokedDirectly } from './cli-entry.js';
 
 /** Git probes the CLI needs; injectable so tests never touch a real repo. */
 export interface CommitGit {
@@ -84,8 +85,7 @@ export function main(argv: readonly string[], git: CommitGit = defaultGit): numb
   return verdict.code;
 }
 
-const invokedDirect = /[\\/]commit-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) {
+if (invokedDirectly('commit-cli')) {
   // `process.exitCode`, never `process.exit()`: a piped stdout is async on
   // POSIX, so exiting immediately after the write can truncate the very verdict
   // lines this command exists to deliver. git already ran to completion under

@@ -7,6 +7,7 @@ import matter from 'gray-matter';
 import { ARCHIVE_DIR } from '../core/design-artifact-names.js';
 import { LOST_SENTINEL } from '../core/feature-schema.js';
 import { parseRunOptions } from './projection.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const START_MARKER = '<!-- generated: resources -->';
 const END_MARKER = '<!-- /generated: resources -->';
@@ -264,8 +265,7 @@ async function main(): Promise<void> {
   console.log(`Synced ${result.scanned} feature MD(s), updated ${result.updated}.`);
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('sync-fd-resources');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

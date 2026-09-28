@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 
 import {
   MIN_ENFORCED_VERSION,
@@ -50,6 +50,7 @@ import {
 import type { TestInput } from './graph-fd-lookup.js';
 
 import type { BacklogEntry } from '../utils/parse-blocks.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * Sentinel value in `links.tests` declaring the feature has no testable
@@ -1078,8 +1079,7 @@ async function main(): Promise<void> {
   await writeFile(outPath, `${reportMd.replace(/\n*$/, '')}\n`, 'utf8');
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('sdd-report');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

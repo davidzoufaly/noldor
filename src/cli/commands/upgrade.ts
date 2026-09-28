@@ -3,7 +3,7 @@
 // tested; the CLI tail parses argv and maps the result to stdout + exit code.
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import {
   loadConsumerConfig,
   loadFrameworkVersion,
@@ -15,6 +15,7 @@ import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 import { MIGRATIONS } from '../../migrations/registry.js';
 import { resolveChain, runChain, renderSteps } from '../../migrations/chain.js';
 import type { Migration } from '../../migrations/types.js';
+import { isEntrypoint } from '../../core/cli-entry.js';
 
 export interface UpgradeInput {
   readonly cwd: string;
@@ -166,5 +167,4 @@ function main(): void {
   }
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('upgrade');
-if (invokedDirect) main();
+if (isEntrypoint(import.meta.url)) main();

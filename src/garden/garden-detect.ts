@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
-import { basename, join, relative } from 'node:path';
+import { join, relative } from 'node:path';
 
 import { loadConfig } from '../core/config.js';
 import { planSlugFromFilename, specSlugFromFilename } from '../core/design-artifact-names.js';
@@ -61,6 +61,7 @@ import type { MigrationCoverageFinding } from './detectors/migration-coverage.js
 import type { MilestoneShippedIncompleteFinding } from './detectors/milestone-shipped-incomplete.js';
 import type { CircularBlockedByFinding } from './detectors/circular-blocked-by.js';
 import type { SkillDriftFinding } from './detectors/skill-code-drift.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 // --- Defaults ---
 /** Age threshold (in days) for a design artifact with no resolvable owner FD. */
@@ -959,8 +960,7 @@ export function staleGraphGaps(gaps: readonly SddGap[]): readonly SddGap[] {
   return gaps.filter((gap) => isStaleGraphGap(gap));
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('garden-detect');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   const gateComplianceMode = process.argv.includes('--gate-compliance');
   // CI mode: findings a human would read and act on interactively become exit-code
   // failures. Today that is exactly the stale-graph meta-gap. Orthogonal to

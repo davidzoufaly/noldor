@@ -8,6 +8,7 @@ import { gitStatusPorcelain } from '../core/git-porcelain.js';
 import { buildResearchPrompt, parseResearchStdout } from './prompt.js';
 import { createBatchDir, findingsFileName, renderIndex, writeManifest } from './staging.js';
 import { FALLBACK_META, tasksFileSchema, type ResearchResult, type TaskSpec } from './types.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 export interface FanoutArgs {
   tasksFile?: string;
@@ -269,5 +270,4 @@ function main(): void {
     });
 }
 
-const invokedDirect = /[\\/]fanout\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirectly('fanout')) main();

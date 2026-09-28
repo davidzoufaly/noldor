@@ -1,5 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const INLINE_LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
 const HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/gm;
@@ -242,8 +243,7 @@ async function main(): Promise<void> {
   process.exitCode = 1;
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('docs-check');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;
