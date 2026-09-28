@@ -97,7 +97,7 @@ Each of the 49 files gets a one-line change to its guard. The tail below the gua
 - Adding `const x = process.argv[1];` to any non-test `.ts` file under `src/` other than `src/core/cli-entry.ts` makes `pnpm noldor checks invariants` exit non-zero and name that file and line. The same holds for `.at(1)`, `.slice(1)`, `?.[1]` and `[, x] = process.argv`.
 - `` `file://${process.argv[1]}` `` in a template hole is flagged. The same text in a comment, a string literal or template text is not.
 - None of these is flagged: `isEntrypoint(import.meta.url)`, `isEntrypoint(import.meta.url, argv1)`, `invokedDirectly('x')`, `runIfDirect(...)`, `process.argv.slice(2)`, `process.argv[0]` and `const [, , a] = process.argv`.
-- `grep -rE 'process\.argv(\?\.)?\[1\]'` over non-test `src/**/*.ts` finds only `src/core/cli-entry.ts` and comment lines.
+- `grep -rE 'process\.argv(\?\.)?\[1\]'` over non-test `src/**/*.ts` finds only `src/core/cli-entry.ts`, comment lines, and the template text at `src/testing/contract-harness.ts:194`.
 - Every swept module still runs its body when invoked through `pnpm noldor <group> <cmd>`, and still does nothing when imported. The existing test suite passes unchanged.
 - A module whose basename only starts or ends with a swept stem (e.g. `src/garden/garden-detect-runner.ts`) no longer satisfies that stem's guard.
 - `pnpm typecheck`, `pnpm test`, the clone gate and the indirection ratchet all pass. Any ratchet movement is re-recorded in its own commit.
