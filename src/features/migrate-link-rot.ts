@@ -15,6 +15,7 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from '
 import { basename, join } from 'node:path';
 
 import { LOST_SENTINEL } from '../core/feature-schema.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 export { LOST_SENTINEL };
 
@@ -191,5 +192,4 @@ function main(): void {
   }
 }
 
-const invokedDirect = /[\\/]migrate-link-rot\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirectly('migrate-link-rot')) main();

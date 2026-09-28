@@ -8,6 +8,7 @@ import { appendOverrideLog } from '../core/overrides-log.js';
 import { buildConsumerFixture } from '../testing/consumer-fixture.js';
 import { installFrameworkTarball, runContractChecks } from '../testing/contract-harness.js';
 import { ensureCleanTreeOnMain } from './clean-tree.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 const execFileP = promisify(execFile);
 
@@ -228,8 +229,7 @@ async function cliMain(): Promise<void> {
 // Execute only when dispatched as the CLI entrypoint (`noldor release publish`
 // reshapes argv so argv[1] is this module's path). Importing this module —
 // including from ./index.ts — must NOT fire the CLI.
-const invokedDirect = /[\\/]release-publish\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) {
+if (invokedDirectly('release-publish')) {
   cliMain().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`release publish failed: ${message}`);

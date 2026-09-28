@@ -1,6 +1,5 @@
 // @fd: dynamic-fd-file-pointers-via-frontmatter
 
-import { basename } from 'node:path';
 import { parseSlug } from '../core/slug.js';
 
 import { loadDocRoots } from '../core/doc-roots.js';
@@ -11,6 +10,7 @@ import {
   type GraphifyGraph,
 } from '../garden/graph-fd-lookup.js';
 import { loadSddFeatures } from '../core/fd-load.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /** A proposed code-file pointer with a confidence score + human reason. */
 export interface RankedCandidate {
@@ -150,7 +150,6 @@ async function main(): Promise<void> {
   for (const c of ranked) console.log(`  [${c.score}] ${c.file}  (${c.reason})`);
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('propose-pointers');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

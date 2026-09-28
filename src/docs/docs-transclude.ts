@@ -1,5 +1,6 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const MARKER_RE = /<!--\s*example:start\s+([\w-]+)\s*-->[\s\S]*?<!--\s*example:end\s*-->/g;
 
@@ -85,8 +86,7 @@ async function main(): Promise<void> {
   console.log(`Transcluded examples in ${changed} tutorial file(s).`);
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('docs-transclude');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

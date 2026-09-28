@@ -1,10 +1,9 @@
 // @fd: dynamic-fd-file-pointers-via-frontmatter
 
-import { basename } from 'node:path';
-
 import { scanRoots } from '../core/repo-paths.js';
 import { codeAdapter } from './adapters/code.js';
 import { extractTagsWith, parseRunOptions, runProjection } from './projection.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 // Re-export pinned by a test only: `src/core/__tests__/repo-paths.test.ts`
 // asserts this path and `../core/repo-paths.js` resolve to one definition. No
@@ -30,8 +29,7 @@ async function main(): Promise<void> {
   process.exitCode = await runProjection(codeAdapter, parseRunOptions(process.argv));
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('sync-code-links');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

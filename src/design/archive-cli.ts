@@ -18,6 +18,7 @@ import {
 } from '../core/branch-added.js';
 import { readSession } from '../core/session.js';
 import { type ArchiveMove, dialogueKeyFromSession, resolveArchivePlan } from './archive-resolve.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 const USAGE = 'usage: noldor design archive [--dry-run] [--slug <key>]';
 
@@ -337,8 +338,7 @@ async function main(): Promise<number> {
   return 0;
 }
 
-const invokedDirect = /[\\/]archive-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) {
+if (invokedDirectly('archive-cli')) {
   void main().then(
     (code) => {
       process.exitCode = code;

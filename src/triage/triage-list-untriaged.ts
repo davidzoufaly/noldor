@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const HEADING_RE = /^(#{2,4})\s+(.+)$/;
 const TOP_LEVEL_BULLET_RE = /^-\s+(.+)$/;
@@ -90,9 +90,7 @@ async function main(): Promise<void> {
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 }
 
-const invokedDirect =
-  process.argv[1] && basename(process.argv[1]).startsWith('triage-list-untriaged');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

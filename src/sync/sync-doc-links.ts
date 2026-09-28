@@ -1,9 +1,8 @@
 // @fd: feature-md-links-overhaul
 
-import { basename } from 'node:path';
-
 import { docsAdapter } from './adapters/docs.js';
 import { extractTagsWith, parseRunOptions, runProjection } from './projection.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * Extract the slug list from a doc file's first line-anchored
@@ -24,8 +23,7 @@ async function main(): Promise<void> {
   process.exitCode = await runProjection(docsAdapter, parseRunOptions(process.argv));
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('sync-doc-links');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

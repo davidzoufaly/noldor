@@ -1,5 +1,5 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
@@ -8,6 +8,7 @@ import { howtoFrontmatterSchema } from './howto-schema.js';
 
 import type { Category } from '../core/feature-schema.js';
 import type { HowtoFrontmatter } from './howto-schema.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * One parsed how-to MD ready to render into the index.
@@ -111,8 +112,7 @@ async function main(): Promise<void> {
   console.log(`Wrote ${join(outDir, 'index.md')} (${howtos.length} how-to(s))`);
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('docs-howto');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

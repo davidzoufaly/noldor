@@ -1,4 +1,5 @@
 import { readInboxRows } from './escalations.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 function main(): void {
   const rows = readInboxRows(process.cwd());
@@ -17,5 +18,4 @@ function main(): void {
   }
 }
 
-const invokedDirect = /[\\/]inbox-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirectly('inbox-cli')) main();

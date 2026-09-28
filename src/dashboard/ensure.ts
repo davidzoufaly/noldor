@@ -18,6 +18,7 @@ import {
   resolveMainRoot,
   type PortPlan,
 } from './identity.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export { DEFAULT_PORT, resolveMainRoot };
 
@@ -185,6 +186,6 @@ async function main(): Promise<void> {
   console.log(`dashboard ${label} → ${result.baseUrl}`);
 }
 
-if (process.argv[1]?.endsWith('ensure.ts') || process.argv[1]?.endsWith('ensure.js')) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

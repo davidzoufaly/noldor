@@ -7,6 +7,7 @@ import matter from 'gray-matter';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { planSlugFromFilename, specSlugFromFilename } from '../core/design-artifact-names.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 /**
  * Post-build enrichment of `graphify-out/graph.json`: represent feature MDs,
@@ -256,5 +257,4 @@ function main(): void {
   );
 }
 
-const invokedDirect = /[\\/]enrich-doc-nodes\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirectly('enrich-doc-nodes')) main();

@@ -1,9 +1,8 @@
 // @fd: feature-md-links-overhaul
 
-import { basename } from 'node:path';
-
 import { testsAdapter } from './adapters/tests.js';
 import { extractTagsWith, parseRunOptions, runProjection } from './projection.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * Extract the slug list from a test file's first `// @tests:` comment.
@@ -23,8 +22,7 @@ async function main(): Promise<void> {
   process.exitCode = await runProjection(testsAdapter, parseRunOptions(process.argv));
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('sync-test-links');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

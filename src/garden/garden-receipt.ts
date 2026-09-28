@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 
 import { z } from 'zod';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /**
  * Stamp on disk attesting that `/noldor-garden` ran successfully against a given
@@ -146,8 +147,7 @@ async function main(): Promise<void> {
   );
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('garden-receipt');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

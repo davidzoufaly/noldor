@@ -122,6 +122,7 @@ export function inferTier(fm: Record<string, unknown>): Record<string, unknown> 
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import matter from 'gray-matter';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 async function walkFeaturesDir(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -205,7 +206,6 @@ async function main(): Promise<void> {
   }
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('migrate-features');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

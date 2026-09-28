@@ -2,7 +2,7 @@
 // @tests: feature-md-links-overhaul
 
 import { readFile, readdir } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const SUBJECT_RE = /^(?<type>\w+)(?:\((?<scope>[^)]+)\))?(?<bang>!)?:/;
 
@@ -101,8 +101,6 @@ async function main(): Promise<void> {
   }
 }
 
-const invokedDirect =
-  process.argv[1] && basename(process.argv[1]).startsWith('check-feature-slug-scope');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

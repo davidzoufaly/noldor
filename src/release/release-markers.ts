@@ -1,7 +1,8 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 
 import matter from 'gray-matter';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /** Inputs to {@link fillMarkers}. */
 export interface FillOptions {
@@ -128,7 +129,6 @@ async function main(): Promise<void> {
   console.log(`Filled markers on ${touched.length} feature MD(s).`);
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('release-markers');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

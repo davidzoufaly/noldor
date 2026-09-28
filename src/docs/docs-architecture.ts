@@ -1,6 +1,6 @@
 // @fd: consumer-architecture-doc-surface
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { basename, join, sep } from 'node:path';
+import { join, sep } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
 import { scanRoots, toPosixRelative } from '../core/repo-paths.js';
@@ -18,6 +18,7 @@ import {
   pageFilename,
   type ArchitecturePageId,
 } from './architecture-schema.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /** Why one registry page failed. One finding per rule per page, never more. */
 export type ArchitectureRule = 'missing' | 'no-fence' | 'bad-kind' | 'placeholder' | 'unreadable';
@@ -517,8 +518,7 @@ async function main(): Promise<void> {
   process.exitCode = 1;
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('docs-architecture');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

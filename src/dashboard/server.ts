@@ -86,6 +86,7 @@ import {
   planPort,
   resolveMainRoot,
 } from './identity.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 export interface CliArgs {
   /** Undefined when --port absent — caller falls back to env PORT or default 4321. */
@@ -1132,6 +1133,6 @@ async function main(): Promise<void> {
   throw new Error(`dashboard could not claim a port from ${desired} after 3 attempts`);
 }
 
-if (process.argv[1]?.endsWith('server.ts') || process.argv[1]?.endsWith('server.js')) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

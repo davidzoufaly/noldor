@@ -10,6 +10,7 @@ import { parseBacklog, parseRefList, parseRoadmap } from '../utils/parse-blocks.
 import { removeBlock } from '../utils/write-blocks.js';
 import { ENTRY_ID_RE } from './entry-id.js';
 import { RETIRED_IDS_PATH_DEFAULT, recordRetiredId } from './retired-ids.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 /**
  * Parsed `remove-block` argv. `retiredInto` is the attach path's parent FD;
@@ -193,5 +194,4 @@ function main(): void {
   process.stdout.write(`remove-block: removed ${slug} from ${rel}\n`);
 }
 
-const invokedDirect = /[\\/]remove-block-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirectly('remove-block-cli')) main();

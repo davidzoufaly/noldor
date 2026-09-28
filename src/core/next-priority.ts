@@ -13,6 +13,7 @@ import { extractTouches } from './extract-touches.js';
 import { FeatureFrontmatterSchema } from './feature-schema.js';
 import { readSession, type Path as SessionPath } from './session.js';
 import { parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
+import { isEntrypoint } from './cli-entry.js';
 
 /**
  * Return the top-priority entry from a parsed roadmap (file order =
@@ -650,8 +651,7 @@ async function main(): Promise<void> {
   process.exit(top === null ? 2 : 0);
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('next-priority');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

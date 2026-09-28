@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { compute } from './compute.js';
 import type { MetricsReport } from './types.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 export interface CliArgs {
   jsonPath: string | undefined;
@@ -41,8 +42,7 @@ async function main(): Promise<void> {
   process.stdout.write(`wrote ${outPath}\n`);
 }
 
-const invokedDirect = /[\\/]compute-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) {
+if (invokedDirectly('compute-cli')) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

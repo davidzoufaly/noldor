@@ -28,6 +28,7 @@ import {
 import { pathErrorMessage } from '../core/slug-paths.js';
 import { parseSlug } from '../core/slug.js';
 import { TEST_FILE_RE, scanRoots } from '../core/repo-paths.js';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 /** Per-file validation result: file path plus list of human-readable issues. */
 export interface FileError {
@@ -501,7 +502,6 @@ async function main(): Promise<void> {
   process.exitCode = 1;
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('validate-features');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main();
 }

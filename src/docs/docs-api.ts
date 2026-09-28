@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { isEntrypoint } from '../core/cli-entry.js';
 
 const execFileP = promisify(execFile);
 
@@ -56,8 +57,7 @@ async function main(): Promise<void> {
   console.log(`Annotated ${annotated} generated file(s) under ${apiDir}.`);
 }
 
-const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('docs-api');
-if (invokedDirect) {
+if (isEntrypoint(import.meta.url)) {
   void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

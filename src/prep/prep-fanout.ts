@@ -14,6 +14,7 @@ import { batchDirFor, ensureDir, indexPath, manifestPath, writeManifest } from '
 
 import { draftMetaSchema } from './types.js';
 import type { DraftMeta, FeatureDraft, StagingManifest } from './types.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 interface FanoutArgs {
   max: number;
@@ -222,7 +223,6 @@ function main(): void {
     });
 }
 
-const invokedDirect = /[\\/]prep-fanout\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirectly('prep-fanout')) main();
 
 export { parseArgs, run };
