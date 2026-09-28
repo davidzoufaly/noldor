@@ -26,14 +26,14 @@ Three attempts to recognise a bad comparison in text failed in three rounds of c
 
 ## Goals
 
-- A new hand-written read of `process.argv[1]` anywhere under `src/` makes `pnpm noldor checks invariants` exit non-zero, naming the file and line.
+- A new hand-written read of `process.argv[1]` in any non-test `.ts` file under `src/` makes `pnpm noldor checks invariants` exit non-zero, naming the file and line.
 - One place derives direct invocation from `argv[1]`: `src/core/cli-entry.ts`. After this change every guard in `src/` is `isEntrypoint(import.meta.url)`, `invokedDirectly(stem)` or `runIfDirect(stem, label, main)`.
 - No module's direct-invocation behaviour changes, except that a prefix or suffix match becomes an exact one.
 
 ## Non-goals
 
 - Re-signing `runIfDirect` / `invokedDirectly` to take `import.meta.url`. That would change the 22 call sites already on the helper, and none of them is broken.
-- Catching `argv` reached through an alias: `const a = process.argv; a[1]`, `process['argv']`, or `argv` imported from `node:process`. Nothing in `src/` reads index 1 that way today. The two files that import `argv` from `node:process` only call `.includes(...)`.
+- Catching `argv` reached through an alias or a copy: `const a = process.argv; a[1]`, `process['argv']`, `argv` imported from `node:process`, `process.argv.slice(0)` or `[...process.argv]`. Nothing in `src/` reads index 1 that way today. The two files that import `argv` from `node:process` only call `.includes(...)`.
 - Scanning outside `src/` (`bin/`, `templates/`), or scanning test files.
 - An AST route (`@swc/core`, or the TS 7 `unstable/*` API server). The rule needs only a token match once comments and strings are masked out.
 
@@ -45,7 +45,7 @@ Three attempts to recognise a bad comparison in text failed in three rounds of c
 
 ### Masking non-code text (`maskNonCode` in `src/invariants/source-scan.ts`)
 
-The rule matches tokens, so first it must know which characters are code. `maskNonCode(text)` returns a string of the same length. Every character inside a comment, a string literal or the literal text of a template is replaced with a space, and newlines are kept. So offsets and line numbers match the original file.
+The rule matches tokens, so first it must know which characters are code. `maskNonCode(text)` returns a string of the same length. Every character inside a comment, a string literal, a regex literal or the literal text of a template is replaced with a space, and newlines are kept. So offsets and line numbers match the original file.
 
 Template holes (`${ … }`) stay code, recursively. That matters because `` `file://${process.argv[1]}` `` is the exact shape Q-0126 swept. The mask handles the traps the earlier attempts listed:
 
@@ -57,7 +57,9 @@ It lives in `source-scan.ts` beside `splitArgs`, because it is a general text-sc
 
 `src/clones/tokenize.ts` is not reused. It collapses a whole template, holes included, into one `LIT` token, which would hide the swept shape.
 
-Known imprecision: regex literals are not recognised. A `'` or `/*` inside a regex literal would mask the wrong span. Nothing in `src/` does that once the 20 inline regexes are swept, and the live-repo test case would surface a new one the day it lands.
+Regex literals are recognised, because `src/` has many that carry quotes and backticks. For example, `src/docs/docs-check.ts:41` holds three backticks, and `src/docs/adr-schema.ts:82` holds `['"]`. An unrecognised one would open a string or template and flip what counts as code for the rest of the file. The mask uses the usual rule: a `/` that does not open a comment starts a regex when the previous code character is a punctuator from `( [ { } , ; : = ! & | ? + - * % < > ~ ^`, or the start of the file, or when it follows one of the keywords `return typeof instanceof in of new delete void throw case do else yield await`. After an identifier, a number, `)` or `]`, it is division. Inside a regex, `\` escapes the next character and `[…]` is a class where `/` does not close.
+
+**The mask fails closed.** `maskNonCode` also reports whether it ended cleanly. It ends dirty when a string or regex literal reaches a newline, or when the file ends inside a comment, string, template or regex. Valid TypeScript does neither, so a dirty end means the mask lost track of the file. The rule then reports that file as a violation (`could not lex`) instead of trusting a mask that might hide a read. A lexing slip that would have been a silent false negative becomes a blocking failure that names the file.
 
 ### The rule (`src/invariants/entrypoint-guard-choke-point.ts`)
 
@@ -65,7 +67,7 @@ Known imprecision: regex literals are not recognised. A `'` or `/*` inside a reg
 
 - `process.argv[1]` and `process.argv?.[1]`
 - `process.argv.at(1)`
-- `process.argv.slice(1` … (any `slice` starting at 1, which passes `argv[1]` on)
+- `process.argv.slice(1)` and `process.argv.slice(1, …)`: the start argument is exactly the literal `1`, so `slice(10)` and `slice(2)` do not match. Every slice that starts at 1 is refused, even an empty one like `slice(1, 1)`, because no legitimate caller needs one
 - array destructuring from `process.argv` whose second slot binds a name: `[, x]`, `[a, b]`, `[, ...rest]`. `[, , group]` is not flagged: its second slot is a hole, as in `src/cli/index.ts:116` and `src/milestones/cli.ts:32`.
 
 Whitespace is allowed around every `.`, `[` and `(`.
@@ -89,13 +91,14 @@ Each of the 49 files gets a one-line change to its guard. The tail below the gua
 - Every form listed above is flagged.
 - Every shape the earlier attempts got wrong is classified correctly: the sanctioned `isEntrypoint(import.meta.url) && argv.length === 2`, the documented `isEntrypoint(import.meta.url, argv1)`, `new URL('x', import.meta.url)` near an argv read, `[, , group]`, `process.argv[0]`, one-line doc comments, `/* c */ code`, and argv inside strings and template text but not inside holes.
 
-`maskNonCode` gets its own table test in the same file. A live-repo case runs `makeEntrypointGuardChokePointInvariant(repoRoot)` against the real tree and expects zero violations. That case is the sweep's completeness proof.
+`maskNonCode` gets its own table test in the same file, including a regex with an odd number of backticks followed by an argv read (still flagged), `a / b / c` division, and a file that ends inside a template (reported as `could not lex`). A live-repo case runs `makeEntrypointGuardChokePointInvariant(repoRoot)` against the real tree and expects zero violations. That case is the sweep's completeness proof.
 
 ## Acceptance criteria
 
 - `pnpm noldor checks invariants` exits 0 on the branch, with `entrypoint-guard-choke-point` listed and reporting no violations.
 - Adding `const x = process.argv[1];` to any non-test `.ts` file under `src/` other than `src/core/cli-entry.ts` makes `pnpm noldor checks invariants` exit non-zero and name that file and line. The same holds for `.at(1)`, `.slice(1)`, `?.[1]` and `[, x] = process.argv`.
 - `` `file://${process.argv[1]}` `` in a template hole is flagged. The same text in a comment, a string literal or template text is not.
+- A regex literal carrying quotes or an odd number of backticks does not hide a later argv read, and a file the mask cannot lex cleanly is reported as a violation rather than passing.
 - None of these is flagged: `isEntrypoint(import.meta.url)`, `isEntrypoint(import.meta.url, argv1)`, `invokedDirectly('x')`, `runIfDirect(...)`, `process.argv.slice(2)`, `process.argv[0]` and `const [, , a] = process.argv`.
 - `grep -rE 'process\.argv(\?\.)?\[1\]'` over non-test `src/**/*.ts` finds only `src/core/cli-entry.ts`, comment lines, and the template text at `src/testing/contract-harness.ts:194`.
 - Every swept module still runs its body when invoked through `pnpm noldor <group> <cmd>`, and still does nothing when imported. The existing test suite passes unchanged.
@@ -122,5 +125,5 @@ As an agent or maintainer adding a CLI module under `src/`, I want the invariant
 
 1. _Should `src/cli/index.ts` be on the allowlist?_ → No. It never reads slot 1. It reassigns `process.argv` whole and destructures `[, , group, …]`, which the rule does not flag. An allowance it does not use would be a place the class could come back (D3).
 2. _Which spelling do regex-shaped guards move to?_ → `invokedDirectly` / `runIfDirect`. That keeps their semantics exactly. Moving them to `isEntrypoint` belongs with the separate `runIfDirect` re-signing (D2).
-3. _Should the mask recognise regex literals?_ → No. After the sweep no regex literal in `src/` contains a quote or `/*`. The live-repo test would expose a new one on the day it lands (D4).
+3. _Should the mask recognise regex literals?_ → Yes, and it fails closed. `src/` holds regex literals with quotes and odd backtick counts, and a mask that fails open would hide reads silently. A dirty lex is reported as a violation, so the only failure mode left is a loud one (D6).
 4. _Blocking or advisory?_ → Blocking. The match is exact, like `locale-compare-pinned` (D5).
