@@ -206,6 +206,8 @@ export function maskNonCode(text: string): MaskedSource {
       if (c === ')') regexAllowed = parens.pop() ?? false;
       else if (c === ']' || c === '.') regexAllowed = false;
       else if ((c === '+' || c === '-') && text[i + 1] === c) i++;
+      // After a value, `!` is TypeScript's non-null assertion, so the value continues.
+      else if (c === '!' && !regexAllowed && text[i + 1] !== '=') regexAllowed = false;
       else regexAllowed = REGEX_AFTER_PUNCT.has(c);
       i++;
     }

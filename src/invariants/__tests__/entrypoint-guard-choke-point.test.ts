@@ -42,11 +42,23 @@ describe('maskNonCode', () => {
   });
 
   it('reads / after a value as division, not a regex', () => {
-    for (const src of ['a / b / c;\n', '(a) / b / c;\n', 'i++ / n / 2;\n', 'x[0] / y / z;\n']) {
+    for (const src of [
+      'a / b / c;\n',
+      '(a) / b / c;\n',
+      'i++ / n / 2;\n',
+      'x[0] / y / z;\n',
+      'xs.length! / 2 / n;\n',
+    ]) {
       const { masked, clean } = maskNonCode(src);
       expect(clean).toBe(true);
       expect(masked).toBe(src);
     }
+  });
+
+  it('reads / after a prefix ! as a regex', () => {
+    const { masked, clean } = maskNonCode("ok = !/'/.test(s);\n");
+    expect(clean).toBe(true);
+    expect(masked).toBe('ok = !   .test(s);\n');
   });
 
   it('reads / after a statement head as a regex', () => {
