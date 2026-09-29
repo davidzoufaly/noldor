@@ -334,19 +334,6 @@ The M/L/XL mandatory codex round (Q-0091, PR #341) hardcodes `codex` as the seco
 
 PR #372 carried the same prose in several places at once — the skill, its `templates/` twin, the runner-neutral `docs/noldor/` page, and the FD — so one edit has four homes and three of them go stale silently. The twin-copy rule makes this structural rather than accidental: `doctor` reds when a skill and its template diverge, which enforces that the duplication STAYS in sync but does nothing about the fact that it exists. Worth deciding what the framework's answer is: a text-import/transclusion mechanism with a generated-file marker (the `sync` projections already establish the generated-from-source pattern), a single canonical page every twin links to instead of restating, or an accepted duplication with a stronger mechanical diff than `doctor`'s presence check. Parked rather than roadmapped because the answer changes the shape of every skill file — it wants a spike before a size. Deletion test: correcting a sentence about a rule touches exactly one file. (found 2026-08-25 reviewing PR #372)
 
-### Archify Diagrams in the Framework
-
-- id: Q-0210
-- area: tooling
-- type: feat
-- since: 2026-09-06
-- size: M
-- impact: low
-- confidence: low
-- parent: consumer-architecture-doc-surface
-
-Fold the `archify` skill — architecture, workflow, sequence, data-flow and lifecycle diagrams rendered as standalone HTML with inline SVG — into the framework, so the four-page architecture doc surface (Q-0093) and the FD C4 diagrams get their pictures from one owned generator rather than hand-authored mermaid. The pull is real: the framework already asks every FD to carry a C4 diagram and every architecture page to stay honest against the code, and `graphify-out/graph.json` already holds the node/edge data a generator would want. The reason this is parked and not roadmapped is that nothing here is decided — whether archify is vendored, invoked as an external skill, or reimplemented against the graph; whether the output is committed HTML or regenerated on demand; and how a generated diagram avoids the drift that hand-authored mermaid already suffers. That is a spike's worth of questions ahead of a size, and there is no live trigger forcing it. Deletion test: an FD's C4 diagram and an architecture page's data-flow diagram are both produced by one framework command from graph data, with no hand-authored mermaid in either. (raised 2026-09-06 from an untriaged ideas bullet)
-
 ### UI Annotation Boolean for Roadmap Entries
 
 - id: Q-0215
