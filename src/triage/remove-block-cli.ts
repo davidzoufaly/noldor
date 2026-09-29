@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parseBacklog, parseRefList, parseRoadmap } from '../utils/parse-blocks.js';
 import { removeBlock } from '../utils/write-blocks.js';
-import { ENTRY_ID_RE } from './entry-id.js';
+import { ENTRY_ID_RE, featureEntryIds } from './entry-id.js';
 import { RETIRED_IDS_PATH_DEFAULT, recordRetiredId } from './retired-ids.js';
 import { invokedDirectly } from '../core/cli-entry.js';
 
@@ -163,8 +163,20 @@ function main(): void {
   // skip branches warn rather than stay silent — but they don't block removal
   // (a repo without .noldor/ hasn't adopted state; a malformed `- id:` is the
   // source block's defect, not this command's).
+  //
+  // A promoted entry is skipped: its FD's `entry-id:` already carries the ID,
+  // and a recorded ID reads as shipped (`resolveIsShipped`), so recording it
+  // would unblock `blocked-by:` dependents while the FD is still in progress.
   let recordNote = '';
-  if (entry.id !== undefined) {
+  const carrier =
+    entry.id === undefined
+      ? undefined
+      : [...featureEntryIds(join(process.cwd(), 'docs/features'))].find((f) => f.id === entry.id);
+  if (carrier !== undefined) {
+    process.stdout.write(
+      `remove-block: ${entry.id} is carried by docs/features/${carrier.slug}.md (entry-id) — not recorded as retired\n`,
+    );
+  } else if (entry.id !== undefined) {
     const mapPath = join(process.cwd(), RETIRED_IDS_PATH_DEFAULT);
     if (!ENTRY_ID_RE.test(entry.id)) {
       recordNote = `remove-block: id '${entry.id}' is malformed (expected Q-NNNN) — not recorded; blocked-by refs to it will dangle\n`;
