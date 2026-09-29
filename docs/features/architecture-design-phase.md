@@ -34,10 +34,9 @@ links:
 name: pen.dev Architecture Design Phase
 packages:
   - package.json
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
-
 ## Summary
 
 An as-built architecture canvas on pen.dev — `docs/design/architecture/baseline.pen`, one detailed `architecture` page drawn between C4 containers and components: externals, containers and stores, modules, and parts inside modules — that architecture designs start from and ship back into, the loop UI designs already run. `design arch-draw` draws the first canvas from the code and adds new modules later, and [`docs/noldor/architecture-canvas.md`](../noldor/architecture-canvas.md) tells any agent how to finish and keep it. `checks arch-baseline` holds it to the code: every module boxed once, every part real and inside its module, every arrow between code paths backed by a real import; arrows to the outer layers are held to resolving. `/noldor-spec` step 1.6 seeds, iterates and approves an architecture `.pen`, gate Step 4 writes the approved change back, and a milestone can carry a target architecture whose gap `design arch-progress` reports — all on the approval, guard, archive and bridge machinery UI uses, through one design-kind seam (ADR 0007, narrowed to one page by ADR 0010).
