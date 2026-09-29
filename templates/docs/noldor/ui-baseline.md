@@ -1,5 +1,6 @@
 ---
 noldor-page: ui-baseline
+introduced: 1.14.0
 ---
 
 # UI Baseline Contract
