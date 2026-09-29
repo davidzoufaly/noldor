@@ -16,7 +16,9 @@ import matter from 'gray-matter';
  */
 export function fillNoldorMarker(md: string, newVersion: string): string {
   const parsed = matter(md);
-  const data = parsed.data as Record<string, unknown>;
+  // Copy before mutating: gray-matter caches parses by input string, so writing
+  // into `parsed.data` would make an identical twin read as already stamped.
+  const data = { ...(parsed.data as Record<string, unknown>) };
 
   if (data.introduced !== undefined) {
     return md;
@@ -26,27 +28,34 @@ export function fillNoldorMarker(md: string, newVersion: string): string {
   return matter.stringify(parsed.content.replace(/^\n/, ''), data);
 }
 
+/** Noldor page roots the release stamps: the pages and their `templates/` twins. */
+export const NOLDOR_PAGE_DIRS = ['docs/noldor', 'templates/docs/noldor'] as const;
+
 /**
- * Walk `docs/noldor/`, fill `introduced` on any page lacking it, and
+ * Walk every Noldor page root, fill `introduced` on any page lacking it, and
  * write modified files back in place.
  *
+ * The `templates/docs/noldor/` twin is stamped in the same pass so a page and
+ * its twin stay byte-identical and `check-template-sync` accepts the release
+ * commit. A consumer repo has no `templates/` tree; a missing root is skipped.
+ *
  * @param newVersion - Version being released (without the `v` prefix)
- * @returns Paths of pages that were rewritten
+ * @param cwd - Repo root the page roots resolve against
+ * @returns Repo-relative paths of pages that were rewritten
  */
-export async function fillAllNoldorMarkers(newVersion: string): Promise<string[]> {
-  const dir = 'docs/noldor';
-  const entries = await readdir(dir, { withFileTypes: true });
+export async function fillAllNoldorMarkers(newVersion: string, cwd = '.'): Promise<string[]> {
   const touched: string[] = [];
 
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.md')) {
-      continue;
-    }
-    const path = join(dir, entry.name);
-    const original = await readFile(path, 'utf8');
-    const updated = fillNoldorMarker(original, newVersion);
-    if (updated !== original) {
-      await writeFile(path, updated, 'utf8');
+  for (const dir of NOLDOR_PAGE_DIRS) {
+    const names = await readdir(join(cwd, dir)).catch((err: NodeJS.ErrnoException) => {
+      if (err.code === 'ENOENT') return [];
+      throw err;
+    });
+    for (const path of names.filter((n) => n.endsWith('.md')).map((n) => join(dir, n))) {
+      const original = await readFile(join(cwd, path), 'utf8');
+      const updated = fillNoldorMarker(original, newVersion);
+      if (updated === original) continue;
+      await writeFile(join(cwd, path), updated, 'utf8');
       touched.push(path);
     }
   }
