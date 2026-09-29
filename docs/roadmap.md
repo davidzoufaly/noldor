@@ -15,15 +15,3 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 > - **L / XL** → `full` (spec + plan), and only when there's real design risk — a mechanical L can still fast-track.
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
-
-### SDD Report Honours Ownerless On Purpose
-
-- id: Q-0336
-- area: tooling
-- type: fix
-- since: 2026-09-29
-- size: M
-- impact: med
-- confidence: med
-
-ADR 0009 says a shared helper may have no owner, but the SDD report still counts it as a gap. Detector 9 ("Code files not referenced by any feature") counts every ownerless file, and detector 19 ("Done features without code") counts FDs that #636 emptied on purpose because their code lives in shared files (the five dashboard page FDs, `scripts-reorganization-by-feature-area`, `self-boundaries-declaration-and-cycle-break`). After #640 that leaves 17 + 7 rows that are honest, not gaps, so the counts stop meaning anything. Needs a way to say "ownerless on purpose" — a config list, or an FD sentinel stronger than `['n/a']` — that both detectors read. Surfaced 2026-09-26, PR #640.
