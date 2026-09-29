@@ -407,6 +407,20 @@ export const ConsumerConfigSchema = z
      */
     knownConsumers: z.array(z.string().min(1)).optional(),
     /**
+     * Files and FDs that are ownerless on purpose (ADR 0009: a shared helper
+     * may have no owner), each keyed by repo-relative file path or FD slug and
+     * mapped to the reason. The SDD report skips them in its code-orphan and
+     * done-without-code rows, and reports an entry as stale once that row
+     * would no longer appear without it.
+     */
+    ownerless: z
+      .object({
+        files: z.record(z.string(), z.string().trim().min(1)).default({}),
+        features: z.record(z.string(), z.string().trim().min(1)).default({}),
+      })
+      .strict()
+      .default({}),
+    /**
      * Framework version this consumer tree was last migrated to. Written by
      * `init` (fresh scaffold = current) and `noldor upgrade` (after a chain).
      * Absent on a tree scaffolded before the upgrade feature; `upgrade --from`
@@ -464,6 +478,7 @@ export const ConsumerConfigSchema = z
   });
 
 export type ConsumerConfig = z.infer<typeof ConsumerConfigSchema>;
+export type Ownerless = ConsumerConfig['ownerless'];
 export type BoundaryRule = z.infer<typeof BoundaryRuleSchema>;
 
 /**

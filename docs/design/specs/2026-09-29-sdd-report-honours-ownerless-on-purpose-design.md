@@ -55,7 +55,7 @@ A new optional block in `.noldor/config.json`, parsed by `loadConsumerConfig` in
 }
 ```
 
-Each value is a required reason that is not blank after trimming. Keys under `files` are repo-relative paths; keys under `features` are FD slugs.
+Each value is a required reason that is not blank after trimming. Keys under `files` are repo-relative paths with `/` separators, spelled exactly as the report prints them; keys under `features` are FD slugs.
 
 Only the SDD report reads this block. Nothing else in the framework changes meaning.
 
@@ -100,7 +100,7 @@ The test for each row is ADR 0009's: is the file *about* one feature? If yes, th
 | `src/cr/geometry/geometry-cli-emit.ts` | output plumbing shared by every `design geometry-*` entrypoint |
 | `src/cr/lanes/pen-dispatch.ts` | shared child-dispatch for every pencil-MCP lane |
 
-**Left as real gaps (10 files).** Each is about one feature and should get a `// @fd:` header in a later change: `src/autonomous/drain-eligibility.ts`, `src/autonomous/status-cli.ts`, `src/cr/cut-scan.ts`, `src/cr/geometry/geometry-export-cli.ts`, `src/cr/lanes/geometry-extract-dispatch.ts`, `src/cr/lanes/codex.ts`, `src/design/arch-draw.ts`, `src/design/editor-launch.ts`, `src/garden/detectors/fd-command-rot.ts`, `src/release/index.ts`.
+**Left as real gaps (10 files).** Each is about one feature and should get a `// @fd:` header. PR #666 already gave five of them one (`drain-eligibility.ts`, `status-cli.ts`, `codex.ts`, `editor-launch.ts`, `fd-command-rot.ts`), so five rows remain after this change: `src/autonomous/drain-eligibility.ts`, `src/autonomous/status-cli.ts`, `src/cr/cut-scan.ts`, `src/cr/geometry/geometry-export-cli.ts`, `src/cr/lanes/geometry-extract-dispatch.ts`, `src/cr/lanes/codex.ts`, `src/design/arch-draw.ts`, `src/design/editor-launch.ts`, `src/garden/detectors/fd-command-rot.ts`, `src/release/index.ts`.
 
 **Declared ownerless (7 FDs).** All seven "Done features without code" rows: the five dashboard page FDs render from the shared `src/dashboard/` views, and `scripts-reorganization-by-feature-area` and `self-boundaries-declaration-and-cycle-break` were repo-wide restructures whose "code" is every file they moved.
 
@@ -123,7 +123,7 @@ The test for each row is ADR 0009's: is the file *about* one feature? If yes, th
 - With no `ownerless` block, `collectGaps` returns exactly the gaps it returns today.
 - The dashboard and the report still read the same `ReportInput` (the `loadSddInput layout parity` test stays green).
 - `'n/a'` in `links.code` still exempts an FD as before.
-- After the change, `pnpm noldor garden sdd-report` on this repo shows no "Done features without code" rows, exactly the 10 real-gap files under "Code files not referenced by any feature", and no stale rows.
+- After the change, `pnpm noldor garden sdd-report` on this repo shows no "Done features without code" rows, only real-gap files from the list above under "Code files not referenced by any feature", and no stale rows.
 
 ## Risks / trade-offs
 

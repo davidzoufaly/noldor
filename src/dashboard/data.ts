@@ -1274,6 +1274,7 @@ export async function loadSddInput(): Promise<ReportInput> {
     graphPath: 'graphify-out/graph.json',
     graphSrcRoots: roots,
     ideasMd,
+    ownerless: loadConsumerConfig().ownerless,
     planPaths,
     readmeContent,
     specPaths,

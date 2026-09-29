@@ -69,6 +69,29 @@
         "command": "pnpm noldor --help",
         "kind": "cli"
       }
+    },
+    "ownerless": {
+      "files": {
+        "src/cli/manifest.ts": "the CLI command registry; every verb group registers here",
+        "src/core/config.ts": "repo config loader read across the framework",
+        "src/core/consumer-config.ts": "consumer config schema and loader read across the framework",
+        "src/core/doc-roots.ts": "doc-root resolution read across the framework",
+        "src/core/read-text.ts": "read-or-null file helper",
+        "src/core/session.ts": "session-marker IO used by every gate path",
+        "src/cr/atomic-write.ts": "temp-then-rename JSON write used by every state writer",
+        "src/cr/git-tree.ts": "tree-sha helper every CR receipt binds to",
+        "src/cr/geometry/geometry-cli-emit.ts": "output plumbing shared by every design geometry-* entrypoint",
+        "src/cr/lanes/pen-dispatch.ts": "child dispatch shared by every pencil-MCP lane"
+      },
+      "features": {
+        "dashboard-blocked-by-graph-view": "page renders from the shared src/dashboard/ views",
+        "dashboard-broken-pages-audit": "page renders from the shared src/dashboard/ views",
+        "dashboard-hot-zones-page": "page renders from the shared src/dashboard/ views",
+        "dashboard-vision-surface": "page renders from the shared src/dashboard/ views",
+        "dashboard-wip-age-page": "page renders from the shared src/dashboard/ views",
+        "scripts-reorganization-by-feature-area": "repo-wide restructure; its code is every file it moved",
+        "self-boundaries-declaration-and-cycle-break": "repo-wide restructure; its code is every file it moved"
+      }
     }
   },
   "crLanes": {
