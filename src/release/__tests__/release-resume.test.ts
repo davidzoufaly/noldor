@@ -199,6 +199,25 @@ describe('resumeRelease — commit + tag rungs', () => {
     expect(git(cwd, ['tag', '--list', 'v0.4.1']).trim()).toBe('v0.4.1');
   });
 
+  it('folds a stamped templates/docs/noldor twin into the release commit', async () => {
+    const cwd = seedReleaseRepo();
+    mkdirSync(join(cwd, 'templates/docs/noldor'), { recursive: true });
+    writeFileSync(join(cwd, 'templates/docs/noldor/bar.md'), 'noldor page\n');
+    git(cwd, ['add', '.']);
+    git(cwd, ['commit', '-q', '-m', 'seed twin']);
+    addBareOrigin(cwd);
+    const { env } = fakeGh(cwd, { releaseExists: true });
+    appendFileSync(join(cwd, 'docs/noldor/bar.md'), 'introduced: 0.4.1\n');
+    appendFileSync(join(cwd, 'templates/docs/noldor/bar.md'), 'introduced: 0.4.1\n');
+    writeReleaseState(cwd, STATE);
+    await resumeRelease(cwd, { ...RESUME_OPTS, env });
+    expect(git(cwd, ['log', '-1', '--format=%s']).trim()).toBe('chore(release): v0.4.1');
+    expect(git(cwd, ['status', '--porcelain']).trim()).toBe('');
+    expect(
+      git(cwd, ['show', '--name-only', '--format=', 'HEAD']).trim().split('\n').sort(),
+    ).toEqual(['docs/noldor/bar.md', 'templates/docs/noldor/bar.md']);
+  });
+
   it('skips the commit rung when HEAD already carries the release subject', async () => {
     const cwd = seedReleaseRepo();
     appendFileSync(join(cwd, 'CHANGELOG.md'), '\n## v0.4.1\n');

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -6,7 +7,7 @@ import { promisify } from 'node:util';
 import { loadConfigSync } from '../core/config.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
-import { fillAllNoldorMarkers } from '../core/release-markers.js';
+import { fillAllNoldorMarkers, NOLDOR_PAGE_DIRS } from '../core/release-markers.js';
 import { blockingIds, recordOverrides, runPreflight } from './preflight.js';
 import { SAFE_FIXES } from './preflight-fix.js';
 import { renderPreflight } from './preflight-render.js';
@@ -112,8 +113,17 @@ const RELEASE_SURFACE_FILES = new Set([
   'docs/release-notes.md',
   'docs/sdd-report.md',
 ]);
-/** Release-owned directories (marker fills + noldor pages). */
-const RELEASE_SURFACE_PREFIXES = ['docs/features/', 'docs/noldor/'];
+/** Release-owned directories (marker fills + noldor pages and their template twins). */
+const RELEASE_SURFACE_DIRS = ['docs/features', ...NOLDOR_PAGE_DIRS];
+const RELEASE_SURFACE_PREFIXES = RELEASE_SURFACE_DIRS.map((dir) => `${dir}/`);
+
+/**
+ * Release-owned directories present under `cwd`. `git add` fails on a
+ * pathspec that matches nothing, and a consumer repo has no `templates/` tree.
+ */
+function presentSurfaceDirs(cwd: string): string[] {
+  return RELEASE_SURFACE_DIRS.filter((dir) => existsSync(join(cwd, dir)));
+}
 
 /** Every flag `pnpm release` accepts. Anything else is an operator typo. */
 const KNOWN_FLAGS: ReadonlySet<string> = new Set(['--resume', '--preflight', '--fix']);
@@ -193,8 +203,7 @@ export async function resumeRelease(cwd: string, opts: ResumeOptions): Promise<v
       'CHANGELOG.md',
       'docs/release-notes.md',
       'docs/sdd-report.md',
-      'docs/features',
-      'docs/noldor',
+      ...presentSurfaceDirs(cwd),
       ...opts.lockstepPackages,
     ]);
     await runIn('git', ['commit', '-m', subject]);
@@ -519,8 +528,7 @@ async function main(): Promise<void> {
       'CHANGELOG.md',
       'docs/release-notes.md',
       'docs/sdd-report.md',
-      'docs/features',
-      'docs/noldor',
+      ...presentSurfaceDirs(process.cwd()),
       ...lockstepPackages,
     ]);
     await run('git', ['commit', '-m', `chore(release): v${newVersion}`]);
