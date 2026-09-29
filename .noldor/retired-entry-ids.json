@@ -763,5 +763,9 @@
   "Q-0326": {
     "slug": "next-priority-holds-in-progress-blockers",
     "retiredAt": "2026-09-29"
+  },
+  "Q-0327": {
+    "slug": "promote-does-not-retire-the-entry-id",
+    "retiredAt": "2026-09-29"
   }
 }

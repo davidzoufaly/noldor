@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Promote Does Not Retire the Entry Id
-
-- id: Q-0327
-- area: tooling
-- type: fix
-- since: 2026-09-29
-- size: S
-- impact: med
-- confidence: high
-
-`roadmap remove-block` on a promote scaffold records the entry ID in `.noldor/retired-entry-ids.json`, and `resolveIsShipped` reads a retired ID as shipped, so a `blocked-by:` dependent looks unblocked while the new FD is only in progress. `/noldor-promote` step 7 says "remove the block" without naming a command, and the CLI is the natural reach. Fix: promote names the command and a `--promoted` flag skips the record (the FD's `entry-id:` already carries the ID), or `remove-block` skips it when an FD with that `entry-id` exists.
-
 ### Test-Links Sync Restages the FD
 
 - id: Q-0328
