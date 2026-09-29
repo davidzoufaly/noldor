@@ -5,15 +5,21 @@
 // `FINAL:` pages, and report the same enumeration row; all three pencil lanes
 // (those two plus the ui-reviewer) turn a failed dispatch into the lane's own
 // typed error the same way. One copy, so the children cannot drift on the page
-// rule the parent re-derives with `selectFinalPage`.
+// rule the parent re-derives with `selectFinalPage`, nor on the check that the
+// child read the `.pen` on disk (`selectVerifiedPage`).
+
+import { readFile } from 'node:fs/promises';
 
 import { z } from 'zod';
 
+import { errMessage } from '../../core/err-message.js';
 import { penBridgeRecipe } from '../../design/pen-bridge.js';
+import { parsePenDocument, topLevelPages } from '../../design/pen-doc.js';
 import type { AgentRole } from '../../core/agent-runner/types.js';
 import type { LaneAnswerContract, RepairContext } from '../lane-answer.js';
 import { createAnswerSeam, type LaneSpawnFailure } from '../lane-spawn.js';
 import { transcriptionPrompt } from './prompt-parts.js';
+import { selectFinalPage } from './render-compare-core.js';
 
 /** One surface's job: which `FINAL:` page to read, and where its output file lands. */
 export interface PenSurfaceRequest {
@@ -40,7 +46,68 @@ export const surfaceCandidatesSchema = z.object({
   surface: z.string().min(1),
   /** `FINAL:<surface>:` page names found, `<name>` segment only. */
   candidates: z.array(z.string()).default([]),
+  /** Node id of the page the child selected — checked against the `.pen` on disk. */
+  pageId: z.string().min(1).optional(),
 });
+export type SurfaceCandidates = z.infer<typeof surfaceCandidatesSchema>;
+
+/** A surface's page, or why the child's answer cannot be trusted to have read it. */
+export type VerifiedPage<R extends string> =
+  | { ok: true; page: string }
+  | { ok: false; reason: 'page-ambiguous' | R; detail: string };
+
+/**
+ * Select the surface's page from the child's candidates, then confirm the child
+ * read the `.pen` at `penPath`: pencil's `execute({ filePath })` falls back to
+ * whatever canvas the editor has active, so a child can enumerate and read (or
+ * export) a different open document without noticing. The candidates must
+ * equal the file's own `FINAL:<surface>:` pages, and `pageId` must be the
+ * selected one. `child` names the role in the detail; `failReason` is the
+ * lane's reason for an answer that does not match the file.
+ */
+export async function selectVerifiedPage<R extends string>(
+  penPath: string,
+  surface: string,
+  row: SurfaceCandidates,
+  pageSelector: string | undefined,
+  check: { child: string; failReason: R },
+): Promise<VerifiedPage<R>> {
+  const selection = selectFinalPage(surface, row.candidates, pageSelector);
+  if (!selection.ok) return { ok: false, reason: 'page-ambiguous', detail: selection.detail };
+  const failed = (detail: string): VerifiedPage<R> => ({
+    ok: false,
+    reason: check.failReason,
+    detail,
+  });
+  const verifying = `to verify the page the ${check.child} read`;
+  let parsed: ReturnType<typeof parsePenDocument>;
+  try {
+    parsed = parsePenDocument(await readFile(penPath));
+  } catch (err) {
+    return failed(`cannot read ${penPath} ${verifying}: ${errMessage(err)}`);
+  }
+  if (!parsed.ok) return failed(`cannot parse ${penPath} ${verifying}: ${parsed.error}`);
+  const prefix = `FINAL:${surface}:`;
+  const onDisk = topLevelPages(parsed.doc).flatMap((p) =>
+    p.name?.startsWith(prefix) === true
+      ? [{ id: p.id, name: p.name.slice(prefix.length).trim() }]
+      : [],
+  );
+  const reported = new Set(row.candidates.map((c) => c.trim()));
+  const held = new Set(onDisk.map((p) => p.name));
+  const otherDocument = 'the pencil bridge likely read a different open document';
+  if (reported.size !== held.size || [...reported].some((c) => !held.has(c))) {
+    return failed(
+      `surface '${surface}': the ${check.child} reported ${prefix} candidates [${[...reported].join(', ')}] but the .pen on disk holds [${[...held].join(', ')}] — ${otherDocument}`,
+    );
+  }
+  if (!onDisk.some((p) => p.id === row.pageId && p.name === selection.page)) {
+    return failed(
+      `surface '${surface}': the ${check.child} reported page id '${row.pageId ?? '(none)'}', which is not page '${prefix} ${selection.page}' in the .pen on disk — ${otherDocument}`,
+    );
+  }
+  return selection;
+}
 
 /**
  * The bridge-wake recipe, the job list, and steps 1–2 (enumerate, then select)

@@ -56,7 +56,12 @@ interface RepoOpts {
   uiBoot?: Record<string, Record<string, unknown>>;
   verifyCommands?: Record<string, Record<string, unknown>>;
   waived?: boolean;
+  /** `FINAL:<surface>: <name>` pages the committed `.pen` holds, per surface. */
+  pages?: Record<string, string[]>;
 }
+
+/** The node id the fixture `.pen` gives page `FINAL:<surface>: <name>`. */
+const pageId = (surface: string, name: string): string => `p-${surface}-${name}`;
 
 function git(cwd: string, args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
@@ -123,7 +128,16 @@ function repo(opts: RepoOpts = {}): { cwd: string; input: LaneInput } {
     mkdirSync(join(cwd, rel, '..'), { recursive: true });
     writeFileSync(join(cwd, rel), body);
   }
-  writeFileSync(join(cwd, 'docs', 'design', 'ui', PEN), 'PEN-BYTES\n');
+  const pages = opts.pages ?? { dashboard: ['overview'], settings: ['overview'] };
+  writeFileSync(
+    join(cwd, 'docs', 'design', 'ui', PEN),
+    JSON.stringify({
+      version: '2.6',
+      children: Object.entries(pages).flatMap(([surface, names]) =>
+        names.map((name) => ({ id: pageId(surface, name), name: `FINAL:${surface}: ${name}` })),
+      ),
+    }),
+  );
   // Matching design-approval record (Q-0196): resolveUiReviewTarget refuses an
   // unratified design before this lane ever compares anything.
   mkdirSync(join(cwd, '.noldor', 'design-approval'), { recursive: true });
@@ -174,8 +188,8 @@ function exporterWriting(bytes: Buffer | ((surface: string) => Buffer)): {
     return report({
       surfaces: input.requests.map((r) => ({
         surface: r.surface,
-
         candidates: ['overview'],
+        pageId: pageId(r.surface, 'overview'),
       })),
     });
   });
@@ -328,7 +342,6 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
       report({
         surfaces: input.requests.map((r) => ({
           surface: r.surface,
-
           candidates: ['default', 'expanded'],
         })),
       }),
@@ -347,8 +360,8 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
       return report({
         surfaces: input.requests.map((r) => ({
           surface: r.surface,
-
           candidates: ['overview'],
+          pageId: pageId(r.surface, 'overview'),
         })),
       });
     });
@@ -375,7 +388,7 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
     seams(DESIGN_PNG);
     setRenderExportDispatcher(async (input: RenderExportInput) => {
       for (const r of input.requests) writeFileSync(r.outPath, DESIGN_PNG);
-      return `\`\`\`json\n${report({ surfaces: input.requests.map((r) => ({ surface: r.surface, candidates: ['default'] })) })}\n\`\`\``;
+      return `\`\`\`json\n${report({ surfaces: input.requests.map((r) => ({ surface: r.surface, candidates: ['overview'], pageId: pageId(r.surface, 'overview') })) })}\n\`\`\``;
     });
     const { cwd, input } = repo({ uiBoot: DEFAULT_BOOT });
     await runRenderCompare(input);
@@ -391,7 +404,6 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
       return report({
         surfaces: input.requests.map((r) => ({
           surface: r.surface,
-
           candidates: ['overview', 'expanded'],
         })),
       });
@@ -409,20 +421,66 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
       return report({
         surfaces: input.requests.map((r) => ({
           surface: r.surface,
-
           candidates: ['overview', 'expanded'],
+          pageId: pageId(r.surface, 'overview'),
         })),
       });
     });
     seams(DESIGN_PNG);
     const { cwd, input } = repo({
       uiBoot: { dashboard: { ...DEFAULT_BOOT.dashboard, page: 'overview' } },
+      pages: { dashboard: ['overview', 'expanded'] },
     });
     const r = await runRenderCompare(input);
     expect(r.ok).toBe(true);
     const s = sink(cwd);
     expect(s).toMatchObject({ verdict: 'pass' });
     expect(String(s.notes)).toContain('[dashboard] unreviewed FINAL: pages: expanded');
+  });
+
+  it('candidates that are not the .pen on disk are export-failed — the bridge read another canvas', async () => {
+    // The editor's active canvas is a different design: the child enumerates
+    // its pages and exports one of them, and the raster decodes fine.
+    seams(DESIGN_PNG);
+    setRenderExportDispatcher(async (input: RenderExportInput) => {
+      for (const r of input.requests) writeFileSync(r.outPath, DESIGN_PNG);
+      return report({
+        surfaces: input.requests.map((r) => ({
+          surface: r.surface,
+          candidates: ['home'],
+          pageId: 'other-doc-home',
+        })),
+      });
+    });
+    const { cwd, input } = repo({ uiBoot: DEFAULT_BOOT });
+    await runRenderCompare(input);
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'export-failed' });
+    expect(String(s.notes)).toContain(
+      'the exporter reported FINAL:dashboard: candidates [home] but the .pen on disk holds [overview]',
+    );
+  });
+
+  it('a page id that is not the selected page on disk is export-failed', async () => {
+    // Same page NAME as the committed design, but the id is another document's.
+    seams(DESIGN_PNG);
+    setRenderExportDispatcher(async (input: RenderExportInput) => {
+      for (const r of input.requests) writeFileSync(r.outPath, DESIGN_PNG);
+      return report({
+        surfaces: input.requests.map((r) => ({
+          surface: r.surface,
+          candidates: ['overview'],
+          pageId: 'other-doc-overview',
+        })),
+      });
+    });
+    const { cwd, input } = repo({ uiBoot: DEFAULT_BOOT });
+    await runRenderCompare(input);
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'export-failed' });
+    expect(String(s.notes)).toContain(
+      "the exporter reported page id 'other-doc-overview', which is not page 'FINAL:dashboard: overview'",
+    );
   });
 
   it('boot failure fails its whole group as boot-failed', async () => {
@@ -638,8 +696,8 @@ describe('runRenderCompare — pen-modified precedence (AC6, AC9)', () => {
       return report({
         surfaces: input.requests.map((r) => ({
           surface: r.surface,
-
           candidates: ['overview'],
+          pageId: pageId(r.surface, 'overview'),
         })),
       });
     });

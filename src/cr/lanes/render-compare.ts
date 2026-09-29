@@ -21,6 +21,7 @@ import { bootServer } from '../../verify/boot.js';
 import { resolvePort } from '../../verify/port.js';
 import type { Finding, LaneReasonCode } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
+import { selectVerifiedPage } from './pen-dispatch.js';
 import { cleanupPenScratch, openDesignReviewRound } from './pen-scratch.js';
 import {
   forEachBootedSurface,
@@ -33,7 +34,6 @@ import {
   aggregateOutcomes,
   decodePng,
   diffDecoded,
-  selectFinalPage,
   severityForRatio,
   substituteScreenshotCommand,
 } from './render-compare-core.js';
@@ -266,10 +266,19 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           // The child ENUMERATES, Node SELECTS: the selection rule runs here,
           // over the reported candidates, so the child's own judgment (and the
           // prompt's prose copy of the rule) never decides which page was
-          // compared. A file for an unresolvable selection is not evidence.
-          const selection = selectFinalPage(r.surface, reported.candidates, r.pageSelector);
+          // compared. The report is then checked against the committed `.pen`
+          // on disk — the bridge answers from the editor's active canvas, so a
+          // raster of another design would otherwise diff as this one. A file
+          // for an unresolvable or unverified selection is not evidence.
+          const selection = await selectVerifiedPage(
+            design.absPath,
+            r.surface,
+            reported,
+            r.pageSelector,
+            { child: 'exporter', failReason: 'export-failed' },
+          );
           if (!selection.ok) {
-            outcomes.push(cannot(r.surface, 'page-ambiguous', selection.detail));
+            outcomes.push(cannot(r.surface, selection.reason, selection.detail));
             continue;
           }
           const unreviewed = reported.candidates
