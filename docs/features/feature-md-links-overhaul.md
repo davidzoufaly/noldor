@@ -89,6 +89,7 @@ pnpm noldor sync doc-links             # write links.docs from <!-- @feature: --
 pnpm noldor sync <kind>-links --check  # report drift, exit 1 if stale, write nothing
 pnpm noldor sync <kind>-links --force  # clear entries a tagless scan would otherwise keep
 pnpm noldor sync <kind>-links --quiet  # suppress the tagless-kept report (used by the hooks)
+pnpm noldor sync <kind>-links --stage  # git add every FD the run rewrote (used by the test-links hook)
 pnpm noldor sync <kind>-links --slug a --slug b,c   # act on these FDs only
 ```
 
@@ -96,6 +97,13 @@ A run whose scan could not read a consumer-configured root clears nothing and ex
 non-zero rather than reading as "no tags anywhere". Without `--force`, an FD whose scan
 matched nothing keeps its cached entries and is named in the tagless-kept report.
 `garden detect` reports drift for all three kinds.
+
+`--stage` exists because lefthook's `stage_fixed` re-stages only the files a job's glob
+matched. The `test-links` hook matches `*.test.ts`, so an FD it rewrote for a new test
+file stayed dirty for the next commit to carry; with `--stage` the FD rides in the same
+commit. An FD that was untracked or already had unstaged edits before the run is left
+unstaged and named, so the operator's own edits never ride along. Outside a git
+checkout `--stage` exits 1 before writing anything.
 
 `--slug` is what makes the commands usable from a feature worktree. The default run is
 repo-wide, so populating one FD's links also rewrites every other FD the tag scan
