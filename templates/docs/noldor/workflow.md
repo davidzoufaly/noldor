@@ -66,6 +66,10 @@ For agentic operators who want to chain through to PR-merge without checkpoints,
 
 - **When a decision depends on state with many mutation sites, recompute it fresh at the point of use instead of maintaining a flag/set.** The first cut of drain finish-mode carried a `finishable` Set mutated at every ship / skip / merge / retry / timeout leaf; CR rounds 5, 10, 11 and 13 each found a different missed `delete`. Replacing it with a verdict recomputed immediately before each spawn (`resolveFinishPrompt`) erased the whole finding class with all 215 autonomous tests passing unchanged. Read repeated "you missed another unwind" review rounds as the reviewer circling a design smell, not as N separate bugs. (Q-0073, PR #268)
 
+## Fanning out plan parts — name the shared helpers up front
+
+- **When separate agents write plan parts in parallel, list the shared helpers in the contract before they start.** Each part otherwise re-derives the same scaffolding (pencil dispatch prompts, CLI openings), and the clones push gate only goes red once every part is in — Q-0180's parts 2–4 needed a dedupe refactor after the fact.
+
 ## Lessons belong in the framework, not private memory
 
 When a trap or gotcha is discovered, fix it in the framework directly — a code fix, or a bullet under `## Lessons` in `ideas.md` for `/noldor-absorb` to file into these runbooks. Never journal it only in an agent's private memory: Noldor is a product, and lessons must travel with the repo to every operator and consumer. Reserve private memory for cross-session state the framework can't hold.

@@ -16,26 +16,89 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Extract the Shared tsconfig Reader
+### Release Pipeline Stamps Template Twins
 
-- id: Q-0234
+- id: Q-0324
+- area: tooling
+- type: fix
+- since: 2026-09-29
+- size: S
+- impact: high
+- confidence: high
+
+The release pipeline blocks itself on a new templated Noldor page. `fillAllNoldorMarkers` (called from `src/release/index.ts`) stamps `introduced:` only on `docs/noldor/*.md`, leaving the `templates/docs/noldor/*.md` twin behind, so `check-template-sync` rejects the release commit. Syncing the twin by hand then trips the release-surface guard on `--resume` (`RELEASE_SURFACE_PREFIXES` covers only `docs/features/` and `docs/noldor/`). v1.14.0 got past it with PR #648, which stamped both copies up front. Fix: stamp the twin in the same pass and add `templates/docs/noldor/` to the release surface.
+
+### Render-Compare Checks the Canvas on Disk
+
+- id: Q-0325
+- area: tooling
+- type: fix
+- since: 2026-09-29
+- size: S
+- impact: high
+- confidence: high
+- parent: ui-design-review-lane
+
+`render-compare`'s exporter child has the wrong-document hole the geometry reader had: pencil `execute({filePath})` answers from the editor's active canvas, so with the bridge on another `.pen` it exports a page from the wrong design and the pixel diff runs against it. The geometry fix checks the child's selected page id and `FINAL:` candidates against the `topLevelPages` of the `.pen` on disk; give render-export the same check in the shared `pen-dispatch.ts`. (Q-0180 verifier lane)
+
+### Next-Priority Holds In-Progress Blockers
+
+- id: Q-0326
+- area: tooling
+- type: fix
+- since: 2026-09-29
+- size: XS
+- impact: med
+- confidence: high
+
+`next-priority`'s `findBlocked` treats a blocker as met the moment it leaves the queue. Promoting Q-0320 to an in-progress FD made Q-0321 (`blocked-by: Q-0320`) pickable again, although `resolveIsShipped` says in-progress is not shipped, so an XS/S drain can pick a dependent before its blocker ships. Fix: hold back an entry whose ref resolves to an FD that is not `phase: done`.
+
+### Promote Does Not Retire the Entry Id
+
+- id: Q-0327
+- area: tooling
+- type: fix
+- since: 2026-09-29
+- size: S
+- impact: med
+- confidence: high
+
+`roadmap remove-block` on a promote scaffold records the entry ID in `.noldor/retired-entry-ids.json`, and `resolveIsShipped` reads a retired ID as shipped, so a `blocked-by:` dependent looks unblocked while the new FD is only in progress. `/noldor-promote` step 7 says "remove the block" without naming a command, and the CLI is the natural reach. Fix: promote names the command and a `--promoted` flag skips the record (the FD's `entry-id:` already carries the ID), or `remove-block` skips it when an FD with that `entry-id` exists.
+
+### Test-Links Sync Restages the FD
+
+- id: Q-0328
+- area: tooling
+- type: fix
+- since: 2026-09-29
+- size: S
+- impact: med
+- confidence: high
+
+The pre-commit `test-links` sync writes an FD's `links.tests` when a commit adds a test file, but the FD was not staged, so `stage_fixed` does not re-stage it: every new test file leaves the FD dirty for the next commit to carry. Stage the FDs the sync rewrote in the same commit.
+
+### Drain Prompt Points at Drain Mode
+
+- id: Q-0329
 - area: tooling
 - type: refactor
-- since: 2026-09-08
-- size: M
-- impact: low
-- confidence: med
-
-Extract the shared tsconfig reader into a neutral module. `src/invariants/toolchain-floor.ts` and `src/indirection/detect.ts` each carry their own tsconfig discovery — `findPackageManifests`/`isTsconfigName` on one side, `findTsconfigFiles`/`readTsconfig`/`resolveExtends` on the other — and `detect.ts` already imports `stripJsonc` from `toolchain-floor.ts`, so importing discovery back would close a module cycle. PR #436 duplicated it deliberately and promised this entry in the spec's Risks section. The two walks are not a clean lift (async `readdir` + `WORKSPACE_SCAN_DEPTH` here, sync `readdirSync` + configured scan roots there), so the shared helper has to be designed rather than moved, and it touches the indirection ratchet. `clones check` was green on #436, so this is cohesion debt rather than a live gate failure. Deletion test: both modules import their tsconfig discovery from one place, and neither declares a private copy. (surfaced 2026-09-05, spec CR on nested-tsconfig-lib-floor)
-
-### partially-blocked-by for Partial Dependencies
-
-- id: Q-0256
-- area: tooling
-- type: feat
-- since: 2026-09-22
-- size: M
+- since: 2026-09-29
+- size: S
 - impact: med
-- confidence: med
+- confidence: high
+- parent: gate-skill-loads-only-the-branch-a-session-takes
 
-`blocked-by` is all-or-nothing, so a partial dependency degrades into prose the scorer cannot see. Several entries in a real consumer can start, and two-thirds ship, while one part waits — a bar whose five sections are independently blocked; a panel where one row needs a concept that does not exist yet. Marking the whole entry `blocked-by` divides its score by `1 + unshipped_dep_count` for work that is mostly doable today; leaving it off loses the dependency from the graph entirely, so `/noldor-garden` cannot see it and a reader has to find it in a paragraph. Wanted: a `partially-blocked-by:` that joins the blocked-by graph for cycle detection and `show` output but is **excluded from the dependency factor** in `scoreEntry()` — the semantics being "cannot finish" rather than "cannot start". Open question for the spec: whether `/noldor-gate` should surface the partial blocker at pickup so the agent knows which slice to leave alone, or whether that belongs in the entry body. Deletion test: an entry with only `partially-blocked-by` refs scores as unblocked while still appearing in the dependency graph. (found 2026-09-22)
+The prose-runner drain prompt drifts from `docs/noldor/drain-mode.md`: `src/autonomous/gate-prompt.ts` tells codex/opencode children to force-recreate the branch unconditionally (the page runs `autonomous branch-state` first), and its CR command omits `--base-sha origin/main`, which the page calls mandatory on the first pass. Q-0320 made the page the only drain contract, so the prompt should shrink to a pointer at it.
+
+### Blockers Md onBlockers Default Prose
+
+- id: Q-0330
+- area: tooling
+- type: docs
+- since: 2026-09-29
+- size: XS
+- impact: low
+- confidence: high
+- parent: gate-skill-loads-only-the-branch-a-session-takes
+
+`.claude/skills/noldor-gate/blockers.md` still says the auto-fix seam is off unless `autonomous.onBlockers: 'auto-fix'` ("default `prompt`"), but an unset knob follows the session and reads as `auto-fix` in an autonomous one — `drain-mode.md` states it right. Q-0320 moved the sentence verbatim because the split changed no rule; correct it.

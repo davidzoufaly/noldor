@@ -4,6 +4,30 @@ Parking lot for items not on the roadmap. Each entry carries a `- id: Q-NNNN` bu
 
 Dependencies are declared with a `- blocked-by: <slug|Q-id, …>` bullet (the entries this work waits on); `- deps:` is the legacy alias, still accepted and unioned with `blocked-by:` during the migration window. Prefer `blocked-by:` in new entries.
 
+### partially-blocked-by for Partial Dependencies
+
+- id: Q-0256
+- area: tooling
+- type: feat
+- since: 2026-09-22
+- size: M
+- impact: med
+- confidence: med
+
+`blocked-by` is all-or-nothing, so a partial dependency degrades into prose the scorer cannot see. Several entries in a real consumer can start, and two-thirds ship, while one part waits — a bar whose five sections are independently blocked; a panel where one row needs a concept that does not exist yet. Marking the whole entry `blocked-by` divides its score by `1 + unshipped_dep_count` for work that is mostly doable today; leaving it off loses the dependency from the graph entirely, so `/noldor-garden` cannot see it and a reader has to find it in a paragraph. Wanted: a `partially-blocked-by:` that joins the blocked-by graph for cycle detection and `show` output but is **excluded from the dependency factor** in `scoreEntry()` — the semantics being "cannot finish" rather than "cannot start". Open question for the spec: whether `/noldor-gate` should surface the partial blocker at pickup so the agent knows which slice to leave alone, or whether that belongs in the entry body. Deletion test: an entry with only `partially-blocked-by` refs scores as unblocked while still appearing in the dependency graph. (found 2026-09-22)
+
+### Extract the Shared tsconfig Reader
+
+- id: Q-0234
+- area: tooling
+- type: refactor
+- since: 2026-09-08
+- size: M
+- impact: low
+- confidence: med
+
+Extract the shared tsconfig reader into a neutral module. `src/invariants/toolchain-floor.ts` and `src/indirection/detect.ts` each carry their own tsconfig discovery — `findPackageManifests`/`isTsconfigName` on one side, `findTsconfigFiles`/`readTsconfig`/`resolveExtends` on the other — and `detect.ts` already imports `stripJsonc` from `toolchain-floor.ts`, so importing discovery back would close a module cycle. PR #436 duplicated it deliberately and promised this entry in the spec's Risks section. The two walks are not a clean lift (async `readdir` + `WORKSPACE_SCAN_DEPTH` here, sync `readdirSync` + configured scan roots there), so the shared helper has to be designed rather than moved, and it touches the indirection ratchet. `clones check` was green on #436, so this is cohesion debt rather than a live gate failure. Deletion test: both modules import their tsconfig discovery from one place, and neither declares a private copy. (surfaced 2026-09-05, spec CR on nested-tsconfig-lib-floor)
+
 ### Inject CR Lane Seams Instead of Mocking Them
 
 - id: Q-0195
@@ -497,3 +521,27 @@ charuy's `update-knowledge-graph.yml` copy still runs the old heredoc with only 
 - confidence: high
 
 Live check owed from Q-0293: the first CI graph PR after #589 should reshuffle no community ids. It will change GRAPH_REPORT.md's header date (now the built commit's date, not the run day) and drop `graphify-out/manifest.json`. Anything else moving is a regression in the builder.
+
+### PR 634 Review Low Test Gaps
+
+- id: Q-0331
+- area: tooling
+- type: test
+- since: 2026-09-29
+- size: XS
+- impact: low
+- confidence: high
+
+PR #634's two low review notes were not taken: `readCheckedState`'s `(root)` fallback for an empty issue path has no test row, and the `skill-size baseline` test over a torn baseline does not assert the file was rewritten.
+
+### Geometry Text Edges Alignment Side Only
+
+- id: Q-0332
+- area: tooling
+- type: feat
+- since: 2026-09-29
+- size: M
+- impact: low
+- confidence: high
+
+Geometry-compare text right edges are partly paint: on charuy four text right edges sat ~7px inside the design while left edges, heights and font sizes matched (browser vs pen glyph advances). Q-0180 shipped this as a documented limit with `geometryTolerance.edgesX` as the knob. A smarter rule — text nodes contribute only the alignment-side edge, read from `text-align` — would remove the noise at the source.
