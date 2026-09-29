@@ -41,14 +41,17 @@ function requireSlug(slug: string): Slug {
 export type PromptDispatch = 'slash-command' | 'prose';
 
 /**
- * The code-stage CR invocation both roadmap-source prompts hand the child. Shared so a flag change
- * (profile, artifact pathspec) is one edit rather than two silently-diverging prompt literals. The
- * runner-neutral page `docs/noldor/drain-mode.md` carries a third, prose rendering — keep it in sync
- * by hand; there is no code seam between a TS literal and a Markdown page.
+ * The directives every prose prompt carries. `docs/noldor/drain-mode.md` is the one drain contract
+ * (Q-0320), so a prose prompt names only what the page cannot know — the slug, its branch, the
+ * section to follow — and restates no step. A step restated here drifts from the page: the prompt
+ * once force-recreated the branch unconditionally (the page runs `autonomous branch-state` first)
+ * and dropped the first pass's mandatory `--base-sha origin/main` from its CR command.
  */
-function fastTrackCrCommand(slug: Slug): string {
-  return `(\`pnpm noldor cr orchestrate --slug ${slug} --artifact . --kind code --profile fast-track --autonomous\`),`;
-}
+const HEADLESS_RULES = [
+  'That page is the whole contract: follow every step it names, in order, and restate none',
+  'from memory. Ask ZERO interactive questions — anything that would block on a human fails',
+  'the run instead (exit non-zero).',
+];
 
 /**
  * Drain entry (roadmap source): ship one fast-track entry on `fast/<slug>`.
@@ -60,15 +63,11 @@ export function buildDrainGatePrompt(rawSlug: string, dispatch: PromptDispatch):
   const slug = requireSlug(rawSlug);
   if (dispatch === 'slash-command') return `/noldor-gate --drain ${slug}`;
   return [
-    'Autonomous Noldor drain run. Read docs/noldor/drain-mode.md and follow it exactly.',
+    'Autonomous Noldor drain run. Read docs/noldor/drain-mode.md and follow it end to end.',
     '',
-    `Ship roadmap entry '${slug}' end-to-end on branch 'fast/${slug}' with ZERO interactive`,
-    'questions. Force-recreate the branch from main, implement the entry, remove its roadmap',
-    `block (\`pnpm noldor roadmap remove-block ${slug}\`), mark the session autonomous`,
-    '(`pnpm noldor noldor set-autonomous`), run code-stage CR',
-    fastTrackCrCommand(slug),
-    'and ship via `pnpm noldor pr-flow`. On CR-red or test-red run',
-    '`pnpm noldor cr escalate --autonomous` and exit non-zero.',
+    `Ship roadmap entry '${slug}' on branch 'fast/${slug}' — this slug only, never one re-picked`,
+    'from the queue.',
+    ...HEADLESS_RULES,
   ].join('\n');
 }
 
@@ -94,13 +93,8 @@ export function buildFinishGatePrompt(rawSlug: string, dispatch: PromptDispatch)
     `Branch 'fast/${slug}' ALREADY carries committed work for roadmap entry '${slug}' from a`,
     'prior child that ended without opening a PR. Do NOT force-recreate or delete the branch,',
     'and do NOT re-implement the entry — reuse the existing branch/worktree and deliver it.',
-    `Ensure the roadmap block is gone (\`pnpm noldor roadmap remove-block ${slug}\` is idempotent),`,
-    'mark the session autonomous (`pnpm noldor noldor set-autonomous`), run code-stage CR',
-    fastTrackCrCommand(slug),
-    'and ship via `pnpm noldor pr-flow`. Run every one of those commands in the FOREGROUND and',
-    'wait for it to exit — never background them. Do NOT end your turn before `pr-flow` has',
-    'printed the PR URL. On CR-red or test-red run `pnpm noldor cr escalate --autonomous` and',
-    'exit non-zero.',
+    'Run every end-of-flow command in the FOREGROUND and wait for it to exit — never background',
+    'them. Do NOT end your turn before `pr-flow` has printed the PR URL.',
   ];
   if (dispatch === 'slash-command')
     return [
@@ -111,9 +105,10 @@ export function buildFinishGatePrompt(rawSlug: string, dispatch: PromptDispatch)
     ].join('\n');
   return [
     'Autonomous Noldor drain FINISH run. Read docs/noldor/drain-mode.md (Finish path) and',
-    'follow it exactly.',
+    'follow it end to end.',
     '',
     ...shared,
+    ...HEADLESS_RULES,
   ].join('\n');
 }
 
@@ -141,17 +136,10 @@ export function buildResumeGatePrompt(slug: string, dispatch: PromptDispatch): s
   }
   return [
     'Autonomous Noldor plan-drain resume. Read docs/noldor/drain-mode.md (Resume path) and',
-    'follow it exactly.',
+    'follow it end to end.',
     '',
-    `Resume the designed in-progress feature '${slug}' end-to-end on branch 'feat/${slug}'`,
-    'with NO interactive prompts. Its approved spec and plan are committed under',
-    'docs/design/ — read both and execute the plan inline; if either is missing, exit',
-    'non-zero. Immediately set autonomous mode (`pnpm noldor noldor set-autonomous`) right',
-    'after the session marker is written — never ask autonomous-vs-interactive. Implement',
-    'the plan, run code-stage CR',
-    `(\`pnpm noldor cr orchestrate --slug ${slug} --artifact . --kind code --autonomous\`),`,
-    'and ship via `pnpm noldor pr-flow`. On CR-red or test-red run',
-    '`pnpm noldor cr escalate --autonomous` (config `autonomous.onFailure` governs).',
-    'Never pause for a lane picker or PR approval.',
+    `Resume the designed in-progress feature '${slug}' on branch 'feat/${slug}'. Never start a`,
+    'spec or plan dialogue, and never pause for a lane picker or PR approval.',
+    ...HEADLESS_RULES,
   ].join('\n');
 }

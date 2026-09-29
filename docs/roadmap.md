@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Drain Prompt Points at Drain Mode
-
-- id: Q-0329
-- area: tooling
-- type: refactor
-- since: 2026-09-29
-- size: S
-- impact: med
-- confidence: high
-- parent: gate-skill-loads-only-the-branch-a-session-takes
-
-The prose-runner drain prompt drifts from `docs/noldor/drain-mode.md`: `src/autonomous/gate-prompt.ts` tells codex/opencode children to force-recreate the branch unconditionally (the page runs `autonomous branch-state` first), and its CR command omits `--base-sha origin/main`, which the page calls mandatory on the first pass. Q-0320 made the page the only drain contract, so the prompt should shrink to a pointer at it.
-
 ### Blockers Md onBlockers Default Prose
 
 - id: Q-0330

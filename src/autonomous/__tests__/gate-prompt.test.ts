@@ -24,13 +24,12 @@ describe('buildDrainGatePrompt', () => {
     expect(buildDrainGatePrompt('alpha', 'slash-command')).toBe('/noldor-gate --drain alpha');
   });
 
-  it('prose is self-contained: slug, fast/<slug>, drain-mode.md pointer, portable CLIs, no /noldor-gate token', () => {
+  it('prose is a pointer: slug, fast/<slug>, drain-mode.md, headless rule, no /noldor-gate token', () => {
     const p = buildDrainGatePrompt('alpha', 'prose');
     expect(p).toContain("'alpha'");
     expect(p).toContain('fast/alpha');
     expect(p).toContain('docs/noldor/drain-mode.md');
-    expect(p).toContain('pnpm noldor roadmap remove-block alpha');
-    expect(p).toContain('pnpm noldor noldor set-autonomous');
+    expect(p).toContain('ZERO interactive questions');
     expect(p).not.toContain('/noldor-gate');
   });
 });
@@ -44,9 +43,8 @@ describe('buildResumeGatePrompt', () => {
     const p = buildResumeGatePrompt('designed', 'prose');
     expect(p).toContain("'designed'");
     expect(p).toContain('feat/designed');
-    expect(p).toContain('docs/noldor/drain-mode.md');
-    expect(p).toContain('pnpm noldor noldor set-autonomous');
-    expect(p).toContain('NO interactive prompts');
+    expect(p).toContain('docs/noldor/drain-mode.md (Resume path)');
+    expect(p).toContain('ZERO interactive questions');
     expect(p).not.toContain('/noldor-gate');
   });
 });
@@ -58,12 +56,12 @@ describe('buildFinishGatePrompt', () => {
     expect(p).toContain('Finish-mode drain context.');
   });
 
-  it('prose is self-contained: slug, branch, drain-mode.md pointer, no /noldor-gate token', () => {
+  it('prose is a pointer: slug, branch, drain-mode.md Finish path, no /noldor-gate token', () => {
     const p = buildFinishGatePrompt('alpha', 'prose');
     expect(p).toContain("'alpha'");
     expect(p).toContain('fast/alpha');
-    expect(p).toContain('docs/noldor/drain-mode.md');
-    expect(p).toContain('pnpm noldor pr-flow');
+    expect(p).toContain('docs/noldor/drain-mode.md (Finish path)');
+    expect(p).toContain('ZERO interactive questions');
     expect(p).not.toContain('/noldor-gate');
   });
 
@@ -75,5 +73,22 @@ describe('buildFinishGatePrompt', () => {
       expect(p).toContain('FOREGROUND');
       expect(p).toContain('Do NOT end your turn before `pr-flow` has');
     }
+  });
+});
+
+// Every prompt that points at drain-mode.md must leave the steps to the page: a step restated here
+// drifted from it twice — an unconditional branch force-recreate (the page runs `branch-state`
+// first) and a CR command missing the first pass's mandatory `--base-sha origin/main`.
+describe('prompts restate no drain-mode step', () => {
+  const pointers = [
+    ['drain prose', buildDrainGatePrompt('alpha', 'prose')],
+    ['finish prose', buildFinishGatePrompt('alpha', 'prose')],
+    ['finish slash-command', buildFinishGatePrompt('alpha', 'slash-command')],
+    ['resume prose', buildResumeGatePrompt('designed', 'prose')],
+  ] as const;
+
+  it.each(pointers)('%s carries no CR command and no unconditional force-recreate', (_label, p) => {
+    expect(p).not.toContain('cr orchestrate');
+    expect(p).not.toContain('Force-recreate the branch');
   });
 });
