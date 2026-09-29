@@ -15,7 +15,7 @@ Run `pnpm noldor cr autofix plan --slug <slug> --kind <kind>` and branch on its 
 - **10** (`next: operator`, declined with a `reason:`), **2** (error), anything else (crash) → the operator takes the round: edit the artifact to the same `fix-rule:`, then apply the **bounded re-round rule** below to decide whether the fix loops back to the top of Step 2.5 (lint → commit the fix → re-pick lanes) or proceeds as addressed with no re-dispatch. Surface the printed `reason:` so the operator knows why the seam declined (`knob-off` / `lanes-in-flight` / `stale-round` / `prior-deferred` / `round-cap` / `no-progress` / `no-mechanical` / `no-base-sha`). `prior-deferred` means the previous round left a blocker unapplied, so the seam refuses to re-round it into a false green — the operator takes it from here. `lanes-in-flight` means a lane is still writing its sink (`in-flight lanes:` names them) — drain it with `pnpm noldor cr aggregate --slug <slug> --wait-ms <ms>` and re-run `plan` rather than treating it as a real decline. `stale-round` means the sinks describe a tree the checkout has moved past, so the blocker set is obsolete rather than merely provisional — re-run `pnpm noldor cr orchestrate --kind <kind>` to review the current tree, or, where the round cap refuses that, arbitrate the round; never apply the listed fixes, since the code may already carry them.
 - **Any non-zero from `record` stops the loop** and falls to the same operator branch. An unrecorded round is invisible to the round cap *and* leaves the next fingerprint without a predecessor, so continuing would rest the whole loop bound on `record` having silently succeeded.
 
-The seam is off unless `.noldor/config.json` sets `autonomous.onBlockers: 'auto-fix'` (default `prompt` → `plan` exits 10 with `knob-off`), and it is bounded at 2 rounds per gate session plus a no-progress stop. Orchestrate's `guardLaneOverwrite` prompts overwrite / archive-and-overwrite / keep-and-skip per existing sink; in-flight standalone trips a separate `wait / kill-and-respawn / continue-without-lane` guard.
+An unset `autonomous.onBlockers` follows the session: `auto-fix` when autonomous, else `prompt` (`plan` exits 10 with `knob-off`); config pins either. The seam is bounded at 2 rounds per gate session plus a no-progress stop. Orchestrate's `guardLaneOverwrite` prompts overwrite / archive-and-overwrite / keep-and-skip per existing sink; in-flight standalone trips a separate `wait / kill-and-respawn / continue-without-lane` guard.
 
 ### Bounded re-round rule (every operator-driven round)
 
@@ -50,7 +50,7 @@ pnpm noldor cr autofix plan --slug <slug> --kind code
 - **11** (`next: apply-then-stop`) → apply + `record` the `M<n>` subset (`--deferred` = `D<n>` count + unapplied `M<n>`, as above), then stop looping and **escalate** on the `D<n>` design blockers below.
 - **any other non-zero** (from `plan` or from `record`) → capture stderr/findings to a temp file and **escalate** exactly as below. On `reason: lanes-in-flight` prefer draining the lane first (`pnpm noldor cr aggregate --slug <slug> --wait-ms <ms>`) and re-running `plan`.
 
-Off by default (`autonomous.onBlockers`, as above), bounded at 2 rounds per session plus a no-progress stop.
+Session-dependent (`autonomous.onBlockers`, as above), bounded at 2 rounds per session plus a no-progress stop.
 
 **Escalate on cr-red.**
 
