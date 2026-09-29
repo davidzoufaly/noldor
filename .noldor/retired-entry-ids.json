@@ -779,5 +779,9 @@
   "Q-0330": {
     "slug": "blockers-md-onblockers-default-prose",
     "retiredAt": "2026-09-29"
+  },
+  "Q-0333": {
+    "slug": "fd-headers-for-five-ownerless-files",
+    "retiredAt": "2026-09-29"
   }
 }

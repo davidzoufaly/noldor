@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### FD Headers For Five Ownerless Files
-
-- id: Q-0333
-- area: tooling
-- type: chore
-- since: 2026-09-29
-- size: XS
-- impact: low
-- confidence: high
-
-Five source files belong to an FD but carry no `// @fd:` header, and those FDs build `links.code` from headers, so a `links.code`-only edit is dropped on the next sync. Add the headers: `src/design/editor-launch.ts` (`auto-open-design-artifacts`), `src/autonomous/drain-eligibility.ts` and `src/autonomous/status-cli.ts` (`autonomous-queue-drain-runner`), `src/cr/lanes/codex.ts` (`review-run-lifecycle-module`), `src/garden/detectors/fd-command-rot.ts` (`skill-vs-code-drift-detector`). Surfaced 2026-09-26 by the PR #640 SDD pass.
-
 ### Gitignore Cache Backfill Backups
 
 - id: Q-0334
