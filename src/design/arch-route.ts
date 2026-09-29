@@ -12,8 +12,7 @@ import { resolve } from 'node:path';
 
 import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
 import { errMessage } from '../core/err-message.js';
-import type { ArchitecturePageId } from '../docs/architecture-schema.js';
-import { ARCH_VIEWS, readArchPen, type ArchDoc } from './arch-pen.js';
+import { readArchPen, type ArchDoc } from './arch-pen.js';
 
 /** One arrow to redraw: its node, the page it sits on, and the two nodes it joins. */
 export interface RouteEdge {
@@ -24,15 +23,11 @@ export interface RouteEdge {
   readonly to: string;
 }
 
-/** Every arrow whose ends resolve, on every page or on one view's pages; the others are named, not routed. */
-export function routeEdges(
-  doc: ArchDoc,
-  view?: ArchitecturePageId,
-): { edges: RouteEdge[]; unresolved: string[] } {
+/** Every arrow whose ends resolve, on every page; the others are named, not routed. */
+export function routeEdges(doc: ArchDoc): { edges: RouteEdge[]; unresolved: string[] } {
   const edges: RouteEdge[] = [];
   const unresolved: string[] = [];
   for (const page of doc.pages) {
-    if (view !== undefined && page.view !== view) continue;
     for (const arrow of page.arrows) {
       if (arrow.from.kind === 'unresolved' || arrow.to.kind === 'unresolved') {
         unresolved.push(`${page.name}: ${arrow.name}`);
@@ -111,22 +106,12 @@ export function renderRouteSnippet(edges: readonly RouteEdge[]): string {
 export async function main(argv: readonly string[], cwd: string = process.cwd()): Promise<number> {
   const label = 'design arch-route';
   const pen = optionalFlag(argv, '--pen', label);
-  const view = optionalFlag(argv, '--view', label);
   if (!pen.ok) {
     console.error(pen.error);
     return 2;
   }
-  if (!view.ok) {
-    console.error(view.error);
-    return 2;
-  }
   if (pen.value === undefined || !pen.value.endsWith('.pen')) {
     console.error(`${label}: --pen <path.pen> is required`);
-    return 2;
-  }
-  const views: readonly string[] = ARCH_VIEWS;
-  if (view.value !== undefined && !views.includes(view.value)) {
-    console.error(`${label}: --view must be one of ${views.join(' | ')}`);
     return 2;
   }
   let text: string;
@@ -141,7 +126,7 @@ export async function main(argv: readonly string[], cwd: string = process.cwd())
     console.error(`${label}: ${pen.value}: ${read.error}`);
     return 2;
   }
-  const { edges, unresolved } = routeEdges(read.doc, view.value as ArchitecturePageId | undefined);
+  const { edges, unresolved } = routeEdges(read.doc);
   for (const name of unresolved)
     console.error(`${label}: not routed, an end does not resolve: ${name}`);
   if (edges.length === 0) {

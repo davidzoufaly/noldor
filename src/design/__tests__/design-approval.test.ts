@@ -106,7 +106,7 @@ describe('design-approval / records by design kind', () => {
     outcome: 'approved',
     at: '2026-08-30T00:00:00.000Z',
     penBlob: 'e'.repeat(40),
-    surfaces: ['modules'],
+    surfaces: ['architecture'],
   };
 
   it('records an architecture design under architecture/, archived or not, and leaves UI paths alone', () => {
@@ -240,7 +240,7 @@ describe('design-approval / path containment', () => {
 
 describe('design verdict CLI / architecture designs', () => {
   const archRel = `docs/design/architecture/${PEN}`;
-  const ARCH_PAGES = ['BASE:modules: as-built', 'FINAL:modules: split cr'];
+  const ARCH_PAGES = ['BASE:architecture: as-built', 'FINAL:architecture: split cr'];
 
   function archRepo(): string {
     const cwd = gitRepo();
@@ -248,7 +248,7 @@ describe('design verdict CLI / architecture designs', () => {
     writeFileSync(join(cwd, 'docs', 'design', 'architecture', PEN), penJson(ARCH_PAGES));
     return cwd;
   }
-  const archArgv = (surfaces: readonly string[] = ['modules']): string[] => [
+  const archArgv = (surfaces: readonly string[] = ['architecture']): string[] => [
     '--pen',
     archRel,
     '--approve',
@@ -264,17 +264,17 @@ describe('design verdict CLI / architecture designs', () => {
     expect((await run(cwd, archArgv())).code).toBe(0);
     expect(readBack(cwd, archRel)).toMatchObject({
       outcome: 'approved',
-      surfaces: ['modules'],
+      surfaces: ['architecture'],
       penBlob: blobOf(cwd, archRel),
     });
     expect(readBack(cwd, penRel)).toMatchObject({ outcome: 'approved', surfaces: ['app'] });
   });
 
-  it('refuses a surface that is not an architecture view, writing nothing', async () => {
+  it('refuses a surface that is not an architecture surface, writing nothing', async () => {
     const cwd = archRepo();
     const r = await run(cwd, archArgv(['app']));
     expect(r.code).toBe(2);
-    expect(r.err).toContain('not an architecture view');
+    expect(r.err).toContain('not an architecture surface');
     expect(readBack(cwd, archRel)).toBeNull();
   });
 
@@ -282,7 +282,7 @@ describe('design verdict CLI / architecture designs', () => {
     const cwd = archRepo();
     writeFileSync(
       join(cwd, 'docs', 'design', 'architecture', 'baseline.pen'),
-      penJson(['modules']),
+      penJson(['architecture']),
     );
     expect(resolveFeaturePen(cwd, 'docs/design/architecture/baseline.pen').ok).toBe(false);
   });
@@ -299,7 +299,7 @@ describe('design verdict CLI / architecture designs', () => {
 
 describe('design verdict CLI / milestone targets', () => {
   const target = 'docs/design/architecture/milestones/m1.pen';
-  const PAGES_M = ['BASE:modules: as-built', 'FINAL:modules: split cr'];
+  const PAGES_M = ['BASE:architecture: as-built', 'FINAL:architecture: split cr'];
 
   function milestoneRepo(): string {
     const cwd = gitRepo();
@@ -317,7 +317,7 @@ describe('design verdict CLI / milestone targets', () => {
     target,
     '--approve',
     '--surface',
-    'modules',
+    'architecture',
     ...bind,
     ...PAGES_M.flatMap((p) => ['--editor-page', p]),
   ];
@@ -327,7 +327,7 @@ describe('design verdict CLI / milestone targets', () => {
     expect((await run(cwd, argv(['--milestone', 'm1']))).code).toBe(0);
     expect(readBack(cwd, target)).toMatchObject({
       outcome: 'approved',
-      surfaces: ['modules'],
+      surfaces: ['architecture'],
       milestone: { slug: 'm1', blob: blobOf(cwd, 'docs/milestones/m1.md') },
     });
   });
@@ -1003,7 +1003,7 @@ describe('design verdict CLI / --approve holds the design to the coverage table'
     expect((await run(cwd, approveArgv())).code).toBe(2);
     expect((await run(cwd, ['--pen', penRel, '--waive', '--reason', 'bridge down'])).code).toBe(0);
     const archRel = `docs/design/architecture/${PEN}`;
-    const archPages = ['BASE:modules: as-built', 'FINAL:modules: split cr'];
+    const archPages = ['BASE:architecture: as-built', 'FINAL:architecture: split cr'];
     mkdirSync(join(cwd, 'docs', 'design', 'architecture'), { recursive: true });
     writeFileSync(join(cwd, archRel), penJson(archPages));
     const archArgv = [
@@ -1011,7 +1011,7 @@ describe('design verdict CLI / --approve holds the design to the coverage table'
       archRel,
       '--approve',
       '--surface',
-      'modules',
+      'architecture',
       '--spec',
       specRel,
       ...archPages.flatMap((p) => ['--editor-page', p]),
@@ -1088,7 +1088,7 @@ describe('design verdict CLI / --coverage', () => {
     const cwd = gitRepo();
     const archRel = `docs/design/architecture/${PEN}`;
     mkdirSync(join(cwd, 'docs', 'design', 'architecture'), { recursive: true });
-    writeFileSync(join(cwd, archRel), penJson(['FINAL:modules: split cr']));
+    writeFileSync(join(cwd, archRel), penJson(['FINAL:architecture: split cr']));
     const arch = ['--pen', archRel, '--coverage', '--spec', specRel, '--editor-page', 'p'];
     const archRun = await run(cwd, arch);
     expect(archRun.code).toBe(2);

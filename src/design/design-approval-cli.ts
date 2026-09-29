@@ -49,7 +49,7 @@ import {
   writeApproval,
   type DesignApprovalRecord,
 } from './design-approval.js';
-import { ARCH_VIEWS } from './arch-pen.js';
+import { ARCH_PAGE } from './arch-pen.js';
 import {
   checkFeatureCoverage,
   type CoverageFinding,
@@ -533,11 +533,10 @@ function approve(ctx: VerdictCtx, mode: ApproveMode): number {
     );
   }
   if (ctx.pen.kind === 'architecture') {
-    const views: readonly string[] = ARCH_VIEWS;
-    const stray = mode.surfaces.filter((surface) => !views.includes(surface));
+    const stray = mode.surfaces.filter((surface) => surface !== ARCH_PAGE);
     if (stray.length > 0) {
       return fail(
-        `--surface ${stray.join(', ')} is not an architecture view (${views.join(' | ')})`,
+        `--surface ${stray.join(', ')} is not an architecture surface — the only one is ${ARCH_PAGE}`,
         2,
       );
     }

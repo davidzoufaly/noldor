@@ -8,8 +8,8 @@ import { runIfDirect } from '../core/cli-entry.js';
 import { ARCH_BASELINE_PATH } from '../core/design-artifact-names.js';
 import { checkArchBaseline, type ArchBaselineReport } from '../design/arch-baseline.js';
 
-export function row(kind: string, view: string, subject: string, message: string): string {
-  return `  ${kind.padEnd(17)} ${view.padEnd(11)} ${subject} — ${message}`;
+export function row(kind: string, subject: string, message: string): string {
+  return `  ${kind.padEnd(17)} ${subject} — ${message}`;
 }
 
 export function renderReport(report: ArchBaselineReport): string {
@@ -19,11 +19,11 @@ export function renderReport(report: ArchBaselineReport): string {
     report.status === 'ok'
       ? `arch-baseline: ok — ${ARCH_BASELINE_PATH} matches the code`
       : `arch-baseline: ${report.findings.length} finding(s) in ${ARCH_BASELINE_PATH}`,
-    ...report.findings.map((f) => row(f.kind, f.view, f.subject, f.message)),
+    ...report.findings.map((f) => row(f.kind, f.subject, f.message)),
   ];
   if (report.advisories.length > 0) {
     lines.push(`advisory (${report.advisories.length}, exit unaffected):`);
-    lines.push(...report.advisories.map((a) => row(a.kind, a.view, a.subject, a.message)));
+    lines.push(...report.advisories.map((a) => row(a.kind, a.subject, a.message)));
   }
   return lines.join('\n');
 }

@@ -24,7 +24,7 @@ interface Node {
 const PAGE: Node = {
   id: 'P',
   type: 'frame',
-  name: 'modules',
+  name: 'architecture',
   width: 800,
   height: 600,
   children: [
@@ -103,8 +103,7 @@ describe('design arch-route', () => {
   it("routes every arrow whose ends resolve with the check's own reader, and names the rest", () => {
     const { edges, unresolved } = routeEdges(read.doc);
     expect(edges).toEqual([{ id: 'E', name: 'src/cr -> src/core', page: 'P', from: 'A', to: 'B' }]);
-    expect(unresolved).toEqual(['modules: src/cr -> src/nowhere']);
-    expect(routeEdges(read.doc, 'context').edges).toEqual([]);
+    expect(unresolved).toEqual(['architecture: src/cr -> src/nowhere']);
   });
 
   it("prints a snippet that puts both ends of each arrow on its boxes' borders, nested frames included", () => {
@@ -130,16 +129,23 @@ describe('design arch-route', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'arch-route-'));
     dirs.push(cwd);
     writeFileSync(join(cwd, 'design.pen'), PEN_TEXT);
+    writeFileSync(
+      join(cwd, 'empty.pen'),
+      JSON.stringify({
+        version: '2.19',
+        children: [{ id: 'Q', type: 'frame', name: 'architecture' }],
+      }),
+    );
     const out: string[] = [];
     const log = vi.spyOn(console, 'log').mockImplementation((...a: unknown[]) => {
       out.push(a.join(' '));
     });
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
-      expect(await main(['--pen', 'design.pen', '--view', 'modules'], cwd)).toBe(0);
+      expect(await main(['--pen', 'design.pen'], cwd)).toBe(0);
       expect(out.join('\n')).toContain('"id":"E"');
-      expect(await main(['--pen', 'design.pen', '--view', 'flows'], cwd)).toBe(1);
-      expect(await main(['--pen', 'design.pen', '--view', 'app'], cwd)).toBe(2);
+      expect(await main(['--pen', 'empty.pen'], cwd)).toBe(1);
+      expect(await main(['--pen', 'missing.pen'], cwd)).toBe(2);
       expect(await main([], cwd)).toBe(2);
     } finally {
       log.mockRestore();
