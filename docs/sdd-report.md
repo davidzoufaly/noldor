@@ -10,14 +10,14 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ## Summary
 
-- Total features: 99
+- Total features: 100
 - Untriaged ideas: 0
-- Backlog entries: 37
-- Gap categories with issues: 5 / 15
+- Backlog entries: 41
+- Gap categories with issues: 4 / 15
 
 ## Code clones
 
-- 217 clone group(s), 5.98% duplicated tokens across 474 file(s)
+- 215 clone group(s), 5.91% duplicated tokens across 474 file(s)
 - src/dashboard/views.ts:758-767 and src/dashboard/views.ts:1023-1032 (252 tokens)
 - src/features/phase-flip-done-cli.ts:13-46 and src/features/phase-revert-cli.ts:13-46 (230 tokens)
 - src/dashboard/views.ts:887-910 and src/dashboard/views.ts:1061-1136 (176 tokens)
@@ -29,10 +29,19 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 ### Tier distribution
 
 - `full` (brainstorm + spec + plan): 44
-- `specs-only` (no brainstorm): 55
+- `specs-only` (no brainstorm): 56
 
 ### Override usage (last 30 days)
 
+- `0cd1c62` — ci-graph-refresh machine-written graph regeneration
+- `566340a` — ci-graph-refresh machine-written graph regeneration
+- `d05aede` — ci-graph-refresh machine-written graph regeneration
+- `90d6212` — ci-graph-refresh machine-written graph regeneration
+- `37bcbfb` — ci-graph-refresh machine-written graph regeneration
+- `37a9bb7` — ci-graph-refresh machine-written graph regeneration
+- `03a2cef` — ci-graph-refresh machine-written graph regeneration
+- `dec9b7c` — ci-graph-refresh machine-written graph regeneration
+- `e73558f` — ci-graph-refresh machine-written graph regeneration
 - `5d9030b` — ci-graph-refresh machine-written graph regeneration
 - `cdc6ca4` — ci-graph-refresh machine-written graph regeneration
 - `5a45a08` — ci-graph-refresh machine-written graph regeneration
@@ -100,7 +109,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 150
+Gated commits missing `Noldor-Reviewed` trailer: 159
 
 ## Metrics
 
@@ -111,12 +120,12 @@ Gated commits missing `Noldor-Reviewed` trailer: 150
   "medianDays": 20.6,
   "p90Days": 52.6,
   "medianByPath": {
-    "unknown": 10.2,
+    "unknown": 9.9,
     "full-new": 20.6,
     "specs-only-new": 25.8
   },
   "excluded": {
-    "noIntake": 33,
+    "noIntake": 34,
     "noTag": 5
   }
 }
@@ -167,7 +176,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
 ```json
 {
   "lastRun": {
-    "shipped": 1,
+    "shipped": 3,
     "skipped": 0,
     "retried": 0
   },
@@ -187,7 +196,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "mandatory-codex-review-round": 1,
       "clones-ratchet-and-clone-group-check-disagree-on-attribution": 2
     },
-    "meanDurationMs": 661632
+    "meanDurationMs": 636242
   }
 }
 ```
@@ -303,7 +312,17 @@ blind spots: Only trailer-carrying overrides count; env-var bypasses (the releas
   "design-archive-repoints-a-folded-linksspec": 13578,
   "lane-error-rounds-and-the-round-cap": 45654,
   "gate-exit-11-record-prose-misstates-deferred": 13933,
-  "graph-freshness-remedies-ignore-uncommitted-edits": 49511
+  "graph-freshness-remedies-ignore-uncommitted-edits": 49511,
+  "release-pipeline-stamps-template-twins": 23993,
+  "render-compare-checks-the-canvas-on-disk": 40719,
+  "next-priority-holds-in-progress-blockers": 29157,
+  "promote-does-not-retire-the-entry-id": 13854,
+  "test-links-sync-restages-the-fd": 31459,
+  "drain-prompt-points-at-drain-mode": 15296,
+  "blockers-md-onblockers-default-prose": 14061,
+  "fd-headers-for-five-ownerless-files": 14054,
+  "gitignore-cache-backfill-backups": 24228,
+  "seed-missing-test-co-tags": 20716
 }
 ```
 
@@ -314,12 +333,7 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Done features missing introduced
 
-- `architecture-design-phase` — pen.dev Architecture Design Phase is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `entrypoint-guard-choke-point-enforcement` — Entrypoint-Guard Choke-Point Enforcement is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `fast-track-changes-can-obsolete-an-unattached-fd` — Fast-Track Changes Can Obsolete an Unattached FD is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `feature-pen-coverage-from-acceptance-criteria` — Feature .pen Coverage From Acceptance Criteria is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `gate-skill-loads-only-the-branch-a-session-takes` — Gate Skill Loads Only the Branch a Session Takes is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `milestone-membership-has-no-tagger-and-no-counter` — Milestone Membership Has No Tagger and No Counter is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `sdd-report-honours-ownerless-on-purpose` — SDD Report Honours Ownerless On Purpose is phase=done but introduced is unset (release script should fill on next pnpm release)
 
 ### Stale backlog entries (>90 days)
 
@@ -327,87 +341,12 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Code files not referenced by any feature
 
-- `src/autonomous/drain-eligibility.ts` — src/autonomous/drain-eligibility.ts is not referenced by any feature MD links.code — probable owner: autonomous-queue-drain-runner, plan-runner, portable-gate-entrypoint-for-non-claude-runners
-- `src/autonomous/status-cli.ts` — src/autonomous/status-cli.ts is not referenced by any feature MD links.code — probable owner: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, autonomous-queue-drain-runner
-- `src/cli/manifest.ts` — src/cli/manifest.ts is not referenced by any feature MD links.code — probable owner: validate-script-catalog-gate
-- `src/core/config.ts` — src/core/config.ts is not referenced by any feature MD links.code — probable owner: specs-cr-gate-multi-reviewer, ui-design-review-lane
-- `src/core/consumer-config.ts` — src/core/consumer-config.ts is not referenced by any feature MD links.code — probable owner: noldor
-- `src/core/doc-roots.ts` — src/core/doc-roots.ts is not referenced by any feature MD links.code — probable owner: sdd-detector-5-idea-merge-semantic-similarity, bootstrap-immunity-for-self-gating-features, doc-gardening-skill
-- `src/core/read-text.ts` — src/core/read-text.ts is not referenced by any feature MD links.code — probable owner: architecture-design-phase
-- `src/core/session.ts` — src/core/session.ts is not referenced by any feature MD links.code — probable owner: autonomous-plan-to-pr-merge, noldor, release-script-self-provisions-its-own-session-marker
-- `src/cr/atomic-write.ts` — src/cr/atomic-write.ts is not referenced by any feature MD links.code — probable owner: specs-cr-gate-multi-reviewer
-- `src/cr/cut-scan.ts` — src/cr/cut-scan.ts is not referenced by any feature MD links.code — probable owner: cr-re-round-cap-enforcement-and-oscillation-detector
-- `src/cr/geometry/geometry-cli-emit.ts` — src/cr/geometry/geometry-cli-emit.ts is not referenced by any feature MD links.code — probable owner: ui-design-review-lane, release-sweep-process-hardening
-- `src/cr/geometry/geometry-export-cli.ts` — src/cr/geometry/geometry-export-cli.ts is not referenced by any feature MD links.code — probable owner: ui-design-review-lane, pendev-ui-design-phase
-- `src/cr/git-tree.ts` — src/cr/git-tree.ts is not referenced by any feature MD links.code — probable owner: specs-cr-gate-multi-reviewer, pendev-ui-design-phase, unvalidated-slug-path-traversal-across-cli-entry-points
-- `src/cr/lanes/codex.ts` — src/cr/lanes/codex.ts is not referenced by any feature MD links.code — probable owner: cr-re-round-cap-enforcement-and-oscillation-detector, specs-cr-gate-multi-reviewer, review-run-lifecycle-module
-- `src/cr/lanes/geometry-extract-dispatch.ts` — src/cr/lanes/geometry-extract-dispatch.ts is not referenced by any feature MD links.code — probable owner: ui-design-review-lane, pendev-ui-design-phase
-- `src/cr/lanes/pen-dispatch.ts` — src/cr/lanes/pen-dispatch.ts is not referenced by any feature MD links.code — probable owner: ui-design-review-lane
-- `src/design/arch-draw.ts` — src/design/arch-draw.ts is not referenced by any feature MD links.code
-- `src/design/editor-launch.ts` — src/design/editor-launch.ts is not referenced by any feature MD links.code — probable owner: auto-open-design-artifacts, pendev-ui-design-phase
-- `src/garden/detectors/fd-command-rot.ts` — src/garden/detectors/fd-command-rot.ts is not referenced by any feature MD links.code — probable owner: noldor
-- `src/release/index.ts` — src/release/index.ts is not referenced by any feature MD links.code — probable owner: framework-script-test-migration-cleanup, pnpm-release-resume
+- `src/cr/cut-scan.ts` — src/cr/cut-scan.ts is not referenced by any feature MD links.code — probable owner: specs-cr-gate-multi-reviewer, ui-design-review-lane, cr-re-round-cap-enforcement-and-oscillation-detector
+- `src/cr/geometry/geometry-export-cli.ts` — src/cr/geometry/geometry-export-cli.ts is not referenced by any feature MD links.code — probable owner: ui-design-review-lane
+- `src/cr/lanes/geometry-extract-dispatch.ts` — src/cr/lanes/geometry-extract-dispatch.ts is not referenced by any feature MD links.code — probable owner: cr-lane-verdicts-blocked-by-serialization-not-substance, ui-design-review-lane, acceptance-verify-lane
+- `src/design/arch-draw.ts` — src/design/arch-draw.ts is not referenced by any feature MD links.code — probable owner: architecture-design-phase
+- `src/release/index.ts` — src/release/index.ts is not referenced by any feature MD links.code — probable owner: dynamic-fd-changelog, noldor, framework-script-test-migration-cleanup
 
 ### Tests with incomplete co-tag
 
-- `src/autonomous/__tests__/watch-detach.test.ts` — imports files owned by FDs missing from @tests: tag — add: continuous-drain-daemon-and-escalation-inbox
-- `src/checks/__tests__/gate-skill-layout.test.ts` — imports files owned by FDs missing from @tests: tag — add: consumer-architecture-doc-surface
-- `src/core/__tests__/run-capture.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase
-- `src/cr/__tests__/amend-receipt.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer
-- `src/cr/__tests__/arbitration.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector
-- `src/cr/__tests__/autofix-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/cr/__tests__/autofix-ledger.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/cr/__tests__/cli-args.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer
-- `src/cr/__tests__/codex.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/cr/__tests__/context.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer
-- `src/cr/__tests__/decisions.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer, ui-design-review-lane
-- `src/cr/__tests__/delta.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/cr/__tests__/expected-lanes-guard.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer
-- `src/cr/__tests__/filename.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/cr/__tests__/findings-schema.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/cr/__tests__/geometry/geometry-export-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-lane-verdicts-blocked-by-serialization-not-substance, make-noldor-agent-agnostic
-- `src/cr/__tests__/geometry/geometry-review-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase
-- `src/cr/__tests__/geometry/geometry-review.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase, unvalidated-slug-path-traversal-across-cli-entry-points
-- `src/cr/__tests__/judge.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer, ui-design-review-lane
-- `src/cr/__tests__/lanes/geometry-compare.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer, unvalidated-slug-path-traversal-across-cli-entry-points
-- `src/cr/__tests__/lanes/geometry-extract-dispatch.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-lane-verdicts-blocked-by-serialization-not-substance, make-noldor-agent-agnostic, unvalidated-slug-path-traversal-across-cli-entry-points
-- `src/cr/__tests__/lanes/geometry-registration.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer
-- `src/cr/__tests__/lanes/render-compare.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer
-- `src/cr/__tests__/lanes/ui-review.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer
-- `src/cr/__tests__/orchestrate-decisions.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/cr/__tests__/orchestrate-judge.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/cr/__tests__/orchestrate.integration.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/cr/__tests__/overwrite-guard.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/cr/__tests__/prior-review.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/cr/__tests__/re-round.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer, ui-design-review-lane
-- `src/cr/__tests__/reflag.test.ts` — imports files owned by FDs missing from @tests: tag — add: cr-re-round-cap-enforcement-and-oscillation-detector
-- `src/cr/__tests__/run-codex.test.ts` — imports files owned by FDs missing from @tests: tag — add: specs-cr-gate-multi-reviewer
-- `src/cr/__tests__/settled-findings.integration.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/dashboard/__tests__/host.test.ts` — imports files owned by FDs missing from @tests: tag — add: project-tracking-dashboard
-- `src/garden/__tests__/backlog-demote.test.ts` — imports files owned by FDs missing from @tests: tag — add: doc-gardening-skill
-- `src/garden/__tests__/garden-detect-runner.test.ts` — imports files owned by FDs missing from @tests: tag — add: doc-gardening-skill
-- `src/garden/__tests__/garden-receipt.test.ts` — imports files owned by FDs missing from @tests: tag — add: doc-gardening-skill
-- `src/garden/__tests__/plan-resolution.test.ts` — imports files owned by FDs missing from @tests: tag — add: doc-gardening-skill
-- `src/garden/detectors/__tests__/migration-coverage.test.ts` — imports files owned by FDs missing from @tests: tag — add: version-aware-upgrade-and-migration-chain
-- `src/invariants/__tests__/entrypoint-guard-choke-point.test.ts` — imports files owned by FDs missing from @tests: tag — add: architecture-invariants
-- `src/metrics/__tests__/cr-and-override.test.ts` — imports files owned by FDs missing from @tests: tag — add: ui-design-review-lane
-- `src/migrations/__tests__/1.13.0.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor-package-lift
-- `src/release/__tests__/preflight-probes.test.ts` — imports files owned by FDs missing from @tests: tag — add: doc-gardening-skill
-- `src/release/__tests__/preflight.test.ts` — imports files owned by FDs missing from @tests: tag — add: doc-gardening-skill
-- `src/templates/__tests__/region-managed-sync.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor-package-lift
-- `src/triage/__tests__/triage-list-untriaged.test.ts` — imports files owned by FDs missing from @tests: tag — add: triage-scoring-rubric-effort-impact-confidence-dependency
-- `src/worktrees/__tests__/dev-surfaces.test.ts` — imports files owned by FDs missing from @tests: tag — add: per-task-dev-environment-bootstrap
-- `src/worktrees/__tests__/down-worktree-traversal.test.ts` — imports files owned by FDs missing from @tests: tag — add: per-task-dev-environment-bootstrap
-- `src/worktrees/__tests__/down-worktree.test.ts` — imports files owned by FDs missing from @tests: tag — add: per-task-dev-environment-bootstrap
-- `src/worktrees/__tests__/open-editor.test.ts` — imports files owned by FDs missing from @tests: tag — add: per-task-dev-environment-bootstrap
-- `src/worktrees/__tests__/up-worktree.test.ts` — imports files owned by FDs missing from @tests: tag — add: per-task-dev-environment-bootstrap
-
-### Done features without code
-
-- `dashboard-blocked-by-graph-view` — Dashboard Blocked-By Graph View (tooling) has no entries in links.code
-- `dashboard-broken-pages-audit` — Dashboard Broken-Pages Audit (tooling) has no entries in links.code
-- `dashboard-hot-zones-page` — Dashboard Hot Zones Page (tooling) has no entries in links.code
-- `dashboard-vision-surface` — Dashboard Vision Surface (tooling) has no entries in links.code
-- `dashboard-wip-age-page` — Dashboard WIP Age Page (tooling) has no entries in links.code
-- `scripts-reorganization-by-feature-area` — Scripts Reorganization By Feature/Area (tooling) has no entries in links.code
-- `self-boundaries-declaration-and-cycle-break` — Self-Boundaries Declaration and Cycle Break (tooling) has no entries in links.code
+- `src/features/__tests__/seed-test-tags.test.ts` — imports files owned by FDs missing from @tests: tag — add: sdd-report-honours-ownerless-on-purpose
