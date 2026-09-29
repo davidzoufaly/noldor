@@ -21,34 +21,45 @@ import { isEntrypoint } from './cli-entry.js';
  * (surface) and Step 5 (queue-empty exit-code gate).
  *
  * @param roadmapRaw - Raw contents of `docs/roadmap.md`.
+ * @param openFds - Unshipped FDs as ref → slug ({@link loadOpenFdRefs}); an
+ *   entry blocked by one is held back like one blocked by a queued entry.
  * @returns First entry in document order, or `null` when the roadmap is empty.
  */
-export function getTopPriorityNext(roadmapRaw: string): BacklogEntry | null {
+export function getTopPriorityNext(
+  roadmapRaw: string,
+  openFds: ReadonlyMap<string, string> = new Map(),
+): BacklogEntry | null {
   if (roadmapRaw.length === 0) return null;
   const all = parseRoadmap(roadmapRaw);
   const sorted = all.toSorted((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
-  return holdBack(sorted).open[0] ?? null;
+  return holdBack(sorted, sorted, openFds).open[0] ?? null;
 }
 
-/** A queued entry held back because a `blocked-by` ref still names a queued entry. */
+/** A queued entry held back because a `blocked-by` ref names unshipped work. */
 export interface BlockedEntry {
   readonly slug: string;
-  /** The refs (slug or entry ID, as written) that resolve to a still-queued entry. */
+  /** The refs (slug or entry ID, as written) that resolve to a still-queued entry or an unshipped FD. */
   readonly blockedBy: readonly string[];
 }
 
 /**
- * Find the entries whose `blocked-by` (or legacy `deps:`) names another entry
- * still in `entries`. A ref resolves by entry ID or slug; a ref to anything
- * outside the list (a shipped FD, a retired ID, a typo) is not a blocker here —
+ * Find the entries whose `blocked-by` (or legacy `deps:`) names unshipped work:
+ * another entry still in `entries`, or an FD in `openFds` — a promoted blocker
+ * leaves the queue long before it ships, and `resolveIsShipped` counts only
+ * `phase: done` as shipped. A ref resolves by entry ID or slug; a ref to
+ * anything else (a done FD, a retired ID, a typo) is not a blocker here —
  * `validate triage`'s `unknown-blocked-by-ref` owns the typo case. Self-refs are
  * ignored (garden's `circular-blocked-by` reports them).
  *
  * @param entries - Queued entries, in priority order.
+ * @param openFds - Unshipped FDs as ref → slug ({@link loadOpenFdRefs}).
  * @returns One {@link BlockedEntry} per blocked entry, in the input order.
  */
-export function findBlocked(entries: ReadonlyArray<BacklogEntry>): BlockedEntry[] {
-  const queued = new Map<string, string>();
+export function findBlocked(
+  entries: ReadonlyArray<BacklogEntry>,
+  openFds: ReadonlyMap<string, string> = new Map(),
+): BlockedEntry[] {
+  const queued = new Map<string, string>(openFds);
   for (const e of entries) {
     queued.set(e.slug, e.slug);
     if (e.id !== undefined) queued.set(e.id, e.slug);
@@ -77,13 +88,16 @@ export function findBlocked(entries: ReadonlyArray<BacklogEntry>): BlockedEntry[
  * @param sorted - The candidates, in priority order.
  * @param queue - Every queued entry. Defaults to `sorted`; the drain passes the
  *   pre-`--skip` roadmap, because a skipped blocker is still unshipped.
+ * @param openFds - Unshipped FDs as ref → slug; they block but never form a
+ *   cycle, so the cycle check leaves them out.
  */
 function holdBack(
   sorted: ReadonlyArray<BacklogEntry>,
   queue: ReadonlyArray<BacklogEntry> = sorted,
+  openFds: ReadonlyMap<string, string> = new Map(),
 ): { open: ReadonlyArray<BacklogEntry>; held: BlockedEntry[] } {
   const candidates = new Set(sorted.map((e) => e.slug));
-  const blocked = findBlocked(queue).filter((b) => candidates.has(b.slug));
+  const blocked = findBlocked(queue, openFds).filter((b) => candidates.has(b.slug));
   const heldSlugs = new Set(blocked.map((b) => b.slug));
   const open = sorted.filter((e) => !heldSlugs.has(e.slug));
   const cycle = open.length === 0 && findBlocked(sorted).length === sorted.length;
@@ -93,7 +107,7 @@ function holdBack(
 function warnBlocked(blocked: ReadonlyArray<BlockedEntry>): void {
   for (const b of blocked) {
     process.stderr.write(
-      `next-priority: skipping '${b.slug}' — blocked-by ${b.blockedBy.join(', ')} still queued\n`,
+      `next-priority: skipping '${b.slug}' — blocked-by ${b.blockedBy.join(', ')} not shipped yet\n`,
     );
   }
 }
@@ -221,6 +235,8 @@ export interface SuggestionsInput {
    * this field existed.
    */
   activeMilestone?: string | null;
+  /** Unshipped FDs as ref → slug ({@link loadOpenFdRefs}); omitted, only queued entries block. */
+  openFdRefs?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -241,7 +257,7 @@ export interface Suggestions {
   bugfixes: ReadonlyArray<SuggestedEntry>;
   /**
    * Entries left out of every bucket because a `blocked-by` ref still names a
-   * queued entry (see {@link findBlocked}). Empty when nothing is blocked, and
+   * queued entry or an unshipped FD (see {@link findBlocked}). Empty when nothing is blocked, and
    * when everything is (a cycle — see {@link holdBack}).
    */
   blocked: ReadonlyArray<BlockedEntry>;
@@ -250,7 +266,7 @@ export interface Suggestions {
 /**
  * Compute the structured suggestion set surfaced by `/noldor-gate` Step 0.
  *
- * Blocked entries (a `blocked-by` ref still queued — {@link findBlocked}) are
+ * Blocked entries (a `blocked-by` ref still queued or not `phase: done` — {@link findBlocked}) are
  * held out of every bucket and listed under `blocked` instead.
  *
  * Bucketing rules:
@@ -285,6 +301,7 @@ export function getSuggestions(
       .filter((e) => !skip.has(e.slug))
       .toSorted((a, b) => (a.priority ?? 0) - (b.priority ?? 0)),
     queue,
+    input.openFdRefs,
   );
   const topPriority = sorted.slice(0, 3);
   const topSlugs = new Set(topPriority.map((e) => e.slug));
@@ -465,6 +482,32 @@ export function loadInProgressFds(cwd: string): InProgressFd[] {
   return out;
 }
 
+/**
+ * Map every FD under `cwd` that is not `phase: done` to its slug, keyed by both
+ * its slug and its `entry-id` — the two forms a `blocked-by` ref takes. Read
+ * from raw frontmatter, not {@link FeatureFrontmatterSchema}: a malformed FD is
+ * still unshipped work, and dropping it would unblock its dependents.
+ *
+ * @param cwd - Repo root.
+ */
+export function loadOpenFdRefs(cwd: string): Map<string, string> {
+  const dir = loadDocRoots(cwd).features;
+  const out = new Map<string, string>();
+  if (!existsSync(dir)) return out;
+  for (const filename of readdirSync(dir)) {
+    if (!filename.endsWith('.md')) continue;
+    const data = matter(readFileSync(join(dir, filename), 'utf8')).data as {
+      phase?: unknown;
+      'entry-id'?: unknown;
+    };
+    if (data.phase === 'done') continue;
+    const slug = filename.slice(0, -3);
+    out.set(slug, slug);
+    if (typeof data['entry-id'] === 'string') out.set(data['entry-id'], slug);
+  }
+  return out;
+}
+
 function git(cwd: string, args: readonly string[]): string | null {
   try {
     return execFileSync('git', args, {
@@ -619,6 +662,7 @@ async function main(): Promise<void> {
   const cwd = process.cwd();
   const roadmapRaw = await readQueueFile(loadDocRoots(cwd).roadmap);
 
+  const openFdRefs = loadOpenFdRefs(cwd);
   if (argv.has('--suggestions')) {
     const inProgressFds = loadInProgressFds(cwd);
     const worktreeSessions = loadWorktreeSessions(cwd);
@@ -631,6 +675,7 @@ async function main(): Promise<void> {
         worktreeSessions,
         milestoneGate: active.gate,
         activeMilestone: active.slug,
+        openFdRefs,
       },
       skip,
     );
@@ -642,8 +687,9 @@ async function main(): Promise<void> {
     );
   }
 
-  warnBlocked(holdBack(parseRoadmap(roadmapRaw)).held);
-  const top = getTopPriorityNext(roadmapRaw);
+  const queue = parseRoadmap(roadmapRaw);
+  warnBlocked(holdBack(queue, queue, openFdRefs).held);
+  const top = getTopPriorityNext(roadmapRaw, openFdRefs);
   const opts: FormatOpts = { json: argv.has('--json') };
   process.stdout.write(`${formatEntry(top, opts)}\n`);
   // Exit 2 when the queue is empty so the skill caller can branch without
