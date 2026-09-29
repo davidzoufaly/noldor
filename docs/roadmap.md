@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Gitignore Cache Backfill Backups
-
-- id: Q-0334
-- area: tooling
-- type: chore
-- since: 2026-09-29
-- size: XS
-- impact: low
-- confidence: high
-
-`features fill-links-code-gaps --apply` writes timestamped backups under `.cache/backfill-backups/` (`src/features/fill-links-code-gaps.ts`), and nothing ignores `.cache/`, so every apply leaves an untracked directory in `git status` — it is sitting there on `main` now. Ignore `.cache/` in `.gitignore`, and check whether the consumer template needs the same line. Surfaced 2026-09-26 by the PR #640 SDD pass.
-
 ### Seed Missing Test Co-Tags
 
 - id: Q-0335

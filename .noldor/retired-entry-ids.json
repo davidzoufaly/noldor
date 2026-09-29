@@ -783,5 +783,9 @@
   "Q-0333": {
     "slug": "fd-headers-for-five-ownerless-files",
     "retiredAt": "2026-09-29"
+  },
+  "Q-0334": {
+    "slug": "gitignore-cache-backfill-backups",
+    "retiredAt": "2026-09-29"
   }
 }
