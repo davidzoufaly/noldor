@@ -583,11 +583,13 @@ export function mergeChangelogIntoBody(
   }
   const renderedVersions = new Set<string>();
   // Tag order is oldest first; nothing before the Initial Release renders.
+  // An Initial Release with no tag yet is newer than every tag.
   const versionsOldestFirst = [...changelog.perVersion.keys()];
-  const floor =
+  const initialIdx =
     staticBlocks.initialRelease === null
       ? 0
-      : Math.max(0, versionsOldestFirst.indexOf(staticBlocks.initialRelease));
+      : versionsOldestFirst.indexOf(staticBlocks.initialRelease);
+  const floor = initialIdx === -1 ? versionsOldestFirst.length : initialIdx;
   for (const version of versionsOldestFirst.slice(floor).toReversed()) {
     const commits = changelog.perVersion.get(version) ?? [];
     const staticBody = staticBlocks.byVersion.get(version);

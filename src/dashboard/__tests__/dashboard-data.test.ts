@@ -817,13 +817,14 @@ describe('mergeChangelogIntoBody', () => {
         initialBody,
         {
           unreleased: [makeCommit('unr444', 'feat', 'unreleased work')],
-          perVersion: new Map([['0.6.0', []]]),
+          perVersion: new Map([['0.6.0', [makeCommit('pre111', 'feat', 'pre-inception work')]]]),
         },
         REPO,
       );
       expect(out).toContain('### Initial Release (v0.7.0)');
       expect(out).toContain('First ship.');
       expect(out).not.toContain('### 0.6.0');
+      expect(out).not.toContain('pre-inception work');
     });
   });
 
