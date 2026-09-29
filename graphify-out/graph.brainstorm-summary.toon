@@ -1,6 +1,6 @@
 # Domain Knowledge Graph — Summary (v3)
 # version: 3
-# 4448 nodes, 6322 edges (contains/imports_from omitted), 248 communities, directed=false
+# 4449 nodes, 6328 edges (contains/imports_from omitted), 225 communities, directed=false
 # Deep dive: graph.brainstorm.toon (TOC at top — use Read offset/limit per community)
 # Compact format used in brainstorm.toon:
 #   Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of ?=other  (contains/imports_from omitted — derivable)
@@ -10,49 +10,49 @@
 
 ## community index (top 20 by size)
   c0 (101): allModules() · arch-baseline.ts · arch-check.test.ts
-  c1 (81): arbitration-cli.test.ts · arbitration-cli.ts · arbitration.test.ts
-  c2 (80): blockOf() · build-e2e.test.ts · build.test.ts
-  c3 (79): lanes
-  c4 (76): allocatePorts() · bootDevSurfaces() · buildCommunityMap()
-  c5 (74): CONSUMER_CONFIG() · ROADMAP() · acquireLock()
-  c6 (73): lanes
-  c7 (73): collect
-  c8 (66): architecture-schema.ts · codePathOwnsFile() · countMatching()
-  c9 (65): lanes / geometry
-  c10 (64): ageBucket() · barTable() · cmpOrdinal()
-  c11 (62): assertConfig() · assertQueueSourceSynced() · assertQueueSourceSyncedAt()
-  c12 (61): amend-receipt.ts · amendSubagentReceipt() · answering()
-  c13 (60): .constructor() · .constructor() · LedgerParseError
-  c14 (57): buildMilestoneGroups() · dashboard-stale-install.test.ts · dashboard-worktrees.test.ts
-  c15 (55): detectors / adapters
-  c16 (53): detectors
-  c17 (52): rules / lanes
-  c18 (51): buildPrompt() · commit() · commit()
-  c19 (50): detectors
+  c1 (93): addWorktree() · appBundleFor() · appFlag()
+  c2 (81): detectors
+  c3 (80): blockOf() · build-e2e.test.ts · build.test.ts
+  c4 (80): architecture-schema.ts · codePathOwnsFile() · countMatching()
+  c5 (78): agent-runner / usage
+  c6 (76): lanes
+  c7 (75): CONSUMER_CONFIG() · ROADMAP() · acquireLock()
+  c8 (74): lanes
+  c9 (73): collect
+  c10 (67): allocatePorts() · bootDevSurfaces() · buildCommunityMap()
+  c11 (65): geometry / lanes
+  c12 (64): ageBucket() · barTable() · cmpOrdinal()
+  c13 (61): amend-receipt.ts · amendSubagentReceipt() · answering()
+  c14 (61): lanes / geometry
+  c15 (61): L1() · buildMergeCandidates() · collectTestInputs()
+  c16 (61): appendOverrideLog() · applyFix() · auto-restamp.test.ts
+  c17 (60): detectors
+  c18 (58): .constructor() · .constructor() · LedgerParseError
+  c19 (55): addBareOrigin() · applyBump() · bumpAllPackages()
 
 ## cross-community edges (top 25)
-  f acquireSuiteLock!@c61>tryAcquire!@c50
-  f activateMilestone!@c33>atomicWriteFileSync!@c55
-  f aggregate!@c68>inferLaneFromFilename!@c1
-  f annotateRound!@c13>writeJsonAtomic!@c26
-  f appendRound!@c13>writeJsonAtomic!@c26
-  f applyFix!@c87>fixGardenReceipt!@c86
-  f applyFix!@c87>fixOriginSync!@c38
-  f applyFix!@c87>fixSessionMarker!@c38
-  f approvalDirSegments!@c29>milestoneSlugFromPenPath!@c43
-  f approvalRelPath!@c36>approvalDirSegments!@c29
-  f approve!@c47>errMessage!@c29
-  f approve!@c47>list!@c29
-  f assessEntrySplit!@c77>countWords!@c163
-  f assessEntrySplit!@c77>extractTouches!@c92
-  f assessSpecSplit!@c77>countWords!@c163
-  f assessSpecSplit!@c77>readCriteria!@c138
-  f assignMain!@c33>atomicWriteFileSync!@c55
-  f assignMain!@c33>planAssign!@c191
-  f auditOverrides!@c16>parseTrailers!@c74
-  f autoBase!@c134>resolveDefaultBase!@c84
-  f autoOpenEnabled!@c117>loadConfigSync!@c11
-  f baselineStamp!@c52>blobIdOfWorktreeFile!@c47
-  f bootDevSurfaces!@c4>atomicWriteFile!@c76
-  f boundFile!@c47>loadDocRoots!@c8
-  f branchCarriesCode!@c20>touchesCode!@c75
+  f acquireSuiteLock!@c68>tryAcquire!@c57
+  f activateMilestone!@c39>atomicWriteFileSync!@c88
+  f annotateRound!@c18>writeJsonAtomic!@c24
+  f appendRound!@c18>writeJsonAtomic!@c24
+  f approvalRelPath!@c23>approvalDirSegments!@c36
+  f approve!@c36>errMessage!@c23
+  f approve!@c36>list!@c11
+  f arbitrationPath!@c2>slugKindJsonPath!@c60
+  f assessEntrySplit!@c52>extractTouches!@c90
+  f assessSpecSplit!@c52>readCriteria!@c74
+  f assignMain!@c39>atomicWriteFileSync!@c88
+  f assignMain!@c39>planAssign!@c83
+  f auditCodexCrOverrides!@c17>tally!@c93
+  f auditOverrides!@c17>commitOnlyTouchesReport!@c28
+  f auditOverrides!@c17>matchesExpectedOverride!@c28
+  f auditOverrides!@c17>parseTrailers!@c65
+  f autoBase!@c124>resolveDefaultBase!@c63
+  f autoOpenEnabled!@c1>loadConfigSync!@c31
+  f baselineStamp!@c29>blobIdOfWorktreeFile!@c36
+  f bootDevSurfaces!@c10>atomicWriteFile!@c82
+  f boundFile!@c36>loadDocRoots!@c17
+  f branchCarriesCode!@c25>touchesCode!@c34
+  f buildBlockedByGraph!@c59>parseBacklog!@c83
+  f buildCommandRegistry!@c55>flattenManifest!@c118
+  f buildGateComplianceSection!@c28>loadConfigSync!@c31
