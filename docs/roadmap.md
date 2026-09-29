@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Seed Missing Test Co-Tags
-
-- id: Q-0335
-- area: tooling
-- type: test
-- since: 2026-09-29
-- size: S
-- impact: med
-- confidence: med
-- blocked-by: Q-0333
-
-The owners PR #640 added raised the SDD report's "Tests with incomplete co-tag" count from 1 to 33. Run `pnpm noldor features seed-test-tags`, add the named FDs to each test's `// @tests:` line, and re-run `pnpm noldor garden sdd-report` until the section is empty or every remaining row is explained. Waits on Q-0333 because new `@fd:` headers change which FDs own the imported files.
-
 ### SDD Report Honours Ownerless On Purpose
 
 - id: Q-0336
