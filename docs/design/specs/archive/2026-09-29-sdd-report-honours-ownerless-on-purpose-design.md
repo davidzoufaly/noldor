@@ -100,7 +100,7 @@ The test for each row is ADR 0009's: is the file *about* one feature? If yes, th
 | `src/cr/geometry/geometry-cli-emit.ts` | output plumbing shared by every `design geometry-*` entrypoint |
 | `src/cr/lanes/pen-dispatch.ts` | shared child-dispatch for every pencil-MCP lane |
 
-**Left as real gaps (10 files).** Each is about one feature and should get a `// @fd:` header. PR #666 already gave five of them one (`drain-eligibility.ts`, `status-cli.ts`, `codex.ts`, `editor-launch.ts`, `fd-command-rot.ts`), so five rows remain after this change: `src/autonomous/drain-eligibility.ts`, `src/autonomous/status-cli.ts`, `src/cr/cut-scan.ts`, `src/cr/geometry/geometry-export-cli.ts`, `src/cr/lanes/geometry-extract-dispatch.ts`, `src/cr/lanes/codex.ts`, `src/design/arch-draw.ts`, `src/design/editor-launch.ts`, `src/garden/detectors/fd-command-rot.ts`, `src/release/index.ts`.
+**Left as real gaps (10 files).** Each is about one feature and should get a `// @fd:` header. PR #666 already gave five of them one (`src/autonomous/drain-eligibility.ts`, `src/autonomous/status-cli.ts`, `src/cr/lanes/codex.ts`, `src/design/editor-launch.ts`, `src/garden/detectors/fd-command-rot.ts`). The five rows that remain after this change: `src/cr/cut-scan.ts`, `src/cr/geometry/geometry-export-cli.ts`, `src/cr/lanes/geometry-extract-dispatch.ts`, `src/design/arch-draw.ts`, `src/release/index.ts`.
 
 **Declared ownerless (7 FDs).** All seven "Done features without code" rows: the five dashboard page FDs render from the shared `src/dashboard/` views, and `scripts-reorganization-by-feature-area` and `self-boundaries-declaration-and-cycle-break` were repo-wide restructures whose "code" is every file they moved.
 
