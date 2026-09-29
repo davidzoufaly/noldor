@@ -738,6 +738,95 @@ describe('mergeChangelogIntoBody', () => {
     expect(out).not.toContain('#### Commits');
   });
 
+  describe('which versions render', () => {
+    const initialBody =
+      '## Changelog\n\n### Initial Release (v0.7.0)\n\n#### Summary\n\nFirst ship.\n';
+    const tagsWithCommits = (): Map<string, FeatureCommit[]> =>
+      new Map([
+        ['0.5.0', []],
+        ['0.6.0', [makeCommit('pre111', 'feat', 'pre-inception work')]],
+        ['0.7.0', [makeCommit('ini222', 'feat', 'first ship work')]],
+        ['0.8.0', []],
+        ['0.9.0', [makeCommit('lat333', 'fix', 'later fix')]],
+      ]);
+
+    it('keeps the Initial Release heading, its summary and its commits', () => {
+      const out = mergeChangelogIntoBody(
+        initialBody,
+        { unreleased: [], perVersion: tagsWithCommits() },
+        REPO,
+      );
+      expect(out).toContain('### Initial Release (v0.7.0)');
+      expect(out).toContain('First ship.');
+      expect(out).toContain('feat: first ship work');
+      expect(out).not.toContain('### 0.7.0');
+    });
+
+    it('keeps a later version that has commits, newest first', () => {
+      const out = mergeChangelogIntoBody(
+        initialBody,
+        { unreleased: [], perVersion: tagsWithCommits() },
+        REPO,
+      );
+      expect(out).toContain('### 0.9.0');
+      expect(out).toContain('fix: later fix');
+      expect(out.indexOf('### 0.9.0')).toBeLessThan(out.indexOf('### Initial Release'));
+    });
+
+    it('drops every version tagged before the Initial Release, with or without commits', () => {
+      const out = mergeChangelogIntoBody(
+        initialBody,
+        { unreleased: [], perVersion: tagsWithCommits() },
+        REPO,
+      );
+      expect(out).not.toContain('### 0.5.0');
+      expect(out).not.toContain('### 0.6.0');
+      expect(out).not.toContain('pre-inception work');
+    });
+
+    it('drops a version with neither commits nor a static block', () => {
+      const out = mergeChangelogIntoBody(
+        initialBody,
+        { unreleased: [], perVersion: tagsWithCommits() },
+        REPO,
+      );
+      expect(out).not.toContain('### 0.8.0');
+    });
+
+    it('drops empty versions on an FD without an Initial Release block', () => {
+      const out = mergeChangelogIntoBody(
+        '## Changelog\n\n### 0.3.0\n\n#### Summary\n\nShipped.\n',
+        {
+          unreleased: [],
+          perVersion: new Map([
+            ['0.1.0', []],
+            ['0.3.0', []],
+            ['0.4.0', []],
+          ]),
+        },
+        REPO,
+      );
+      expect(out).toContain('### 0.3.0');
+      expect(out).toContain('Shipped.');
+      expect(out).not.toContain('### 0.1.0');
+      expect(out).not.toContain('### 0.4.0');
+    });
+
+    it('keeps an Initial Release block whose version has no tag yet', () => {
+      const out = mergeChangelogIntoBody(
+        initialBody,
+        {
+          unreleased: [makeCommit('unr444', 'feat', 'unreleased work')],
+          perVersion: new Map([['0.6.0', []]]),
+        },
+        REPO,
+      );
+      expect(out).toContain('### Initial Release (v0.7.0)');
+      expect(out).toContain('First ship.');
+      expect(out).not.toContain('### 0.6.0');
+    });
+  });
+
   it('locates ## Changelog by line-anchored heading, not inline prose reference', () => {
     // Inline reference inside prose must NOT be mistaken for the H2 heading.
     const body = [
