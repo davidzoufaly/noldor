@@ -126,11 +126,12 @@ so the prompt stays a thin pointer and no second rendering exists to drift.
   none changed, amend `Noldor-Doc-Impact: none` onto the tip — message only.
   Exit 2 means the owner list could not be built, never "no owners".
 - Design debt: when `docs/design/architecture/baseline.pen` exists, run
-  `pnpm noldor checks arch-baseline`; then run
+  `pnpm noldor checks arch-baseline`. On `missing-module`, run
+  `pnpm noldor design arch-draw --refresh` and commit the baseline with
+  `NOLDOR_ALLOW_PEN_WRITE=1` — it needs no editor. Then run
   `pnpm noldor checks ui-design-freshness` after the last commit. Print both
-  checks' rows. A headless child cannot drive the pen.dev editor to write a
-  baseline back, so the rows are debt, never a reason to stop — release
-  preflight holds the line.
+  checks' rows. Every other row is debt a headless child cannot pay, never a
+  reason to stop — release preflight holds the line.
 - Preflight the push-range gates **before** the code-stage CR, while no receipt
   exists to lose: `pnpm noldor checks push-gates`. It replays the real hook —
   lefthook runs its own `pre-push` job list over the stdin ref line git will
@@ -305,7 +306,7 @@ Differences from the roadmap path:
      `pnpm noldor design archive`: it moves this session's spec and plan into
      `archive/` and leaves the moves staged.
   3. Design write-backs: a headless child cannot drive the pen.dev editor, so
-     print the debt instead — the rows of `pnpm noldor checks arch-baseline`
+     print the debt instead — the rows of `pnpm noldor checks arch-baseline` left after `design arch-draw --refresh`
      when `docs/design/architecture/baseline.pen` exists, and the
      `pnpm noldor design ui-sync` debt when the diff touches
      `consumer.uiPaths`.

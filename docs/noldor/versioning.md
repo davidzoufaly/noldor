@@ -89,8 +89,9 @@ skip the sweep; minor and major bumps MUST NOT.
      [`garden-and-drift.md`](garden-and-drift.md). `RELEASE_SKIP_ARCHITECTURE=1
      pnpm release` is the logged break-glass hatch.
    - `checkArchBaseline(repo)` — the architecture baseline
-     (`docs/design/architecture/baseline.pen`) must cover every module once
-     and draw no arrow the imports do not back. Skipped for a repo with no
+     (`docs/design/architecture/baseline.pen`) must cover every module once,
+     keep every part real and inside its module, and draw no arrow the
+     imports do not back. Skipped for a repo with no
      baseline file; `undrawn-edge` advisories never block. See
      `checks arch-baseline` in [`script-catalog.md`](script-catalog.md).
      `RELEASE_SKIP_ARCH_BASELINE=1 pnpm release` is the logged break-glass
