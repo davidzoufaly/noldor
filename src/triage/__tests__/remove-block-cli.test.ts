@@ -268,3 +268,56 @@ describe('remove-block --split-into sibling check', () => {
     expect(roadmap()).toContain('### Parent');
   });
 });
+
+// @tests: stable-entry-ids-for-roadmap-backlog
+describe('remove-block on a promoted entry', () => {
+  let repo: string;
+
+  beforeEach(async () => {
+    repo = await mkdtemp(join(tmpdir(), 'remove-block-promoted-'));
+    await mkdir(join(repo, 'docs/features'), { recursive: true });
+    await mkdir(join(repo, '.noldor'), { recursive: true });
+    await writeFile(
+      join(repo, 'docs/roadmap.md'),
+      '### Promoted Entry\n\n- id: Q-0996\n- area: tooling\n\nBody.\n',
+    );
+    await writeFile(join(repo, 'docs/backlog.md'), '# Backlog\n');
+  });
+
+  afterEach(async () => {
+    await rm(repo, { recursive: true, force: true });
+  });
+
+  const run = () =>
+    spawnSync(
+      process.execPath,
+      [join(process.cwd(), 'bin/noldor.mjs'), 'roadmap', 'remove-block', 'promoted-entry'],
+      { cwd: repo, env: { ...process.env, NOLDOR_RUNTIME: 'source' }, encoding: 'utf8' },
+    );
+
+  const fd = (slug: string, entryId: string) =>
+    writeFile(
+      join(repo, `docs/features/${slug}.md`),
+      `---\nphase: in-progress\nentry-id: ${entryId}\n---\n\n# FD\n`,
+    );
+
+  // A retired ID reads as shipped, so recording a promoted entry's ID would
+  // unblock its `blocked-by:` dependents while the FD is still in progress.
+  it('does not record an ID an FD already carries as entry-id', async () => {
+    await fd('promoted-entry', 'Q-0996');
+    const result = run();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('docs/features/promoted-entry.md');
+    expect(readFileSync(join(repo, 'docs/roadmap.md'), 'utf8')).not.toContain('Promoted Entry');
+    expect(existsSync(join(repo, '.noldor/retired-entry-ids.json'))).toBe(false);
+  });
+
+  it('still records the ID when no FD carries it (fast-track, attach)', async () => {
+    await fd('parent-fd', 'Q-0001');
+    expect(run().status).toBe(0);
+    const ledger = JSON.parse(
+      readFileSync(join(repo, '.noldor/retired-entry-ids.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(ledger).toHaveProperty('Q-0996');
+  });
+});
