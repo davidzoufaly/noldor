@@ -113,7 +113,7 @@ As an operator designing a new milestone, feature or package, I want an as-built
 - `pnpm noldor design verdict --pen <architecture .pen> --approve --surface architecture (--spec <spec> | --milestone <slug>) --editor-page <name>…` — records the approval under `.noldor/design-approval/architecture/` (`architecture/milestones/` for a milestone target); `--check`, `--reconfirm` and `--waive` work as for UI.
 - `pnpm noldor design archive` and `pnpm noldor design pen-bridge` — treat architecture designs like UI ones.
 - `readArchPen(text)` (`src/design/arch-pen.ts`) — the pure reader behind all of the above.
-- `moduleImportPairs(cwd, roots, modules)` (`src/indirection/module-pairs.ts`) — module import pairs and in-repo file edges from one dependency-cruiser pass, or `unmeasurable` when the graph cannot be built.
+- `moduleImportPairs(cwd, roots, modules)` (`src/indirection/module-pairs.ts`) — module import pairs and in-repo file edges from one dependency-cruiser pass, or `unmeasurable` when the graph cannot be built. An import of a workspace package by its `package.json` name counts as an import of that package's directory, whether it resolves into `dist/` or the package is unbuilt.
 
 ## PRs
 

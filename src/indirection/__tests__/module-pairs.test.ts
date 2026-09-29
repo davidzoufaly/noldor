@@ -1,7 +1,9 @@
 // @tests: architecture-design-phase
-import { join } from 'node:path';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { edgesFromFiles, moduleImportPairs, moduleOf, pairsFromFiles } from '../module-pairs.js';
 
@@ -81,5 +83,63 @@ describe('module-pairs', () => {
       'src/c/w.ts -> src/a/x.ts',
       'src/index.ts -> src/a/x.ts',
     ]);
+  });
+
+  describe('workspace packages', () => {
+    const made: string[] = [];
+    afterEach(() => {
+      for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
+    });
+
+    /** An app beside a workspace package `@ws/lib`, `main.ts` holding the given imports. */
+    function workspaceTree(imports: readonly string[], extra: Record<string, string> = {}): string {
+      const root = mkdtempSync(join(tmpdir(), 'module-pairs-ws-'));
+      made.push(root);
+      const files: Record<string, string> = {
+        'apps/app/package.json': JSON.stringify({ name: '@ws/app' }),
+        'apps/app/src/main.ts': imports
+          .map((spec, i) => `import * as m${i} from '${spec}';\n`)
+          .join(''),
+        'packages/lib/package.json': JSON.stringify({
+          name: '@ws/lib',
+          exports: { '.': { types: './dist/index.d.ts', import: './dist/index.js' } },
+        }),
+        'packages/lib/src/index.ts': 'export const lib = 1;\n',
+        ...extra,
+      };
+      for (const [path, body] of Object.entries(files)) {
+        mkdirSync(dirname(join(root, path)), { recursive: true });
+        writeFileSync(join(root, path), body);
+      }
+      return root;
+    }
+
+    const MODS = ['apps/app', 'packages/lib'];
+
+    it('reads an import of an unbuilt workspace package by name as an import of its directory', async () => {
+      const result = await moduleImportPairs(
+        workspaceTree(['@ws/lib', '@ws/lib/sub', 'zod']),
+        ['apps', 'packages'],
+        MODS,
+      );
+      if (result.kind !== 'pairs') throw new Error(result.message);
+      expect([...result.pairs]).toEqual(['apps/app -> packages/lib']);
+      expect(result.edges).toEqual([
+        { from: 'apps/app/src/main.ts', to: 'packages/lib' },
+        { from: 'apps/app/src/main.ts', to: 'packages/lib' },
+      ]);
+    });
+
+    it('keeps an import that resolves into build output', async () => {
+      const tree = workspaceTree(['../../../packages/lib/dist/index.js'], {
+        'packages/lib/dist/index.js': 'export const lib = 1;\n',
+      });
+      const result = await moduleImportPairs(tree, ['apps', 'packages'], MODS);
+      if (result.kind !== 'pairs') throw new Error(result.message);
+      expect([...result.pairs]).toEqual(['apps/app -> packages/lib']);
+      expect(result.edges).toEqual([
+        { from: 'apps/app/src/main.ts', to: 'packages/lib/dist/index.js' },
+      ]);
+    });
   });
 });

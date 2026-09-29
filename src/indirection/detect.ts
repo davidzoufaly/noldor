@@ -436,8 +436,20 @@ function declaredAliases(base: string, roots: readonly string[]): DeclaredAliase
  * skips, anchored to whole path segments so it cannot match a longer name.
  */
 function excludedSegments(): string {
-  const names = [...WALK_EXCLUDED_DIRS, '__tests__'].map((n) => n.replace(/\./g, '\\.'));
-  return `(^|/)(${names.join('|')})(/|$)`;
+  const names = [...WALK_EXCLUDED_DIRS, '__tests__'].filter((n) => !KEPT_AS_TARGETS.includes(n));
+  return segmentPattern(names);
+}
+
+/**
+ * Build output a workspace package's `exports` points at. Excluding it would
+ * drop the import edge into it along with the files, so an app importing
+ * `@scope/lib` (resolved to `packages/lib/dist/index.js`) would import nothing.
+ * `doNotFollow` keeps the edge and still leaves the tree unparsed.
+ */
+const KEPT_AS_TARGETS = ['dist'];
+
+function segmentPattern(names: readonly string[]): string {
+  return `(^|/)(${names.map((n) => n.replace(/\./g, '\\.')).join('|')})(/|$)`;
 }
 
 /**
@@ -470,6 +482,28 @@ function findPackageRoots(base: string, roots: readonly string[]): string[] {
     if (rel !== '' && !rel.startsWith('..')) out.add(rel);
   });
   return [...out];
+}
+
+/**
+ * Each workspace package under the scan roots, by its `package.json` name, to
+ * its repo-relative directory. A manifest that cannot be read or names nothing
+ * is skipped: its package still counts as a boundary in {@link findPackageRoots},
+ * it just cannot be matched by name.
+ */
+export function workspacePackages(base: string, roots: readonly string[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const dir of findPackageRoots(base, roots)) {
+    let name: unknown;
+    try {
+      name = (
+        JSON.parse(readFileSync(join(base, dir, 'package.json'), 'utf8')) as { name?: unknown }
+      ).name;
+    } catch {
+      continue;
+    }
+    if (typeof name === 'string') out.set(name, dir);
+  }
+  return out;
 }
 
 /** cruise reports paths relative to baseDir; anything escaping it is not ours. */
@@ -601,7 +635,7 @@ export async function cruiseFileGraph(opts: FileGraphOptions): Promise<FileGraph
     const result = await cruise(roots, {
       baseDir: base,
       validate: false,
-      doNotFollow: { path: 'node_modules' },
+      doNotFollow: { path: segmentPattern(['node_modules', ...KEPT_AS_TARGETS]) },
       // Resolve tsconfig `paths` through enhanced-resolve, which
       // dependency-cruiser depends on directly and which needs no `typescript`
       // install at all — so it works on the TS version this repo is actually on
