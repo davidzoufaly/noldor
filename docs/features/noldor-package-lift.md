@@ -12,6 +12,8 @@ links:
     - src/cli/__tests__/dist-import-graph.test.ts
     - src/cli/__tests__/runtime-parity.test.ts
     - src/cli/__tests__/runtime-select.test.ts
+    - src/migrations/__tests__/1.13.0.test.ts
+    - src/templates/__tests__/region-managed-sync.test.ts
     - src/templates/__tests__/templates.test.ts
   spec: docs/design/specs/archive/2026-05-26-noldor-package-lift-design.md
   plan: docs/design/plans/archive/2026-05-26-noldor-package-lift.md
@@ -103,6 +105,8 @@ The framework is now lifted into a dedicated `packages/noldor` workspace package
   - [`src/cli/__tests__/dist-import-graph.test.ts`](../../src/cli/__tests__/dist-import-graph.test.ts)
   - [`src/cli/__tests__/runtime-parity.test.ts`](../../src/cli/__tests__/runtime-parity.test.ts)
   - [`src/cli/__tests__/runtime-select.test.ts`](../../src/cli/__tests__/runtime-select.test.ts)
+  - [`src/migrations/__tests__/1.13.0.test.ts`](../../src/migrations/__tests__/1.13.0.test.ts)
+  - [`src/templates/__tests__/region-managed-sync.test.ts`](../../src/templates/__tests__/region-managed-sync.test.ts)
   - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)
 
 <!-- /generated: resources -->

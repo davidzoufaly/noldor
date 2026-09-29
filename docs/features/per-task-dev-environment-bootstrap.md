@@ -12,6 +12,11 @@ links:
   docs: []
   tests:
     - src/verify/__tests__/health.test.ts
+    - src/worktrees/__tests__/dev-surfaces.test.ts
+    - src/worktrees/__tests__/down-worktree-traversal.test.ts
+    - src/worktrees/__tests__/down-worktree.test.ts
+    - src/worktrees/__tests__/open-editor.test.ts
+    - src/worktrees/__tests__/up-worktree.test.ts
   spec: >-
     docs/design/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md
   plan: docs/design/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md
@@ -101,5 +106,10 @@ Add a `consumer.dev` surface config block (#103).
   - [`src/worktrees/up-worktree.ts`](../../src/worktrees/up-worktree.ts)
 - **Tests:**
   - [`src/verify/__tests__/health.test.ts`](../../src/verify/__tests__/health.test.ts)
+  - [`src/worktrees/__tests__/dev-surfaces.test.ts`](../../src/worktrees/__tests__/dev-surfaces.test.ts)
+  - [`src/worktrees/__tests__/down-worktree-traversal.test.ts`](../../src/worktrees/__tests__/down-worktree-traversal.test.ts)
+  - [`src/worktrees/__tests__/down-worktree.test.ts`](../../src/worktrees/__tests__/down-worktree.test.ts)
+  - [`src/worktrees/__tests__/open-editor.test.ts`](../../src/worktrees/__tests__/open-editor.test.ts)
+  - [`src/worktrees/__tests__/up-worktree.test.ts`](../../src/worktrees/__tests__/up-worktree.test.ts)
 
 <!-- /generated: resources -->

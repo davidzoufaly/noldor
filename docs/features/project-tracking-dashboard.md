@@ -37,6 +37,7 @@ links:
     - src/dashboard/__tests__/dashboard-test-pyramid.test.ts
     - src/dashboard/__tests__/dashboard-views.test.ts
     - src/dashboard/__tests__/dashboard-worktrees.test.ts
+    - src/dashboard/__tests__/host.test.ts
     - src/dashboard/__tests__/metrics-view.test.ts
     - src/dashboard/__tests__/milestones-view.test.ts
     - src/dashboard/__tests__/route-sweep.test.ts
@@ -115,6 +116,7 @@ As a maintainer (human or agent), I want to see live, filterable project state i
   - [`src/dashboard/__tests__/dashboard-test-pyramid.test.ts`](../../src/dashboard/__tests__/dashboard-test-pyramid.test.ts)
   - [`src/dashboard/__tests__/dashboard-views.test.ts`](../../src/dashboard/__tests__/dashboard-views.test.ts)
   - [`src/dashboard/__tests__/dashboard-worktrees.test.ts`](../../src/dashboard/__tests__/dashboard-worktrees.test.ts)
+  - [`src/dashboard/__tests__/host.test.ts`](../../src/dashboard/__tests__/host.test.ts)
   - [`src/dashboard/__tests__/metrics-view.test.ts`](../../src/dashboard/__tests__/metrics-view.test.ts)
   - [`src/dashboard/__tests__/milestones-view.test.ts`](../../src/dashboard/__tests__/milestones-view.test.ts)
   - [`src/dashboard/__tests__/route-sweep.test.ts`](../../src/dashboard/__tests__/route-sweep.test.ts)

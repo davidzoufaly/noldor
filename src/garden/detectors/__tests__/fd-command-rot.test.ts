@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: noldor, skill-vs-code-drift-detector
 import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, noldor
+// @tests: acceptance-verify-lane, noldor, specs-cr-gate-multi-reviewer
 import { describe, expect, it } from 'vitest';
 import { parseCliArgs } from '../cli-args.js';
 

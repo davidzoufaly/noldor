@@ -1,4 +1,4 @@
-// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows, unvalidated-slug-path-traversal-across-cli-entry-points
+// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows, unvalidated-slug-path-traversal-across-cli-entry-points, per-task-dev-environment-bootstrap
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

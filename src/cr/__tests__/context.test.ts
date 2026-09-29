@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, noldor
+// @tests: acceptance-verify-lane, noldor, specs-cr-gate-multi-reviewer
 import { describe, expect, it, vi } from 'vitest';
 import { REVIEW_IRRELEVANT_EXCLUDES, buildContext } from '../context.js';
 

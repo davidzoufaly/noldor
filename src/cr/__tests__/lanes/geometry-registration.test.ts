@@ -1,4 +1,4 @@
-// @tests: ui-design-review-lane
+// @tests: ui-design-review-lane, specs-cr-gate-multi-reviewer
 import { describe, expect, it } from 'vitest';
 
 import { autonomousConfigSchema } from '../../../core/config.js';

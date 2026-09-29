@@ -1,4 +1,4 @@
-// @tests: specs-cr-gate-multi-reviewer
+// @tests: specs-cr-gate-multi-reviewer, cr-re-round-cap-enforcement-and-oscillation-detector
 import { describe, expect, it } from 'vitest';
 
 import { ruleR1, ruleR2, ruleR3 } from '../reflag.js';

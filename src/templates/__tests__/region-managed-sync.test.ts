@@ -1,4 +1,4 @@
-// @tests: scaffold-one-agent-rules-file-not-two, make-noldor-agent-agnostic, noldor
+// @tests: scaffold-one-agent-rules-file-not-two, make-noldor-agent-agnostic, noldor, noldor-package-lift
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

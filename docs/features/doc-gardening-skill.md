@@ -28,8 +28,14 @@ links:
     - src/docs/__tests__/docs-api.test.ts
     - src/docs/__tests__/docs-check.test.ts
     - src/docs/__tests__/docs-transclude.test.ts
+    - src/garden/__tests__/backlog-demote.test.ts
+    - src/garden/__tests__/garden-detect-runner.test.ts
     - src/garden/__tests__/garden-detect.test.ts
+    - src/garden/__tests__/garden-receipt.test.ts
     - src/garden/__tests__/malformed-fd.test.ts
+    - src/garden/__tests__/plan-resolution.test.ts
+    - src/release/__tests__/preflight-probes.test.ts
+    - src/release/__tests__/preflight.test.ts
     - src/sync/__tests__/sync-doc-links.test.ts
     - src/sync/__tests__/sync-fd-resources.test.ts
     - src/triage/__tests__/triage-list-untriaged.test.ts
@@ -87,8 +93,14 @@ The skill runs `pnpm garden:detect`, presents a unified checklist grouped by sig
   - [`src/docs/__tests__/docs-api.test.ts`](../../src/docs/__tests__/docs-api.test.ts)
   - [`src/docs/__tests__/docs-check.test.ts`](../../src/docs/__tests__/docs-check.test.ts)
   - [`src/docs/__tests__/docs-transclude.test.ts`](../../src/docs/__tests__/docs-transclude.test.ts)
+  - [`src/garden/__tests__/backlog-demote.test.ts`](../../src/garden/__tests__/backlog-demote.test.ts)
+  - [`src/garden/__tests__/garden-detect-runner.test.ts`](../../src/garden/__tests__/garden-detect-runner.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/garden/__tests__/garden-receipt.test.ts`](../../src/garden/__tests__/garden-receipt.test.ts)
   - [`src/garden/__tests__/malformed-fd.test.ts`](../../src/garden/__tests__/malformed-fd.test.ts)
+  - [`src/garden/__tests__/plan-resolution.test.ts`](../../src/garden/__tests__/plan-resolution.test.ts)
+  - [`src/release/__tests__/preflight-probes.test.ts`](../../src/release/__tests__/preflight-probes.test.ts)
+  - [`src/release/__tests__/preflight.test.ts`](../../src/release/__tests__/preflight.test.ts)
   - [`src/sync/__tests__/sync-doc-links.test.ts`](../../src/sync/__tests__/sync-doc-links.test.ts)
   - [`src/sync/__tests__/sync-fd-resources.test.ts`](../../src/sync/__tests__/sync-fd-resources.test.ts)
   - [`src/triage/__tests__/triage-list-untriaged.test.ts`](../../src/triage/__tests__/triage-list-untriaged.test.ts)

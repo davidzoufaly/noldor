@@ -30,6 +30,7 @@ links:
     - src/autonomous/__tests__/run-drain.test.ts
     - src/autonomous/__tests__/salvage.test.ts
     - src/autonomous/__tests__/watch-args.test.ts
+    - src/autonomous/__tests__/watch-detach.test.ts
     - src/autonomous/__tests__/watch-state.test.ts
     - src/core/__tests__/agent-events.test.ts
     - src/core/__tests__/config.test.ts
@@ -125,6 +126,7 @@ touch .noldor/drain-stop                # one-shot stop (exit 130), cleared at n
   - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
   - [`src/autonomous/__tests__/salvage.test.ts`](../../src/autonomous/__tests__/salvage.test.ts)
   - [`src/autonomous/__tests__/watch-args.test.ts`](../../src/autonomous/__tests__/watch-args.test.ts)
+  - [`src/autonomous/__tests__/watch-detach.test.ts`](../../src/autonomous/__tests__/watch-detach.test.ts)
   - [`src/autonomous/__tests__/watch-state.test.ts`](../../src/autonomous/__tests__/watch-state.test.ts)
   - [`src/core/__tests__/agent-events.test.ts`](../../src/core/__tests__/agent-events.test.ts)
   - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)

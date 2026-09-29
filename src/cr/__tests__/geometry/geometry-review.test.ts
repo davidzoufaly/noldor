@@ -1,4 +1,4 @@
-// @tests: ui-design-review-lane
+// @tests: ui-design-review-lane, pendev-ui-design-phase, unvalidated-slug-path-traversal-across-cli-entry-points
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

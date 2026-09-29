@@ -16,8 +16,10 @@ links:
     - src/core/agent-runner/__tests__/registry.test.ts
     - src/core/agent-runner/__tests__/runners.test.ts
     - src/cr/__tests__/filename.test.ts
+    - src/cr/__tests__/geometry/geometry-export-cli.test.ts
     - src/cr/__tests__/lane-answer.test.ts
     - src/cr/__tests__/lane-spawn.test.ts
+    - src/cr/__tests__/lanes/geometry-extract-dispatch.test.ts
     - src/cr/__tests__/lanes/render-compare.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
@@ -115,8 +117,10 @@ This release declares which side writes a CR lane answer file (#492).
   - [`src/core/agent-runner/__tests__/registry.test.ts`](../../src/core/agent-runner/__tests__/registry.test.ts)
   - [`src/core/agent-runner/__tests__/runners.test.ts`](../../src/core/agent-runner/__tests__/runners.test.ts)
   - [`src/cr/__tests__/filename.test.ts`](../../src/cr/__tests__/filename.test.ts)
+  - [`src/cr/__tests__/geometry/geometry-export-cli.test.ts`](../../src/cr/__tests__/geometry/geometry-export-cli.test.ts)
   - [`src/cr/__tests__/lane-answer.test.ts`](../../src/cr/__tests__/lane-answer.test.ts)
   - [`src/cr/__tests__/lane-spawn.test.ts`](../../src/cr/__tests__/lane-spawn.test.ts)
+  - [`src/cr/__tests__/lanes/geometry-extract-dispatch.test.ts`](../../src/cr/__tests__/lanes/geometry-extract-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/render-compare.test.ts`](../../src/cr/__tests__/lanes/render-compare.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)

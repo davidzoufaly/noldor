@@ -1,4 +1,4 @@
-// @tests: framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics
+// @tests: framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, doc-gardening-skill
 import { describe, it, expect, vi } from 'vitest';
 import { runGardenDetectViaCli } from '../garden-detect-runner.js';
 

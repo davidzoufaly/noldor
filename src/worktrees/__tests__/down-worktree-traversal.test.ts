@@ -1,4 +1,4 @@
-// @tests: unvalidated-slug-path-traversal-across-cli-entry-points
+// @tests: unvalidated-slug-path-traversal-across-cli-entry-points, per-task-dev-environment-bootstrap
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';

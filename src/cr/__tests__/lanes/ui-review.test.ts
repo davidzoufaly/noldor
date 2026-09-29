@@ -1,4 +1,4 @@
-// @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance
+// @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance, specs-cr-gate-multi-reviewer
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -1,4 +1,4 @@
-// @tests: ui-design-review-lane
+// @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance, make-noldor-agent-agnostic, unvalidated-slug-path-traversal-across-cli-entry-points
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

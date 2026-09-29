@@ -1,6 +1,6 @@
 import { extractUntriagedBullets } from '../triage-list-untriaged.js';
 
-// @tests: doc-gardening-skill, scripts-reorganization-by-feature-area
+// @tests: doc-gardening-skill, scripts-reorganization-by-feature-area, triage-scoring-rubric-effort-impact-confidence-dependency
 describe(extractUntriagedBullets, () => {
   it('returns Now/Next/Later bullets under ## Verticals without a [triaged …] marker', () => {
     const md = `# Ideas

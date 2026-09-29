@@ -14,6 +14,7 @@ links:
     - src/garden/detectors/fd-diagram.ts
     - src/utils/word-count.ts
   tests:
+    - src/checks/__tests__/gate-skill-layout.test.ts
     - src/core/__tests__/markdown-section-scan.test.ts
     - src/dashboard/__tests__/route-sweep.test.ts
     - src/docs/__tests__/architecture-form.test.ts
@@ -192,6 +193,7 @@ This release adds the architecture doc surface (#333).
   - [`src/garden/detectors/fd-diagram.ts`](../../src/garden/detectors/fd-diagram.ts)
   - [`src/utils/word-count.ts`](../../src/utils/word-count.ts)
 - **Tests:**
+  - [`src/checks/__tests__/gate-skill-layout.test.ts`](../../src/checks/__tests__/gate-skill-layout.test.ts)
   - [`src/core/__tests__/markdown-section-scan.test.ts`](../../src/core/__tests__/markdown-section-scan.test.ts)
   - [`src/dashboard/__tests__/route-sweep.test.ts`](../../src/dashboard/__tests__/route-sweep.test.ts)
   - [`src/docs/__tests__/architecture-form.test.ts`](../../src/docs/__tests__/architecture-form.test.ts)
