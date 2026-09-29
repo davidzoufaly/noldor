@@ -1,5 +1,6 @@
 ---
 noldor-page: architecture-canvas
+introduced: 1.14.0
 ---
 
 # Architecture Canvas
