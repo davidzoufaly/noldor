@@ -17,8 +17,8 @@ packages:
 phase: done
 since: 2026-09-08T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.14.0
 ---
-
 ## Summary
 
 Q-0126 swept all 42 direct-invocation guards under `src/` behind `isEntrypoint` in `src/core/cli-entry.ts`, but shipped **no enforcement**: nothing mechanical stops a new entrypoint from hand-rolling the comparison again, and when that comparison is wrong the module runs nothing and exits 0, so the failure is invisible. The class is known to regrow — over the three weeks Q-0126 sat filed, two sites migrated away from the broken template and two new ones arrived carrying it.
@@ -51,6 +51,16 @@ As an agent or maintainer adding a CLI module under `src/`, I want `pnpm noldor 
 <!-- @prs-since-last-release: entrypoint-guard-choke-point-enforcement -->
 
 ## Changelog
+
+### Initial Release (v1.14.0)
+
+#### Summary
+
+This release sends the last hand-written entrypoint guards through `cli-entry` (#643).
+
+#### PRs
+
+- #643: route the last hand-written entrypoint guards through cli-entry ([link](https://github.com/davidzoufaly/noldor/pull/643))
 
 <!-- generated: resources -->
 

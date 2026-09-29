@@ -187,7 +187,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "mandatory-codex-review-round": 1,
       "clones-ratchet-and-clone-group-check-disagree-on-attribution": 2
     },
-    "meanDurationMs": 679909
+    "meanDurationMs": 661632
   }
 }
 ```

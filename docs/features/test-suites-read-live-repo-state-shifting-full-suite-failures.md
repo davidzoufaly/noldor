@@ -20,8 +20,8 @@ phase: done
 since: 2026-08-23T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.10.0
+updated: 1.14.0
 ---
-
 ## Summary
 
 `npx vitest run` failed on a shifting set of files that each passed in isolation, so a green suite was a matter of timing. Q-0171 recorded two runs ten minutes apart on 2026-08-20 with disjoint failure sets across `sdd-report.test.ts`, `preflight.test.ts` and `route-sweep.test.ts`.
@@ -89,6 +89,16 @@ Baseline on the 18-core dev machine (2026-09-24): one suite alone passes in ~51s
 <!-- @prs-since-last-release: test-suites-read-live-repo-state-shifting-full-suite-failures -->
 
 ## Changelog
+
+### 1.14.0
+
+#### Summary
+
+Full vitest runs now wait in line behind one lock for the whole repo, so they don't run at the same time (#538).
+
+#### PRs
+
+- #538: queue full vitest runs behind one repo-wide lock ([link](https://github.com/davidzoufaly/noldor/pull/538))
 
 ### Initial Release (v1.10.0)
 

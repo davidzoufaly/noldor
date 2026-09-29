@@ -1,5 +1,75 @@
 # Release Notes
 
+## v1.14.0 — 2026-09-29
+
+### Tooling
+
+#### Entrypoint-Guard Choke-Point Enforcement
+
+This release sends the last hand-written entrypoint guards through `cli-entry` (#643).
+
+[Feature page](/features/entrypoint-guard-choke-point-enforcement)
+
+#### Fast-Track Changes Can Obsolete an Unattached FD
+
+This release adds a way to list the FDs that own a branch's changed files (#612).
+
+[Feature page](/features/fast-track-changes-can-obsolete-an-unattached-fd)
+
+#### Feature .pen Coverage From Acceptance Criteria
+
+A UI design is now refused when it does not hold the pages that its spec's coverage table declares (#586).
+
+[Feature page](/features/feature-pen-coverage-from-acceptance-criteria)
+
+#### Gate Skill Loads Only the Branch a Session Takes
+
+This release makes schema-checked state files load through a single shared helper instead of separate code paths (#634).
+
+[Feature page](/features/gate-skill-loads-only-the-branch-a-session-takes)
+
+#### Milestone Membership Has No Tagger and No Counter
+
+This release lets you tag work with a milestone and counts how much work is still untagged (#631).
+
+[Feature page](/features/milestone-membership-has-no-tagger-and-no-counter)
+
+#### pen.dev Architecture Design Phase
+
+This release teaches the architecture tooling to read an architecture .pen into boxes, groups and arrows (#578), and to read file edges off the architecture check's one cruise (#645).
+
+[Feature page](/features/architecture-design-phase)
+
+#### pen.dev UI Design Phase *(updated)*
+
+A UI baseline is now held to a layout and id contract (#584). It is judged by its content, not only by when it was captured (#580). The design approval also names the pages it signed and the spec it was given against (#540).
+
+[Feature page](/features/pendev-ui-design-phase)
+
+#### SDD Co-Tag Detector *(updated)*
+
+This release seeds missing `@tests:` co-tags from the graph (#542) and prunes `links.code` down to the files each feature is actually about (#636).
+
+[Feature page](/features/sdd-co-tag-detector)
+
+#### Self-Refreshing, Compact Knowledge Graph *(updated)*
+
+The committed graph is now built by one pinned builder, and both the sweep and CI use it (#589).
+
+[Feature page](/features/self-refreshing-compact-knowledge-graph)
+
+#### Test Suites Read Live Repo State — Shifting Full-Suite Failures *(updated)*
+
+Full vitest runs now wait in line behind one lock for the whole repo, so they don't run at the same time (#538).
+
+[Feature page](/features/test-suites-read-live-repo-state-shifting-full-suite-failures)
+
+#### UI-Design Review Lane *(updated)*
+
+This release includes a refactor that lets the capture-template validator name its own field (#641).
+
+[Feature page](/features/ui-design-review-lane)
+
 ## v1.13.0 — 2026-09-24
 
 ### Agents

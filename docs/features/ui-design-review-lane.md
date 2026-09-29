@@ -68,7 +68,7 @@ opt-in:
   - crLanes.code=render-compare
   - crLanes.code=geometry-compare
 introduced: 1.4.0
-updated: 1.6.0
+updated: 1.14.0
 ---
 ## Summary
 
@@ -174,6 +174,16 @@ Sink: `.noldor/cr/<slug>-code-geometry-compare.json`, with one finding per faili
 <!-- @prs-since-last-release: ui-design-review-lane -->
 
 ## Changelog
+
+### 1.14.0
+
+#### Summary
+
+This release includes a refactor that lets the capture-template validator name its own field (#641).
+
+#### PRs
+
+- #641: let the capture-template validator name its own field ([link](https://github.com/davidzoufaly/noldor/pull/641))
 
 ### 1.6.0
 

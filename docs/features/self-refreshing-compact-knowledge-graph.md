@@ -26,8 +26,8 @@ packages:
 phase: done
 noldor-tier: full
 introduced: 1.12.0
+updated: 1.14.0
 ---
-
 ## Summary
 
 The committed knowledge graph refreshes itself: a merged `feat`, `fix` or
@@ -115,6 +115,16 @@ Reading one community means taking its line range from the `toc` block at the to
 <!-- @prs-since-last-release: self-refreshing-compact-knowledge-graph -->
 
 ## Changelog
+
+### 1.14.0
+
+#### Summary
+
+The committed graph is now built by one pinned builder, and both the sweep and CI use it (#589).
+
+#### PRs
+
+- #589: build the committed graph with one pinned builder for the sweep and CI ([link](https://github.com/davidzoufaly/noldor/pull/589))
 
 ### Initial Release (v1.12.0)
 

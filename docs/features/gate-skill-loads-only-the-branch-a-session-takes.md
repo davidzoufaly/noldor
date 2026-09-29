@@ -29,8 +29,8 @@ packages:
 phase: done
 since: 2026-09-25T00:00:00.000Z
 noldor-tier: full
+introduced: 1.14.0
 ---
-
 ## Summary
 
 `.claude/skills/noldor-gate/SKILL.md` is 13,690 words (13,637 when triaged; ~19k tokens, 597 lines) and loads whole into every gate session, interactive or drain. By section: Step 4 end-of-flow 4,290 words, the Step 2.5 CR gate 3,236, drain and finish mode about 1,500, roadmap retirement 519, attach phase-revert 446. About a third is branches a given session never takes (drain, finish, resume, micro-chore, attach, the UI and architecture write-backs), and much of the rest is incident history an agent does not need to run a step. A rule that applies on only some paths sits deep in the file, where a long context holds it least reliably, and every drain child pays the full load. Wanted: `SKILL.md` becomes a router of roughly 3k words holding the steps every path runs, with a hard "read `<branch>.md` now" line at each fork; each branch moves to its own file in the skill folder (drain and finish can point at `docs/noldor/drain-mode.md`, the single-canonical-page answer Q-0191 weighs); incident history moves to `docs/noldor/gotchas.md` and the runbooks, each rule keeping a one-line why. `checks template-sync`, `skill-code-drift` and `checks skill-portability` must cover the branch files. Then hold the win: a skill-size ratchet in the style of `clones` / `indirection` records each `SKILL.md`'s word count and refuses a push that grows one past its baseline. Deletion test: a `specs-only-new` session reads the router plus its own branch files, under half of today's load; every rule in today's skill lives in exactly one file; and a push that adds 200 words to any `SKILL.md` is refused until the baseline is re-recorded. (found 2026-09-25 shipping Q-0233)
@@ -60,6 +60,16 @@ As an agent running `/noldor-gate` (interactive, or as a headless drain child), 
 <!-- @prs-since-last-release: gate-skill-loads-only-the-branch-a-session-takes -->
 
 ## Changelog
+
+### Initial Release (v1.14.0)
+
+#### Summary
+
+This release makes schema-checked state files load through a single shared helper instead of separate code paths (#634).
+
+#### PRs
+
+- #634: read schema-checked state files through one helper ([link](https://github.com/davidzoufaly/noldor/pull/634))
 
 <!-- generated: resources -->
 

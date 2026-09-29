@@ -36,6 +36,7 @@ packages:
   - package.json
 phase: done
 noldor-tier: full
+introduced: 1.14.0
 ---
 ## Summary
 
@@ -119,6 +120,17 @@ As an operator designing a new milestone, feature or package, I want an as-built
 <!-- @prs-since-last-release: architecture-design-phase -->
 
 ## Changelog
+
+### Initial Release (v1.14.0)
+
+#### Summary
+
+This release teaches the architecture tooling to read an architecture .pen into boxes, groups and arrows (#578), and to read file edges off the architecture check's one cruise (#645).
+
+#### PRs
+
+- #645: read file edges off the architecture check's one cruise ([link](https://github.com/davidzoufaly/noldor/pull/645))
+- #578: read an architecture .pen into boxes, groups and arrows ([link](https://github.com/davidzoufaly/noldor/pull/578))
 
 <!-- generated: resources -->
 

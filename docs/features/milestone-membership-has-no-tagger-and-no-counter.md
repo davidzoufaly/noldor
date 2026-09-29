@@ -19,8 +19,8 @@ packages:
 phase: done
 since: 2026-09-22T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.14.0
 ---
-
 ## Summary
 
 Milestone membership is declared twice: `- milestone:` on a roadmap/backlog block and `milestone:` in a feature MD's frontmatter. `/noldor-triage` and `/noldor-promote` set it when work is filed or promoted, but work filed before a milestone existed stayed untagged, and nothing showed how much of it there was. `pnpm noldor milestones assign` tags roadmap entries, backlog entries and feature MDs in one call. `milestones show` ends with how many roadmap entries, backlog entries and in-progress FDs name no milestone. A tagged FD counts toward the milestone's `Features (<done>/<total> done)`, and flipping it to `phase: done` raises the done count.
@@ -49,6 +49,16 @@ As an operator (human or agent) running a milestone, I want to tag already-filed
 <!-- @prs-since-last-release: milestone-membership-has-no-tagger-and-no-counter -->
 
 ## Changelog
+
+### Initial Release (v1.14.0)
+
+#### Summary
+
+This release lets you tag work with a milestone and counts how much work is still untagged (#631).
+
+#### PRs
+
+- #631: tag work with a milestone and count what is untagged ([link](https://github.com/davidzoufaly/noldor/pull/631))
 
 <!-- generated: resources -->
 

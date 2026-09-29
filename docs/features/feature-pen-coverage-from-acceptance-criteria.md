@@ -20,8 +20,8 @@ packages:
 phase: done
 since: 2026-09-25T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.14.0
 ---
-
 ## Summary
 
 The same coverage hole bites a *feature's* `.pen`, not only a baseline, and the one page-level rule is a count the agent executes by hand. The enforced set is existence (`no-design-artifact`, `ambiguous-design`), ratification (`design-unapproved`) and freshness (`pen-modified`); `noldor-spec` step 1.5(b) adds "exactly one `FINAL:` page per surface", which is prose and counts pages rather than asking what is in them. Shipping Q-0275 the first design drew only the happy path — rest, keyboard focus, empty scene, engine error, in-flight and the folded-bar layout were all missing until the operator asked where the interactions were, and three of those states are pinned by acceptance criteria. Wanted: the coverage set a feature `.pen` is held to is **derived from the spec's acceptance criteria**, not hand-written, and the verdict step checks against that list rather than a page count. It builds on the declared coverage set Q-0247 adds for baselines (split out of Q-0247 on 2026-09-25). `render-export-dispatch` / `render-compare` already export `.pen` pages to images, so a model-driven check can read them even where a static one cannot. (found 2026-09-22 shipping Q-0275)
@@ -71,6 +71,16 @@ As an operator approving a feature's UI design — or the agent taking that verd
 <!-- @prs-since-last-release: feature-pen-coverage-from-acceptance-criteria -->
 
 ## Changelog
+
+### Initial Release (v1.14.0)
+
+#### Summary
+
+A UI design is now refused when it does not hold the pages that its spec's coverage table declares (#586).
+
+#### PRs
+
+- #586: refuse a UI design that does not hold the pages its spec's coverage table declares ([link](https://github.com/davidzoufaly/noldor/pull/586))
 
 <!-- generated: resources -->
 

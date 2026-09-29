@@ -21,7 +21,7 @@ links:
     - src/worktrees/__tests__/worktree-conflicts.test.ts
 introduced: 0.3.0
 noldor-tier: full
-updated: 0.4.0
+updated: 1.14.0
 ---
 
 ## Summary
@@ -81,6 +81,17 @@ pnpm noldor sync test-links                               # propagate into FD li
 <!-- /generated: resources -->
 
 ## Changelog
+
+### 1.14.0
+
+#### Summary
+
+This release seeds missing `@tests:` co-tags from the graph (#542) and prunes `links.code` down to the files each feature is actually about (#636).
+
+#### PRs
+
+- #542: seed missing @tests: co-tags from the graph ([link](https://github.com/davidzoufaly/noldor/pull/542))
+- #636: prune links.code to the files each feature is about ([link](https://github.com/davidzoufaly/noldor/pull/636))
 
 ### 0.4.0
 
