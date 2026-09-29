@@ -1,3 +1,5 @@
+// @fd: review-run-lifecycle-module
+
 import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../core/config.js';
 import { writeJsonAtomic } from '../atomic-write.js';
 import { makeCodexSpawn } from '../codex-adapter.js';

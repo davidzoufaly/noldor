@@ -1,3 +1,5 @@
+// @fd: skill-vs-code-drift-detector
+
 // Sibling of fd-link-rot in the FD-link-rot family. Where fd-link-rot stats an
 // FD's frontmatter link *targets*, this stats the CLI *commands* a done FD
 // documents in its body — verifying each still resolves against the live CLI

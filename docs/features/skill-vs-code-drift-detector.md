@@ -6,6 +6,7 @@ entry-id: Q-0030
 links:
   code:
     - src/checks/check-skill-portability.ts
+    - src/garden/detectors/fd-command-rot.ts
     - src/garden/detectors/skill-code-drift.ts
   tests:
     - src/checks/__tests__/check-skill-portability.test.ts
@@ -51,6 +52,7 @@ As a framework maintainer, I want `garden detect` to flag skill bodies whose `pn
 - **Spec:** [`docs/design/specs/archive/2026-07-13-skill-vs-code-drift-detector-design.md`](../../docs/design/specs/archive/2026-07-13-skill-vs-code-drift-detector-design.md)
 - **Code:**
   - [`src/checks/check-skill-portability.ts`](../../src/checks/check-skill-portability.ts)
+  - [`src/garden/detectors/fd-command-rot.ts`](../../src/garden/detectors/fd-command-rot.ts)
   - [`src/garden/detectors/skill-code-drift.ts`](../../src/garden/detectors/skill-code-drift.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-skill-portability.test.ts`](../../src/checks/__tests__/check-skill-portability.test.ts)

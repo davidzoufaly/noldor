@@ -1,3 +1,5 @@
+// @fd: autonomous-queue-drain-runner
+
 /**
  * True when a roadmap entry's block is safe to retire via the gate's blind
  * `removeBlock` in an unattended drain — i.e. it has no `Touches:` clause and at

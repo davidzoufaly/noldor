@@ -9,6 +9,7 @@ links:
     - src/core/agent-runner/bounded-capture.ts
     - src/core/settle-within.ts
     - src/cr/codex-adapter.ts
+    - src/cr/lanes/codex.ts
   tests:
     - src/core/agent-runner/__tests__/bounded-capture.test.ts
     - src/cr/__tests__/codex-failure.test.ts
@@ -21,6 +22,7 @@ since: 2026-08-12T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0
 ---
+
 ## Summary
 
 The codex CR lane owns neither the process it starts nor the capability probe it
@@ -129,6 +131,7 @@ This release adds bounded stderr capture and a foreground spawn mode (#326).
   - [`src/core/agent-runner/bounded-capture.ts`](../../src/core/agent-runner/bounded-capture.ts)
   - [`src/core/settle-within.ts`](../../src/core/settle-within.ts)
   - [`src/cr/codex-adapter.ts`](../../src/cr/codex-adapter.ts)
+  - [`src/cr/lanes/codex.ts`](../../src/cr/lanes/codex.ts)
 - **Tests:**
   - [`src/core/agent-runner/__tests__/bounded-capture.test.ts`](../../src/core/agent-runner/__tests__/bounded-capture.test.ts)
   - [`src/cr/__tests__/codex-failure.test.ts`](../../src/cr/__tests__/codex-failure.test.ts)
