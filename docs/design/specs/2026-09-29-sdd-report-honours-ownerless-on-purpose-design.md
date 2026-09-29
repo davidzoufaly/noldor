@@ -63,18 +63,21 @@ Rejected: marking files in place with `// @fd: none — <reason>` and FDs with a
 
 ### Detector changes
 
-`detectCodeOrphans(allPaths, features, suggestion?, ownerless?)` drops any path listed in `ownerless.files`, or under a listed directory (the same `isCoveredByAncestorDir` rule `links.code` directory entries use). `detectDoneFeaturesMissingCode(features, ownerless?)` drops any FD listed in `ownerless.features`. Both keep working with the argument absent, so existing unit tests stay valid.
+`detectCodeOrphans(allPaths, features, suggestion?, ownerless?)` drops any path listed in `ownerless.files`. Keys are exact file paths; there are no directory keys. `detectDoneFeaturesMissingCode(features, ownerless?)` drops any FD listed in `ownerless.features`. Both keep working with the argument absent, so existing unit tests stay valid.
 
 The block reaches them through `ReportInput` (`src/garden/sdd-report.ts:561`) as a **required** field, filled by both builders (`src/garden/sdd-report.ts` and `loadSddInput` in `src/dashboard/data.ts`), and `collectGaps` passes it to both detectors. Required, not optional, because `collectGaps` already warns about this trap: an optional input silently drops behaviour for any caller that forgets it, which is the dashboard-vs-report divergence the `loadSddInput layout parity` test guards. The schema itself is a new optional key on `ConsumerConfigSchema` (zod, `src/core/consumer-config.ts`) defaulting to `{ files: {}, features: {} }`.
 
 ### Stale-declaration check
 
-A new detector, `detectStaleOwnerless`, emits one gap per declaration that no longer holds:
+A new detector, `detectStaleOwnerless`, emits one gap per declaration that no longer holds. One rule decides it for `files`:
 
-- a `files` entry whose path does not exist on disk (checked with `existsSync` against the repo root, not against `ReportInput.allRepoPaths`, which holds only walked files and so never contains a directory key or a file outside the scan roots);
-- a `files` entry that some FD's `links.code` now covers (directly or by an ancestor directory, reusing `isCoveredByAncestorDir`);
-- a `files` entry for a file `detectCodeOrphans` would never flag anyway (it matches `CODE_IGNORE_PATTERNS` or `isInfraFile`, or is not `.ts` / `.tsx`), since it hides nothing;
-- a `features` entry whose slug has no FD, or whose FD now has a non-empty `links.code`.
+- a `files` entry is stale when `detectCodeOrphans`, run **without** the ownerless list, would not emit a row for that path. That one test covers a deleted file, a file some FD's `links.code` now covers, a test or infra file the detector ignores, a non-`.ts` path, a file outside the scan roots, and a directory key, with no separate case for each.
+
+For `features` the rule is the same shape:
+
+- a `features` entry is stale when `detectDoneFeaturesMissingCode`, run without the list, would not emit a row for that slug: the FD is gone, is not `phase: done`, or now has a non-empty `links.code`.
+
+Reusing the detectors as the oracle means the stale check can never disagree with what it exempts.
 
 Its category is "Stale ownerless declarations", and it runs inside `collectGaps` like every other detector. It lives in the SDD report and not in `validate noldor-config` because the report already loads every FD and walks the files it needs; the validator does neither. A stale row weighs the same as the row the entry was hiding, so it blocks the garden auto-restamp the same way.
 
@@ -113,11 +116,10 @@ The test for each row is ADR 0009's: is the file *about* one feature? If yes, th
 
 ## Acceptance criteria
 
-- A file listed under `consumer.ownerless.files` gets no "Code files not referenced by any feature" row, and neither does a file under a listed directory.
+- A file listed under `consumer.ownerless.files` gets no "Code files not referenced by any feature" row.
 - An FD listed under `consumer.ownerless.features` gets no "Done features without code" row.
 - An entry with an empty or whitespace-only reason makes `loadConsumerConfig` throw, so every `pnpm noldor` command that reads the config exits non-zero.
-- A `files` entry whose path is missing on disk, is now covered by some FD's `links.code`, or names a file the orphan detector would never flag, yields exactly one "Stale ownerless declarations" gap. A directory key that exists is not stale.
-- A `features` entry whose slug has no FD, or whose FD has a non-empty `links.code`, yields exactly one "Stale ownerless declarations" gap.
+- A `files` or `features` entry yields exactly one "Stale ownerless declarations" gap when its detector, run without the list, would not flag it (for example: a deleted file, a file an FD now owns, a directory key, an FD with non-empty `links.code`), and none otherwise.
 - With no `ownerless` block, `collectGaps` returns exactly the gaps it returns today.
 - The dashboard and the report still read the same `ReportInput` (the `loadSddInput layout parity` test stays green).
 - `'n/a'` in `links.code` still exempts an FD as before.
@@ -128,7 +130,6 @@ The test for each row is ADR 0009's: is the file *about* one feature? If yes, th
 - A config list can drift from the code on a rename. The stale check turns that into a visible row instead of silent rot.
 - Declaring is a judgment call, same as ADR 0009's owner choice. A lazy declaration hides a real gap. The required reason makes a lazy one visible in review.
 - Touching `ConsumerConfig` reaches every caller of a rank-#5 god node; keeping the field optional with an empty default keeps them unaffected.
-- Declaring a directory key under `files` hides every file below it. That is allowed, the same way `links.code` directory entries work, but the reason must then hold for every file under it.
 
 ## User Story
 
@@ -149,4 +150,4 @@ Then run `pnpm noldor garden sdd-report`. The row is gone. If the file is later 
 1. _Config list or in-file markers?_ -> Config list under `consumer.ownerless`. One reader, no change to the tag projection, slug validation or graph lookup; the stale check covers the rename risk (D1).
 2. _Should the stale check live in the SDD report or in `validate noldor-config`?_ -> SDD report. It needs the FD set and the file walk, which the report already loads (D2).
 3. _Fold owner fixes for the 10 real-gap files into this feature?_ -> No. Keep this to the mechanism and the honest declarations; the real gaps stay visible as rows and get their own `ideas.md` bullet (D3).
-4. _Should a directory key be allowed under `files`?_ -> Yes, matching how `links.code` treats directories (`isCoveredByAncestorDir`). No declaration today needs one, but refusing it would make the two lists behave differently (D4).
+4. _Should a directory key be allowed under `files`?_ -> No. Keys are exact files, and a directory key reports as stale. A directory would hide files added after the reason was written, and no declaration today needs one (D4).
