@@ -755,5 +755,9 @@
   "Q-0324": {
     "slug": "release-pipeline-stamps-template-twins",
     "retiredAt": "2026-09-29"
+  },
+  "Q-0325": {
+    "slug": "render-compare-checks-the-canvas-on-disk",
+    "retiredAt": "2026-09-29"
   }
 }

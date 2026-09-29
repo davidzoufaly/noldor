@@ -14,9 +14,9 @@ import type { LaneAnswer } from '../lane-answer.js';
 import {
   dispatchGeometryExtract,
   GeometryExtractError,
-  selectVerifiedPage,
   type GeometryExtractReport,
 } from '../lanes/geometry-extract-dispatch.js';
+import { selectVerifiedPage } from '../lanes/pen-dispatch.js';
 import { designCommand } from './geometry-cli-emit.js';
 import { parseGeometryDoc } from './geometry-doc.js';
 
@@ -71,7 +71,10 @@ export const runGeometryExport = designCommand(
     // over the reported candidates so the child's own judgment never decides
     // which page was read, then confirm against the file on disk that the
     // child read the named .pen and not the editor's active one.
-    const selection = await selectVerifiedPage(penPath, surface, row, pageSelector);
+    const selection = await selectVerifiedPage(penPath, surface, row, pageSelector, {
+      child: 'reader',
+      failReason: 'geometry-extract-failed',
+    });
     if (!selection.ok) {
       emit(`${LABEL}: ${selection.detail}`);
       return 1;

@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Render-Compare Checks the Canvas on Disk
-
-- id: Q-0325
-- area: tooling
-- type: fix
-- since: 2026-09-29
-- size: S
-- impact: high
-- confidence: high
-- parent: ui-design-review-lane
-
-`render-compare`'s exporter child has the wrong-document hole the geometry reader had: pencil `execute({filePath})` answers from the editor's active canvas, so with the bridge on another `.pen` it exports a page from the wrong design and the pixel diff runs against it. The geometry fix checks the child's selected page id and `FINAL:` candidates against the `topLevelPages` of the `.pen` on disk; give render-export the same check in the shared `pen-dispatch.ts`. (Q-0180 verifier lane)
-
 ### Next-Priority Holds In-Progress Blockers
 
 - id: Q-0326

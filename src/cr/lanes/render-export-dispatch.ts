@@ -4,7 +4,8 @@
 // through pencil MCP, selects each surface's `FINAL:` page, and exports it to
 // PNG at the exact output path. No judgment, no findings: the child's report
 // only classifies WHY a surface has no file (page selection), and is never a
-// pass — the trusted evidence is the decoded PNG on disk, validated Node-side.
+// pass — the trusted evidence is the decoded PNG on disk, validated Node-side,
+// once `selectVerifiedPage` has checked the report against the `.pen` on disk.
 
 import { z } from 'zod';
 
@@ -29,7 +30,7 @@ ${finalPageJobs(input, 'Export', 'export that surface')}
 
 Do not create, modify, or save anything in the design; do not write any file except the listed output paths (and the exporter's intermediate \`<nodeId>.png\`, which you move).
 
-Report one entry per surface — the candidates are the report; there is no verdict field.`;
+Report one entry per surface — its candidates and \`pageId\` (the node id of the page you selected and exported; omit it when you selected none) are the report; there is no verdict field.`;
 }
 
 /** The exporter's dispatch failure; `reason` picks the sink's reason detail. */
@@ -52,19 +53,20 @@ export const {
   site: 'cr.render-export-dispatch',
   label: 'render-compare export',
   error: RenderExportError,
-  // The page ENUMERATION only: the lane re-derives the selection from
-  // `candidates` itself and trusts files for the export, so the row carries no
-  // outcome/verdict field for the child to be wrong in.
+  // The page ENUMERATION and the selected page's id only: the lane re-derives
+  // the selection from `candidates`, checks both against the `.pen` on disk,
+  // and trusts files for the export, so the row carries no outcome/verdict
+  // field for the child to be wrong in.
   row: surfaceCandidatesSchema.strict(),
   shape:
-    '{"surfaces": [{"surface": "dashboard", "candidates": ["overview"]}, {"surface": "settings", "candidates": ["default", "expanded"]}]}',
+    '{"surfaces": [{"surface": "dashboard", "candidates": ["overview"], "pageId": "k3Xq9"}, {"surface": "settings", "candidates": ["default", "expanded"], "pageId": "Ab12c"}]}',
   prompt: buildRenderExportPrompt,
   repair: {
     lead: 'A previous design exporter finished its exports, but its report was rejected',
     job: 'Your ONLY job is to restate the per-surface page enumeration that exporter reported — do not open the design, do not export anything, do not move any file.',
     rules: [
-      'One entry per surface the exporter reported, carrying the `FINAL:<surface>:` page names it found, verbatim.',
-      'Invent no surface and no page name the output does not state.',
+      'One entry per surface the exporter reported, carrying the `FINAL:<surface>:` page names it found and the `pageId` it exported, verbatim.',
+      'Invent no surface, page name, or page id the output does not state.',
       'If nothing above states the enumeration, write no answer at all.',
     ],
   },
