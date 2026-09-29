@@ -747,5 +747,9 @@
     "slug": "geometry-compare-lane-the-automated-half",
     "retiredInto": "ui-design-review-lane",
     "retiredAt": "2026-09-25"
+  },
+  "Q-0210": {
+    "slug": "archify-diagrams-in-the-framework",
+    "retiredAt": "2026-09-29"
   }
 }

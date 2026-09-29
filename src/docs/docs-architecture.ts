@@ -104,7 +104,7 @@ export interface ArchitectureReport {
  * protects a consumer. A future generated tree under a scan root therefore keeps
  * emitting an advisory until someone adds it here — explicit over inferred.
  */
-const EXCLUDED_DIRS = new Set([
+export const EXCLUDED_DIRS = new Set([
   'node_modules',
   'dist',
   'build',

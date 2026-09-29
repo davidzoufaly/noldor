@@ -1,75 +1,60 @@
 // @fd: architecture-design-phase
 // `noldor design arch-progress --milestone <slug>` — how far the as-built
 // baseline still is from a milestone's target architecture (spec: "Milestone
-// target"). The target's FINAL:<view>: pages are held against the baseline's
-// pages for the same views, by name: modules by path, other boxes by layer
-// name, arrows by canonical `<from> -> <to>`. A view with no FINAL: page is
-// "no change planned" and reports nothing. Advisory by design: milestones are
-// optional and never block, so the report always exits 0 once it can read.
+// target"). The target's FINAL:architecture: pages are held against the
+// baseline's one page, by name: modules and parts by path, other boxes by
+// canonical layer name, arrows by canonical `<from> -> <to>`. A target with no
+// FINAL: page is "no change planned" and reports nothing. Advisory by design:
+// milestones are optional and never block, so the report always exits 0 once
+// it can read.
 
 import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
 import { ARCH_BASELINE_PATH, milestonePenPath } from '../core/design-artifact-names.js';
 import { readRepoText } from '../core/read-text.js';
 import { isSlug } from '../core/slug.js';
-import type { ArchitecturePageId } from '../docs/architecture-schema.js';
 import {
-  ARCH_VIEWS,
   arrowEndsOf,
+  canonicalName,
   pairKey,
   readArchPen,
   type ArchDoc,
   type ArchPage,
 } from './arch-pen.js';
 
-export interface ViewProgress {
-  readonly view: ArchitecturePageId;
+export interface Progress {
   /** In the target, not yet in the baseline. */
   readonly toBuild: readonly string[];
-  /** In the baseline, gone from the target's page for this view. */
+  /** In the baseline, gone from the target. */
   readonly toRemove: readonly string[];
   readonly done: readonly string[];
 }
 
-/** An arrow end in canonical spelling, so `group:Work` and `group: Work` compare equal. */
-function canonicalEnd(end: string): string {
-  return end.startsWith('group:') ? `group: ${end.slice('group:'.length).trim()}` : end;
-}
-
-/** What a page is made of, as comparable labels: `box: <module or name>` and `arrow: <from> -> <to>`. */
+/** What a page is made of, as comparable labels: `box: <path or name>` and `arrow: <from> -> <to>`. */
 function itemsOf(page: ArchPage): string[] {
   const items: string[] = [];
   for (const box of page.boxes) {
-    const names = page.view === 'modules' && box.refs.length > 0 ? box.refs : [box.name];
+    const names = box.refs.length > 0 ? box.refs : [box.name];
     for (const name of names) items.push(`box: ${name}`);
   }
   for (const arrow of page.arrows) {
     const ends = arrowEndsOf(arrow.name);
     if (ends !== null)
-      items.push(`arrow: ${pairKey(canonicalEnd(ends.from), canonicalEnd(ends.to))}`);
+      items.push(`arrow: ${pairKey(canonicalName(ends.from), canonicalName(ends.to))}`);
   }
   return items;
 }
 
-/** The target's covered views against the baseline, in registry view order. */
-export function compareToTarget(target: ArchDoc, baseline: ArchDoc): ViewProgress[] {
-  const progress: ViewProgress[] = [];
-  for (const view of ARCH_VIEWS) {
-    const finals = target.pages.filter((page) => page.role === 'final' && page.view === view);
-    if (finals.length === 0) continue;
-    const want = new Set(finals.flatMap(itemsOf));
-    const have = new Set(
-      baseline.pages
-        .filter((page) => page.role === 'baseline' && page.view === view)
-        .flatMap(itemsOf),
-    );
-    progress.push({
-      view,
-      toBuild: [...want].filter((item) => !have.has(item)).sort(),
-      toRemove: [...have].filter((item) => !want.has(item)).sort(),
-      done: [...want].filter((item) => have.has(item)).sort(),
-    });
-  }
-  return progress;
+/** The target's FINAL: pages against the baseline page, or `null` when the target plans nothing. */
+export function compareToTarget(target: ArchDoc, baseline: ArchDoc): Progress | null {
+  const finals = target.pages.filter((page) => page.role === 'final');
+  if (finals.length === 0) return null;
+  const want = new Set(finals.flatMap(itemsOf));
+  const have = new Set(baseline.pages.filter((page) => page.role === 'baseline').flatMap(itemsOf));
+  return {
+    toBuild: [...want].filter((item) => !have.has(item)).sort(),
+    toRemove: [...have].filter((item) => !want.has(item)).sort(),
+    done: [...want].filter((item) => have.has(item)).sort(),
+  };
 }
 
 function readDoc(
@@ -106,20 +91,16 @@ export async function main(argv: readonly string[], cwd: string = process.cwd())
     return 1;
   }
   const progress = compareToTarget(target.doc, baseline.doc);
-  if (progress.length === 0) {
-    console.log(`arch-progress: milestone ${slug} — no view has a FINAL: page, nothing planned`);
+  if (progress === null) {
+    console.log(`arch-progress: milestone ${slug} — no FINAL: page, nothing planned`);
     return 0;
   }
-  const count = (key: 'toBuild' | 'toRemove' | 'done'): number =>
-    progress.reduce((n, v) => n + v[key].length, 0);
   console.log(
-    `arch-progress: milestone ${slug} — ${count('toBuild')} to build, ${count('toRemove')} to remove, ${count('done')} done`,
+    `arch-progress: milestone ${slug} — ${progress.toBuild.length} to build, ${progress.toRemove.length} to remove, ${progress.done.length} done`,
   );
-  for (const view of progress) {
-    for (const item of view.toBuild) console.log(`  ${view.view.padEnd(11)} to-build   ${item}`);
-    for (const item of view.toRemove) console.log(`  ${view.view.padEnd(11)} to-remove  ${item}`);
-    console.log(`  ${view.view.padEnd(11)} done       ${view.done.length} item(s)`);
-  }
+  for (const item of progress.toBuild) console.log(`  to-build   ${item}`);
+  for (const item of progress.toRemove) console.log(`  to-remove  ${item}`);
+  console.log(`  done       ${progress.done.length} item(s)`);
   return 0;
 }
 

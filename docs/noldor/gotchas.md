@@ -515,11 +515,11 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   sticky arrows, so dragging a box leaves its arrows where they were — and
   `checks arch-baseline` stays green, because it reads layer names, not
   geometry. After moving boxes run `pnpm -s noldor design arch-route --pen
-  <path> --view <view>` and pass its stdout to pencil `execute`. Save first
+  <path>` and pass its stdout to pencil `execute`. Save first
   when you drew a new arrow: the matching reads the file on disk.
   (architecture-design-phase)
 - **On an architecture canvas the layer name is the contract, not the label.**
-  A module box means its layer name (`src/cr`), an arrow its `<from> -> <to>`
+  A module or part box means its layer name (`src/cr`, `src/cr/lanes`), an arrow its `<from> -> <to>`
   name; the text inside a box is decoration. Renaming the label without the
   layer changes nothing the check sees, a typo in the layer name surfaces as
   `unknown-module` or `dangling-edge`, and a duplicated box keeps its

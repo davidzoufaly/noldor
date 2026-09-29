@@ -1,9 +1,9 @@
-// @tests: state-file-fail-open-hardening
+// @tests: state-file-fail-open-hardening, architecture-design-phase
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { atomicWriteFileSync } from '../atomic-write.js';
+import { atomicWriteFileSync, writeFileSyncIfAbsent } from '../atomic-write.js';
 
 describe('atomicWriteFileSync', () => {
   it('writes content to the target', () => {
@@ -38,5 +38,22 @@ describe('atomicWriteFileSync', () => {
     const big = JSON.stringify({ items: Array.from({ length: 5000 }, (_, i) => i) });
     atomicWriteFileSync(target, big);
     expect(readFileSync(target, 'utf8')).toBe(big);
+  });
+});
+
+describe('writeFileSyncIfAbsent', () => {
+  it('creates the file whole, and leaves no staged file behind', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'if-absent-'));
+    expect(writeFileSyncIfAbsent(join(dir, 'a.pen'), 'first')).toBe(true);
+    expect(readFileSync(join(dir, 'a.pen'), 'utf8')).toBe('first');
+    expect(readdirSync(dir)).toEqual(['a.pen']);
+  });
+
+  it('never replaces a file that exists', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'if-absent-'));
+    writeFileSync(join(dir, 'a.pen'), 'mine');
+    expect(writeFileSyncIfAbsent(join(dir, 'a.pen'), 'theirs')).toBe(false);
+    expect(readFileSync(join(dir, 'a.pen'), 'utf8')).toBe('mine');
+    expect(readdirSync(dir)).toEqual(['a.pen']);
   });
 });

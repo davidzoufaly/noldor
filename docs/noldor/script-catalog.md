@@ -140,9 +140,17 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** never by hand in the normal flow — the spec skill's verdict step and gate Step 2.5 own every call site. Re-run `--approve` after a `pen-approval-mismatch` refusal from `checks shared-files` or a `design-approval-stale` terminal from the `ui-reviewer` lane, on the design as it now stands; run `--reconfirm` after a `design-approval-spec-stale` terminal when the design still depicts the spec.
 - **Source:** [`src/design/design-approval-cli.ts`](../../src/design/design-approval-cli.ts)
 
+### `design:arch-draw`
+
+- **Trigger:** `pnpm noldor design arch-draw` once, to start a repo's architecture canvas; `pnpm noldor design arch-draw --refresh` whenever `checks arch-baseline` reports `missing-module`. The procedure page, [`architecture-canvas.md`](architecture-canvas.md), owns both calls.
+- **Inputs:** the module set (`listModuleDirs` over `consumer.scanPaths`) and each module's direct sub-folders, skipping `__tests__`, `test`, `tests`, `fixtures` and hidden or `_` folders. `--refresh` also reads `docs/design/architecture/baseline.pen`.
+- **Outputs:** the first run writes `docs/design/architecture/baseline.pen`: one `architecture` page, every module boxed in `group: Unplaced` with its sub-folders as part boxes inside it, and one `container:`, `store:` and `external:` placeholder. It draws no arrows. It refuses to replace an existing baseline (exit 1). `--refresh` adds a box, with its parts, for each module no box covers, and never moves, resizes or renames a box already there. It lists boxes whose module is gone without deleting them. Exit 0 on a write or a no-op, 1 when the baseline is missing or unreadable, 2 on bad arguments.
+- **When to use:** at bootstrap, then after any change that adds a module. It needs no editor, so a headless drain can pay `missing-module` debt with it; the placing waits for a human.
+- **Source:** [`src/design/arch-draw.ts`](../../src/design/arch-draw.ts)
+
 ### `design:arch-route`
 
-- **Trigger:** `pnpm noldor design arch-route --pen <path.pen> [--view context|containers|modules|flows]` — as `pnpm -s noldor …` when capturing stdout, so pnpm's banner stays out of the snippet. Run after boxes move on an architecture canvas, by `/noldor-spec` step 1.6 while iterating and by gate Step 4 after the baseline write-back.
+- **Trigger:** `pnpm noldor design arch-route --pen <path.pen>` — as `pnpm -s noldor …` when capturing stdout, so pnpm's banner stays out of the snippet. Run after boxes move on an architecture canvas, by `/noldor-spec` step 1.6 while iterating and by gate Step 4 after the baseline write-back.
 - **Inputs:** the `.pen` on disk, read with the architecture reader (`readArchPen`), so arrows resolve exactly as `checks arch-baseline` resolves them. Moved boxes need no save: the snippet reads live bounds. A newly drawn arrow needs one, because matching reads the file.
 - **Outputs:** a pencil `execute` snippet on stdout. Pass it as `input`, with `filePath` set to the same `.pen`. It rewrites every routable arrow as a border-to-border path with a two-stroke arrowhead, and prints `re-routed <n> of <m> arrow(s)`. Arrows whose ends do not resolve are named on stderr and left alone. Exit 0 = snippet printed, 1 = no arrow to route, 2 = bad arguments or an unreadable `.pen`.
 - **When to use:** whenever dragging boxes left arrows behind. The check never reads geometry, so a green check can sit on a canvas whose arrows are out of place.
@@ -155,14 +163,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
   - `/noldor-milestone activate`, for the milestone being shipped;
   - by hand, whenever you want the gap.
 - **Inputs:**
-  - the milestone's target, `docs/design/architecture/milestones/<slug>.pen` — its `FINAL:<view>:` pages;
+  - the milestone's target, `docs/design/architecture/milestones/<slug>.pen` — its `FINAL:architecture:` page;
   - the baseline, `docs/design/architecture/baseline.pen`.
-- **Outputs:** a summary line, then, for each view the target covers:
+- **Outputs:** a summary line, then:
   - one `to-build` row per item in the target but not the baseline;
-  - one `to-remove` row per item in the baseline that the target's page dropped;
+  - one `to-remove` row per item in the baseline that the target dropped;
   - a `done` count.
 
-  Items compare by name: modules by path, other boxes by layer name, arrows by canonical `<from> -> <to>`. A view with no `FINAL:` page is no change planned and is not reported.
+  Items compare by name: modules and parts by path, other boxes by canonical layer name, arrows by canonical `<from> -> <to>`. A target with no `FINAL:` page is no change planned.
 
   Exit codes: 0 = report printed (it never fails on the gap itself), 1 = the target or the baseline cannot be read, 2 = a missing or malformed `--milestone`.
 - **When to use:**
@@ -215,19 +223,16 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 ### `check:arch-baseline`
 
 - **Trigger:** `pnpm noldor checks arch-baseline`. Run by `/noldor-gate` Step 4 (advisory — the exit code never blocks `pr-flow`) and by release preflight (the `arch-baseline` row, blocking when the baseline exists).
-- **Inputs:** `docs/design/architecture/baseline.pen`; the module set (`listModuleDirs` over `consumer.scanPaths`); module-to-module import pairs from dependency-cruiser (`moduleImportPairs` — tests excluded, tsconfig aliases resolved, the indirection ratchet's completeness guard).
+- **Inputs:** `docs/design/architecture/baseline.pen`; the module set (`listModuleDirs` over `consumer.scanPaths`); module import pairs and file edges from one dependency-cruiser pass (`moduleImportPairs` — tests excluded, tsconfig aliases resolved, the indirection ratchet's completeness guard); which of the baseline's part paths exist on disk.
 - **Outputs:** one row per finding, then advisory rows.
   - Findings:
-    - `unreadable`: a view page missing or doubled, a file that is not a `.pen` document, or an import graph that could not be built.
-    - `missing-module`, `unknown-module`, `duplicate-module`, `dangling-edge`.
-    - `phantom-edge`: an arrow no import backs after group and multi-module expansion.
-  - Advisory: `undrawn-edge`, an import between two boxed modules that no arrow shows.
+    - `unreadable`: no `architecture` page or more than one (the old four-page file included — delete it and redraw with `design arch-draw`, which never replaces a file), a file that is not a `.pen` document, or an import graph that could not be built.
+    - `missing-module`, `unknown-module`, `duplicate-module`, `unknown-part`, `misplaced-part`, `dangling-edge`.
+    - `phantom-edge`: an arrow between two code paths that no file import backs; when one end sits inside the other, the outer end counts only its files outside the inner one.
+  - Advisory: `undrawn-edge`, a module import between two boxed modules that no arrow shows.
 
   Exit 0 when the baseline is absent (nothing is checked) or clean; exit 1 on any finding. Advisories never change the exit code.
-- **When to use:** after drawing or editing the baseline, and whenever a change adds, removes or renames a module. Repair by redrawing the named box or arrow. The layer names are the contract:
-  - a module box is named by its path: `src/cr`, or `src/a + src/b` for a box that covers two;
-  - a group frame is named `group: <Name>`;
-  - an arrow is named `<from> -> <to>`.
+- **When to use:** after drawing or editing the baseline, and whenever a change adds, removes or renames a module. `missing-module` is repaired with `pnpm noldor design arch-draw --refresh`; every other finding by fixing the named box or arrow. The layer-name contract is in [`architecture-canvas.md`](architecture-canvas.md).
 - **Source:** [`src/checks/check-arch-baseline.ts`](../../src/checks/check-arch-baseline.ts)
 
 ### `check:readme`

@@ -93,7 +93,11 @@ export const MANIFEST: Record<string, Group> = {
       },
       'arch-progress': {
         src: 'design/arch-progress.ts',
-        desc: "How far the architecture baseline is from a milestone's target: to-build / to-remove / done per view; advisory",
+        desc: "How far the architecture baseline is from a milestone's target: to-build / to-remove / done; advisory",
+      },
+      'arch-draw': {
+        src: 'design/arch-draw.ts',
+        desc: 'Draw the architecture baseline from the code: every module in group: Unplaced with its sub-folders as parts; --refresh adds new modules',
       },
       open: {
         src: 'design/open-artifact-cli.ts',

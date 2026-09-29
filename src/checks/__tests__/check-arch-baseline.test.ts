@@ -58,21 +58,13 @@ async function makeRepo(): Promise<string> {
   return root;
 }
 
-/** Write a baseline whose three other views are empty and whose `modules` holds `children`. */
+/** Write a baseline whose one `architecture` page holds `children`. */
 async function writeBaseline(root: string, children: Node[] | string): Promise<void> {
   await mkdir(join(root, 'docs', 'design', 'architecture'), { recursive: true });
   const body =
     typeof children === 'string'
       ? children
-      : JSON.stringify({
-          version: '2.17',
-          children: [
-            node('frame', 'context'),
-            node('frame', 'containers'),
-            node('frame', 'modules', children),
-            node('frame', 'flows'),
-          ],
-        });
+      : JSON.stringify({ version: '2.19', children: [node('frame', 'architecture', children)] });
   await writeFile(join(root, 'docs', 'design', 'architecture', 'baseline.pen'), body, 'utf8');
 }
 
@@ -133,5 +125,48 @@ describe('checks arch-baseline', () => {
     const r = await run(root);
     expect(r.code).toBe(1);
     expect(r.out).toContain('unreadable');
+  });
+
+  it('exits 0 on a real part inside its module, with an arrow its files back', async () => {
+    const root = await makeRepo();
+    await mkdir(join(root, 'src', 'a', 'inner'), { recursive: true });
+    await writeFile(
+      join(root, 'src', 'a', 'inner', 'q.ts'),
+      "import { y } from '../../b/y.js';\n\nexport const q = (): string => y();\n",
+      'utf8',
+    );
+    await writeBaseline(root, [
+      node('frame', 'src/a', [node('frame', 'src/a/inner')]),
+      node('frame', 'src/b'),
+      node('path', 'src/a/inner -> src/b'),
+    ]);
+    const r = await run(root);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('ok');
+  });
+
+  it('exits 1 and names a part that does not exist', async () => {
+    const root = await makeRepo();
+    await writeBaseline(root, [
+      node('frame', 'src/a', [node('frame', 'src/a/ghost')]),
+      node('frame', 'src/b'),
+    ]);
+    const r = await run(root);
+    expect(r.code).toBe(1);
+    expect(r.out).toMatch(/unknown-part\s+src\/a\/ghost/);
+  });
+
+  it('exits 1 on the old four-page baseline, naming arch-draw', async () => {
+    const root = await makeRepo();
+    await writeBaseline(
+      root,
+      JSON.stringify({
+        version: '2.19',
+        children: [node('frame', 'modules', [node('frame', 'src/a')])],
+      }),
+    );
+    const r = await run(root);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('arch-draw');
   });
 });
