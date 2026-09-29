@@ -19,6 +19,7 @@ links:
   tests:
     - src/cr/__tests__/amend-receipt.test.ts
     - src/cr/__tests__/arbitration-cli.test.ts
+    - src/cr/__tests__/arbitration.test.ts
     - src/cr/__tests__/autofix-cli.test.ts
     - src/cr/__tests__/autofix-ledger.test.ts
     - src/cr/__tests__/autofix.test.ts
@@ -32,6 +33,7 @@ links:
     - src/cr/__tests__/orchestrate.test.ts
     - src/cr/__tests__/prior-review.test.ts
     - src/cr/__tests__/re-round.test.ts
+    - src/cr/__tests__/reflag.test.ts
     - src/cr/__tests__/run-codex.test.ts
     - src/cr/__tests__/settled-findings.integration.test.ts
     - src/docs/__tests__/adr-structural-context.test.ts
@@ -208,6 +210,7 @@ This release adds `fingerprintBlocker` for single-finding identity (#434) and en
 - **Tests:**
   - [`src/cr/__tests__/amend-receipt.test.ts`](../../src/cr/__tests__/amend-receipt.test.ts)
   - [`src/cr/__tests__/arbitration-cli.test.ts`](../../src/cr/__tests__/arbitration-cli.test.ts)
+  - [`src/cr/__tests__/arbitration.test.ts`](../../src/cr/__tests__/arbitration.test.ts)
   - [`src/cr/__tests__/autofix-cli.test.ts`](../../src/cr/__tests__/autofix-cli.test.ts)
   - [`src/cr/__tests__/autofix-ledger.test.ts`](../../src/cr/__tests__/autofix-ledger.test.ts)
   - [`src/cr/__tests__/autofix.test.ts`](../../src/cr/__tests__/autofix.test.ts)
@@ -221,6 +224,7 @@ This release adds `fingerprintBlocker` for single-finding identity (#434) and en
   - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
   - [`src/cr/__tests__/prior-review.test.ts`](../../src/cr/__tests__/prior-review.test.ts)
   - [`src/cr/__tests__/re-round.test.ts`](../../src/cr/__tests__/re-round.test.ts)
+  - [`src/cr/__tests__/reflag.test.ts`](../../src/cr/__tests__/reflag.test.ts)
   - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
   - [`src/cr/__tests__/settled-findings.integration.test.ts`](../../src/cr/__tests__/settled-findings.integration.test.ts)
   - [`src/docs/__tests__/adr-structural-context.test.ts`](../../src/docs/__tests__/adr-structural-context.test.ts)

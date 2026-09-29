@@ -1,4 +1,4 @@
-// @tests: gate-skill-loads-only-the-branch-a-session-takes
+// @tests: gate-skill-loads-only-the-branch-a-session-takes, consumer-architecture-doc-surface
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';

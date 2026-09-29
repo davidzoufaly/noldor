@@ -1,4 +1,4 @@
-// @tests: outcome-telemetry-and-effectiveness-metrics
+// @tests: outcome-telemetry-and-effectiveness-metrics, version-aware-upgrade-and-migration-chain
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

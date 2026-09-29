@@ -10,6 +10,7 @@ links:
     - src/triage/triage-list-untriaged.ts
   tests:
     - src/triage/__tests__/score.test.ts
+    - src/triage/__tests__/triage-list-untriaged.test.ts
 name: '`/noldor-triage` Scoring Rubric (effort × impact × confidence × dependency)'
 packages:
   - scripts
@@ -83,5 +84,6 @@ This release tolerates a missing `ideas.md` in `triage-list-untriaged` (#15), bo
   - [`src/triage/triage-list-untriaged.ts`](../../src/triage/triage-list-untriaged.ts)
 - **Tests:**
   - [`src/triage/__tests__/score.test.ts`](../../src/triage/__tests__/score.test.ts)
+  - [`src/triage/__tests__/triage-list-untriaged.test.ts`](../../src/triage/__tests__/triage-list-untriaged.test.ts)
 
 <!-- /generated: resources -->

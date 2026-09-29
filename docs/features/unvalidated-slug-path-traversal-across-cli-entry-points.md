@@ -19,8 +19,11 @@ links:
     - src/cr/__tests__/decisions.test.ts
     - src/cr/__tests__/expected-lanes-guard.test.ts
     - src/cr/__tests__/filename.test.ts
+    - src/cr/__tests__/geometry/geometry-review.test.ts
     - src/cr/__tests__/judge.test.ts
     - src/cr/__tests__/lane-spawn.test.ts
+    - src/cr/__tests__/lanes/geometry-compare.test.ts
+    - src/cr/__tests__/lanes/geometry-extract-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/verify-dispatch.test.ts
     - src/cr/__tests__/orchestrate-decisions.test.ts
@@ -117,8 +120,11 @@ This release hardens slug handling: `fix: guard slug-derived paths in the worktr
   - [`src/cr/__tests__/decisions.test.ts`](../../src/cr/__tests__/decisions.test.ts)
   - [`src/cr/__tests__/expected-lanes-guard.test.ts`](../../src/cr/__tests__/expected-lanes-guard.test.ts)
   - [`src/cr/__tests__/filename.test.ts`](../../src/cr/__tests__/filename.test.ts)
+  - [`src/cr/__tests__/geometry/geometry-review.test.ts`](../../src/cr/__tests__/geometry/geometry-review.test.ts)
   - [`src/cr/__tests__/judge.test.ts`](../../src/cr/__tests__/judge.test.ts)
   - [`src/cr/__tests__/lane-spawn.test.ts`](../../src/cr/__tests__/lane-spawn.test.ts)
+  - [`src/cr/__tests__/lanes/geometry-compare.test.ts`](../../src/cr/__tests__/lanes/geometry-compare.test.ts)
+  - [`src/cr/__tests__/lanes/geometry-extract-dispatch.test.ts`](../../src/cr/__tests__/lanes/geometry-extract-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/verify-dispatch.test.ts`](../../src/cr/__tests__/lanes/verify-dispatch.test.ts)
   - [`src/cr/__tests__/orchestrate-decisions.test.ts`](../../src/cr/__tests__/orchestrate-decisions.test.ts)

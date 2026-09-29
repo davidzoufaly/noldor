@@ -27,6 +27,7 @@ links:
     - src/core/__tests__/consumer-config.test.ts
     - src/core/__tests__/framework-skew.test.ts
     - src/core/__tests__/framework-version.test.ts
+    - src/garden/detectors/__tests__/migration-coverage.test.ts
     - src/migrations/__tests__/0.5.0.test.ts
     - src/migrations/__tests__/0.6.0.test.ts
     - src/migrations/__tests__/0.7.0.test.ts
@@ -145,6 +146,7 @@ Added semver parse and compare helpers (#104).
   - [`src/core/__tests__/consumer-config.test.ts`](../../src/core/__tests__/consumer-config.test.ts)
   - [`src/core/__tests__/framework-skew.test.ts`](../../src/core/__tests__/framework-skew.test.ts)
   - [`src/core/__tests__/framework-version.test.ts`](../../src/core/__tests__/framework-version.test.ts)
+  - [`src/garden/detectors/__tests__/migration-coverage.test.ts`](../../src/garden/detectors/__tests__/migration-coverage.test.ts)
   - [`src/migrations/__tests__/0.5.0.test.ts`](../../src/migrations/__tests__/0.5.0.test.ts)
   - [`src/migrations/__tests__/0.6.0.test.ts`](../../src/migrations/__tests__/0.6.0.test.ts)
   - [`src/migrations/__tests__/0.7.0.test.ts`](../../src/migrations/__tests__/0.7.0.test.ts)

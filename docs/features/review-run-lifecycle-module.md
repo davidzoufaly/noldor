@@ -14,6 +14,8 @@ links:
     - src/core/agent-runner/__tests__/bounded-capture.test.ts
     - src/cr/__tests__/codex-failure.test.ts
     - src/cr/__tests__/lanes/codex.test.ts
+    - src/cr/__tests__/orchestrate-decisions.test.ts
+    - src/cr/__tests__/prior-review.test.ts
 name: Review-Run Lifecycle Module
 packages:
   - scripts
@@ -136,5 +138,7 @@ This release adds bounded stderr capture and a foreground spawn mode (#326).
   - [`src/core/agent-runner/__tests__/bounded-capture.test.ts`](../../src/core/agent-runner/__tests__/bounded-capture.test.ts)
   - [`src/cr/__tests__/codex-failure.test.ts`](../../src/cr/__tests__/codex-failure.test.ts)
   - [`src/cr/__tests__/lanes/codex.test.ts`](../../src/cr/__tests__/lanes/codex.test.ts)
+  - [`src/cr/__tests__/orchestrate-decisions.test.ts`](../../src/cr/__tests__/orchestrate-decisions.test.ts)
+  - [`src/cr/__tests__/prior-review.test.ts`](../../src/cr/__tests__/prior-review.test.ts)
 
 <!-- /generated: resources -->

@@ -1,4 +1,4 @@
-// @tests: specs-cr-gate-multi-reviewer, unvalidated-slug-path-traversal-across-cli-entry-points
+// @tests: specs-cr-gate-multi-reviewer, unvalidated-slug-path-traversal-across-cli-entry-points, cr-re-round-cap-enforcement-and-oscillation-detector
 import { describe, expect, it } from 'vitest';
 
 import {

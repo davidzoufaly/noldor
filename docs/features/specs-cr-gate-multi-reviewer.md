@@ -40,25 +40,35 @@ links:
     - src/core/__tests__/lanes.test.ts
     - src/core/__tests__/prompt-stdin.test.ts
     - src/cr/__tests__/aggregate.test.ts
+    - src/cr/__tests__/amend-receipt.test.ts
     - src/cr/__tests__/arbitration-cli.test.ts
     - src/cr/__tests__/arbitration.test.ts
     - src/cr/__tests__/atomic-write.test.ts
     - src/cr/__tests__/autofix-cli.test.ts
     - src/cr/__tests__/autofix-ledger.test.ts
     - src/cr/__tests__/autofix.test.ts
+    - src/cr/__tests__/cli-args.test.ts
     - src/cr/__tests__/codex-failure.test.ts
     - src/cr/__tests__/codex.test.ts
+    - src/cr/__tests__/context.test.ts
     - src/cr/__tests__/cut-scan.test.ts
+    - src/cr/__tests__/decisions.test.ts
     - src/cr/__tests__/deep-review-spawn.test.ts
     - src/cr/__tests__/delta.test.ts
     - src/cr/__tests__/escalate.test.ts
+    - src/cr/__tests__/expected-lanes-guard.test.ts
     - src/cr/__tests__/filename.test.ts
     - src/cr/__tests__/finding-class.test.ts
     - src/cr/__tests__/findings-schema.test.ts
+    - src/cr/__tests__/judge.test.ts
     - src/cr/__tests__/lanes/codex.test.ts
+    - src/cr/__tests__/lanes/geometry-compare.test.ts
+    - src/cr/__tests__/lanes/geometry-registration.test.ts
     - src/cr/__tests__/lanes/manual.test.ts
+    - src/cr/__tests__/lanes/render-compare.test.ts
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
+    - src/cr/__tests__/lanes/ui-review.test.ts
     - src/cr/__tests__/lanes/verify.test.ts
     - src/cr/__tests__/locations.test.ts
     - src/cr/__tests__/orchestrate-decisions.test.ts
@@ -67,8 +77,10 @@ links:
     - src/cr/__tests__/orchestrate.test.ts
     - src/cr/__tests__/overwrite-guard.test.ts
     - src/cr/__tests__/prior-review.test.ts
+    - src/cr/__tests__/re-round.test.ts
     - src/cr/__tests__/read-fd-summary.test.ts
     - src/cr/__tests__/reflag.test.ts
+    - src/cr/__tests__/run-codex.test.ts
     - src/cr/__tests__/settled-findings.integration.test.ts
     - src/garden/detectors/__tests__/override-audit.test.ts
     - src/hooks/__tests__/noldor-enforce-arbitration.test.ts
@@ -172,25 +184,35 @@ This release threads prior-round reviewer context into re-round prompts (#328).
   - [`src/core/__tests__/lanes.test.ts`](../../src/core/__tests__/lanes.test.ts)
   - [`src/core/__tests__/prompt-stdin.test.ts`](../../src/core/__tests__/prompt-stdin.test.ts)
   - [`src/cr/__tests__/aggregate.test.ts`](../../src/cr/__tests__/aggregate.test.ts)
+  - [`src/cr/__tests__/amend-receipt.test.ts`](../../src/cr/__tests__/amend-receipt.test.ts)
   - [`src/cr/__tests__/arbitration-cli.test.ts`](../../src/cr/__tests__/arbitration-cli.test.ts)
   - [`src/cr/__tests__/arbitration.test.ts`](../../src/cr/__tests__/arbitration.test.ts)
   - [`src/cr/__tests__/atomic-write.test.ts`](../../src/cr/__tests__/atomic-write.test.ts)
   - [`src/cr/__tests__/autofix-cli.test.ts`](../../src/cr/__tests__/autofix-cli.test.ts)
   - [`src/cr/__tests__/autofix-ledger.test.ts`](../../src/cr/__tests__/autofix-ledger.test.ts)
   - [`src/cr/__tests__/autofix.test.ts`](../../src/cr/__tests__/autofix.test.ts)
+  - [`src/cr/__tests__/cli-args.test.ts`](../../src/cr/__tests__/cli-args.test.ts)
   - [`src/cr/__tests__/codex-failure.test.ts`](../../src/cr/__tests__/codex-failure.test.ts)
   - [`src/cr/__tests__/codex.test.ts`](../../src/cr/__tests__/codex.test.ts)
+  - [`src/cr/__tests__/context.test.ts`](../../src/cr/__tests__/context.test.ts)
   - [`src/cr/__tests__/cut-scan.test.ts`](../../src/cr/__tests__/cut-scan.test.ts)
+  - [`src/cr/__tests__/decisions.test.ts`](../../src/cr/__tests__/decisions.test.ts)
   - [`src/cr/__tests__/deep-review-spawn.test.ts`](../../src/cr/__tests__/deep-review-spawn.test.ts)
   - [`src/cr/__tests__/delta.test.ts`](../../src/cr/__tests__/delta.test.ts)
   - [`src/cr/__tests__/escalate.test.ts`](../../src/cr/__tests__/escalate.test.ts)
+  - [`src/cr/__tests__/expected-lanes-guard.test.ts`](../../src/cr/__tests__/expected-lanes-guard.test.ts)
   - [`src/cr/__tests__/filename.test.ts`](../../src/cr/__tests__/filename.test.ts)
   - [`src/cr/__tests__/finding-class.test.ts`](../../src/cr/__tests__/finding-class.test.ts)
   - [`src/cr/__tests__/findings-schema.test.ts`](../../src/cr/__tests__/findings-schema.test.ts)
+  - [`src/cr/__tests__/judge.test.ts`](../../src/cr/__tests__/judge.test.ts)
   - [`src/cr/__tests__/lanes/codex.test.ts`](../../src/cr/__tests__/lanes/codex.test.ts)
+  - [`src/cr/__tests__/lanes/geometry-compare.test.ts`](../../src/cr/__tests__/lanes/geometry-compare.test.ts)
+  - [`src/cr/__tests__/lanes/geometry-registration.test.ts`](../../src/cr/__tests__/lanes/geometry-registration.test.ts)
   - [`src/cr/__tests__/lanes/manual.test.ts`](../../src/cr/__tests__/lanes/manual.test.ts)
+  - [`src/cr/__tests__/lanes/render-compare.test.ts`](../../src/cr/__tests__/lanes/render-compare.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
+  - [`src/cr/__tests__/lanes/ui-review.test.ts`](../../src/cr/__tests__/lanes/ui-review.test.ts)
   - [`src/cr/__tests__/lanes/verify.test.ts`](../../src/cr/__tests__/lanes/verify.test.ts)
   - [`src/cr/__tests__/locations.test.ts`](../../src/cr/__tests__/locations.test.ts)
   - [`src/cr/__tests__/orchestrate-decisions.test.ts`](../../src/cr/__tests__/orchestrate-decisions.test.ts)
@@ -199,8 +221,10 @@ This release threads prior-round reviewer context into re-round prompts (#328).
   - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
   - [`src/cr/__tests__/overwrite-guard.test.ts`](../../src/cr/__tests__/overwrite-guard.test.ts)
   - [`src/cr/__tests__/prior-review.test.ts`](../../src/cr/__tests__/prior-review.test.ts)
+  - [`src/cr/__tests__/re-round.test.ts`](../../src/cr/__tests__/re-round.test.ts)
   - [`src/cr/__tests__/read-fd-summary.test.ts`](../../src/cr/__tests__/read-fd-summary.test.ts)
   - [`src/cr/__tests__/reflag.test.ts`](../../src/cr/__tests__/reflag.test.ts)
+  - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
   - [`src/cr/__tests__/settled-findings.integration.test.ts`](../../src/cr/__tests__/settled-findings.integration.test.ts)
   - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
   - [`src/hooks/__tests__/noldor-enforce-arbitration.test.ts`](../../src/hooks/__tests__/noldor-enforce-arbitration.test.ts)

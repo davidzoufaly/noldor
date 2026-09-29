@@ -1,4 +1,4 @@
-// @tests: ui-design-review-lane
+// @tests: ui-design-review-lane, specs-cr-gate-multi-reviewer, unvalidated-slug-path-traversal-across-cli-entry-points
 // Lane tests for `geometry-compare`: real git fixture repos (the resolution half
 // is shared with render-compare), with the reader dispatch, boot, probe and
 // capture seams injected. Every case asserts the sink.

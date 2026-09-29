@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, noldor, specs-cr-gate-multi-reviewer, spec-stage-cr-stopping-rule
+// @tests: acceptance-verify-lane, noldor, specs-cr-gate-multi-reviewer, spec-stage-cr-stopping-rule, ui-design-review-lane
 import { describe, expect, it } from 'vitest';
 import {
   artifactKindSchema,

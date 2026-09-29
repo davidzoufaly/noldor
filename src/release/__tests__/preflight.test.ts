@@ -1,4 +1,4 @@
-// @tests: release-sweep-process-hardening, pnpm-release-resume, test-suites-read-live-repo-state-shifting-full-suite-failures
+// @tests: release-sweep-process-hardening, pnpm-release-resume, test-suites-read-live-repo-state-shifting-full-suite-failures, doc-gardening-skill
 import { execFileSync } from 'node:child_process';
 import {
   cpSync,

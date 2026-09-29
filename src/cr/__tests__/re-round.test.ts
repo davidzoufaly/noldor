@@ -1,4 +1,4 @@
-// @tests: cr-re-round-cap-enforcement-and-oscillation-detector, spec-stage-cr-stopping-rule
+// @tests: cr-re-round-cap-enforcement-and-oscillation-detector, spec-stage-cr-stopping-rule, specs-cr-gate-multi-reviewer, ui-design-review-lane
 import { describe, expect, it } from 'vitest';
 import { fingerprintBlocker } from '../fingerprint.js';
 import type { Finding } from '../findings-schema.js';

@@ -26,6 +26,7 @@ links:
     - src/checks/__tests__/invariants-rule-conflicts.test.ts
     - src/garden/__tests__/garden-detect.test.ts
     - src/invariants/__tests__/boundaries.test.ts
+    - src/invariants/__tests__/entrypoint-guard-choke-point.test.ts
     - src/invariants/__tests__/locale-compare-pinned.test.ts
     - src/invariants/__tests__/rule-conflicts.test.ts
     - src/invariants/__tests__/toolchain-floor.test.ts
@@ -88,6 +89,7 @@ Adding a new invariant:
   - [`src/checks/__tests__/invariants-rule-conflicts.test.ts`](../../src/checks/__tests__/invariants-rule-conflicts.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
   - [`src/invariants/__tests__/boundaries.test.ts`](../../src/invariants/__tests__/boundaries.test.ts)
+  - [`src/invariants/__tests__/entrypoint-guard-choke-point.test.ts`](../../src/invariants/__tests__/entrypoint-guard-choke-point.test.ts)
   - [`src/invariants/__tests__/locale-compare-pinned.test.ts`](../../src/invariants/__tests__/locale-compare-pinned.test.ts)
   - [`src/invariants/__tests__/rule-conflicts.test.ts`](../../src/invariants/__tests__/rule-conflicts.test.ts)
   - [`src/invariants/__tests__/toolchain-floor.test.ts`](../../src/invariants/__tests__/toolchain-floor.test.ts)

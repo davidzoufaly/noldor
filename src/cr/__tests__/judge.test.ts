@@ -1,4 +1,4 @@
-// @tests: refutation-judge-pass-before-a-blocker-can-red-a-round, make-noldor-agent-agnostic, unvalidated-slug-path-traversal-across-cli-entry-points
+// @tests: refutation-judge-pass-before-a-blocker-can-red-a-round, make-noldor-agent-agnostic, unvalidated-slug-path-traversal-across-cli-entry-points, specs-cr-gate-multi-reviewer, ui-design-review-lane
 import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

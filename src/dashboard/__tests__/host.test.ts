@@ -1,4 +1,4 @@
-// @tests: state-file-fail-open-hardening
+// @tests: state-file-fail-open-hardening, project-tracking-dashboard
 import { describe, expect, it, afterEach } from 'vitest';
 import { resolveBindHost, healthUrl } from '../host.js';
 

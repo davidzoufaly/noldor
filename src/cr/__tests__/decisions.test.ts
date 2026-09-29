@@ -1,4 +1,4 @@
-// @tests: cr-re-round-cap-enforcement-and-oscillation-detector, unvalidated-slug-path-traversal-across-cli-entry-points
+// @tests: cr-re-round-cap-enforcement-and-oscillation-detector, unvalidated-slug-path-traversal-across-cli-entry-points, specs-cr-gate-multi-reviewer, ui-design-review-lane
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';

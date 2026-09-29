@@ -1,4 +1,4 @@
-// @tests: entrypoint-guard-choke-point-enforcement
+// @tests: entrypoint-guard-choke-point-enforcement, architecture-invariants
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
