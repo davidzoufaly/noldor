@@ -1,5 +1,6 @@
 // @tests: feature-md-links-overhaul
 
+import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -281,6 +282,57 @@ describe('--quiet', () => {
 
     expect(quiet).not.toContain('existing links kept');
     expect(loud).toContain('existing links kept');
+  });
+});
+
+describe('--stage', () => {
+  const git = (...args: string[]): string =>
+    execFileSync('git', ['-c', 'user.email=t@t.io', '-c', 'user.name=t', ...args], {
+      cwd: repo,
+      encoding: 'utf8',
+    });
+  const staged = (): string[] => git('diff', '--cached', '--name-only').split('\n').filter(Boolean);
+
+  beforeEach(() => {
+    writeFd('clean', { tests: [] });
+    writeFd('edited', { tests: [] });
+    git('init', '-q');
+    git('add', '.');
+    git('commit', '-q', '-m', 'init');
+    writeFileSync(join(repo, 'src', 'a.test.ts'), '// @tests: clean, edited\n', 'utf8');
+  });
+
+  it('stages an FD the commit did not stage, and leaves one with prior unstaged edits alone', async () => {
+    const edited = join(repo, 'docs', 'features', 'edited.md');
+    writeFileSync(edited, `${readFileSync(edited, 'utf8')}\nmy own edit\n`, 'utf8');
+
+    const exit = await runProjection(rooted(testsAdapter, ['src'], 'default'), {
+      cwd: repo,
+      stage: true,
+    });
+
+    expect(exit).toBe(0);
+    expect(staged()).toEqual(['docs/features/clean.md']);
+    await expect(cachedFor('edited', 'tests')).resolves.toEqual(['src/a.test.ts']);
+    expect(vi.mocked(console.warn).mock.calls.flat().join('\n')).toContain('edited.md unstaged');
+  });
+
+  it('stages nothing without the flag', async () => {
+    await runProjection(rooted(testsAdapter, ['src'], 'default'), { cwd: repo });
+
+    expect(staged()).toEqual([]);
+  });
+
+  it('refuses to write outside a git checkout', async () => {
+    rmSync(join(repo, '.git'), { recursive: true, force: true });
+
+    const exit = await runProjection(rooted(testsAdapter, ['src'], 'default'), {
+      cwd: repo,
+      stage: true,
+    });
+
+    expect(exit).toBe(1);
+    await expect(cachedFor('clean', 'tests')).resolves.toEqual([]);
   });
 });
 

@@ -17,7 +17,7 @@ pre-commit:
         jobs:
           - name: test-links
             glob: '**/*.test.ts'
-            run: pnpm noldor sync test-links --quiet
+            run: pnpm noldor sync test-links --quiet --stage
             stage_fixed: true
           - name: doc-links
             glob: 'docs/**/*.md'
