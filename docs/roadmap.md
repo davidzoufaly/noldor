@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Next-Priority Holds In-Progress Blockers
-
-- id: Q-0326
-- area: tooling
-- type: fix
-- since: 2026-09-29
-- size: XS
-- impact: med
-- confidence: high
-
-`next-priority`'s `findBlocked` treats a blocker as met the moment it leaves the queue. Promoting Q-0320 to an in-progress FD made Q-0321 (`blocked-by: Q-0320`) pickable again, although `resolveIsShipped` says in-progress is not shipped, so an XS/S drain can pick a dependent before its blocker ships. Fix: hold back an entry whose ref resolves to an FD that is not `phase: done`.
-
 ### Promote Does Not Retire the Entry Id
 
 - id: Q-0327

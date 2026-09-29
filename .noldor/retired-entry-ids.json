@@ -759,5 +759,9 @@
   "Q-0325": {
     "slug": "render-compare-checks-the-canvas-on-disk",
     "retiredAt": "2026-09-29"
+  },
+  "Q-0326": {
+    "slug": "next-priority-holds-in-progress-blockers",
+    "retiredAt": "2026-09-29"
   }
 }

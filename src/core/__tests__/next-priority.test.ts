@@ -12,6 +12,7 @@ import {
   isWritePendingDeprecated,
   loadInProgressFds,
   loadMilestoneGate,
+  loadOpenFdRefs,
   loadWorktreeSessions,
   parseSkip,
 } from '../next-priority.js';
@@ -649,6 +650,57 @@ Body.
     const s = getSuggestions(raw, input);
     expect(s.topPriority.map((e) => e.slug)).toEqual(['entry-a', 'entry-b']);
     expect(s.blocked).toEqual([]);
+  });
+
+  // Q-0326: promoting a blocker takes it off the queue long before it ships.
+  it('holds back an entry whose blocker is an FD not yet done, by ID or slug', () => {
+    const openFds = new Map([
+      ['Q-0320', 'gate-router'],
+      ['gate-router', 'gate-router'],
+    ]);
+    const raw = [
+      entry('Entry A', '- blocked-by: Q-0320\n'),
+      entry('Entry B', '- blocked-by: gate-router\n'),
+      entry('Entry C'),
+    ].join('\n');
+    expect(getTopPriorityNext(raw, openFds)?.slug).toBe('entry-c');
+    const s = getSuggestions(raw, { ...input, openFdRefs: openFds });
+    expect(s.topPriority.map((e) => e.slug)).toEqual(['entry-c']);
+    expect(s.blocked).toEqual([
+      { slug: 'entry-a', blockedBy: ['Q-0320'] },
+      { slug: 'entry-b', blockedBy: ['gate-router'] },
+    ]);
+  });
+
+  it('holds every entry, not a cycle, when all are blocked by open FDs', () => {
+    const raw = entry('Entry A', '- blocked-by: gate-router\n');
+    const s = getSuggestions(raw, {
+      ...input,
+      openFdRefs: new Map([['gate-router', 'gate-router']]),
+    });
+    expect(s.topPriority).toEqual([]);
+    expect(s.blocked).toEqual([{ slug: 'entry-a', blockedBy: ['gate-router'] }]);
+  });
+});
+
+describe(loadOpenFdRefs, () => {
+  it('maps every FD not phase: done by slug and entry-id', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'openfds-'));
+    try {
+      mkdirSync(join(dir, 'docs/features'), { recursive: true });
+      const fd = (phase: string, extra = ''): string =>
+        `---\nname: X\nphase: ${phase}\n${extra}---\n`;
+      writeFileSync(join(dir, 'docs/features/open.md'), fd('in-progress', 'entry-id: Q-0320\n'));
+      writeFileSync(join(dir, 'docs/features/bare.md'), fd('in-progress'));
+      writeFileSync(join(dir, 'docs/features/shipped.md'), fd('done', 'entry-id: Q-0001\n'));
+      expect(Object.fromEntries(loadOpenFdRefs(dir))).toEqual({
+        bare: 'bare',
+        open: 'open',
+        'Q-0320': 'open',
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

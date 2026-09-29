@@ -7,6 +7,7 @@ import {
   getSuggestions,
   loadInProgressFds,
   loadMilestoneGate,
+  loadOpenFdRefs,
   type InProgressFd,
 } from '../core/next-priority.js';
 import { loadDocRoots } from '../core/doc-roots.js';
@@ -250,6 +251,7 @@ export function roadmapSource(cwd: string, selection?: SelectionFilter): DrainSo
             inProgressFds: loadInProgressFds(cwd),
             milestoneGate: active.gate,
             activeMilestone: active.slug,
+            openFdRefs: loadOpenFdRefs(cwd),
           };
         })(),
         skip,
