@@ -1,15 +1,20 @@
 // @fd: architecture-design-phase
-// Module-to-module import pairs — the code truth the architecture baseline's
-// arrows are held to (spec: "Code truth"). Built on the indirection ratchet's
-// cruise (`cruiseFileGraph`), so both read one file graph: tests excluded,
-// tsconfig aliases resolved, a partial cruise refused. graphify's graph.json
-// is not used: it can be stale.
+// Module-to-module import pairs and the file edges under them — the code truth
+// the architecture baseline's arrows are held to (spec: "Honesty check"). Built
+// on the indirection ratchet's cruise (`cruiseFileGraph`), so both read one
+// file graph: tests excluded, tsconfig aliases resolved, a partial cruise
+// refused. graphify's graph.json is not used: it can be stale.
 
-import { pairKey } from '../design/arch-pen.js';
+import { pairKey, type FileEdge } from '../design/arch-pen.js';
 import { cruiseFileGraph, type CruiseModule } from './detect.js';
 
 export type ModulePairsResult =
-  | { readonly kind: 'pairs'; readonly pairs: ReadonlySet<string> }
+  | {
+      readonly kind: 'pairs';
+      readonly pairs: ReadonlySet<string>;
+      /** Every import between two files, the ones inside one module included. */
+      readonly edges: readonly FileEdge[];
+    }
   | { readonly kind: 'unmeasurable'; readonly message: string };
 
 /** The module a repo-relative file sits in — the longest module path prefixing it — or `null`. */
@@ -38,6 +43,21 @@ export function pairsFromFiles(
   return pairs;
 }
 
+/** A resolved import target inside the repo: a path, never a Node builtin (`fs`) or a `node_modules` file. */
+function inRepo(resolved: string): boolean {
+  return resolved.includes('/') && !resolved.split('/').includes('node_modules');
+}
+
+/** Every import between two different files of the repo — the graph a part arrow is held to. */
+export function edgesFromFiles(files: readonly CruiseModule[]): FileEdge[] {
+  const edges: FileEdge[] = [];
+  for (const file of files)
+    for (const dep of file.dependencies)
+      if (dep.resolved !== file.source && inRepo(dep.resolved))
+        edges.push({ from: file.source, to: dep.resolved });
+  return edges;
+}
+
 /**
  * The import pairs between `modules`, read off one cruise of `roots`. An empty
  * corpus has no pairs; a graph the cruise cannot build — or one holding an
@@ -50,7 +70,7 @@ export async function moduleImportPairs(
   modules: readonly string[],
 ): Promise<ModulePairsResult> {
   const graph = await cruiseFileGraph({ cwd, roots });
-  if (graph.kind === 'empty') return { kind: 'pairs', pairs: new Set() };
+  if (graph.kind === 'empty') return { kind: 'pairs', pairs: new Set(), edges: [] };
   if (graph.kind !== 'graph') return { kind: 'unmeasurable', message: graph.message };
   if (graph.unresolvedInScope.length > 0) {
     const shown = graph.unresolvedInScope.slice(0, 5).join(', ');
@@ -59,5 +79,9 @@ export async function moduleImportPairs(
       message: `${graph.unresolvedInScope.length} in-repo import(s) could not be resolved, so module pairs are unknown: ${shown}`,
     };
   }
-  return { kind: 'pairs', pairs: pairsFromFiles(graph.files, modules) };
+  return {
+    kind: 'pairs',
+    pairs: pairsFromFiles(graph.files, modules),
+    edges: edgesFromFiles(graph.files),
+  };
 }

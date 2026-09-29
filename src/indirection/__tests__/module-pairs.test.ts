@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { moduleImportPairs, moduleOf, pairsFromFiles } from '../module-pairs.js';
+import { edgesFromFiles, moduleImportPairs, moduleOf, pairsFromFiles } from '../module-pairs.js';
 
 const MODULES = ['src/a', 'src/b', 'src/c'];
 const FIXTURE = join(import.meta.dirname, 'trees', 'modules');
@@ -51,5 +51,35 @@ describe('module-pairs', () => {
       kind: 'unmeasurable',
       message: expect.stringContaining('does-not-exist'),
     });
+  });
+
+  it('keeps every in-repo import between two files as a file edge, inside one module too', () => {
+    const files = [
+      {
+        source: 'src/a/x.ts',
+        dependencies: [
+          { resolved: 'src/b/y.ts' },
+          { resolved: 'src/a/z.ts' },
+          { resolved: 'src/a/x.ts' },
+          { resolved: 'fs' },
+          { resolved: 'node_modules/zod/index.js' },
+        ],
+      },
+    ];
+    expect(edgesFromFiles(files)).toEqual([
+      { from: 'src/a/x.ts', to: 'src/b/y.ts' },
+      { from: 'src/a/x.ts', to: 'src/a/z.ts' },
+    ]);
+  });
+
+  it('reads the file edges off the same cruise as the pairs, spec files excluded', async () => {
+    const result = await moduleImportPairs(FIXTURE, ['src'], MODULES);
+    if (result.kind !== 'pairs') throw new Error(result.message);
+    expect(result.edges.map((e) => `${e.from} -> ${e.to}`).sort()).toEqual([
+      'src/a/x.ts -> src/a/z.ts',
+      'src/a/x.ts -> src/b/y.ts',
+      'src/c/w.ts -> src/a/x.ts',
+      'src/index.ts -> src/a/x.ts',
+    ]);
   });
 });

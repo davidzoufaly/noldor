@@ -69,6 +69,12 @@ export interface ArchDoc {
   readonly pages: readonly ArchPage[];
 }
 
+/** One import in the file graph: a repo-relative file and the file it imports. */
+export interface FileEdge {
+  readonly from: string;
+  readonly to: string;
+}
+
 export type ArchPenResult =
   | { readonly ok: true; readonly doc: ArchDoc }
   | { readonly ok: false; readonly error: string };
