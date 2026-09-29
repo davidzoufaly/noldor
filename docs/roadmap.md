@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Release Pipeline Stamps Template Twins
-
-- id: Q-0324
-- area: tooling
-- type: fix
-- since: 2026-09-29
-- size: S
-- impact: high
-- confidence: high
-
-The release pipeline blocks itself on a new templated Noldor page. `fillAllNoldorMarkers` (called from `src/release/index.ts`) stamps `introduced:` only on `docs/noldor/*.md`, leaving the `templates/docs/noldor/*.md` twin behind, so `check-template-sync` rejects the release commit. Syncing the twin by hand then trips the release-surface guard on `--resume` (`RELEASE_SURFACE_PREFIXES` covers only `docs/features/` and `docs/noldor/`). v1.14.0 got past it with PR #648, which stamped both copies up front. Fix: stamp the twin in the same pass and add `templates/docs/noldor/` to the release surface.
-
 ### Render-Compare Checks the Canvas on Disk
 
 - id: Q-0325

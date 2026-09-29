@@ -751,5 +751,9 @@
   "Q-0210": {
     "slug": "archify-diagrams-in-the-framework",
     "retiredAt": "2026-09-29"
+  },
+  "Q-0324": {
+    "slug": "release-pipeline-stamps-template-twins",
+    "retiredAt": "2026-09-29"
   }
 }
