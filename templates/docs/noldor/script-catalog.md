@@ -140,6 +140,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** never by hand in the normal flow — the spec skill's verdict step and gate Step 2.5 own every call site. Re-run `--approve` after a `pen-approval-mismatch` refusal from `checks shared-files` or a `design-approval-stale` terminal from the `ui-reviewer` lane, on the design as it now stands; run `--reconfirm` after a `design-approval-spec-stale` terminal when the design still depicts the spec.
 - **Source:** [`src/design/design-approval-cli.ts`](../../src/design/design-approval-cli.ts)
 
+### `design:arch-draw`
+
+- **Trigger:** `pnpm noldor design arch-draw` once, to start a repo's architecture canvas; `pnpm noldor design arch-draw --refresh` whenever `checks arch-baseline` reports `missing-module`. The procedure page, [`architecture-canvas.md`](architecture-canvas.md), owns both calls.
+- **Inputs:** the module set (`listModuleDirs` over `consumer.scanPaths`) and each module's direct sub-folders, skipping `__tests__`, `test`, `tests`, `fixtures` and hidden or `_` folders. `--refresh` also reads `docs/design/architecture/baseline.pen`.
+- **Outputs:** the first run writes `docs/design/architecture/baseline.pen`: one `architecture` page, every module boxed in `group: Unplaced` with its sub-folders as part boxes inside it, and one `container:`, `store:` and `external:` placeholder. It draws no arrows. It refuses to replace an existing baseline (exit 1). `--refresh` adds a box, with its parts, for each module no box covers, and never moves, resizes or renames a box already there. It lists boxes whose module is gone without deleting them. Exit 0 on a write or a no-op, 1 when the baseline is missing or unreadable, 2 on bad arguments.
+- **When to use:** at bootstrap, then after any change that adds a module. It needs no editor, so a headless drain can pay `missing-module` debt with it; the placing waits for a human.
+- **Source:** [`src/design/arch-draw.ts`](../../src/design/arch-draw.ts)
+
 ### `design:arch-route`
 
 - **Trigger:** `pnpm noldor design arch-route --pen <path.pen> [--view context|containers|modules|flows]` — as `pnpm -s noldor …` when capturing stdout, so pnpm's banner stays out of the snippet. Run after boxes move on an architecture canvas, by `/noldor-spec` step 1.6 while iterating and by gate Step 4 after the baseline write-back.

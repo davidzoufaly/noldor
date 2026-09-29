@@ -16,9 +16,11 @@ links:
   tests:
     - src/checks/__tests__/check-arch-baseline.test.ts
     - src/core/__tests__/allowlist.test.ts
+    - src/core/__tests__/atomic-write.test.ts
     - src/core/__tests__/feature-schema.test.ts
     - src/core/__tests__/session.test.ts
     - src/design/__tests__/arch-check.test.ts
+    - src/design/__tests__/arch-draw.test.ts
     - src/design/__tests__/arch-pen.test.ts
     - src/design/__tests__/arch-progress.test.ts
     - src/design/__tests__/arch-route.test.ts
@@ -35,6 +37,7 @@ packages:
 phase: in-progress
 noldor-tier: full
 ---
+
 ## Summary
 
 An as-built architecture baseline on the pen.dev canvas — `docs/design/architecture/baseline.pen`, one page per `docs/architecture/` view — that architecture designs start from and ship back into, the loop UI designs already run. `checks arch-baseline` holds its `modules` view to the code: every module boxed once, every arrow backed by a real import. `/noldor-spec` step 1.6 seeds, iterates and approves an architecture `.pen`, gate Step 4 writes the approved change back, and a milestone can carry a target architecture whose gap `design arch-progress` reports — all on the approval, guard, archive and bridge machinery UI uses, through one design-kind seam (ADR 0007).
@@ -133,9 +136,11 @@ As an operator designing a new milestone, feature or package, I want an as-built
 - **Tests:**
   - [`src/checks/__tests__/check-arch-baseline.test.ts`](../../src/checks/__tests__/check-arch-baseline.test.ts)
   - [`src/core/__tests__/allowlist.test.ts`](../../src/core/__tests__/allowlist.test.ts)
+  - [`src/core/__tests__/atomic-write.test.ts`](../../src/core/__tests__/atomic-write.test.ts)
   - [`src/core/__tests__/feature-schema.test.ts`](../../src/core/__tests__/feature-schema.test.ts)
   - [`src/core/__tests__/session.test.ts`](../../src/core/__tests__/session.test.ts)
   - [`src/design/__tests__/arch-check.test.ts`](../../src/design/__tests__/arch-check.test.ts)
+  - [`src/design/__tests__/arch-draw.test.ts`](../../src/design/__tests__/arch-draw.test.ts)
   - [`src/design/__tests__/arch-pen.test.ts`](../../src/design/__tests__/arch-pen.test.ts)
   - [`src/design/__tests__/arch-progress.test.ts`](../../src/design/__tests__/arch-progress.test.ts)
   - [`src/design/__tests__/arch-route.test.ts`](../../src/design/__tests__/arch-route.test.ts)
