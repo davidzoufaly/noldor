@@ -60,6 +60,8 @@ As a developer or agent reading an FD detail page, I want to see every commit at
 - `### Unreleased` appears at the top whenever there are post-last-tag commits matching `<area>:<slug>` scope. No Summary, just `#### Commits`.
 - Each historical `### <version>` block in the FD body is preserved verbatim; a `#### Commits` subsection is appended live for any version whose commit bucket is non-empty.
 - Versions whose commit bucket has commits but no static `### <version>` block in the body get a synthesized heading with `_(no summary on file)_` placeholder.
+- A version with no commits and no static block is not shown.
+- An FD's `### Initial Release (v<X>)` block keeps its heading, and no version tagged before `<X>` is shown.
 
 **Authoring Summary copy.** Don't. Run `pnpm release` and let `polishSummary` author it. To override the auto-polished prose post-release, edit the relevant `### <version> > #### Summary` in the FD body and commit — it surfaces on `/release-notes` and `/features/<slug>` immediately.
 

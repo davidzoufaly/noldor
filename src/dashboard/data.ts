@@ -529,7 +529,11 @@ export async function loadFdChangelog(
  *   live commit list is non-empty.
  * - Synthesized `### <version>` blocks (with `_(no summary on file)_`
  *   placeholder) for versions that have live commits but no static block.
+ *   A version with neither commits nor a static block renders nothing.
  * - Static `### <version>` blocks with no live commits left untouched.
+ * - A static `### Initial Release (v<X>)` block keeps its heading and is the
+ *   floor: versions tagged before `<X>` are not rendered, since the Initial
+ *   Release block already covers everything up to the FD's first release.
  * - Any pre-existing `### Unreleased` block in the static body dropped
  *   (defensive — the dashboard owns Unreleased now).
  *
@@ -578,43 +582,61 @@ export function mergeChangelogIntoBody(
     out.push(renderUnreleasedBlock(changelog.unreleased, repoUrl));
   }
   const renderedVersions = new Set<string>();
-  // Newest tag first → reverse insertion order.
-  const versionsNewestFirst = [...changelog.perVersion.keys()].toReversed();
-  for (const version of versionsNewestFirst) {
+  // Tag order is oldest first; nothing before the Initial Release renders.
+  // An Initial Release with no tag yet is newer than every tag.
+  const versionsOldestFirst = [...changelog.perVersion.keys()];
+  const initialIdx =
+    staticBlocks.initialRelease === null
+      ? 0
+      : versionsOldestFirst.indexOf(staticBlocks.initialRelease);
+  const floor = initialIdx === -1 ? versionsOldestFirst.length : initialIdx;
+  for (const version of versionsOldestFirst.slice(floor).toReversed()) {
     const commits = changelog.perVersion.get(version) ?? [];
     const staticBody = staticBlocks.byVersion.get(version);
-    out.push(renderVersionBlock(version, staticBody, commits, repoUrl));
     renderedVersions.add(version);
+    if (commits.length === 0 && staticBody === undefined) continue;
+    const heading = staticBlocks.headings.get(version) ?? version;
+    out.push(renderVersionBlock(heading, staticBody, commits, repoUrl));
   }
   // Legacy-only versions present in static but not in perVersion (e.g.
   // tag deleted). Preserve as-is. `Unreleased` is dropped — dashboard owns it.
   for (const version of staticBlocks.versionOrder) {
     if (renderedVersions.has(version) || version === 'Unreleased') continue;
     const staticBody = staticBlocks.byVersion.get(version) ?? '';
-    out.push(`### ${version}\n\n${staticBody}`.replace(/\n+$/, '') + '\n');
+    const heading = staticBlocks.headings.get(version) ?? version;
+    out.push(`### ${heading}\n\n${staticBody}`.replace(/\n+$/, '') + '\n');
   }
   return head + out.join('\n').replace(/\n+$/, '') + '\n';
 }
 
+const INITIAL_RELEASE_HEADING_RE = /^Initial Release \(v(.+)\)$/;
+
 function parseStaticVersionBlocks(section: string): {
   byVersion: Map<string, string>;
+  headings: Map<string, string>;
   versionOrder: string[];
+  initialRelease: string | null;
 } {
   const byVersion = new Map<string, string>();
+  const headings = new Map<string, string>();
   const versionOrder: string[] = [];
-  if (section.trim().length === 0) return { byVersion, versionOrder };
+  let initialRelease: string | null = null;
+  if (section.trim().length === 0) return { byVersion, headings, versionOrder, initialRelease };
   const parts = section.split(/(?=^### )/m).filter((p) => p.trim().length > 0);
   for (const part of parts) {
     const m = /^### (.+?)\s*$/m.exec(part);
     if (!m) continue;
     const heading = m[1].trim();
-    const version = heading.replace(/^v/, '');
+    const initial = INITIAL_RELEASE_HEADING_RE.exec(heading);
+    const version = initial ? initial[1] : heading.replace(/^v/, '');
+    if (initial) initialRelease = version;
     const lineEnd = part.indexOf('\n');
     const content = lineEnd === -1 ? '' : part.slice(lineEnd + 1).replace(/\n+$/, '');
     byVersion.set(version, content);
+    headings.set(version, heading);
     versionOrder.push(version);
   }
-  return { byVersion, versionOrder };
+  return { byVersion, headings, versionOrder, initialRelease };
 }
 
 function renderUnreleasedBlock(commits: FeatureCommit[], repoUrl: string): string {
@@ -622,12 +644,12 @@ function renderUnreleasedBlock(commits: FeatureCommit[], repoUrl: string): strin
 }
 
 function renderVersionBlock(
-  version: string,
+  headingText: string,
   staticBody: string | undefined,
   commits: FeatureCommit[],
   repoUrl: string,
 ): string {
-  const heading = `### ${version}`;
+  const heading = `### ${headingText}`;
   const summaryBody =
     staticBody && staticBody.trim().length > 0 ? staticBody : '_(no summary on file)_';
   if (commits.length === 0) {
