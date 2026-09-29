@@ -767,5 +767,9 @@
   "Q-0327": {
     "slug": "promote-does-not-retire-the-entry-id",
     "retiredAt": "2026-09-29"
+  },
+  "Q-0328": {
+    "slug": "test-links-sync-restages-the-fd",
+    "retiredAt": "2026-09-29"
   }
 }

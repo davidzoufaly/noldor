@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Test-Links Sync Restages the FD
-
-- id: Q-0328
-- area: tooling
-- type: fix
-- since: 2026-09-29
-- size: S
-- impact: med
-- confidence: high
-
-The pre-commit `test-links` sync writes an FD's `links.tests` when a commit adds a test file, but the FD was not staged, so `stage_fixed` does not re-stage it: every new test file leaves the FD dirty for the next commit to carry. Stage the FDs the sync rewrote in the same commit.
-
 ### Drain Prompt Points at Drain Mode
 
 - id: Q-0329
