@@ -367,6 +367,24 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   was extracting `src/core/scratch-dir.ts` (one commit, no receipt re-earn).
   Grep for `[Symbol.dispose]` and reuse an existing helper before writing a new
   one. (PR #589)
+- **Backticks in a `--confirm-section` heading run as a shell command
+  through pnpm.** ``pnpm noldor design log --confirm-section 'Router (`SKILL.md`)'``
+  fails with `sh: SKILL.md: command not found`: pnpm re-wraps arguments in
+  double quotes for `sh`, so the backticks become command substitution — and
+  the CLI's own "legal headings" hint prints the backticked names an agent
+  copies. Call `node bin/noldor.mjs design log …` directly for such a heading.
+  (2026-09-25)
+- **A killed `research fanout` leaves no `INDEX.md`.** A backgrounded batch
+  died with exit 144 after about two minutes: three of four findings files
+  written, the fourth task lost, and the children's SessionEnd hook printed
+  "Hook cancelled". The index is written only at the end, so a partial batch is
+  found only by listing `.noldor/research/<stamp>/` — check it before trusting
+  a batch that exited early. (2026-09-25)
+- **`design archive` stops on a folded YAML `links.plan` item.** The FD fmt
+  hook writes a long plan path as `- >-` with the path on the next line, which
+  `pnpm noldor design archive` cannot rewrite: it archives that one file,
+  prints "fix by hand" and stops — a four-part plan archived only part 1.
+  Rewrite `links.plan` as plain one-line items and re-run. (Q-0320)
 
 ## Pencil / UI design
 

@@ -922,6 +922,11 @@ Two traps in how a round's result is read:
   real-tree self-scan redded main until PR #577 reworded it. Skill and doc prose
   is input to detectors the suite runs over the real tree, and the verifier's
   test run is what catches that.
+- **A split plan reviews in one round with a glob artifact.**
+  `cr orchestrate --kind plan --artifact 'docs/design/plans/<date>-<slug>-part*.md'`
+  works: the empty-delta check passes the glob to git as one pathspec, and the
+  reviewer reads every part. Quote the glob so the shell does not expand it.
+  (Q-0320)
 
 ## Round budget
 
