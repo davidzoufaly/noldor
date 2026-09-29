@@ -20,7 +20,7 @@ import { extractUntriagedBullets } from '../triage/triage-list-untriaged.js';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
 
-import type { ConsumerConfig } from '../core/consumer-config.js';
+import type { ConsumerConfig, Ownerless } from '../core/consumer-config.js';
 import { docPresenceRoots, listDocMds, loadDocRoots, readQueueFile } from '../core/doc-roots.js';
 
 import { detectAdrFindings } from './detectors/adr.js';
@@ -124,13 +124,18 @@ export const CODE_EXEMPT_SENTINEL = 'n/a';
  * Pre-MVP grandfathered features ({@link isLinkEnforced} = false) are skipped.
  * No category exemption — Tooling FDs ship scripts and should populate
  * `links.code`. The {@link CODE_EXEMPT_SENTINEL} string opts a feature out for
- * the rare pure-content case.
+ * the rare pure-content case; a slug in `declared` (`consumer.ownerless.features`)
+ * opts out a feature whose code lives in shared files.
  */
-export async function detectDoneFeaturesMissingCode(features: FeatureRecord[]): Promise<Gap[]> {
+export async function detectDoneFeaturesMissingCode(
+  features: FeatureRecord[],
+  declared: Ownerless['features'] = {},
+): Promise<Gap[]> {
   return features
     .filter((f) => f.frontmatter.phase === 'done')
     .filter((f) => isLinkEnforced(f))
     .filter((f) => !f.frontmatter.links.code.includes(CODE_EXEMPT_SENTINEL))
+    .filter((f) => !Object.hasOwn(declared, f.slug))
     .filter((f) => f.frontmatter.links.code.length === 0)
     .map((f) => ({
       category: 'Done features without code',
@@ -307,11 +312,15 @@ export interface CodeOrphanSuggestionInputs {
  * graphify community membership (top FD by frequency among files in the
  * same community). Falls back to the bare message when the graph is
  * stale, missing, or yields no candidate.
+ *
+ * A path in `declared` (`consumer.ownerless.files`) is ownerless on purpose
+ * and produces no row.
  */
 export function detectCodeOrphans(
   allPaths: string[],
   features: FeatureRecord[],
   suggestion?: CodeOrphanSuggestionInputs,
+  declared: Ownerless['files'] = {},
 ): Gap[] {
   const anyEnforced = features.some((f) => isLinkEnforced(f));
   if (!anyEnforced) {
@@ -339,6 +348,7 @@ export function detectCodeOrphans(
   return tsFiles
     .filter((p) => !referenced.has(p))
     .filter((p) => !isCoveredByAncestorDir(p, referenced))
+    .filter((p) => !Object.hasOwn(declared, p))
     .map((p) => {
       const base = `${p} is not referenced by any feature MD links.code`;
       let message = base;
@@ -358,6 +368,42 @@ export function detectCodeOrphans(
         message,
       };
     });
+}
+
+/**
+ * Flag every `consumer.ownerless` entry that hides nothing: its detector, run
+ * without the list, would not emit a row for it. The detectors are the oracle,
+ * so a deleted or renamed file, a file an FD now owns, an ignored or
+ * out-of-scan path, a directory key, and an FD that is gone, not done, or has
+ * code all report here without a case of their own. In a repo where no FD is
+ * link-enforced the orphan detector emits nothing, so every file entry is
+ * stale there — correctly, since none of them hides a row.
+ *
+ * @param allPaths - Walked repo paths, as {@link detectCodeOrphans} takes them
+ * @param features - Loaded feature records
+ * @param ownerless - The consumer's declarations
+ * @returns One gap per stale declaration, files first
+ */
+export async function detectStaleOwnerless(
+  allPaths: string[],
+  features: FeatureRecord[],
+  ownerless: Ownerless,
+): Promise<Gap[]> {
+  const orphans = new Set(detectCodeOrphans(allPaths, features).map((g) => g.itemId));
+  const codeless = new Set((await detectDoneFeaturesMissingCode(features)).map((g) => g.itemId));
+  const stale = (key: string, list: 'files' | 'features', row: string): Gap => ({
+    category: 'Stale ownerless declarations',
+    itemId: key,
+    message: `${key} is declared in consumer.ownerless.${list} but would not be a "${row}" row without it — remove the entry`,
+  });
+  return [
+    ...Object.keys(ownerless.files)
+      .filter((p) => !orphans.has(p))
+      .map((p) => stale(p, 'files', 'Code files not referenced by any feature')),
+    ...Object.keys(ownerless.features)
+      .filter((slug) => !codeless.has(slug))
+      .map((slug) => stale(slug, 'features', 'Done features without code')),
+  ];
 }
 
 const TESTS_TAG_RE = /^\/\/\s*@tests:/m;
@@ -575,6 +621,11 @@ export interface ReportInput {
   /** Source roots whose mtime gates graph staleness. */
   graphSrcRoots: string[];
   /**
+   * `consumer.ownerless`. Required, not optional: an optional input would
+   * silently drop the exemption for any builder that forgot it.
+   */
+  ownerless: Ownerless;
+  /**
    * Repository root for the architecture-surface check. Defaults to
    * `process.cwd()`, matching how `graphPath` and every other input here
    * resolve, so neither caller has to thread it today.
@@ -608,10 +659,12 @@ export async function collectGaps(input: ReportInput): Promise<Gap[]> {
   gaps.push(...detectSpecsWithoutFeatures(input.specPaths, input.features));
   gaps.push(...detectPlansWithoutSpec(input.planPaths, input.specPaths));
   gaps.push(
-    ...detectCodeOrphans(input.allRepoPaths, input.features, {
-      graphPath: input.graphPath,
-      srcRoots: input.graphSrcRoots,
-    }),
+    ...detectCodeOrphans(
+      input.allRepoPaths,
+      input.features,
+      { graphPath: input.graphPath, srcRoots: input.graphSrcRoots },
+      input.ownerless.files,
+    ),
   );
   gaps.push(
     ...detectUntaggedTests(input.testInputs, {
@@ -625,7 +678,8 @@ export async function collectGaps(input: ReportInput): Promise<Gap[]> {
   gaps.push(
     ...detectMissingCoTags(input.features, input.testInputs, input.graphPath, input.graphSrcRoots),
   );
-  gaps.push(...(await detectDoneFeaturesMissingCode(input.features)));
+  gaps.push(...(await detectDoneFeaturesMissingCode(input.features, input.ownerless.features)));
+  gaps.push(...(await detectStaleOwnerless(input.allRepoPaths, input.features, input.ownerless)));
   // Runs here rather than being pre-loaded by each caller: an optional input
   // would silently drop the whole category for any caller that forgot it, which
   // is exactly the dashboard-vs-report divergence `loadSddInput layout parity`
@@ -1014,6 +1068,7 @@ async function main(): Promise<void> {
     graphPath: 'graphify-out/graph.json',
     graphSrcRoots: scanRoots,
     ideasMd,
+    ownerless: loadConsumerConfig().ownerless,
     planPaths,
     readmeContent,
     specPaths,

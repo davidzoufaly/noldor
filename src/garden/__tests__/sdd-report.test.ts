@@ -1,4 +1,4 @@
-// @tests: bootstrap-immunity-for-self-gating-features, dashboard-roadmap-drag-drop, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100, noldor, outcome-telemetry-and-effectiveness-metrics, release-script-sddreport-skip-if-only-count-line-changed, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering, sdd-co-tag-detector, code-clone-detector, sdd-detector-5-idea-merge-semantic-similarity
+// @tests: bootstrap-immunity-for-self-gating-features, dashboard-roadmap-drag-drop, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100, noldor, outcome-telemetry-and-effectiveness-metrics, release-script-sddreport-skip-if-only-count-line-changed, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering, sdd-co-tag-detector, code-clone-detector, sdd-detector-5-idea-merge-semantic-similarity, sdd-report-honours-ownerless-on-purpose
 
 import { exec, execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
@@ -19,6 +19,7 @@ import {
   detectReadmePackageDrift,
   detectSpecsWithoutFeatures,
   detectStaleBacklog,
+  detectStaleOwnerless,
   detectUntaggedDocs,
   detectUntaggedTests,
   detectUntriagedIdeas,
@@ -148,6 +149,67 @@ describe(detectDoneFeaturesMissingCode, () => {
     };
     const gaps = await detectDoneFeaturesMissingCode([{ frontmatter: fm, slug: 'pre-mvp' }]);
     expect(gaps).toStrictEqual([]);
+  });
+});
+
+describe('ownerless declarations', () => {
+  const fmDoneNoCode: FeatureFrontmatter = {
+    ...fmDoneNoTests,
+    links: { ...fmDoneNoTests.links, code: [], tests: ['x.test.ts'] },
+  };
+  const owner: FeatureRecord = {
+    frontmatter: { ...fmClean, links: { ...fmClean.links, code: ['src/owned.ts'] } },
+    slug: 'owner',
+  };
+  const emptied: FeatureRecord = { frontmatter: fmDoneNoCode, slug: 'emptied' };
+  const allPaths = ['src/owned.ts', 'src/helper.ts', 'src/gap.ts', 'src/__tests__/x.test.ts'];
+
+  it('drops a declared file from the code-orphan rows and leaves the rest', () => {
+    const gaps = detectCodeOrphans(allPaths, [owner], undefined, { 'src/helper.ts': 'shared' });
+    expect(gaps.map((g) => g.itemId)).toStrictEqual(['src/gap.ts']);
+  });
+
+  it('drops a declared FD from the done-without-code rows', async () => {
+    const gaps = await detectDoneFeaturesMissingCode([emptied, owner], { emptied: 'shared' });
+    expect(gaps).toStrictEqual([]);
+  });
+
+  it('reports nothing stale while every declaration still hides a row', async () => {
+    const gaps = await detectStaleOwnerless(allPaths, [owner, emptied], {
+      files: { 'src/helper.ts': 'shared' },
+      features: { emptied: 'shared' },
+    });
+    expect(gaps).toStrictEqual([]);
+  });
+
+  it('flags each file declaration the orphan detector would not raise', async () => {
+    const gaps = await detectStaleOwnerless(allPaths, [owner], {
+      files: {
+        'src/owned.ts': 'now owned',
+        'src/deleted.ts': 'gone',
+        'src/__tests__/x.test.ts': 'ignored anyway',
+        src: 'a directory',
+      },
+      features: {},
+    });
+    expect(gaps.map((g) => [g.category, g.itemId])).toStrictEqual([
+      ['Stale ownerless declarations', 'src/owned.ts'],
+      ['Stale ownerless declarations', 'src/deleted.ts'],
+      ['Stale ownerless declarations', 'src/__tests__/x.test.ts'],
+      ['Stale ownerless declarations', 'src'],
+    ]);
+  });
+
+  it('flags each feature declaration the done-without-code detector would not raise', async () => {
+    const wip: FeatureRecord = {
+      frontmatter: { ...fmDoneNoCode, phase: 'in-progress' },
+      slug: 'wip',
+    };
+    const gaps = await detectStaleOwnerless(allPaths, [owner, wip], {
+      files: {},
+      features: { owner: 'has code', wip: 'not done', missing: 'no FD' },
+    });
+    expect(gaps.map((g) => g.itemId)).toStrictEqual(['owner', 'wip', 'missing']);
   });
 });
 

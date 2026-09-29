@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, version-aware-upgrade-and-migration-chain
+// @tests: acceptance-verify-lane, version-aware-upgrade-and-migration-chain, sdd-report-honours-ownerless-on-purpose
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -538,5 +538,31 @@ describe('consumer.uiCoverage', () => {
     if (!r.success) {
       expect(r.error.issues.map((i) => i.path.slice(0, 2).join('.'))).toContain('uiCoverage.app');
     }
+  });
+});
+
+describe('ConsumerConfigSchema ownerless', () => {
+  it('defaults to empty file and feature lists', () => {
+    expect(ConsumerConfigSchema.parse(MINIMAL_CONSUMER).ownerless).toStrictEqual({
+      files: {},
+      features: {},
+    });
+  });
+
+  it('keeps each declaration with its reason', () => {
+    const parsed = ConsumerConfigSchema.parse({
+      ...MINIMAL_CONSUMER,
+      ownerless: { files: { 'src/a.ts': 'shared helper' } },
+    });
+    expect(parsed.ownerless).toStrictEqual({
+      files: { 'src/a.ts': 'shared helper' },
+      features: {},
+    });
+  });
+
+  it.each(['', '   '])('rejects a blank reason (%j)', (reason) => {
+    expect(() =>
+      ConsumerConfigSchema.parse({ ...MINIMAL_CONSUMER, ownerless: { features: { a: reason } } }),
+    ).toThrow();
   });
 });
