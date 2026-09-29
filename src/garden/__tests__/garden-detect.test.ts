@@ -395,6 +395,8 @@ Description text.
   });
 
   it('does not flag a recent backlog entry', async () => {
+    // Relative to today: a fixed date ages past the detector's window as the clock moves.
+    const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
     await writeFile(
       join(repo, 'docs/backlog.md'),
       `# Backlog
@@ -404,7 +406,7 @@ Description text.
 ### New Idea
 - area: tooling
 - phase: later
-- since: 2026-04-01
+- since: ${since}
 
 Description text.
 `,
