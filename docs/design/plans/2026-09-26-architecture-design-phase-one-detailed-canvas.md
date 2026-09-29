@@ -10,7 +10,7 @@
 
 **Spec:** `docs/design/specs/2026-09-26-architecture-design-phase-one-detailed-canvas-design.md`
 
-**Commit messages:** every Commit step writes the message to `"$(git rev-parse --git-dir)/TASK_MSG"` with a heredoc and commits with `git commit -F` on that file. The file lives in the git dir, so it is never staged. Run `git commit` in the background and read its log, because a foreground commit can hang in this harness.
+**Commit messages:** every Commit step writes the message to `"$(git rev-parse --git-dir)/TASK_MSG"` with a heredoc and commits with `git commit -F` on that file. The file lives in the git dir, so it is never staged.
 
 ---
 
@@ -26,7 +26,9 @@
 - `src/design/design-approval-cli.ts` — `--surface architecture` for an architecture `.pen`.
 - `src/core/atomic-write.ts` — `writeFileSyncIfAbsent`, a create that never replaces.
 - `src/design/arch-draw.ts` (new) — `design arch-draw [--refresh]`.
+- `src/docs/docs-architecture.ts` — exports `EXCLUDED_DIRS`, so parts skip the folders modules skip.
 - `src/cli/manifest.ts` — the `arch-draw` entry, and the `arch-progress` description.
+- `docs/features/architecture-design-phase.md` — Summary and Usage rewritten to the one-page contract.
 - `docs/design/architecture/baseline.pen` — regenerated as one page.
 - `docs/noldor/architecture-canvas.md` (new) + `templates/docs/noldor/architecture-canvas.md` — the procedure page.
 - `docs/noldor/README.md` + twin — the route-table row.
@@ -54,11 +56,17 @@ import { edgesFromFiles, moduleImportPairs, moduleOf, pairsFromFiles } from '../
 and add these two tests at the end of the `describe('module-pairs', …)` block, before its closing `});`:
 
 ```ts
-  it('keeps every import between two files as a file edge, inside one module too', () => {
+  it('keeps every in-repo import between two files as a file edge, inside one module too', () => {
     const files = [
       {
         source: 'src/a/x.ts',
-        dependencies: [{ resolved: 'src/b/y.ts' }, { resolved: 'src/a/z.ts' }, { resolved: 'src/a/x.ts' }],
+        dependencies: [
+          { resolved: 'src/b/y.ts' },
+          { resolved: 'src/a/z.ts' },
+          { resolved: 'src/a/x.ts' },
+          { resolved: 'fs' },
+          { resolved: 'node_modules/zod/index.js' },
+        ],
       },
     ];
     expect(edgesFromFiles(files)).toEqual([
@@ -120,12 +128,18 @@ export type ModulePairsResult =
 Add after `pairsFromFiles`:
 
 ```ts
-/** Every import between two different files — the graph a part arrow is held to. */
+/** A resolved import target inside the repo: a path, never a Node builtin (`fs`) or a `node_modules` file. */
+function inRepo(resolved: string): boolean {
+  return resolved.includes('/') && !resolved.split('/').includes('node_modules');
+}
+
+/** Every import between two different files of the repo — the graph a part arrow is held to. */
 export function edgesFromFiles(files: readonly CruiseModule[]): FileEdge[] {
   const edges: FileEdge[] = [];
   for (const file of files)
     for (const dep of file.dependencies)
-      if (dep.resolved !== file.source) edges.push({ from: file.source, to: dep.resolved });
+      if (dep.resolved !== file.source && inRepo(dep.resolved))
+        edges.push({ from: file.source, to: dep.resolved });
   return edges;
 }
 ```
@@ -159,8 +173,8 @@ cat > "$(git rev-parse --git-dir)/TASK_MSG" <<'EOF'
 feat(design): read file edges off the architecture check's one cruise
 
 Why — The architecture canvas grows a layer of parts inside each module, and an arrow that touches a part has to be held to real imports between files. Module pairs cannot say that; the file graph the check already cruises can.
-How — moduleImportPairs returns the file edges of the same cruiseFileGraph pass beside the module pairs, so the check still runs dependency-cruiser once. The FileEdge type lives in arch-pen.ts so src/design never imports src/indirection.
-What — edgesFromFiles in src/indirection/module-pairs.ts, an edges field on the pairs result, and the FileEdge type in src/design/arch-pen.ts, with tests over the real fixture cruise.
+How — moduleImportPairs returns the file edges of the same cruiseFileGraph pass beside the module pairs, so the check still runs dependency-cruiser once. Edges to Node builtins and node_modules are dropped, since no arrow can name them. The FileEdge type lives in arch-pen.ts beside pairKey, which module-pairs already imports, so no new import edge and no cycle appear.
+What — edgesFromFiles (in-repo targets only) in src/indirection/module-pairs.ts, an edges field on the pairs result, and the FileEdge type in src/design/arch-pen.ts, with tests over the real fixture cruise.
 
 Noldor-FD: architecture-design-phase
 EOF
@@ -171,7 +185,7 @@ git commit -F "$(git rev-parse --git-dir)/TASK_MSG"
 
 ## Task 2: Read and check one `architecture` page
 
-`arch-route.ts`, `arch-progress.ts`, `arch-baseline.ts` and `design-approval-cli.ts` still read `ARCH_VIEWS`, `page.view` and the old `checkArchDoc` arguments after this task, so their tests and `pnpm typecheck` stay red until Task 3 moves them. This task runs only its own two test files.
+`arch-route.ts`, `arch-progress.ts`, `arch-baseline.ts` and `design-approval-cli.ts` still read `ARCH_VIEWS`, `page.view` and the old `checkArchDoc` arguments after this task, so their tests and `pnpm typecheck` stay red until Task 3 moves them. This task runs only its own two test files and **does not commit**: the root pre-commit hook builds every file under `src/` with `tsc` (`bin/build.mjs`), so Task 3's commit carries this task's files.
 
 **Files:**
 - Modify: `src/design/arch-pen.ts`
@@ -907,9 +921,12 @@ export function isUnder(file: string, path: string): boolean {
   return file === path || file.startsWith(`${path}/`);
 }
 
-/** The module `path` is or sits under, or `null`. */
+/** The module `path` is or sits under — the longest one, as `moduleOf` picks — or `null`. */
 function moduleOfPath(path: string, modules: readonly string[]): string | null {
-  return modules.find((mod) => isUnder(path, mod)) ?? null;
+  let best: string | null = null;
+  for (const mod of modules)
+    if (isUnder(path, mod) && (best === null || mod.length > best.length)) best = mod;
+  return best;
 }
 
 /**
@@ -957,7 +974,7 @@ export function checkArchDoc(doc: ArchDoc, truth: CodeTruth): ArchCheckResult {
       subject: ARCH_PAGE,
       message:
         pages.length === 0
-          ? `the baseline has no \`${ARCH_PAGE}\` page — draw one with \`pnpm noldor design arch-draw\``
+          ? `the baseline has no \`${ARCH_PAGE}\` page — move the old file aside and draw one with \`pnpm noldor design arch-draw\`, or rename its page \`${ARCH_PAGE}\``
           : `the baseline has ${pages.length} \`${ARCH_PAGE}\` pages — keep one`,
     });
     return { findings, advisories };
@@ -1085,19 +1102,7 @@ function checkArrows(
 Run: `pnpm vitest run src/design/__tests__/arch-pen.test.ts src/design/__tests__/arch-check.test.ts`
 Expected: PASS — 20 + 15 tests.
 
-- [ ] **Step 9: Commit.**
-
-```bash
-git add src/design/arch-pen.ts src/design/arch-check.ts src/design/__tests__/arch-pen.test.ts src/design/__tests__/arch-check.test.ts
-cat > "$(git rev-parse --git-dir)/TASK_MSG" <<'EOF'
-feat(design): read and check one detailed architecture page
-
-The reader wants one top-level `architecture` page instead of four view pages, and reads three outer-layer prefixes (external:, container:, store:) with canonical spacing. A path box now knows the paths of the path boxes around it, so a part inside a module box is told apart from a module. The rules gain unknown-part and misplaced-part, and hold every arrow that touches code to the file graph, with the outer of two nested ends counting only its files outside the inner one. Arrows touching an outer layer are held to resolving only.
-
-Noldor-FD: architecture-design-phase
-EOF
-git commit -F "$(git rev-parse --git-dir)/TASK_MSG"
-```
+- [ ] **Step 9: Leave it uncommitted.** Go on to Task 3; its Commit step stages these four files too.
 
 ---
 
@@ -1644,9 +1649,11 @@ Expected: every test PASSES, and typecheck and lint exit 0.
 - [ ] **Step 15: Commit.**
 
 ```bash
-git add src/design/arch-baseline.ts src/checks/check-arch-baseline.ts src/design/arch-route.ts src/design/arch-progress.ts src/design/design-approval-cli.ts src/cli/manifest.ts src/checks/__tests__/check-arch-baseline.test.ts src/design/__tests__/arch-route.test.ts src/design/__tests__/arch-progress.test.ts src/design/__tests__/design-approval.test.ts
+git add src/design/arch-pen.ts src/design/arch-check.ts src/design/__tests__/arch-pen.test.ts src/design/__tests__/arch-check.test.ts src/design/arch-baseline.ts src/checks/check-arch-baseline.ts src/design/arch-route.ts src/design/arch-progress.ts src/design/design-approval-cli.ts src/cli/manifest.ts src/checks/__tests__/check-arch-baseline.test.ts src/design/__tests__/arch-route.test.ts src/design/__tests__/arch-progress.test.ts src/design/__tests__/design-approval.test.ts
 cat > "$(git rev-parse --git-dir)/TASK_MSG" <<'EOF'
-feat(design): move the architecture check, re-route, progress and verdict to one page
+feat(design): read and check one detailed architecture page
+
+The reader wants one top-level `architecture` page instead of four view pages, and reads three outer-layer prefixes (external:, container:, store:) with canonical spacing. A path box knows the paths of the path boxes around it, so a part inside a module box is told apart from a module. The rules gain unknown-part and misplaced-part, and hold every arrow that touches code to the file graph, with the outer of two nested ends counting only its files outside the inner one. Arrows touching an outer layer are held to resolving only.
 
 checks arch-baseline gathers the file edges and the existing part paths and prints rows without a view column. design arch-route routes every arrow on the page and drops --view. design arch-progress compares the target's FINAL: page with the one baseline page. design verdict takes `architecture` as the only surface of an architecture .pen.
 
@@ -1756,6 +1763,7 @@ git commit -F "$(git rev-parse --git-dir)/TASK_MSG"
 
 **Files:**
 - Create: `src/design/arch-draw.ts`
+- Modify: `src/docs/docs-architecture.ts`
 - Modify: `src/cli/manifest.ts`
 - Modify: `docs/noldor/script-catalog.md`, `templates/docs/noldor/script-catalog.md`
 - Modify: `AGENTS.md`, `templates/AGENTS.md` (regenerated)
@@ -1895,7 +1903,9 @@ describe('design arch-draw / CLI', () => {
 Run: `pnpm vitest run src/design/__tests__/arch-draw.test.ts`
 Expected: FAIL — cannot find module `../arch-draw.js`.
 
-- [ ] **Step 3: Write the command.** Create `src/design/arch-draw.ts`:
+- [ ] **Step 3: Share the folder exclusions.** In `src/docs/docs-architecture.ts`, change `const EXCLUDED_DIRS = new Set([` to `export const EXCLUDED_DIRS = new Set([`, so parts and modules skip the same folders.
+
+- [ ] **Step 4: Write the command.** Create `src/design/arch-draw.ts`:
 
 ```ts
 // @fd: architecture-design-phase
@@ -1913,7 +1923,7 @@ import { dirname, join } from 'node:path';
 import { writeFileSyncIfAbsent } from '../core/atomic-write.js';
 import { runIfDirect } from '../core/cli-entry.js';
 import { ARCH_BASELINE_PATH } from '../core/design-artifact-names.js';
-import { listModuleDirs } from '../docs/docs-architecture.js';
+import { EXCLUDED_DIRS, listModuleDirs } from '../docs/docs-architecture.js';
 import { ARCH_PAGE } from './arch-pen.js';
 
 export interface DrawInput {
@@ -2119,7 +2129,7 @@ export function drawBaseline(input: DrawInput): string {
   return serialize({ version: PEN_VERSION, children: [page] });
 }
 
-/** A module's direct sub-folders as part paths — test, hidden and `_` folders skipped — sorted. */
+/** A module's direct sub-folders as part paths — test, hidden, `_` and `listModuleDirs`-excluded folders skipped — sorted. */
 export async function listPartDirs(cwd: string, mod: string): Promise<string[]> {
   try {
     const entries = await readdir(join(cwd, mod), { withFileTypes: true });
@@ -2127,9 +2137,9 @@ export async function listPartDirs(cwd: string, mod: string): Promise<string[]> 
       .filter(
         (e) =>
           e.isDirectory() &&
-          !e.isSymbolicLink() &&
           !e.name.startsWith('.') &&
           !e.name.startsWith('_') &&
+          !EXCLUDED_DIRS.has(e.name) &&
           !TEST_DIRS.has(e.name),
       )
       .map((e) => `${mod}/${e.name}`)
@@ -2169,12 +2179,12 @@ export async function main(argv: readonly string[], cwd: string = process.cwd())
 runIfDirect('arch-draw', 'design arch-draw', async (argv) => main(argv));
 ```
 
-- [ ] **Step 4: Run the test to verify it passes.**
+- [ ] **Step 5: Run the test to verify it passes.**
 
 Run: `pnpm vitest run src/design/__tests__/arch-draw.test.ts`
 Expected: PASS — 4 tests.
 
-- [ ] **Step 5: Register the command.** In `src/cli/manifest.ts`, add directly after the `'arch-progress'` entry:
+- [ ] **Step 6: Register the command.** In `src/cli/manifest.ts`, add directly after the `'arch-progress'` entry:
 
 ```ts
       'arch-draw': {
@@ -2183,7 +2193,7 @@ Expected: PASS — 4 tests.
       },
 ```
 
-- [ ] **Step 6: Catalog it.** In `docs/noldor/script-catalog.md`, insert before the `### \`design:arch-route\`` heading:
+- [ ] **Step 7: Catalog it.** In `docs/noldor/script-catalog.md`, insert before the `### \`design:arch-route\`` heading:
 
 ```markdown
 ### `design:arch-draw`
@@ -2198,20 +2208,20 @@ Expected: PASS — 4 tests.
 
 Then run `cp docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md`.
 
-- [ ] **Step 7: Regenerate the capability index.**
+- [ ] **Step 8: Regenerate the capability index.**
 
 Run: `pnpm noldor docs capability-index --write && git status --short AGENTS.md templates/AGENTS.md`
 Expected: `AGENTS.md` shows as modified, its `design` line now listing `arch-draw`. `templates/AGENTS.md` shows as modified when it carries the index too.
 
-- [ ] **Step 8: Validate.**
+- [ ] **Step 9: Validate.**
 
 Run: `pnpm noldor validate script-catalog && pnpm noldor docs capability-index && pnpm typecheck`
 Expected: all three exit 0.
 
-- [ ] **Step 9: Commit.**
+- [ ] **Step 10: Commit.**
 
 ```bash
-git add src/design/arch-draw.ts src/design/__tests__/arch-draw.test.ts src/cli/manifest.ts docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md AGENTS.md templates/AGENTS.md
+git add src/design/arch-draw.ts src/design/__tests__/arch-draw.test.ts src/docs/docs-architecture.ts src/cli/manifest.ts docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md AGENTS.md templates/AGENTS.md
 cat > "$(git rev-parse --git-dir)/TASK_MSG" <<'EOF'
 feat(design): draw the first architecture baseline from the code
 
@@ -2237,6 +2247,8 @@ Run: `pnpm noldor checks arch-baseline`
 Expected: exit 1, one `unreadable` row naming `arch-draw`.
 
 - [ ] **Step 2: Draw the new one.**
+
+`arch-draw` never replaces a file, so the old baseline goes first.
 
 Run: `rm docs/design/architecture/baseline.pen && pnpm noldor design arch-draw`
 Expected: `arch-draw: wrote docs/design/architecture/baseline.pen — 34 module(s) in group: Unplaced. …` (the count is whatever `listModuleDirs` returns today).
@@ -2344,7 +2356,7 @@ import { atomicWriteFileSync, writeFileSyncIfAbsent } from '../core/atomic-write
 import { runIfDirect } from '../core/cli-entry.js';
 import { ARCH_BASELINE_PATH } from '../core/design-artifact-names.js';
 import { readRepoText } from '../core/read-text.js';
-import { listModuleDirs } from '../docs/docs-architecture.js';
+import { EXCLUDED_DIRS, listModuleDirs } from '../docs/docs-architecture.js';
 import { ARCH_PAGE, canonicalName, readArchPen } from './arch-pen.js';
 ```
 
@@ -2698,7 +2710,7 @@ Then run `cp docs/noldor/versioning.md templates/docs/noldor/versioning.md`.
 - **Inputs:** `docs/design/architecture/baseline.pen`; the module set (`listModuleDirs` over `consumer.scanPaths`); module import pairs and file edges from one dependency-cruiser pass (`moduleImportPairs` — tests excluded, tsconfig aliases resolved, the indirection ratchet's completeness guard); which of the baseline's part paths exist on disk.
 - **Outputs:** one row per finding, then advisory rows.
   - Findings:
-    - `unreadable`: no `architecture` page or more than one (the old four-page file included — redraw it with `design arch-draw`), a file that is not a `.pen` document, or an import graph that could not be built.
+    - `unreadable`: no `architecture` page or more than one (the old four-page file included — delete it and redraw with `design arch-draw`, which never replaces a file), a file that is not a `.pen` document, or an import graph that could not be built.
     - `missing-module`, `unknown-module`, `duplicate-module`, `unknown-part`, `misplaced-part`, `dangling-edge`.
     - `phantom-edge`: an arrow between two code paths that no file import backs; when one end sits inside the other, the outer end counts only its files outside the inner one.
   - Advisory: `undrawn-edge`, a module import between two boxed modules that no arrow shows.
@@ -2766,7 +2778,65 @@ git commit -F "$(git rev-parse --git-dir)/TASK_MSG"
 
 ---
 
-## Task 11: Verify the whole branch
+## Task 11: Rewrite the FD summary and usage
+
+`/noldor-draft-feature-md` never touches `## Summary`, and gate Step 4's refresh is scoped to Usage, so the one-page contract is written here by hand.
+
+**Files:**
+- Modify: `docs/features/architecture-design-phase.md`
+
+- [ ] **Step 1: The summary.** Replace the paragraph under `## Summary` with:
+
+```markdown
+An as-built architecture canvas on pen.dev — `docs/design/architecture/baseline.pen`, one detailed `architecture` page drawn between C4 containers and components: externals, containers and stores, modules, and parts inside modules — that architecture designs start from and ship back into, the loop UI designs already run. `design arch-draw` draws the first canvas from the code and adds new modules later, and [`docs/noldor/architecture-canvas.md`](../noldor/architecture-canvas.md) tells any agent how to finish and keep it. `checks arch-baseline` holds it to the code: every module boxed once, every part real and inside its module, every arrow between code paths backed by a real import; arrows to the outer layers are held to resolving. `/noldor-spec` step 1.6 seeds, iterates and approves an architecture `.pen`, gate Step 4 writes the approved change back, and a milestone can carry a target architecture whose gap `design arch-progress` reports — all on the approval, guard, archive and bridge machinery UI uses, through one design-kind seam (ADR 0007, narrowed to one page by ADR 0010).
+```
+
+- [ ] **Step 2: The usage.** Replace everything between the `## Usage` heading and the `## PRs` heading with:
+
+```markdown
+**UI**
+
+1. Bootstrap once: `pnpm noldor design arch-draw` writes `docs/design/architecture/baseline.pen` with every module in `group: Unplaced` and its sub-folders as parts. Then follow [`docs/noldor/architecture-canvas.md`](../noldor/architecture-canvas.md) in VS Code (pen.dev extension): place the modules into containers and groups, add externals, stores and key parts, draw the arrows that matter, and run `pnpm noldor checks arch-baseline` until it is green.
+2. Design a feature or package: in a `specs-only-*` / `full-*` session, `/noldor-spec` step 1.6 asks whether the change is architectural. On `required` it copies the baseline to `docs/design/architecture/<date>-<key>.pen` with one `BASE:architecture: as-built` page. Draw variants as `architecture: <name>` pages, mark the winner `FINAL:architecture: <name>`, and approve at step 7.5.
+3. Design a milestone: `/noldor-milestone draft` (or `edit`) offers to sketch a target into `docs/design/architecture/milestones/<slug>.pen`, linked from the milestone's `## Architecture target` section. The milestone file, the target and its approval record commit together through micro-chore.
+4. After dragging boxes, ask the agent to fix the arrows — it runs `design arch-route` and passes the snippet to pencil `execute`. Save first if you drew new arrows.
+5. At ship, gate Step 4 writes the approved change into the baseline and runs the check. A `missing-module` finding is repaired with `pnpm noldor design arch-draw --refresh`, headless too.
+
+**Agent/Programmatic API**
+
+- `pnpm noldor checks arch-baseline` — holds the baseline to the code. `missing-module`, `unknown-module`, `duplicate-module`, `unknown-part`, `misplaced-part`, `phantom-edge`, `dangling-edge` and `unreadable` exit 1; `undrawn-edge` is advisory; no baseline reports `absent` and exits 0. Release preflight runs it as the `arch-baseline` row (`RELEASE_SKIP_ARCH_BASELINE=1` overrides).
+- `pnpm noldor design arch-draw [--refresh]` — draws the first baseline from the code (exit 1 when one exists), or adds a box for each uncovered module without moving anything (exit 1 when none is readable); exit 2 on bad arguments.
+- `pnpm -s noldor design arch-route --pen <path>` — prints a pencil `execute` snippet that redraws every named arrow from its boxes' live bounds; exit 1 when no arrow resolves, 2 on bad arguments.
+- `pnpm noldor design arch-progress --milestone <slug>` — lists the target's `to-build` and `to-remove` items and a `done` count against the baseline; exit 0 whatever the gap, 1 when a file cannot be read, 2 on a bad slug.
+- `pnpm noldor design verdict --pen <architecture .pen> --approve --surface architecture (--spec <spec> | --milestone <slug>) --editor-page <name>…` — records the approval under `.noldor/design-approval/architecture/` (`architecture/milestones/` for a milestone target); `--check`, `--reconfirm` and `--waive` work as for UI.
+- `pnpm noldor design archive` and `pnpm noldor design pen-bridge` — treat architecture designs like UI ones.
+- `readArchPen(text)` (`src/design/arch-pen.ts`) — the pure reader behind all of the above.
+- `moduleImportPairs(cwd, roots, modules)` (`src/indirection/module-pairs.ts`) — module import pairs and in-repo file edges from one dependency-cruiser pass, or `unmeasurable` when the graph cannot be built.
+
+```
+
+- [ ] **Step 3: Validate.**
+
+Run: `pnpm noldor validate features && pnpm fmt`
+Expected: both exit 0.
+
+- [ ] **Step 4: Commit.**
+
+```bash
+git add docs/features/architecture-design-phase.md
+cat > "$(git rev-parse --git-dir)/TASK_MSG" <<'EOF'
+docs(features:architecture-design-phase): describe the one detailed canvas
+
+The Summary and Usage now describe the one architecture page, design arch-draw, the part rules and the procedure page, in place of the four-view baseline.
+
+Noldor-FD: architecture-design-phase
+EOF
+git commit -F "$(git rev-parse --git-dir)/TASK_MSG"
+```
+
+---
+
+## Task 12: Verify the whole branch
 
 **Files:** none changed unless a gate below goes red.
 

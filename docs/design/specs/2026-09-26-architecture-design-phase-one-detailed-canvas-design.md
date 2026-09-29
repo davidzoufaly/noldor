@@ -82,7 +82,7 @@ An arrow that touches a part is held to the files. Each end stands for the files
 - `design-writeback.md`: one `FINAL:architecture:` page to re-apply, and `arch-draw --refresh` as the fix when the check reports `missing-module` on a session with no approved design.
 - `docs/noldor/gotchas.md`, `docs/noldor/script-catalog.md` and the regenerated `AGENTS.md` capability index gain `arch-draw`. Skill files ride this branch under `NOLDOR_ALLOW_SHARED=1`, as in Q-0201.
 - The FD's Summary and Usage: rewritten at close to the one-page contract. Its current "every arrow backed by a real import" is true only of arrows that touch a module or part; outer-layer arrows are held to resolving.
-- This repo's baseline: regenerated with `arch-draw`, then the current six groups carried over and the result tidied by the operator at the canvas.
+- This repo's baseline: regenerated with `arch-draw`. The old six groups and ten arrows are not carried over; the operator regroups the modules and draws the arrows at the canvas, guided by the `undrawn-edge` advisories.
 
 ### Backlog cleanup
 
