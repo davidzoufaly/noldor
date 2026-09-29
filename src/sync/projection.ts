@@ -1,5 +1,6 @@
 // @fd: feature-md-links-overhaul
 
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
@@ -587,6 +588,15 @@ export interface RunOptions {
   force?: boolean;
   /** Suppress the tagless-kept report. Set by the pre-commit hook lines. */
   quiet?: boolean;
+  /**
+   * `git add` every FD this run rewrote. Set by the pre-commit hook lines whose
+   * glob matches the tagged file, not the FD: lefthook's `stage_fixed` re-stages
+   * only the files it was handed, so an FD the commit did not stage would be
+   * written and left dirty for the next commit to carry. An FD that already had
+   * unstaged edits (or is untracked) before the run is left unstaged and named —
+   * staging it would sweep the operator's own edits into this commit.
+   */
+  stage?: boolean;
   cwd?: string;
   featuresDir?: string;
   /**
@@ -639,6 +649,7 @@ export function parseRunOptions(argv: readonly string[]): RunOptions {
     check: argv.includes('--check'),
     force: argv.includes('--force'),
     quiet: argv.includes('--quiet'),
+    stage: argv.includes('--stage'),
     slugs: parseSlugFilter(argv),
   };
 }
@@ -714,13 +725,54 @@ function reportFailures(failures: ScanFailure[]): boolean {
 }
 
 /**
+ * The FD file names under `featuresDir` that git tracks with no unstaged edit —
+ * the only ones `--stage` may `git add` without taking the operator's own work
+ * along. Paths come back relative to `featuresDir` because git runs there.
+ */
+function cleanTrackedFds(featuresDir: string): Set<string> {
+  const git = (args: string[]): string[] =>
+    execFileSync('git', args, { cwd: featuresDir, encoding: 'utf8', stdio: 'pipe' })
+      .split('\0')
+      .filter(Boolean);
+  // `ls-files` first: outside a checkout it fails with "not a git repository",
+  // where `git diff` would fall back to `--no-index` and fail with a usage dump.
+  const tracked = git(['ls-files', '-z', '--', '.']);
+  const dirty = new Set(git(['diff', '--name-only', '--relative', '-z', '--', '.']));
+  return new Set(tracked.filter((path) => !dirty.has(path)));
+}
+
+/**
+ * `git add` the FDs this run rewrote, except those `clean` does not hold.
+ *
+ * @returns false when git refused, so the run exits non-zero rather than leave
+ *   the commit without the FD it just wrote
+ */
+function stageWritten(featuresDir: string, written: string[], clean: Set<string>): boolean {
+  const staged = written.filter((name) => clean.has(name));
+  for (const name of written.filter((n) => !clean.has(n))) {
+    console.warn(
+      `WARN: left ${join(featuresDir, name)} unstaged — it was untracked or had unstaged edits before the sync.`,
+    );
+  }
+  if (staged.length === 0) return true;
+  try {
+    execFileSync('git', ['add', '--', ...staged], { cwd: featuresDir, stdio: 'pipe' });
+  } catch (error) {
+    console.error(`cannot stage the rewritten feature MD(s): ${(error as Error).message}`);
+    return false;
+  }
+  console.log(`Staged ${staged.length} rewritten feature MD(s).`);
+  return true;
+}
+
+/**
  * Run one kind's projection end to end. Exit-code intent is returned rather than
  * set, so callers (CLI main, tests) decide.
  *
  * @param adapter - The kind to project
- * @param opts - check / force / quiet / slugs plus root overrides
- * @returns 0 when the run is clean, 1 when it found drift, could not trust its scan, or was
- *   handed a `slugs` filter that selects no feature MD
+ * @param opts - check / force / quiet / stage / slugs plus root overrides
+ * @returns 0 when the run is clean, 1 when it found drift, could not trust its scan, was
+ *   handed a `slugs` filter that selects no feature MD, or could not stage what it wrote
  */
 export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {}): Promise<number> {
   const cwd = opts.cwd ?? process.cwd();
@@ -776,7 +828,17 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
   // reported once by `reportMissingFds`; visiting them here only to catch ENOENT
   // produced a second warning for the same fact. An FD deleted between the load
   // and the write is skipped with a warning — it wants no links either way.
-  let updated = 0;
+  // Read before any write: afterwards every rewritten FD looks dirty.
+  let clean: Set<string> | undefined;
+  if (opts.stage) {
+    try {
+      clean = cleanTrackedFds(featuresDir);
+    } catch (error) {
+      console.error(`--stage needs a git checkout: ${(error as Error).message}`);
+      return 1;
+    }
+  }
+  const written: string[] = [];
   const writeFailures: ScanFailure[] = [];
   for (const slug of [...cached.keys()].toSorted()) {
     if (!inScope(slug)) continue;
@@ -784,7 +846,7 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
     const paths = scanned.get(slug) ?? [];
     try {
       if ((await updateFeatureMd(featureMd, paths, adapter, opts.force ?? false)) === 'updated') {
-        updated += 1;
+        written.push(`${slug}.md`);
       }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code ?? 'UNKNOWN';
@@ -820,15 +882,16 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
     }
   }
   console.log(
-    `Scanned ${scan.tagged.length} file(s), wrote links.${adapter.key} on ${updated} feature MD(s)${scopeNote}.`,
+    `Scanned ${scan.tagged.length} file(s), wrote links.${adapter.key} on ${written.length} feature MD(s)${scopeNote}.`,
   );
+  const stagedOk = clean === undefined || stageWritten(featuresDir, written, clean);
   reportMissingFds(missingFdSlugs(scanned, cached).filter(inScope), adapter, featuresDir);
   reportTaglessKept(
     taglessKeptSlugs(scanned, cached, adapter, opts.force ?? false).filter(inScope),
     adapter.key,
     opts.quiet ?? false,
   );
-  if (writeFailures.length === 0) return 0;
+  if (writeFailures.length === 0) return stagedOk ? 0 : 1;
   // Deliberately not `reportFailures`: that text says the scan was not
   // authoritative and nothing was cleared, which is the opposite of what
   // happened here — the links above were written and only these FDs were missed.
