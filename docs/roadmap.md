@@ -15,3 +15,52 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 > - **L / XL** → `full` (spec + plan), and only when there's real design risk — a mechanical L can still fast-track.
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
+
+### FD Headers For Five Ownerless Files
+
+- id: Q-0333
+- area: tooling
+- type: chore
+- since: 2026-09-29
+- size: XS
+- impact: low
+- confidence: high
+
+Five source files belong to an FD but carry no `// @fd:` header, and those FDs build `links.code` from headers, so a `links.code`-only edit is dropped on the next sync. Add the headers: `src/design/editor-launch.ts` (`auto-open-design-artifacts`), `src/autonomous/drain-eligibility.ts` and `src/autonomous/status-cli.ts` (`autonomous-queue-drain-runner`), `src/cr/lanes/codex.ts` (`review-run-lifecycle-module`), `src/garden/detectors/fd-command-rot.ts` (`skill-vs-code-drift-detector`). Surfaced 2026-09-26 by the PR #640 SDD pass.
+
+### Gitignore Cache Backfill Backups
+
+- id: Q-0334
+- area: tooling
+- type: chore
+- since: 2026-09-29
+- size: XS
+- impact: low
+- confidence: high
+
+`features fill-links-code-gaps --apply` writes timestamped backups under `.cache/backfill-backups/` (`src/features/fill-links-code-gaps.ts`), and nothing ignores `.cache/`, so every apply leaves an untracked directory in `git status` — it is sitting there on `main` now. Ignore `.cache/` in `.gitignore`, and check whether the consumer template needs the same line. Surfaced 2026-09-26 by the PR #640 SDD pass.
+
+### Seed Missing Test Co-Tags
+
+- id: Q-0335
+- area: tooling
+- type: test
+- since: 2026-09-29
+- size: S
+- impact: med
+- confidence: med
+- blocked-by: Q-0333
+
+The owners PR #640 added raised the SDD report's "Tests with incomplete co-tag" count from 1 to 33. Run `pnpm noldor features seed-test-tags`, add the named FDs to each test's `// @tests:` line, and re-run `pnpm noldor garden sdd-report` until the section is empty or every remaining row is explained. Waits on Q-0333 because new `@fd:` headers change which FDs own the imported files.
+
+### SDD Report Honours Ownerless On Purpose
+
+- id: Q-0336
+- area: tooling
+- type: fix
+- since: 2026-09-29
+- size: M
+- impact: med
+- confidence: med
+
+ADR 0009 says a shared helper may have no owner, but the SDD report still counts it as a gap. Detector 9 ("Code files not referenced by any feature") counts every ownerless file, and detector 19 ("Done features without code") counts FDs that #636 emptied on purpose because their code lives in shared files (the five dashboard page FDs, `scripts-reorganization-by-feature-area`, `self-boundaries-declaration-and-cycle-break`). After #640 that leaves 17 + 7 rows that are honest, not gaps, so the counts stop meaning anything. Needs a way to say "ownerless on purpose" — a config list, or an FD sentinel stronger than `['n/a']` — that both detectors read. Surfaced 2026-09-26, PR #640.
