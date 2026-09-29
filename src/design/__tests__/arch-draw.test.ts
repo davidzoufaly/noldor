@@ -178,6 +178,29 @@ describe('design arch-draw --refresh', () => {
     expect(await readFile(join(root, BASELINE), 'utf8')).toBe(before);
   });
 
+  it('leaves a non-number size the editor set alone', async () => {
+    const root = await makeRepo();
+    await run([], root);
+    const file = join(root, BASELINE);
+    const doc = JSON.parse(await readFile(file, 'utf8')) as { children: RawNode[] };
+    const unplaced = doc.children[0]!.children!.find((n) => n.name === 'group: Unplaced')!;
+    (unplaced as { height?: unknown }).height = 'fit_content';
+    await writeFile(file, JSON.stringify(doc), 'utf8');
+    await mkdir(join(root, 'src', 'c'), { recursive: true });
+    await writeFile(join(root, 'src', 'c', 'w.ts'), 'export const w = 1;\n', 'utf8');
+    expect((await run(['--refresh'], root)).code).toBe(0);
+    const text = await readFile(file, 'utf8');
+    expect(text).not.toContain('null');
+    const after = JSON.parse(text) as { children: RawNode[] };
+    expect(
+      (
+        after.children[0]!.children!.find((n) => n.name === 'group: Unplaced') as {
+          height?: unknown;
+        }
+      ).height,
+    ).toBe('fit_content');
+  });
+
   it('exits 1 with no baseline to refresh', async () => {
     const root = await makeRepo();
     expect((await run(['--refresh'], root)).code).toBe(1);

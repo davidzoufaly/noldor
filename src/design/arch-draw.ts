@@ -30,10 +30,11 @@ interface PenNode {
   id: string;
   type: string;
   name?: string;
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
+  /** A number when this file wrote it; pen also allows `fit_content`, `fill_container` or a `$variable`. */
+  x?: number | string;
+  y?: number | string;
+  width?: number | string;
+  height?: number | string;
   children?: PenNode[];
   [key: string]: unknown;
 }
@@ -159,21 +160,55 @@ function layRows(boxes: readonly PenNode[], top: number): void {
       box.x = PAD + col * (BOX_W + PAD);
       box.y = y;
     });
-    y += Math.max(...row.map((box) => box.height ?? 0)) + PAD;
+    y += Math.max(...row.map((box) => num(box.height) ?? 0)) + PAD;
   }
+}
+
+/** A measurable position or size, or `undefined` for a non-number one (`fit_content`, a `$variable`). */
+function num(value: number | string | undefined): number | undefined {
+  return typeof value === 'number' ? value : undefined;
+}
+
+/** The far edge of `start + size` over `nodes`, skipping a node whose size cannot be measured; 0 for none. */
+function farEdge(
+  nodes: readonly PenNode[],
+  start: (n: PenNode) => number | string | undefined,
+  size: (n: PenNode) => number | string | undefined,
+): number {
+  const edges = nodes.flatMap((n) => {
+    const extent = num(size(n));
+    return extent === undefined ? [] : [(num(start(n)) ?? 0) + extent];
+  });
+  return Math.max(0, ...edges);
 }
 
 /** The lowest edge among `nodes`, 0 for none. */
 function bottomOf(nodes: readonly PenNode[]): number {
-  return Math.max(0, ...nodes.map((n) => (n.y ?? 0) + (n.height ?? 0)));
+  return farEdge(
+    nodes,
+    (n) => n.y,
+    (n) => n.height,
+  );
 }
 
-/** Grow `frame` to hold every child plus `margin`; never shrink it, so a hand-sized frame keeps its size. */
+/**
+ * Grow `frame` to hold every child plus `margin`; never shrink it, so a
+ * hand-sized frame keeps its size. A non-number width or height is the
+ * editor's own sizing rule and is left alone.
+ */
 function fitFrame(frame: PenNode, margin: number): void {
   const kids = frame.children ?? [];
-  const right = Math.max(0, ...kids.map((c) => (c.x ?? 0) + (c.width ?? 0)));
-  frame.width = Math.max(frame.width ?? 0, right + margin);
-  frame.height = Math.max(frame.height ?? 0, bottomOf(kids) + margin);
+  if (frame.width === undefined || typeof frame.width === 'number')
+    frame.width = Math.max(
+      frame.width ?? 0,
+      farEdge(
+        kids,
+        (c) => c.x,
+        (c) => c.width,
+      ) + margin,
+    );
+  if (frame.height === undefined || typeof frame.height === 'number')
+    frame.height = Math.max(frame.height ?? 0, bottomOf(kids) + margin);
 }
 
 function serialize(doc: unknown): string {
@@ -188,7 +223,7 @@ export function drawBaseline(input: DrawInput): string {
   layRows(boxes, TITLE_H);
   unplaced.children = [...(unplaced.children ?? []), ...boxes];
   fitFrame(unplaced, PAD);
-  const left = (unplaced.x ?? 0) + (unplaced.width ?? 0) + 80;
+  const left = (num(unplaced.x) ?? 0) + (num(unplaced.width) ?? 0) + 80;
   const outer = OUTER_PLACEHOLDERS.map(
     (name, i): PenNode => ({
       id: mint('b'),
@@ -278,7 +313,11 @@ export function refreshBaseline(text: string, input: DrawInput): RefreshResult {
     (n) => n.type === 'frame' && canonicalName(n.name ?? '') === 'group: Unplaced',
   );
   if (unplaced === undefined) {
-    const right = Math.max(0, ...kids.map((n) => (n.x ?? 0) + (n.width ?? 0)));
+    const right = farEdge(
+      kids,
+      (n) => n.x,
+      (n) => n.width,
+    );
     unplaced = groupFrame(mint, 'Unplaced', right + 80, 40);
     kids.push(unplaced);
   }
@@ -306,15 +345,24 @@ export async function listPartDirs(cwd: string, mod: string): Promise<string[]> 
       )
       .map((e) => `${mod}/${e.name}`)
       .sort();
-  } catch {
-    return [];
+  } catch (err) {
+    // A module with no readable folder has no parts; any other error is real and surfaces.
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') return [];
+    throw err;
   }
 }
 
 async function readInput(cwd: string): Promise<DrawInput> {
   const modules = await listModuleDirs(cwd);
   const parts = new Map<string, readonly string[]>();
-  for (const mod of modules) parts.set(mod, await listPartDirs(cwd, mod));
+  // A sub-folder that is itself a module (nested scan roots) is boxed as a module, never as a part too.
+  const known = new Set(modules);
+  for (const mod of modules)
+    parts.set(
+      mod,
+      (await listPartDirs(cwd, mod)).filter((part) => !known.has(part)),
+    );
   return { modules, parts };
 }
 
