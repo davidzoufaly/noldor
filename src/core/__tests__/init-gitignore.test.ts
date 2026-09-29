@@ -29,6 +29,13 @@ describe('ensureGitignoreBlock', () => {
     expect(lines).not.toContain('.env.local');
   });
 
+  it('ignores the fill-links-code-gaps backup dir, anchored to the tree root', () => {
+    const dir = tmp();
+    ensureGitignoreBlock(dir);
+    const lines = readFileSync(join(dir, '.gitignore'), 'utf8').split('\n');
+    expect(lines).toContain('/.cache/backfill-backups/');
+  });
+
   it('appends to an existing .gitignore, preserving prior content', () => {
     const dir = tmp();
     writeFileSync(join(dir, '.gitignore'), 'node_modules\ndist\n');

@@ -68,6 +68,9 @@ metrics.json
 .noldor/drain-state.json
 .noldor/drain.lock
 .noldor/drain-park.json
+# Timestamped FD backups written by `features fill-links-code-gaps --apply` —
+# a per-run safety copy, never for review. Anchored to the tree root.
+/.cache/backfill-backups/
 # Per-worktree dev-server port stamped by `noldor worktrees create` — untracked
 # by design (each tree gets its own), so leaving it unignored makes every fresh
 # worktree start dirty and `pr-flow` preflight refuse to ship. Anchored: only the
