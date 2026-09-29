@@ -1,4 +1,5 @@
-import { writeFileSync, renameSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { linkSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { rename, writeFile } from 'node:fs/promises';
 import { dirname, basename, join } from 'node:path';
 
@@ -32,6 +33,27 @@ export function atomicWriteFileSync(target: string, content: string): void {
   const tmp = join(dirname(target), `${basename(target)}.tmp.${process.pid}`);
   writeFileSync(tmp, content, 'utf8');
   renameSync(tmp, target);
+}
+
+/**
+ * Create `target` with `content` unless it already exists, and say which. The
+ * content goes to a staged sibling that is hard-linked into place: the link
+ * fails with `EEXIST` when `target` exists, so two writers racing cannot both
+ * win, and `target` appears whole or not at all. The staged file is always
+ * removed. `true` = created, `false` = `target` was already there.
+ */
+export function writeFileSyncIfAbsent(target: string, content: string): boolean {
+  const staged = join(dirname(target), `${basename(target)}.${process.pid}.${randomUUID()}.tmp`);
+  writeFileSync(staged, content, { encoding: 'utf8', flag: 'wx' });
+  try {
+    linkSync(staged, target);
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw err;
+  } finally {
+    rmSync(staged, { force: true });
+  }
 }
 
 /**
