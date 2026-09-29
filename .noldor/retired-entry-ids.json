@@ -771,5 +771,9 @@
   "Q-0328": {
     "slug": "test-links-sync-restages-the-fd",
     "retiredAt": "2026-09-29"
+  },
+  "Q-0329": {
+    "slug": "drain-prompt-points-at-drain-mode",
+    "retiredAt": "2026-09-29"
   }
 }
