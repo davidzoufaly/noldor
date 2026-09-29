@@ -15,16 +15,3 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 > - **L / XL** → `full` (spec + plan), and only when there's real design risk — a mechanical L can still fast-track.
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
-
-### Blockers Md onBlockers Default Prose
-
-- id: Q-0330
-- area: tooling
-- type: docs
-- since: 2026-09-29
-- size: XS
-- impact: low
-- confidence: high
-- parent: gate-skill-loads-only-the-branch-a-session-takes
-
-`.claude/skills/noldor-gate/blockers.md` still says the auto-fix seam is off unless `autonomous.onBlockers: 'auto-fix'` ("default `prompt`"), but an unset knob follows the session and reads as `auto-fix` in an autonomous one — `drain-mode.md` states it right. Q-0320 moved the sentence verbatim because the split changed no rule; correct it.
