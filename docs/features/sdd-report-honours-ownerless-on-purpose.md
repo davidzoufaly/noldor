@@ -17,8 +17,8 @@ packages:
 phase: done
 since: 2026-09-29T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.15.0
 ---
-
 ## Summary
 
 ADR 0009 says a shared helper may have no owner, but the SDD report still counts it as a gap. Detector 9 ("Code files not referenced by any feature") counts every ownerless file, and detector 19 ("Done features without code") counts FDs that #636 emptied on purpose because their code lives in shared files (the five dashboard page FDs, `scripts-reorganization-by-feature-area`, `self-boundaries-declaration-and-cycle-break`). Honest rows and real gaps sit in one list, so the counts stop meaning anything. This feature adds a `consumer.ownerless` config block that both detectors read, each entry with a reason, plus a check that flags an entry once it stops being true. Of the 20 file rows on 2026-09-29, 10 shared helpers are declared and 10 are real gaps (PR #666 gave five of those an owner, so five rows remain); all 7 FD rows are declared. Surfaced 2026-09-26, PR #640.
@@ -46,6 +46,16 @@ As a maintainer (human or agent) reading the SDD report, I want files and featur
 <!-- @prs-since-last-release: sdd-report-honours-ownerless-on-purpose -->
 
 ## Changelog
+
+### Initial Release (v1.15.0)
+
+#### Summary
+
+The SDD report now honours ownerless-on-purpose declarations (#670).
+
+#### PRs
+
+- #670: SDD report honours ownerless-on-purpose declarations ([link](https://github.com/davidzoufaly/noldor/pull/670))
 
 <!-- generated: resources -->
 

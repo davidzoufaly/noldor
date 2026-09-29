@@ -1,5 +1,15 @@
 # Release Notes
 
+## v1.15.0 — 2026-09-29
+
+### Tooling
+
+#### SDD Report Honours Ownerless On Purpose
+
+The SDD report now honours ownerless-on-purpose declarations (#670).
+
+[Feature page](/features/sdd-report-honours-ownerless-on-purpose)
+
 ## v1.14.0 — 2026-09-29
 
 ### Tooling

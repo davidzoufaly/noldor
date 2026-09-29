@@ -1,5 +1,40 @@
 # Changelog
 
+## v1.15.0 — 2026-09-29
+
+### Features
+
+- feat(features:sdd-report-honours-ownerless-on-purpose): SDD report honours ownerless-on-purpose declarations ([024febb](https://github.com/davidzoufaly/noldor/commit/024febbdd661f64a29ec98f4d281d575d1f8ff0a)) ([#670](https://github.com/davidzoufaly/noldor/pull/670))
+
+### Fixes
+
+- fix(core): gitignore the fill-links-code-gaps backup dir ([7d57da2](https://github.com/davidzoufaly/noldor/commit/7d57da2103e806d46fc08f342731fa4a39c41312)) ([#667](https://github.com/davidzoufaly/noldor/pull/667))
+- fix(design): arch-baseline sees imports of workspace packages ([f3697d6](https://github.com/davidzoufaly/noldor/commit/f3697d671dde78b89d20f0cddbe12d61f771735c)) ([#663](https://github.com/davidzoufaly/noldor/pull/663))
+- fix(sync): test-links sync stages the FDs it rewrites ([6145316](https://github.com/davidzoufaly/noldor/commit/6145316f2998785fc3e3d48bf9ba6745e6343e9e)) ([#658](https://github.com/davidzoufaly/noldor/pull/658))
+- fix(triage): remove-block skips the retired-ID record for a promoted entry ([6467aec](https://github.com/davidzoufaly/noldor/commit/6467aecdda5a1d4c194f49eed0b5f5faaf56f8b5)) ([#656](https://github.com/davidzoufaly/noldor/pull/656))
+- fix(core): next-priority holds entries blocked by an unshipped FD ([8fb47c5](https://github.com/davidzoufaly/noldor/commit/8fb47c533e9f43be05a6a0618fe3ec4df529d58e)) ([#654](https://github.com/davidzoufaly/noldor/pull/654))
+- fix(cr): render-compare checks the exported page against the .pen on disk ([22cb5a6](https://github.com/davidzoufaly/noldor/commit/22cb5a6d3d69369cf775d9258819689da9f28d89)) ([#652](https://github.com/davidzoufaly/noldor/pull/652))
+- fix(release): stamp templates/docs/noldor twins with their pages ([1f52b36](https://github.com/davidzoufaly/noldor/commit/1f52b36b63d2f71f792ae8c31c602272cc945dc8)) ([#650](https://github.com/davidzoufaly/noldor/pull/650))
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift ([739b062](https://github.com/davidzoufaly/noldor/commit/739b062647bd7f099a07ad828845b11a01154563)) ([#672](https://github.com/davidzoufaly/noldor/pull/672))
+- chore(graph): refresh the committed knowledge graph ([0cd1c62](https://github.com/davidzoufaly/noldor/commit/0cd1c6233f0d723312e070cfc889c031cf185f1a)) ([#671](https://github.com/davidzoufaly/noldor/pull/671))
+- test(features): seed the 52 missing @tests co-tags (Q-0335) ([f3413ee](https://github.com/davidzoufaly/noldor/commit/f3413ee473d98e0bb10bf9463c3d11560011000e)) ([#669](https://github.com/davidzoufaly/noldor/pull/669))
+- chore(graph): refresh the committed knowledge graph ([566340a](https://github.com/davidzoufaly/noldor/commit/566340a9897c6fb801338c4f5ac2aacab183ea7d)) ([#668](https://github.com/davidzoufaly/noldor/pull/668))
+- chore(features): add @fd headers to five ownerless files ([bcd9611](https://github.com/davidzoufaly/noldor/commit/bcd9611a9a4785cb01e3b1a9582e5e97bd482ea4)) ([#666](https://github.com/davidzoufaly/noldor/pull/666))
+- docs(triage): queue the PR #640 SDD follow-ups (Q-0333..Q-0336) ([fae0764](https://github.com/davidzoufaly/noldor/commit/fae076480ce4961cb9af4524b56f6f594a5577bb)) ([#665](https://github.com/davidzoufaly/noldor/pull/665))
+- chore(graph): refresh the committed knowledge graph ([d05aede](https://github.com/davidzoufaly/noldor/commit/d05aede708a680c034ce6e3354d11fdca4c19c18)) ([#664](https://github.com/davidzoufaly/noldor/pull/664))
+- docs(gate): blockers.md says an unset onBlockers follows the session ([6f31a87](https://github.com/davidzoufaly/noldor/commit/6f31a876a5778cfe1f99787184b5b993e36288a6)) ([#662](https://github.com/davidzoufaly/noldor/pull/662))
+- chore(graph): refresh the committed knowledge graph ([90d6212](https://github.com/davidzoufaly/noldor/commit/90d6212c88f98363242cd112692f473ec3b9c0d7)) ([#661](https://github.com/davidzoufaly/noldor/pull/661))
+- refactor(autonomous): prose drain prompts point at drain-mode.md ([9c23f9e](https://github.com/davidzoufaly/noldor/commit/9c23f9e9540aa1fb907a476d3f57b5298fc4e764)) ([#660](https://github.com/davidzoufaly/noldor/pull/660))
+- chore(graph): refresh the committed knowledge graph ([37bcbfb](https://github.com/davidzoufaly/noldor/commit/37bcbfb84d0f517f8484e562a2bc80e075f9ebe7)) ([#659](https://github.com/davidzoufaly/noldor/pull/659))
+- chore(graph): refresh the committed knowledge graph ([37a9bb7](https://github.com/davidzoufaly/noldor/commit/37a9bb7e390756b420f9b9a94fe0b0cbb02b26f0)) ([#657](https://github.com/davidzoufaly/noldor/pull/657))
+- chore(graph): refresh the committed knowledge graph ([03a2cef](https://github.com/davidzoufaly/noldor/commit/03a2cef4132168c58386cb6592b728829da8dd9e)) ([#655](https://github.com/davidzoufaly/noldor/pull/655))
+- chore(graph): refresh the committed knowledge graph ([dec9b7c](https://github.com/davidzoufaly/noldor/commit/dec9b7c0fcc2ab12d2dbc6a54c1613058c9b4167)) ([#653](https://github.com/davidzoufaly/noldor/pull/653))
+- chore(graph): refresh the committed knowledge graph ([e73558f](https://github.com/davidzoufaly/noldor/commit/e73558fba0382275098a23022be65c2df37830b5)) ([#651](https://github.com/davidzoufaly/noldor/pull/651))
+- docs(triage): queue Q-0324..Q-0332 and absorb 13 lessons ([ced3a1b](https://github.com/davidzoufaly/noldor/commit/ced3a1baa7e151547ebf3cd7663d4b94ed031489)) ([#649](https://github.com/davidzoufaly/noldor/pull/649))
+
 ## v1.14.0 — 2026-09-29
 
 ### Features
