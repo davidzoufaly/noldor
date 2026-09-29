@@ -55,7 +55,7 @@ A new optional block in `.noldor/config.json`, parsed by `loadConsumerConfig` in
 }
 ```
 
-Each value is a required non-empty reason. Keys under `files` are repo-relative paths; keys under `features` are FD slugs.
+Each value is a required reason that is not blank after trimming. Keys under `files` are repo-relative paths; keys under `features` are FD slugs.
 
 Only the SDD report reads this block. Nothing else in the framework changes meaning.
 
@@ -65,13 +65,15 @@ Rejected: marking files in place with `// @fd: none — <reason>` and FDs with a
 
 `detectCodeOrphans(allPaths, features, suggestion?, ownerless?)` drops any path listed in `ownerless.files`, or under a listed directory (the same `isCoveredByAncestorDir` rule `links.code` directory entries use). `detectDoneFeaturesMissingCode(features, ownerless?)` drops any FD listed in `ownerless.features`. Both keep working with the argument absent, so existing unit tests stay valid.
 
-The block reaches them through `ReportInput` (`src/garden/sdd-report.ts:561`) as a **required** field, filled by the loader, and `collectGaps` passes it to both. Required, not optional, because `collectGaps` already warns about this trap: an optional input silently drops behaviour for any caller that forgets it, which is the dashboard-vs-report divergence the `loadSddInput layout parity` test guards. The schema itself is a new optional key on `ConsumerConfigSchema` (zod, `src/core/consumer-config.ts`) defaulting to `{ files: {}, features: {} }`.
+The block reaches them through `ReportInput` (`src/garden/sdd-report.ts:561`) as a **required** field, filled by both builders (`src/garden/sdd-report.ts` and `loadSddInput` in `src/dashboard/data.ts`), and `collectGaps` passes it to both detectors. Required, not optional, because `collectGaps` already warns about this trap: an optional input silently drops behaviour for any caller that forgets it, which is the dashboard-vs-report divergence the `loadSddInput layout parity` test guards. The schema itself is a new optional key on `ConsumerConfigSchema` (zod, `src/core/consumer-config.ts`) defaulting to `{ files: {}, features: {} }`.
 
 ### Stale-declaration check
 
 A new detector, `detectStaleOwnerless`, emits one gap per declaration that no longer holds:
 
-- a `files` entry whose path does not exist, or that some FD's `links.code` now covers (directly or by an ancestor directory, reusing `isCoveredByAncestorDir`);
+- a `files` entry whose path does not exist on disk (checked with `existsSync` against the repo root, not against `ReportInput.allRepoPaths`, which holds only walked files and so never contains a directory key or a file outside the scan roots);
+- a `files` entry that some FD's `links.code` now covers (directly or by an ancestor directory, reusing `isCoveredByAncestorDir`);
+- a `files` entry for a file `detectCodeOrphans` would never flag anyway (it matches `CODE_IGNORE_PATTERNS` or `isInfraFile`, or is not `.ts` / `.tsx`), since it hides nothing;
 - a `features` entry whose slug has no FD, or whose FD now has a non-empty `links.code`.
 
 Its category is "Stale ownerless declarations", and it runs inside `collectGaps` like every other detector. It lives in the SDD report and not in `validate noldor-config` because the report already loads every FD and walks the files it needs; the validator does neither. A stale row weighs the same as the row the entry was hiding, so it blocks the garden auto-restamp the same way.
@@ -101,8 +103,9 @@ The test for each row is ADR 0009's: is the file *about* one feature? If yes, th
 
 ### Files touched
 
-- `src/core/consumer-config.ts` — `ownerless` key on `ConsumerConfigSchema`: `files` and `features`, each `z.record(z.string(), z.string().min(1))`, defaulting to empty.
-- `src/garden/sdd-report.ts` — `ReportInput.ownerless` (required), filled by the loader; the two detectors take it; new `detectStaleOwnerless`; `collectGaps` wires all three.
+- `src/core/consumer-config.ts` — `ownerless` key on `ConsumerConfigSchema`: `files` and `features`, each `z.record(z.string(), z.string().trim().min(1))`, defaulting to empty.
+- `src/garden/sdd-report.ts` — `ReportInput.ownerless` (required), filled by its loader; the two detectors take it; new `detectStaleOwnerless`; `collectGaps` wires all three.
+- `src/dashboard/data.ts` — `loadSddInput`, the second `ReportInput` builder, fills `ownerless` the same way.
 - `src/garden/__tests__/sdd-report.test.ts` — unit tests for each criterion below.
 - `.noldor/config.json` — the 10 file and 7 FD declarations.
 - `docs/noldor/garden-and-drift.md` and its twin `templates/docs/noldor/garden-and-drift.md` — detector 9 and 19 rows name the declaration as a fix, plus a short note on the stale row.
@@ -112,8 +115,8 @@ The test for each row is ADR 0009's: is the file *about* one feature? If yes, th
 
 - A file listed under `consumer.ownerless.files` gets no "Code files not referenced by any feature" row, and neither does a file under a listed directory.
 - An FD listed under `consumer.ownerless.features` gets no "Done features without code" row.
-- An entry with an empty reason makes `loadConsumerConfig` throw, so every `pnpm noldor` command that reads the config exits non-zero.
-- A `files` entry whose path is missing on disk, or is now covered by some FD's `links.code`, yields exactly one "Stale ownerless declarations" gap.
+- An entry with an empty or whitespace-only reason makes `loadConsumerConfig` throw, so every `pnpm noldor` command that reads the config exits non-zero.
+- A `files` entry whose path is missing on disk, is now covered by some FD's `links.code`, or names a file the orphan detector would never flag, yields exactly one "Stale ownerless declarations" gap. A directory key that exists is not stale.
 - A `features` entry whose slug has no FD, or whose FD has a non-empty `links.code`, yields exactly one "Stale ownerless declarations" gap.
 - With no `ownerless` block, `collectGaps` returns exactly the gaps it returns today.
 - The dashboard and the report still read the same `ReportInput` (the `loadSddInput layout parity` test stays green).
