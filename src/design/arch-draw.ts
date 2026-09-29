@@ -1,20 +1,23 @@
 // @fd: architecture-design-phase
-// `noldor design arch-draw` — the first architecture canvas, drawn from the
-// code (spec: "Draw command"). Every module lands in `group: Unplaced` with its
-// non-test sub-folders as parts, beside one placeholder per outer layer. No
-// arrow is drawn: every import at once is a hairball, and the check's
-// `undrawn-edge` advisories list them instead. Placing, grouping and arrows are
-// the operator's canvas work — docs/noldor/architecture-canvas.md.
+// `noldor design arch-draw [--refresh]` — the first architecture canvas, drawn
+// from the code, and new modules added to it later (spec: "Draw command").
+// Every module lands in `group: Unplaced` with its non-test sub-folders as
+// parts, beside one placeholder per outer layer. No arrow is drawn: every
+// import at once is a hairball, and the check's `undrawn-edge` advisories list
+// them instead. `--refresh` never moves, resizes or renames a box already
+// there, so the hand layout survives. Placing, grouping and arrows are the
+// operator's canvas work — docs/noldor/architecture-canvas.md.
 
 import { mkdirSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-import { writeFileSyncIfAbsent } from '../core/atomic-write.js';
+import { atomicWriteFileSync, writeFileSyncIfAbsent } from '../core/atomic-write.js';
 import { runIfDirect } from '../core/cli-entry.js';
 import { ARCH_BASELINE_PATH } from '../core/design-artifact-names.js';
+import { readRepoText } from '../core/read-text.js';
 import { EXCLUDED_DIRS, listModuleDirs } from '../docs/docs-architecture.js';
-import { ARCH_PAGE } from './arch-pen.js';
+import { ARCH_PAGE, canonicalName, readArchPen } from './arch-pen.js';
 
 export interface DrawInput {
   readonly modules: readonly string[];
@@ -219,6 +222,75 @@ export function drawBaseline(input: DrawInput): string {
   return serialize({ version: PEN_VERSION, children: [page] });
 }
 
+export type RefreshResult =
+  | {
+      readonly ok: true;
+      /** The new file text, or `null` when there is nothing to add. */
+      readonly text: string | null;
+      readonly added: readonly string[];
+      readonly gone: readonly string[];
+    }
+  | { readonly ok: false; readonly error: string };
+
+function idsOf(nodes: readonly PenNode[], into: Set<string> = new Set()): Set<string> {
+  for (const n of nodes) {
+    into.add(n.id);
+    idsOf(n.children ?? [], into);
+  }
+  return into;
+}
+
+/**
+ * `text` with a box, parts included, added to `group: Unplaced` for every
+ * module no box covers. Nothing already on the page moves, resizes or is
+ * renamed. `gone` names the top-level path boxes whose module no longer
+ * exists; only the operator deletes those.
+ */
+export function refreshBaseline(text: string, input: DrawInput): RefreshResult {
+  const read = readArchPen(text);
+  if (!read.ok) return read;
+  const pages = read.doc.pages.filter((p) => p.role === 'baseline');
+  const [page] = pages;
+  if (pages.length !== 1 || page === undefined)
+    return { ok: false, error: `expected one \`${ARCH_PAGE}\` page, found ${pages.length}` };
+  const known = new Set(input.modules);
+  const underModule = (ref: string): boolean =>
+    input.modules.some((mod) => ref.startsWith(`${mod}/`));
+  const gone = page.boxes
+    .filter(
+      (b) =>
+        b.kind === 'path' &&
+        b.within.length === 0 &&
+        b.refs.some((ref) => !known.has(ref) && !underModule(ref)),
+    )
+    .map((b) => b.name)
+    .sort();
+  const covered = new Set(page.boxes.flatMap((b) => b.refs));
+  const added = input.modules.filter((mod) => !covered.has(mod));
+  if (added.length === 0) return { ok: true, text: null, added, gone };
+
+  const root = JSON.parse(text) as { children: PenNode[] };
+  const pageNode = root.children.find((n) => n.id === page.id);
+  if (pageNode === undefined) return { ok: false, error: `the \`${ARCH_PAGE}\` page has no node` };
+  const mint = idMinter(idsOf(root.children));
+  const kids = (pageNode.children ??= []);
+  let unplaced = kids.find(
+    (n) => n.type === 'frame' && canonicalName(n.name ?? '') === 'group: Unplaced',
+  );
+  if (unplaced === undefined) {
+    const right = Math.max(0, ...kids.map((n) => (n.x ?? 0) + (n.width ?? 0)));
+    unplaced = groupFrame(mint, 'Unplaced', right + 80, 40);
+    kids.push(unplaced);
+  }
+  const boxes = added.map((mod) => moduleBox(mint, mod, input.parts.get(mod) ?? []));
+  const inside = unplaced.children ?? [];
+  layRows(boxes, Math.max(TITLE_H, bottomOf(inside.filter((n) => n.type !== 'text')) + PAD));
+  unplaced.children = [...inside, ...boxes];
+  fitFrame(unplaced, PAD);
+  fitFrame(pageNode, 40);
+  return { ok: true, text: serialize(root), added, gone };
+}
+
 /** A module's direct sub-folders as part paths — test, hidden, `_` and `listModuleDirs`-excluded folders skipped — sorted. */
 export async function listPartDirs(cwd: string, mod: string): Promise<string[]> {
   try {
@@ -246,23 +318,51 @@ async function readInput(cwd: string): Promise<DrawInput> {
   return { modules, parts };
 }
 
-/** Exit 0 = baseline written, 1 = a baseline already exists, 2 = bad arguments. */
+/**
+ * Exit 0 = baseline written, or nothing to add; 1 = a baseline already exists
+ * (first draw), or none is readable (`--refresh`); 2 = bad arguments.
+ */
 export async function main(argv: readonly string[], cwd: string = process.cwd()): Promise<number> {
   const label = 'design arch-draw';
-  if (argv.length > 0) {
-    console.error(`${label}: unexpected ${argv.join(' ')} — usage: design arch-draw`);
+  const refresh = argv.includes('--refresh');
+  const stray = argv.filter((arg) => arg !== '--refresh');
+  if (stray.length > 0) {
+    console.error(`${label}: unexpected ${stray.join(' ')} — usage: design arch-draw [--refresh]`);
     return 2;
   }
   const input = await readInput(cwd);
   const target = join(cwd, ARCH_BASELINE_PATH);
-  mkdirSync(dirname(target), { recursive: true });
-  if (!writeFileSyncIfAbsent(target, drawBaseline(input))) {
-    console.error(`${label}: ${ARCH_BASELINE_PATH} already exists — nothing written`);
+  if (!refresh) {
+    mkdirSync(dirname(target), { recursive: true });
+    if (!writeFileSyncIfAbsent(target, drawBaseline(input))) {
+      console.error(
+        `${label}: ${ARCH_BASELINE_PATH} already exists — nothing written; add new modules with --refresh`,
+      );
+      return 1;
+    }
+    console.log(
+      `arch-draw: wrote ${ARCH_BASELINE_PATH} — ${input.modules.length} module(s) in group: Unplaced. Place them next: docs/noldor/architecture-canvas.md`,
+    );
+    return 0;
+  }
+  const file = readRepoText(cwd, ARCH_BASELINE_PATH);
+  if (!file.ok) {
+    console.error(`${label}: no readable baseline — ${file.error}; draw one with design arch-draw`);
     return 1;
   }
+  const result = refreshBaseline(file.text, input);
+  if (!result.ok) {
+    console.error(`${label}: ${ARCH_BASELINE_PATH}: ${result.error}`);
+    return 1;
+  }
+  if (result.text !== null) atomicWriteFileSync(target, result.text);
   console.log(
-    `arch-draw: wrote ${ARCH_BASELINE_PATH} — ${input.modules.length} module(s) in group: Unplaced. Place them next: docs/noldor/architecture-canvas.md`,
+    result.added.length === 0
+      ? 'arch-draw: nothing to add'
+      : `arch-draw: added ${result.added.join(', ')} to group: Unplaced — place them on the canvas`,
   );
+  for (const name of result.gone)
+    console.log(`  gone: \`${name}\` names no module any more — delete the box on the canvas`);
   return 0;
 }
 
