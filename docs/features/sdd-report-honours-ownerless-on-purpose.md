@@ -10,11 +10,11 @@ links:
     - src/core/__tests__/consumer-config.test.ts
     - src/garden/__tests__/sdd-report.test.ts
   spec: >-
-    docs/design/specs/2026-09-29-sdd-report-honours-ownerless-on-purpose-design.md
+    docs/design/specs/archive/2026-09-29-sdd-report-honours-ownerless-on-purpose-design.md
 name: SDD Report Honours Ownerless On Purpose
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-09-29T00:00:00.000Z
 noldor-tier: specs-only
 ---
@@ -25,17 +25,21 @@ ADR 0009 says a shared helper may have no owner, but the SDD report still counts
 
 ## Diagram
 
-<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
-     two beside it for readers that do not render mermaid. No shape worth drawing?
-     Replace this comment with: noldor:cut <reason> -->
+noldor:cut the change is two filters and one detector inside `src/garden/sdd-report.ts` plus a config key; no component or flow shape changes
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As a maintainer (human or agent) reading the SDD report, I want files and features that are ownerless on purpose to drop out of the gap lists, so that every row left is a real gap I should fix.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**Agent/Programmatic API**
+
+- Declare a shared helper or an FD whose code lives in shared files in `.noldor/config.json`, each with a reason:
+  `"consumer": { "ownerless": { "files": { "src/core/session.ts": "session-marker IO used by every gate path" }, "features": { "dashboard-wip-age-page": "page renders from the shared src/dashboard/ views" } } }`
+- `pnpm noldor garden sdd-report` skips declared entries in "Code files not referenced by any feature" and "Done features without code".
+- The same run adds a "Stale ownerless declarations" row for any entry that no longer hides a row (file deleted, renamed or now owned; test, infra or out-of-scan path; FD gone, not done, or now has `links.code`). Remove the entry to clear it.
+- A blank reason makes every `pnpm noldor` command that loads the config fail.
 
 ## PRs
 
@@ -47,7 +51,7 @@ ADR 0009 says a shared helper may have no owner, but the SDD report still counts
 
 ## Resources
 
-- **Spec:** [`docs/design/specs/2026-09-29-sdd-report-honours-ownerless-on-purpose-design.md`](../../docs/design/specs/2026-09-29-sdd-report-honours-ownerless-on-purpose-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-09-29-sdd-report-honours-ownerless-on-purpose-design.md`](../../docs/design/specs/archive/2026-09-29-sdd-report-honours-ownerless-on-purpose-design.md)
 - **Code:**
   - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
 - **Tests:**
