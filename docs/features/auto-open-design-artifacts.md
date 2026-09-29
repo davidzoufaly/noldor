@@ -5,6 +5,7 @@ deps: []
 entry-id: Q-0200
 links:
   code:
+    - src/design/editor-launch.ts
     - src/design/open-artifact-cli.ts
     - src/design/open-artifact.ts
     - src/hooks/noldor-open-artifact.ts
@@ -20,6 +21,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 1.7.0
 ---
+
 ## Summary
 
 Every artifact path the framework reports resolves from the editor's workspace folder
@@ -120,6 +122,7 @@ The auto-open feature for specs and plans now reports a link that resolves (#416
 ## Resources
 
 - **Code:**
+  - [`src/design/editor-launch.ts`](../../src/design/editor-launch.ts)
   - [`src/design/open-artifact-cli.ts`](../../src/design/open-artifact-cli.ts)
   - [`src/design/open-artifact.ts`](../../src/design/open-artifact.ts)
   - [`src/hooks/noldor-open-artifact.ts`](../../src/hooks/noldor-open-artifact.ts)

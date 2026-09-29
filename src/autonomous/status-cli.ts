@@ -1,3 +1,5 @@
+// @fd: autonomous-queue-drain-runner
+
 // `noldor autonomous status` — operator-facing liveness + progress report so
 // nobody has to read `.noldor/drain-state.json` / `.noldor/drain.lock` by hand.
 // Liveness comes from the actual process (lock pid + kill -0 via liveLockPid),

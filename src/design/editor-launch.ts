@@ -1,3 +1,4 @@
+// @fd: auto-open-design-artifacts
 // @tests: pendev-ui-design-phase
 // Launching an EDITOR on a plain file, without taking focus where the platform
 // allows it.
