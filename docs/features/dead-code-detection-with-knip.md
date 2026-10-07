@@ -12,11 +12,10 @@ links:
 name: Dead-Code Detection with knip
 packages:
   - scripts
-phase: done
+phase: in-progress
 since: 2026-10-07T00:00:00.000Z
 noldor-tier: specs-only
 ---
-
 ## Summary
 
 Nothing in the framework finds dead code (unused files, unused exports, unused and unlisted dependencies). `noldor clones` finds code that exists twice, not code that should not exist; the `/noldor-refactor` report's "Dead Code" section is filled in by hand; the dashboard already looks for an "Unused Exports" count (`src/dashboard/data.ts:2125`) that nothing produces. This feature covers noldor itself: add knip as a devDependency, run it in pre-push or CI, and ratchet it like `clones` (a recorded baseline; the count may not rise). It ships nothing to consumers — the consumer-facing opt-in check is a separate roadmap entry, to follow once this one has proved itself.

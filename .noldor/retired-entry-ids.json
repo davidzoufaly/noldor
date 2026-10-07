@@ -803,5 +803,10 @@
   "Q-0339": {
     "slug": "priority-pickup-always-asks-the-same-way",
     "retiredAt": "2026-10-07"
+  },
+  "Q-0345": {
+    "slug": "dead-code-detection-for-consumers",
+    "retiredInto": "dead-code-detection-with-knip",
+    "retiredAt": "2026-10-07"
   }
 }
