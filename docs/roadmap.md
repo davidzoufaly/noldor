@@ -15,3 +15,76 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 > - **L / XL** → `full` (spec + plan), and only when there's real design risk — a mechanical L can still fast-track.
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
+
+### FD Headers for Five Real-Gap Orphans
+
+- id: Q-0338
+- area: tooling
+- type: chore
+- since: 2026-10-07
+- size: XS
+- impact: low
+- confidence: high
+
+Give owners to the last five real-gap code orphans (surfaced 2026-09-29, PR #670). With `consumer.ownerless` in place, "Code files not referenced by any feature" lists only files that are about one feature and lack a `// @fd:` header: `src/cr/cut-scan.ts`, `src/cr/geometry/geometry-export-cli.ts`, `src/cr/lanes/geometry-extract-dispatch.ts`, `src/design/arch-draw.ts`, `src/release/index.ts`. Add a header naming each file's FD (the report's probable-owner hint is a start), then re-run `pnpm noldor features seed-test-tags` for the co-tags the new owners raise.
+
+### Priority Pickup Always Asks the Same Way
+
+- id: Q-0339
+- area: tooling
+- type: fix
+- since: 2026-10-07
+- size: S
+- impact: med
+- confidence: med
+
+Gate Step 0 priority pickup behaves inconsistently: sometimes the operator gets two questions (bucket, then entry), sometimes only one, and the session immediately starts working on the highest-priority entry. The single-entry shortcuts in Step 0 ("a single entry is used directly") skip the confirmation the multi-entry case gets, which reads as the agent picking work on its own. Make the pickup flow predictable: the operator always sees which entry was chosen and confirms it before work starts.
+
+### Session Retro Auto-Capture
+
+- id: Q-0340
+- area: tooling
+- type: feat
+- since: 2026-10-07
+- size: M
+- impact: high
+- confidence: med
+- parent: memory-intake-lessons-learned-pipeline
+
+Today nothing makes an agent write what it learned. The `## Lessons` + `/noldor-absorb` loop only fires when someone asks, so lessons leak into the assistant's private memory instead (charuy, Q-0321, PR #346: the `Why:`-vs-`Why —` PR-summary trap went to memory, three follow-ups only reached `ideas.md` on request). Add a gate step after merge (Step 4.11, before the Step 5 handoff), on every path: the agent appends (1) follow-ups and unfixed findings — verifier notes, deferred review lows, spec drift, unpriced or skipped bits — as raw bullets under `## Not groomed`, and (2) traps that cost a debugging cycle under `## Lessons`, each with slug + PR + date, and never names the next roadmap entry (always-clear stays intact). Open: (a) scaffold `## Lessons` when a consumer's `ideas.md` lacks it (charuy's has none); (b) `ideas.md` is gitignored in some consumers (charuy) and tracked in others (noldor), so the step writes the file and never commits it; (c) an empty retro is fine and should say so, not pad; (d) a drain child needs the same step, headless.
+
+### Graph and Main Freshness Before Coding
+
+- id: Q-0341
+- area: tooling
+- type: feat
+- since: 2026-10-07
+- size: M
+- impact: med
+- confidence: med
+
+Graph freshness is checked once per session, at the spec's structural-read step, and never again (surfaced 2026-10-04, charuy Q-0145). `noldor-spec` step 1.7 runs `design graph-context`, rebuilds on `stale`, reads the digest, then restores `graphify-out/`. Nothing re-checks before implementation starts, during it, or before the code-stage CR, so a long session (spec → 3 review rounds → code) can plan and code against a graph the tree has moved past, and other sessions' merges to `origin/main` mid-session are never pulled in. Worktrees branch from `origin/main` at create time and `pr-flow` fetches at the end, but nothing fetches in between. Options: (a) gate Step 3.5 (rule brief before the first edit) also runs `design graph-context` over the files about to be touched and rebuilds locally on `stale` (~15 s, restored afterwards, never committed); (b) a `git fetch origin main` + "main moved N commits since worktree create" notice at the same seam, so the operator can merge main in before coding rather than at push.
+
+### Dead-Code Detection with knip
+
+- id: Q-0342
+- area: tooling
+- type: feat
+- since: 2026-10-07
+- size: M
+- impact: med
+- confidence: med
+
+Nothing in the framework finds dead code (unused files, unused exports, unused and unlisted dependencies). `noldor clones` finds code that exists twice, not code that should not exist; the `/noldor-refactor` report's "Dead Code" section is filled in by hand; the dashboard already looks for an "Unused Exports" count (`src/dashboard/data.ts:2125`) that nothing produces. Two steps, both wanted: (1) noldor itself — add knip as a devDependency, run it in pre-push or CI, and ratchet it like `clones` (a recorded baseline; the count may not rise); ships nothing to consumers. (2) Consumers — an opt-in check that runs only when the consumer has knip installed, feeds the same ratchet, and surfaces the counts in `sdd-report`, the dashboard slot above, and the `/noldor-refactor` Dead Code section. Do (1) first and let it prove itself, then (2).
+
+### UI Proof Screenshots on the PR
+
+- id: Q-0343
+- area: tooling
+- type: feat
+- since: 2026-10-07
+- size: M
+- impact: med
+- confidence: low
+
+When a feature touches UI, the PR should carry a screenshot of it working as proof — and when the feature is e2e-tested on the UI end, the screenshot comes from that run. Today a UI change ships with a text-only PR body, so a reviewer has to check out the branch to see the result. Capture screenshots from the e2e/verify run (or a dedicated capture step) and attach them to the PR body via `pr-flow`.
