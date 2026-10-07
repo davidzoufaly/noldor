@@ -5,6 +5,7 @@ deps: []
 links:
   code:
     - src/release/release-state.ts
+    - src/release/index.ts
   docs: []
   tests:
     - src/release/__tests__/preflight-probes.test.ts
@@ -66,6 +67,7 @@ Release-state persistence added so interrupted releases can resume (#132).
 - **Spec:** [`docs/design/specs/archive/2026-07-02-pnpm-release-resume-design.md`](../../docs/design/specs/archive/2026-07-02-pnpm-release-resume-design.md)
 - **Code:**
   - [`src/release/release-state.ts`](../../src/release/release-state.ts)
+  - [`src/release/index.ts`](../../src/release/index.ts)
 - **Tests:**
   - [`src/release/__tests__/preflight-probes.test.ts`](../../src/release/__tests__/preflight-probes.test.ts)
   - [`src/release/__tests__/preflight.test.ts`](../../src/release/__tests__/preflight.test.ts)

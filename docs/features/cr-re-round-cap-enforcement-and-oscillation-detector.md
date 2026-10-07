@@ -16,6 +16,7 @@ links:
     - src/cr/re-round.ts
     - src/cr/reflag.ts
     - src/cr/run-codex.ts
+    - src/cr/cut-scan.ts
   tests:
     - src/cr/__tests__/amend-receipt.test.ts
     - src/cr/__tests__/arbitration-cli.test.ts
@@ -207,6 +208,7 @@ This release adds `fingerprintBlocker` for single-finding identity (#434) and en
   - [`src/cr/re-round.ts`](../../src/cr/re-round.ts)
   - [`src/cr/reflag.ts`](../../src/cr/reflag.ts)
   - [`src/cr/run-codex.ts`](../../src/cr/run-codex.ts)
+  - [`src/cr/cut-scan.ts`](../../src/cr/cut-scan.ts)
 - **Tests:**
   - [`src/cr/__tests__/amend-receipt.test.ts`](../../src/cr/__tests__/amend-receipt.test.ts)
   - [`src/cr/__tests__/arbitration-cli.test.ts`](../../src/cr/__tests__/arbitration-cli.test.ts)
