@@ -103,15 +103,18 @@ For the three drain rows the page is the whole contract: no step of this router 
    8. **Code-stage review** — `fast-track`, `specs-only-*`, `full-*`. Tests and typecheck are green first; a red verification run, at any point before this review, **Read now:** [`blockers.md`](blockers.md) — escalate on test-red. Then **Read now:** [`code-review.md`](code-review.md) — wait for artifact lanes, preflight the push gates, orchestrate, aggregate, clean up. A red aggregate goes on to `blockers.md` from there.
    9. **Bootstrap immunity** — FD-carrying paths, per `fd-close.md`, after the green code-stage review and before `pr-flow`.
    10. **`pnpm noldor pr-flow`** — every path. The CLI ([`src/core/pr-flow-cli.ts`](../../../src/core/pr-flow-cli.ts)) reads `.noldor/session.json`, derives its input from the session, the FD frontmatter, the `Noldor-Reviewed-Subagent` trailer and the branch's spec/plan paths, then runs preflight `gh` → `git push --force-with-lease --set-upstream origin <branch>` → `gh pr create` → `gh pr merge --auto --squash` → poll until merged. Flow diagram, push runbook and failure runbook: [`docs/noldor/pr-flow.md`](../../../docs/noldor/pr-flow.md).
-   11. **On merged, clean up** — scripted, no interactive finishing skill. **Worktree-backed paths** (`fast-track`, `specs-only-*`, `full-*`): from the **main workspace** run `git worktree remove [--force] .worktrees/<name>` then `git branch -D feat/<name>`. Do NOT use the `ExitWorktree` native tool: the framework creates worktrees with `git worktree add`, so `ExitWorktree` is a no-op that leaves the worktree and branch on disk. `-D` (force) is required because the squash merge leaves the branch's commits off `main`, so `-d` rejects them as not fully merged; `--force` on the remove only when the worktree has uncommitted changes (it should not). **Then sync local `main`: `git fetch origin main && git checkout main && git merge --ff-only origin/main`** — a PR is not finished until local `main` matches `origin/main`. If `--ff-only` rejects, stop and surface the divergence; never force it. **Micro-chore:** per `micro-chore.md`. Print `gh pr view <pr-url>` for the operator, then Step 5.
+   11. **On merged, clean up** — scripted, no interactive finishing skill. **Worktree-backed paths** (`fast-track`, `specs-only-*`, `full-*`): from the **main workspace** run `git worktree remove [--force] .worktrees/<name>` then `git branch -D feat/<name>`. Do NOT use the `ExitWorktree` native tool: the framework creates worktrees with `git worktree add`, so `ExitWorktree` is a no-op that leaves the worktree and branch on disk. `-D` (force) is required because the squash merge leaves the branch's commits off `main`, so `-d` rejects them as not fully merged; `--force` on the remove only when the worktree has uncommitted changes (it should not). **Then sync local `main`: `git fetch origin main && git checkout main && git merge --ff-only origin/main`** — a PR is not finished until local `main` matches `origin/main`. If `--ff-only` rejects, stop and surface the divergence; never force it. **Micro-chore:** per `micro-chore.md`. **Every path:** keep the merged PR's URL from `pr-flow`'s `PR merged: <url>` line — Step 5 opens its report with it — then Step 5.
 
 5. **Next-priority handoff (always-clear).** After Step 4's PR merges and cleanup completes:
 
+- **The final report names the PR, on every path.** Its first line is `Shipped: <pr-url>` — the full URL of the PR Step 4 merged, so the operator opens it in one click. Every branch below prints it first, the error branch too: the PR merged before this step ran.
 - Run `pnpm noldor next-priority`. Capture only the exit code; do NOT read or echo the entry name / size / impact / parent / description from stdout in any user-facing output.
-- Exit code 2 → queue empty. Print `Queue empty — ship-ready. Session may exit.` Skip the rest of this step.
+- Exit code 2 → queue empty. Print `Shipped: <pr-url>`, then `Queue empty — ship-ready. Session may exit.` Skip the rest of this step.
 - Exit code 0 → top entry exists. Print exactly:
 
   ```
+  Shipped: <pr-url>
+
   Queue non-empty — top priority lives in docs/roadmap.md.
 
   Always-clear policy: this session ends here. Continue in a fresh context.
@@ -123,7 +126,7 @@ For the three drain rows the page is the whole contract: no step of this router 
   The fresh /noldor-gate will read top-of-roadmap at Step 0 and surface the entry there.
   ```
 
-- Any other exit code → report the stderr message and stop.
+- Any other exit code → print `Shipped: <pr-url>`, then report the stderr message and stop.
 
 **Do NOT name, summarize, paraphrase, or otherwise leak the top entry in the current session.** Even read-only mention biases the operator's framing with stale-context residue from the just-shipped work — exactly the drift the always-clear policy closes. The top entry surfaces ONLY in a fresh `/noldor-gate` Step 0 invocation. Same rule applies if the operator asks "what's next?" in the dirty session — answer: "the roadmap holds it; /clear + /noldor-gate to see."
 
