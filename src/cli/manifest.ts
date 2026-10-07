@@ -558,6 +558,12 @@ export const MANIFEST: Record<string, Group> = {
       },
     },
   },
+  'dead-code': {
+    desc: 'Set ratchet over knip dead-code findings (this repo only)',
+    subs: {
+      '': { src: 'checks/dead-code.ts', desc: 'dead-code <report|check|baseline>' },
+    },
+  },
   'skill-size': {
     desc: 'Per-file word-count ratchet over .claude/skills (this repo only)',
     subs: {
