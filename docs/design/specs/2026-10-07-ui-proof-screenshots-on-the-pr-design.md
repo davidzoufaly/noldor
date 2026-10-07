@@ -40,7 +40,7 @@ The section keys on the **branch diff**, not on the session marker's spec-time `
 
 ### Image sources
 
-`src/core/ui-proof.ts` (new) exposes `collectUiProof(cwd, slug, surfaces, config) → UiProofItem[]`, one item per surface: `{ surface, file | null, source: 'e2e' | 'render-compare' | null, reason? }`. Sources, in order:
+`src/core/ui-proof.ts` (new) exposes `collectUiProof(cwd, slug, surfaces, config) → UiProofItem[]`, one item per surface: `{ surface, source: 'e2e' | 'render-compare' | null, files: string[], notes: string[] }`. Sources, in order:
 
 1. **e2e proof run** — a new optional `consumer.uiProof.<surface>.command`, a shell string with one placeholder, `{out}`. At ship time Noldor creates an empty folder, `.noldor/ui-proof/<slug>/<surface>/`, substitutes it, shell-quoted, for `{out}`, and runs the command through `runCapture` (`src/core/run-capture.ts`, already shared by render-compare and `design capture`) under `uiProof.<surface>.timeoutMs` (default 300 s). On exit 0 it takes every PNG the command wrote into that folder, sorted by name, capped at 3. Fresh by construction: the folder is emptied before every run, so nothing from an earlier run or another branch can appear. The consumer writes the shots from its own tests, e.g. a Playwright test tagged `@proof` that calls `page.screenshot({ path: \`${process.env.NOLDOR_PROOF_OUT}/home.png\` })` — Noldor also exports the folder as `NOLDOR_PROOF_OUT` for test code that cannot see the shell string.
 2. **render-compare** — `.noldor/cr/render-compare/<slug>/<sanitizeSurfaceName(surface)>.shot.png` (the lane's own naming, `src/core/ui-boot.ts`), used when no proof command is configured for the surface, or when it exits non-zero or writes no PNG. The shot carries no commit today, so the lane gains one write: beside each shot, `<name>.shot.json` with `{ tree }`, the `HEAD^{tree}` it captured, published in the same round set as the shot by `swapRoundArtifacts` (`src/cr/lanes/round-artifacts.ts`), so a round that keeps the prior files keeps their old tree too. Noldor uses the shot only when that tree equals `HEAD^{tree}` at ship time. Tree, not commit SHA, because the review receipt is amended onto the tip after the lane runs, which changes the SHA but not the tree (`src/hooks/noldor-enforce-review-receipt.ts`). A shot with no sidecar or a different tree is stale and is not used.
@@ -57,7 +57,7 @@ The branch is never pruned in this slice: it grows by a few hundred KB per UI PR
 
 ### PR body section
 
-`renderUiProofSection(items)` in `pr-flow.ts` follows the `renderVerifySection` pattern: returns `''` when `items` is empty, else `## UI Proof` with, per surface, a `### <surface>` line, the source in one line, the image(s) as markdown, then each note as an italic line. An item with no image also renders `_No screenshot._` with the remedy (configure `uiProof.<surface>.command` or enable the `render-compare` lane). It slots before `## Verify Evidence`. `PrFlowInput` gains `uiProof: UiProofLink[]` (already-hosted URLs), so `composeBody` stays pure.
+`renderUiProofSection(items)` in `pr-flow.ts` follows the `renderVerifySection` pattern: returns `''` when `items` is empty, else `## UI Proof` with, per surface, a `### <surface>` line, the source in one line, the image(s) as markdown, then each note as an italic line. An item with no image also renders `_No screenshot._` with the remedy (configure `uiProof.<surface>.command` or enable the `render-compare` lane). It slots before `## Verify Evidence`. `composeBody` takes the hosted links as data, so it stays pure: `openAndAutoMerge` awaits `prepareUiProof` after its guards and sets `input.uiProof` (already-hosted URLs) before `createPr` / `refreshExistingPr` call `composeBody`.
 
 ### Error handling
 
@@ -83,6 +83,7 @@ Order inside `openAndAutoMerge`: `validatePrSummary` → `preflightGh` → `chec
 
 - The proof branch grows without bound. Each PNG is small (hundreds of KB), but a busy consumer adds them every UI PR. Pruning is deferred.
 - Parallel drain (K>1): sibling children can run proof commands at once, and two that boot a dev server on the same port collide. The loser's item degrades to a note; the PR still ships. Port isolation is the consumer command's job (`{port}`-style allocation is out of scope here).
+- A render-compare shot taken from a dirty worktree shows edits its sidecar tree does not hold. The code stage runs on committed work, so this is accepted rather than guarded.
 - `?raw=true` links depend on GitHub's blob redirect; a GitHub change could break inline rendering in old PRs.
 - The proof command adds one e2e run to every UI-bearing `pr-flow` (charuy's web suite boots `pnpm dev` and retries twice). A tag filter (`--grep @proof`) keeps it short; the timeout caps the worst case.
 - Consumers must write proof tests for the e2e source to work; Playwright's `screenshot: 'only-on-failure'` (charuy today) captures nothing on a green run.
