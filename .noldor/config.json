@@ -121,5 +121,8 @@
   },
   "agents": {
     "targets": ["claude", "codex", "opencode"]
+  },
+  "deadCode": {
+    "enabled": true
   }
 }

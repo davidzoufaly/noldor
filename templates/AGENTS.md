@@ -81,7 +81,7 @@ outputs and exit codes: `docs/noldor/script-catalog.md`.
 - `pr-flow` — PR flow (push + create + auto-merge + poll)
 - `clones` — Token-based code-clone detection (Type-1/2/3)
 - `indirection` — Transitive-import-closure indirection ratchet
-- `dead-code` — Set ratchet over knip dead-code findings (this repo only)
+- `dead-code` — Set ratchet over knip dead-code findings (opt-in: deadCode.enabled)
 - `skill-size` — Per-file word-count ratchet over .claude/skills (this repo only)
 - `wait` — Poll a state file until a predicate matches
 - `changelog` — Generate changelog (hoisted)

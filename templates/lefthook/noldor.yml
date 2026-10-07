@@ -136,6 +136,9 @@ pre-push:
       run: pnpm noldor checks template-sync
     - name: noldor-clones
       run: pnpm noldor clones check
+    # Off until .noldor/config.json sets deadCode.enabled: true (ADR 0011).
+    - name: noldor-dead-code
+      run: pnpm noldor dead-code check
     - name: noldor-indirection
       run: pnpm noldor indirection check
     # ADVISORY: `|| true` is deliberate. The check reports README drift, but the

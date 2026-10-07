@@ -2,11 +2,14 @@
 /**
  * `noldor dead-code <report|check|baseline>` — a set ratchet over knip's
  * findings (unused files, exports, types and dependencies, plus the unresolved
- * imports and unlisted packages knip reports beside them). `knip.ts` at the repo
- * root silences false positives; everything knip still reports is a true finding
- * and is ratcheted here.
+ * imports and unlisted packages knip reports beside them). The repo's knip config
+ * silences false positives; everything knip still reports is a true finding and
+ * is ratcheted here. `check` is opt-in: it does nothing until `.noldor/config.json`
+ * sets `deadCode.enabled: true` (ADR 0011).
  *
  *                                       report   check   baseline
+ *   deadCode.enabled not true              -        0        -     (knip never runs)
+ *   .noldor/config.json not readable       -        3        -
  *   no finding outside the baseline        0        0        0
  *   a finding the baseline lacks           0        1        0   (records, prints the diff)
  *   baseline absent                        0        3        0
@@ -21,6 +24,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import { runIfDirect } from '../core/cli-entry.js';
+import { loadConfigSync } from '../core/config.js';
 import { readCheckedState, writeJsonState } from '../core/state-file.js';
 
 export const DEAD_CODE_BASELINE = '.noldor/dead-code-baseline.json';
@@ -163,23 +167,72 @@ export function readDeadCodeBaseline(repo: string, knipVersion: string): Baselin
 
 const REMEDY = 'pnpm noldor dead-code baseline';
 
-type Measured = { ok: true; keys: string[]; version: string } | { ok: false };
+export type EnabledRead =
+  | { readonly ok: true; readonly enabled: boolean }
+  | { readonly ok: false; readonly reason: string };
 
-function measure(repo: string, runKnip: RunKnip): Measured {
+/** Whether `.noldor/config.json` opts this repo into the ratchet; an unparseable file is `ok: false`, never a throw. */
+export function deadCodeEnabled(repo: string): EnabledRead {
+  try {
+    return {
+      ok: true,
+      enabled: loadConfigSync(join(repo, '.noldor/config.json'))?.deadCode?.enabled === true,
+    };
+  } catch (e) {
+    return { ok: false, reason: `.noldor/config.json is not readable: ${(e as Error).message}` };
+  }
+}
+
+type Findings =
+  | { readonly ok: true; readonly keys: string[]; readonly version: string }
+  | { readonly ok: false; readonly reason: string };
+
+function findings(repo: string, runKnip: RunKnip): Findings {
   const run = runKnip(repo);
-  if (!run.ok) return couldNotLook(run.reason);
+  if (!run.ok) return run;
   const parsed = knipKeys(run.stdout);
-  if (!parsed.ok) return couldNotLook(parsed.reason);
+  if (!parsed.ok) return parsed;
   return { ok: true, keys: parsed.keys, version: run.version };
 }
 
-function couldNotLook(reason: string): Measured {
-  process.stderr.write(`✗ dead-code: could not look — ${reason}\n`);
-  return { ok: false };
+const findingType = (key: string): string => key.slice(0, key.indexOf(':'));
+
+export interface DeadCodeSummary {
+  readonly total: number;
+  readonly byType: ReadonlyMap<string, number>;
+  /** Findings the baseline lacks; `null` when no baseline reads under the installed knip. */
+  readonly outsideBaseline: number | null;
+}
+
+/**
+ * The counts `sdd-report` prints. `null` when the repo has not opted in or knip
+ * cannot run — a report section is informational, so it is left out, never failed.
+ */
+export function summarizeDeadCode(
+  repo: string,
+  runKnip: RunKnip = defaultRunKnip,
+): DeadCodeSummary | null {
+  const enabled = deadCodeEnabled(repo);
+  if (!enabled.ok || !enabled.enabled) return null;
+  const found = findings(repo, runKnip);
+  if (!found.ok) return null;
+  const read = readDeadCodeBaseline(repo, found.version);
+  return {
+    total: found.keys.length,
+    byType: new Map(
+      Map.groupBy(found.keys, findingType)
+        .entries()
+        .map(([type, group]) => [type, group.length]),
+    ),
+    outsideBaseline:
+      read.kind === 'ok'
+        ? new Set(found.keys).difference(new Set(read.baseline.issues)).size
+        : null,
+  };
 }
 
 function printReport(keys: string[]): number {
-  const grouped = Map.groupBy(keys, (k) => k.slice(0, k.indexOf(':')));
+  const grouped = Map.groupBy(keys, findingType);
   for (const [type, group] of grouped) {
     process.stdout.write(`${type} (${group.length})\n`);
     for (const k of group) process.stdout.write(`    ${k.slice(type.length + 1)}\n`);
@@ -256,8 +309,24 @@ export async function main(
     process.stderr.write('usage: noldor dead-code <report|check|baseline>\n');
     return 2;
   }
-  const measured = measure(repo, runKnip);
-  if (!measured.ok) return 3;
+  if (sub === 'check') {
+    const enabled = deadCodeEnabled(repo);
+    if (!enabled.ok) {
+      process.stderr.write(`✗ dead-code: ${enabled.reason}\n`);
+      return 3;
+    }
+    if (!enabled.enabled) {
+      process.stdout.write(
+        'dead-code: off — set "deadCode": { "enabled": true } in .noldor/config.json to turn it on\n',
+      );
+      return 0;
+    }
+  }
+  const measured = findings(repo, runKnip);
+  if (!measured.ok) {
+    process.stderr.write(`✗ dead-code: could not look — ${measured.reason}\n`);
+    return 3;
+  }
   if (sub === 'report') return printReport(measured.keys);
   if (sub === 'check') return check(repo, measured.keys, measured.version);
   return record(repo, measured.keys, measured.version, now);

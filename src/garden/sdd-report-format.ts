@@ -3,6 +3,7 @@
 // producer) and consumed by the release-script guard
 // (`src/release/sdd-report-diff.ts`) so the literals live in exactly one place —
 // a wording change can't silently desync the guard's matcher from the emitter.
+import type { DeadCodeSummary } from '../checks/dead-code.js';
 import type { MetricsReport } from '../metrics/types.js';
 
 /** Literal prefix of the review-skip count line, sans the trailing number. */
@@ -59,5 +60,17 @@ export function renderMetricsSection(report: MetricsReport | null): string[] {
     lines.push(`blind spots: ${m.blindSpots.join(' | ')}`);
     lines.push('');
   }
+  return lines;
+}
+
+/** The `## Dead code` section; empty when the repo has not opted in or knip could not run. */
+export function renderDeadCodeSection(summary: DeadCodeSummary | null): string[] {
+  if (summary === null) return [];
+  const lines = ['## Dead code', '', `- ${summary.total} finding(s) from knip`];
+  if (summary.outsideBaseline !== null) {
+    lines.push(`- ${summary.outsideBaseline} outside the baseline`);
+  }
+  for (const [type, count] of summary.byType) lines.push(`- ${type}: ${count}`);
+  lines.push('');
   return lines;
 }

@@ -1819,11 +1819,10 @@ export function renderTestPyramid(rows: TestPyramidRow[]): string {
 }
 
 /**
- * Render the graphify health snapshot: god-node count, low-cohesion community
- * count, and dead-export count parsed from `graphify-out/GRAPH_REPORT.md`,
- * labelled with the report's run date. `null` snapshot → "run /graphify" empty
- * state; `deadExportCount === null` → "not reported" (graphify emits no such
- * section today).
+ * Render the graphify health snapshot: god-node and low-cohesion community
+ * counts parsed from `graphify-out/GRAPH_REPORT.md`, labelled with the report's
+ * run date, plus the recorded dead-code baseline count. `null` snapshot → "run
+ * /graphify" empty state; `deadCode === null` → "—" and how to turn it on.
  */
 export function renderGraphHealth(snapshot: GraphHealthSnapshot | null): string {
   if (snapshot === null) {
@@ -1834,7 +1833,7 @@ export function renderGraphHealth(snapshot: GraphHealthSnapshot | null): string 
     snapshot.reportDate === null
       ? 'unknown date'
       : `${escapeHtml(snapshot.reportDate)}${snapshot.scope === null ? '' : ` · scope ${escapeHtml(snapshot.scope)}`}`;
-  const deadExports = snapshot.deadExportCount === null ? '—' : String(snapshot.deadExportCount);
+  const deadCode = snapshot.deadCode === null ? '—' : String(snapshot.deadCode.count);
   // Percentage is against the communities actually scored for cohesion
   // (scannedCommunityCount), not the Summary total — the latter counts
   // thin/omitted communities the report never details, which would understate.
@@ -1846,13 +1845,17 @@ export function renderGraphHealth(snapshot: GraphHealthSnapshot | null): string 
   const counterStrip = `<div class="counter-strip">
     <div class="counter"><div class="v">${snapshot.godNodeCount}</div><div class="l">god nodes</div></div>
     <div class="counter"><div class="v">${snapshot.lowCohesionCount}</div><div class="l">low-cohesion communities${lowCohesionPct}</div></div>
-    <div class="counter"><div class="v">${deadExports}</div><div class="l">dead exports</div></div>
+    <div class="counter"><div class="v">${deadCode}</div><div class="l">dead code</div></div>
     <div class="counter"><div class="v">${snapshot.communityCount ?? '—'}</div><div class="l">communities</div></div>
     <div class="counter"><div class="v">${snapshot.nodeCount ?? '—'}</div><div class="l">nodes</div></div>
     <div class="counter"><div class="v">${snapshot.edgeCount ?? '—'}</div><div class="l">edges</div></div>
   </div>`;
 
-  const caption = `<p class="muted">Snapshot as of ${asOf}. Low-cohesion threshold: cohesion ≤ ${snapshot.lowCohesionThreshold}.${snapshot.deadExportCount === null ? ' Dead exports not reported by graphify.' : ''}</p>`;
+  const caption = `<p class="muted">Snapshot as of ${asOf}. Low-cohesion threshold: cohesion ≤ ${snapshot.lowCohesionThreshold}.${
+    snapshot.deadCode === null
+      ? ' Dead code: off, or no baseline — set <code>deadCode.enabled</code> and run <code>pnpm noldor dead-code baseline</code>.'
+      : ` Dead code as recorded ${escapeHtml(snapshot.deadCode.recordedAt.slice(0, 10))}.`
+  }</p>`;
 
   const godRows =
     snapshot.godNodes.length === 0

@@ -1,4 +1,4 @@
-// @tests: dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, dynamic-fd-changelog, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
+// @tests: dead-code-detection-with-knip, dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, dynamic-fd-changelog, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -97,15 +97,6 @@ describe('parseGraphReport', () => {
     expect(s.lowCohesionThreshold).toBe(LOW_COHESION_THRESHOLD);
   });
 
-  it('reports dead exports as null when graphify emits no such section', () => {
-    expect(parseGraphReport(FIXTURE).deadExportCount).toBeNull();
-  });
-
-  it('parses a dead-export section when one is present (forward-compat)', () => {
-    const withDead = `${FIXTURE}\n## Dead Exports\n- \`unusedA()\`\n- \`unusedB()\`\n`;
-    expect(parseGraphReport(withDead).deadExportCount).toBe(2);
-  });
-
   it('degrades to nulls / empties on a report missing every section', () => {
     const s = parseGraphReport('# not a graph report\n');
     expect(s.scope).toBeNull();
@@ -141,6 +132,39 @@ describe('loadGraphHealth', () => {
     expect(graphHealthSnapshotSchema.safeParse(s).success).toBe(true);
   });
 
+  it.each([
+    [
+      'the check is on and the baseline parses',
+      { deadCode: { enabled: true } },
+      true,
+      { count: 2, recordedAt: '2026-10-07T00:00:00.000Z' },
+    ],
+    ['the check is off', { deadCode: { enabled: false } }, true, null],
+    ['no baseline is recorded', { deadCode: { enabled: true } }, false, null],
+  ])(
+    'reads the dead-code count from the baseline when %s',
+    async (_label, config, writeBaseline, expected) => {
+      const root = mkdtempSync(join(tmpdir(), 'noldor-graph-health-dead-'));
+      mkdirSync(join(root, 'graphify-out'), { recursive: true });
+      mkdirSync(join(root, '.noldor'), { recursive: true });
+      writeFileSync(join(root, 'graphify-out', 'GRAPH_REPORT.md'), FIXTURE, 'utf8');
+      writeFileSync(join(root, '.noldor', 'config.json'), JSON.stringify(config));
+      if (writeBaseline) {
+        writeFileSync(
+          join(root, '.noldor', 'dead-code-baseline.json'),
+          JSON.stringify({
+            algorithmVersion: 1,
+            knipVersion: '6.40.0',
+            recordedAt: '2026-10-07T00:00:00.000Z',
+            issues: ['exports:src/a.ts:x', 'files:src/dead.ts'],
+          }),
+        );
+      }
+      setDocRootsOverride(root);
+      expect((await loadGraphHealth())?.deadCode).toEqual(expected);
+    },
+  );
+
   it('returns null when the doc root holds no report', async () => {
     setDocRootsOverride(mkdtempSync(join(tmpdir(), 'noldor-graph-health-empty-')));
     expect(await loadGraphHealth()).toBeNull();
@@ -163,23 +187,32 @@ describe('renderGraphHealth', () => {
     lowCohesionThreshold: 0.15,
     lowCohesionCount: 1,
     lowCohesionCommunities: [{ id: 1, label: 'release', cohesion: 0.05 }],
-    deadExportCount: null,
+    deadCode: null,
   };
 
-  it('renders counters for god nodes, low-cohesion communities, and dead exports', () => {
+  it('renders counters for god nodes, low-cohesion communities, and dead code', () => {
     const html = renderGraphHealth(snapshot);
     expect(html).toContain('<h1>Graph health</h1>');
     expect(html).toContain('>2</div><div class="l">god nodes</div>');
     expect(html).toContain('low-cohesion communities');
-    expect(html).toContain('>—</div><div class="l">dead exports</div>');
+    expect(html).toContain('>—</div><div class="l">dead code</div>');
+  });
+
+  it('shows the baseline count and when it was recorded once the check is on', () => {
+    const html = renderGraphHealth({
+      ...snapshot,
+      deadCode: { count: 389, recordedAt: '2026-10-07T00:00:00.000Z' },
+    });
+    expect(html).toContain('>389</div><div class="l">dead code</div>');
+    expect(html).toContain('2026-10-07');
   });
 
   it('labels the snapshot with the report run date', () => {
     expect(renderGraphHealth(snapshot)).toContain('Snapshot as of 2026-06-01');
   });
 
-  it('notes when dead exports are not reported by graphify', () => {
-    expect(renderGraphHealth(snapshot)).toContain('Dead exports not reported by graphify');
+  it('notes how to turn the dead-code count on when it is absent', () => {
+    expect(renderGraphHealth(snapshot)).toContain('deadCode.enabled');
   });
 
   it('renders an empty state when no report exists', () => {
