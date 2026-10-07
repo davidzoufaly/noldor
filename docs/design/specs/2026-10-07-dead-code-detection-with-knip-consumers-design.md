@@ -14,7 +14,7 @@
 
 ## Goals
 
-- A consumer that installs knip gets the same set ratchet noldor uses on itself, on pre-push, with no other setup than recording a baseline.
+- A consumer that installs knip gets the same set ratchet noldor uses on itself on pre-push once it opts in: a knip config, a recorded baseline, and `deadCode.enabled: true`.
 - A consumer that has not installed knip sees nothing change: no red push, no new prompt.
 - `sdd-report` and the dashboard show the dead-code count wherever knip is installed.
 
@@ -38,11 +38,11 @@ Architecture verdict: skip — no new directory, package or runnable unit; two n
 
 A new `deadCode:` block in `.noldor/config.json`, added to `noldorConfigSchema` (`src/core/config.ts:272`) beside `clones:` and degrading to unset on malformed input the same way (`.optional().catch(undefined)`). It holds one field today, `enabled: boolean`. Unset or `false` means the repo has not opted in: `dead-code check` prints one line saying the check is off and how to turn it on, and exits 0 without spawning knip. `true` means the full ratchet exactly as it runs in noldor now — knip missing, a baseline absent, unreadable or drifted are all exit 3, a new finding is exit 1. A repo that turned the check on asked for it to bite, so there is no half-strict mode in between.
 
-`report` and `baseline` ignore the knob: they are run by hand, and a maintainer setting up the ratchet needs them to work before flipping `enabled`. Noldor's own `.noldor/config.json` sets `deadCode.enabled: true`, so its root `lefthook.yml` step and `pnpm verify` stay strict with no call-site change. One knob is readable by `sdd-report` and the dashboard too, so all three surfaces agree on whether a repo uses the ratchet ([ADR 0011](../../adr/0011-opt-in-consumer-checks-use-a-config-switch.md)). A knip version bump is drift too: the push stays red until `pnpm noldor dead-code baseline` re-records, whose ADDED / dropped diff shows what the new knip changed.
+`report` and `baseline` ignore the knob: they are run by hand, and a maintainer setting up the ratchet needs them to work before flipping `enabled`. Noldor's own `.noldor/config.json` sets `deadCode.enabled: true`, so `pnpm verify` and the shared pre-push step below stay strict here. One knob is readable by `sdd-report` and the dashboard too, so all three surfaces agree on whether a repo uses the ratchet ([ADR 0011](../../adr/0011-opt-in-consumer-checks-use-a-config-switch.md)). A knip version bump is drift too: the push stays red until `pnpm noldor dead-code baseline` re-records, whose ADDED / dropped diff shows what the new knip changed.
 
 ### Consumer hook
 
-`templates/lefthook/noldor.yml` gains a `noldor-dead-code` pre-push step running `pnpm noldor dead-code check`, beside `noldor-clones`. `noldor init --update` already rewrites that block. In a repo that has not set `deadCode.enabled` the step prints its off line and passes.
+`templates/lefthook/noldor.yml` gains a `noldor-dead-code` pre-push step running `pnpm noldor dead-code check`, beside `noldor-clones`. `noldor init --update` already rewrites that block. In a repo that has not set `deadCode.enabled` the step prints its off line and passes. Noldor's root `lefthook.yml` extends `lefthook/noldor.yml`, the byte-identical self-host copy of that template, so it gets the same step; its own root `dead-code` job and the "Self-host only" comment above it are removed, or knip would run twice per push.
 
 ### Upgrade migration
 
@@ -50,11 +50,11 @@ A new migration `src/migrations/1.16.0.ts`, registered in `MIGRATIONS` (`src/mig
 
 ### `sdd-report` section
 
-`sdd-report` gets a `## Dead code` section after `## Code clones`, built the same way the clones section is (`renderReportMd`, `src/garden/sdd-report.ts:951`): the total, a count per issue type, and the number outside the baseline when one exists. It runs knip through the existing `measure` path (exported, minus its stderr write) and omits the section when `deadCode.enabled` is not `true` or knip cannot run — never failing the report. knip took about 2.4 s on this repo.
+`sdd-report` gets a `## Dead code` section after `## Code clones`, built the same way the clones section is (`renderReportMd`, `src/garden/sdd-report.ts:951`): the total, a count per issue type, and the number outside the baseline when the baseline reads; with no readable baseline that line is left out. It runs knip through the existing `measure` path (exported, minus its stderr write) and omits the section when `deadCode.enabled` is not `true` or knip cannot run — never failing the report. knip took about 2.4 s on this repo.
 
 ### Dashboard tile
 
-`parseDeadExports` is removed: the snapshot's `deadExportCount` (renamed `deadCodeCount`) comes from `.noldor/dead-code-baseline.json` — the length of its `issues` array, every finding type — rather than from a `GRAPH_REPORT.md` section that never exists. The tile in `src/dashboard/views.ts:1837` is relabelled "Dead code" to match the ratchet it reports on. Reading the recorded baseline keeps knip out of the request path; the caption names the baseline's `recordedAt`, since the number lags until someone re-records. The tile shows a number only when `deadCode.enabled` is `true` and the baseline reads cleanly; otherwise it shows "—" and the caption says the check is off.
+`parseDeadExports` is removed: the snapshot's `deadExportCount` (renamed `deadCodeCount`) comes from `.noldor/dead-code-baseline.json` — the length of its `issues` array, every finding type — rather than from a `GRAPH_REPORT.md` section that never exists. The tile in `src/dashboard/views.ts:1837` is relabelled "Dead code" to match the ratchet it reports on. Reading the recorded baseline keeps knip out of the request path; the caption names the baseline's `recordedAt`, since the number lags until someone re-records. The tile shows a number only when `deadCode.enabled` is `true` and the baseline passes its schema (`readCheckedState`, no knip version check, since knip stays out of the request path); otherwise it shows "—".
 
 ### Refactor report
 
@@ -67,11 +67,11 @@ The manifest description (`src/cli/manifest.ts:562`) and both `script-catalog.md
 ## Acceptance criteria
 
 - With `deadCode.enabled` unset or `false`, `dead-code check` exits 0 without running knip.
-- With `deadCode.enabled: true`, `dead-code check` behaves exactly as today in every row of the exit table.
+- With `deadCode.enabled: true`, `dead-code check` behaves exactly as today in every row of the exit table at the top of `src/checks/dead-code.ts`.
 - `dead-code report` and `dead-code baseline` run regardless of the knob.
 - A malformed `deadCode:` block reads as unset; it never makes `loadConfig` throw.
 - Noldor's own `.noldor/config.json` sets `deadCode.enabled: true`.
-- The consumer lefthook template runs `dead-code check` on pre-push.
+- The consumer lefthook template runs `dead-code check` on pre-push, and noldor's pre-push runs it once.
 - `sdd-report` writes a `## Dead code` section with per-type counts when the knob is on and knip runs, and omits it (still exit 0) otherwise.
 - The dashboard's "Dead code" tile shows the baseline's finding count when `deadCode.enabled` is `true` and the baseline reads, and "—" otherwise.
 - `noldor upgrade` across 1.16.0 adds `deadCode.enabled: false` to a config that lacks the key, leaves an existing `deadCode` block untouched, and a second run changes nothing.
@@ -85,7 +85,7 @@ The manifest description (`src/cli/manifest.ts:562`) and both `script-catalog.md
 
 ## User Story
 
-As a consumer maintainer (human or agent) who has installed knip, I want my pushes to fail when a change leaves new dead code behind, and to see the dead-code count in the SDD report and the dashboard, so that my codebase stops collecting unused files, exports and dependencies without any setup beyond recording a baseline.
+As a consumer maintainer (human or agent) who has installed knip, I want my pushes to fail when a change leaves new dead code behind, and to see the dead-code count in the SDD report and the dashboard, so that my codebase stops collecting unused files, exports and dependencies.
 
 ## Usage
 
