@@ -791,5 +791,9 @@
   "Q-0335": {
     "slug": "seed-missing-test-co-tags",
     "retiredAt": "2026-09-29"
+  },
+  "Q-0337": {
+    "slug": "gate-final-report-names-the-pr-url",
+    "retiredAt": "2026-10-07"
   }
 }

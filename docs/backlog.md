@@ -545,3 +545,16 @@ PR #634's two low review notes were not taken: `readCheckedState`'s `(root)` fal
 - confidence: high
 
 Geometry-compare text right edges are partly paint: on charuy four text right edges sat ~7px inside the design while left edges, heights and font sizes matched (browser vs pen glyph advances). Q-0180 shipped this as a documented limit with `geometryTolerance.edgesX` as the knob. A smarter rule — text nodes contribute only the alignment-side edge, read from `text-align` — would remove the noise at the source.
+
+### Optional jscpd Backend for Clones
+
+- id: Q-0344
+- area: tooling
+- type: feat
+- since: 2026-10-07
+- size: M
+- impact: low
+- confidence: low
+- parent: code-clone-detector
+
+`noldor clones` only scans TS/JS (`src/clones/tokenize.ts`), so a consumer with mostly Python, Go or other code gets no clone signal; jscpd covers 150+ languages. It was turned down as a dependency in 2026-07 (code-clone-detector spec, D1: a big dependency tree shipped to every consumer). Keep our detector as the default and add an opt-in `clones.engine: jscpd` that runs jscpd only when the consumer has it installed, maps its JSON into `CloneReport`, and feeds the same baseline ratchet and diff-scoped `check`. Not needed until a non-TS consumer shows up (charuy is TS).
