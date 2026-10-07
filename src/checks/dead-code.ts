@@ -24,7 +24,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import { runIfDirect } from '../core/cli-entry.js';
-import { loadConfigSync } from '../core/config.js';
+import { noldorConfigSchema } from '../core/config.js';
 import { readCheckedState, writeJsonState } from '../core/state-file.js';
 
 export const DEAD_CODE_BASELINE = '.noldor/dead-code-baseline.json';
@@ -171,16 +171,31 @@ export type EnabledRead =
   | { readonly ok: true; readonly enabled: boolean }
   | { readonly ok: false; readonly reason: string };
 
-/** Whether `.noldor/config.json` opts this repo into the ratchet; an unparseable file is `ok: false`, never a throw. */
+/**
+ * Whether `.noldor/config.json` opts this repo into the ratchet; a file that is not
+ * JSON is `ok: false`, never a throw. Only the `deadCode` block is validated, not the
+ * whole config (`loadConfigSync`), so an invalid unrelated block cannot make a check
+ * the repo never turned on fail its push.
+ */
 export function deadCodeEnabled(repo: string): EnabledRead {
+  let raw: string;
   try {
-    return {
-      ok: true,
-      enabled: loadConfigSync(join(repo, '.noldor/config.json'))?.deadCode?.enabled === true,
-    };
+    raw = readFileSync(join(repo, '.noldor/config.json'), 'utf8');
   } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { ok: true, enabled: false };
     return { ok: false, reason: `.noldor/config.json is not readable: ${(e as Error).message}` };
   }
+  let config: unknown;
+  try {
+    config = JSON.parse(raw);
+  } catch (e) {
+    return { ok: false, reason: `.noldor/config.json is not JSON: ${(e as Error).message}` };
+  }
+  const block =
+    config !== null && typeof config === 'object' && 'deadCode' in config
+      ? config.deadCode
+      : undefined;
+  return { ok: true, enabled: noldorConfigSchema.shape.deadCode.parse(block)?.enabled === true };
 }
 
 type Findings =

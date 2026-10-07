@@ -220,6 +220,19 @@ describe('dead-code CLI', () => {
     expect(result.out).toContain('deadCode');
   });
 
+  it.each([
+    ['off', { crLanes: 'not lanes', deadCode: { enabled: false } }, 0],
+    ['on', { crLanes: 'not lanes', deadCode: { enabled: true } }, 3],
+  ])(
+    'reads only the deadCode block: an invalid unrelated block leaves the check %s',
+    async (_label, config, code) => {
+      using repo = tempRepo(config);
+      const result = await run(['check'], repo.dir, fakeKnip(TODAY));
+      expect(result.code).toBe(code);
+      expect(result.err).not.toContain('config.json');
+    },
+  );
+
   it('check exits 3 when .noldor/config.json is not JSON', async () => {
     using repo = tempRepo({});
     writeFileSync(join(repo.dir, '.noldor/config.json'), '{ nope');
