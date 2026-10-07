@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### FD Headers for Five Real-Gap Orphans
-
-- id: Q-0338
-- area: tooling
-- type: chore
-- since: 2026-10-07
-- size: XS
-- impact: low
-- confidence: high
-
-Give owners to the last five real-gap code orphans (surfaced 2026-09-29, PR #670). With `consumer.ownerless` in place, "Code files not referenced by any feature" lists only files that are about one feature and lack a `// @fd:` header: `src/cr/cut-scan.ts`, `src/cr/geometry/geometry-export-cli.ts`, `src/cr/lanes/geometry-extract-dispatch.ts`, `src/design/arch-draw.ts`, `src/release/index.ts`. Add a header naming each file's FD (the report's probable-owner hint is a start), then re-run `pnpm noldor features seed-test-tags` for the co-tags the new owners raise.
-
 ### Priority Pickup Always Asks the Same Way
 
 - id: Q-0339

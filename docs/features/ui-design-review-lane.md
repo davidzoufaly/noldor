@@ -33,6 +33,8 @@ links:
     - src/core/ui-boot.ts
     - src/verify/boot.ts
     - src/core/err-message.ts
+    - src/cr/geometry/geometry-export-cli.ts
+    - src/cr/lanes/geometry-extract-dispatch.ts
   tests:
     - src/core/__tests__/err-message.test.ts
     - src/core/__tests__/lanes.test.ts
@@ -264,6 +266,8 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/core/ui-boot.ts`](../../src/core/ui-boot.ts)
   - [`src/verify/boot.ts`](../../src/verify/boot.ts)
   - [`src/core/err-message.ts`](../../src/core/err-message.ts)
+  - [`src/cr/geometry/geometry-export-cli.ts`](../../src/cr/geometry/geometry-export-cli.ts)
+  - [`src/cr/lanes/geometry-extract-dispatch.ts`](../../src/cr/lanes/geometry-extract-dispatch.ts)
 - **Tests:**
   - [`src/core/__tests__/err-message.test.ts`](../../src/core/__tests__/err-message.test.ts)
   - [`src/core/__tests__/lanes.test.ts`](../../src/core/__tests__/lanes.test.ts)
