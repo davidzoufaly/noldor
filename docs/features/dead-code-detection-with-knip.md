@@ -4,14 +4,15 @@ category: Tooling
 deps: []
 entry-id: Q-0342
 links:
-  code: []
+  code:
+    - src/checks/dead-code.ts
   tests:
     - src/checks/__tests__/dead-code.test.ts
-  spec: docs/design/specs/2026-10-07-dead-code-detection-with-knip-design.md
+  spec: docs/design/specs/archive/2026-10-07-dead-code-detection-with-knip-design.md
 name: Dead-Code Detection with knip
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-10-07T00:00:00.000Z
 noldor-tier: specs-only
 ---
@@ -22,17 +23,31 @@ Nothing in the framework finds dead code (unused files, unused exports, unused a
 
 ## Diagram
 
-<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
-     two beside it for readers that do not render mermaid. No shape worth drawing?
-     Replace this comment with: noldor:cut <reason> -->
+`noldor dead-code` runs the repo-local knip with the root `knip.ts`, keys every finding, and compares the key set with the recorded baseline. `knip.ts` takes its CLI entry points from the command manifest, so string-loaded commands are not reported as dead.
+
+```mermaid
+flowchart LR
+  M[src/cli/manifest.ts] -->|entry points| K[knip.ts]
+  K --> R[knip --reporter json]
+  R --> D[noldor dead-code]
+  B[.noldor/dead-code-baseline.json] --> D
+  D -->|new finding: exit 1| P[pre-push / pnpm verify]
+```
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As a noldor maintainer (human or agent), I want a push to fail when my change leaves new dead code behind, so that the codebase stops collecting unused files, exports and dependencies.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**Agent/Programmatic API**
+
+- `pnpm noldor dead-code report` — list every knip finding, grouped by type (exit 0; 3 when knip cannot run).
+- `pnpm noldor dead-code check` — exit 1 and name each finding the baseline lacks; exit 3 when the baseline is absent, unreadable, or recorded under another knip or algorithm version. Runs on pre-push (root `lefthook.yml`) and in `pnpm verify`, so CI runs it on every pull request.
+- `pnpm noldor dead-code baseline` — record the current findings to `.noldor/dead-code-baseline.json`, printing what was added and dropped.
+- A knip false positive is silenced in the root `knip.ts` as an entry or ignore with a one-line reason; real dead code is deleted or re-recorded, never ignored.
+
+This repo only: nothing ships to consumers.
 
 ## PRs
 
@@ -44,7 +59,9 @@ Nothing in the framework finds dead code (unused files, unused exports, unused a
 
 ## Resources
 
-- **Spec:** [`docs/design/specs/2026-10-07-dead-code-detection-with-knip-design.md`](../../docs/design/specs/2026-10-07-dead-code-detection-with-knip-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-10-07-dead-code-detection-with-knip-design.md`](../../docs/design/specs/archive/2026-10-07-dead-code-detection-with-knip-design.md)
+- **Code:**
+  - [`src/checks/dead-code.ts`](../../src/checks/dead-code.ts)
 - **Tests:**
   - [`src/checks/__tests__/dead-code.test.ts`](../../src/checks/__tests__/dead-code.test.ts)
 
