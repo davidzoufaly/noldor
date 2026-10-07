@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Priority Pickup Always Asks the Same Way
-
-- id: Q-0339
-- area: tooling
-- type: fix
-- since: 2026-10-07
-- size: S
-- impact: med
-- confidence: med
-
-Gate Step 0 priority pickup behaves inconsistently: sometimes the operator gets two questions (bucket, then entry), sometimes only one, and the session immediately starts working on the highest-priority entry. The single-entry shortcuts in Step 0 ("a single entry is used directly") skip the confirmation the multi-entry case gets, which reads as the agent picking work on its own. Make the pickup flow predictable: the operator always sees which entry was chosen and confirms it before work starts.
-
 ### Session Retro Auto-Capture
 
 - id: Q-0340

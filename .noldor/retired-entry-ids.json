@@ -799,5 +799,9 @@
   "Q-0338": {
     "slug": "fd-headers-for-five-real-gap-orphans",
     "retiredAt": "2026-10-07"
+  },
+  "Q-0339": {
+    "slug": "priority-pickup-always-asks-the-same-way",
+    "retiredAt": "2026-10-07"
   }
 }
