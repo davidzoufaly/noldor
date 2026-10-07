@@ -148,19 +148,16 @@ export const defaultRunKnip: RunKnip = (repo) => {
 export function readDeadCodeBaseline(repo: string, knipVersion: string): BaselineRead {
   const read = readCheckedState(join(repo, DEAD_CODE_BASELINE), deadCodeBaselineSchema);
   if (read.kind !== 'ok') return read;
-  if (read.value.algorithmVersion !== DEAD_CODE_ALGORITHM_VERSION) {
-    return {
-      kind: 'unreadable',
-      reason: `recorded by algorithm version ${read.value.algorithmVersion}; this is version ${DEAD_CODE_ALGORITHM_VERSION}`,
-    };
-  }
-  if (read.value.knipVersion !== knipVersion) {
-    return {
-      kind: 'unreadable',
-      reason: `recorded with knip ${read.value.knipVersion}; installed is ${knipVersion}`,
-    };
-  }
-  return { kind: 'ok', baseline: read.value };
+  const { algorithmVersion, knipVersion: recordedKnip } = read.value;
+  const drift =
+    algorithmVersion !== DEAD_CODE_ALGORITHM_VERSION
+      ? `algorithm version ${algorithmVersion}; this is version ${DEAD_CODE_ALGORITHM_VERSION}`
+      : recordedKnip !== knipVersion
+        ? `knip ${recordedKnip}; installed is ${knipVersion}`
+        : null;
+  return drift === null
+    ? { kind: 'ok', baseline: read.value }
+    : { kind: 'unreadable', reason: `recorded under ${drift}` };
 }
 
 const REMEDY = 'pnpm noldor dead-code baseline';
