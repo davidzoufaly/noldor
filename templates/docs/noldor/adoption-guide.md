@@ -100,6 +100,17 @@ Beyond the required `consumer:` block, `.noldor/config.json` accepts two **optio
 
 Neither block is required — a config with only `consumer:` runs autonomous CR on the `reviewer`-only defaults. Full reference: [`cr-pipeline.md`](cr-pipeline.md).
 
+## Optional: dead-code check
+
+`pnpm noldor dead-code check` runs on every pre-push and does nothing until `.noldor/config.json` sets `"deadCode": { "enabled": true }` ([ADR 0011](../adr/0011-opt-in-consumer-checks-use-a-config-switch.md)). Turned on, it fails the push when [knip](https://knip.dev) reports a finding (unused file, export, type or dependency) that `.noldor/dead-code-baseline.json` lacks. `noldor upgrade` adds the block with `enabled: false`. To turn it on:
+
+1. Install knip as a devDependency and write a knip config for your repo's entry points — noldor ships none.
+2. `pnpm noldor dead-code report` until the list holds only real dead code; silence false positives in the knip config.
+3. `pnpm noldor dead-code baseline`, then commit `.noldor/dead-code-baseline.json`.
+4. Set `"enabled": true`.
+
+A knip upgrade makes the baseline stale (exit 3) until step 3 is re-run. With the check on, `sdd-report` adds a `## Dead code` section and the dashboard's graph-health page shows the recorded count.
+
 ## Invocation
 
 The framework is invoked as `pnpm noldor <group> <subcommand>` (e.g. `pnpm noldor garden detect`, `pnpm noldor validate features`, `pnpm noldor release run`). A consumer MAY add flat `package.json` aliases (`"release": "noldor release run"`) for convenience, but the framework only guarantees the `noldor` CLI itself.

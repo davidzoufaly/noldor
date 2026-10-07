@@ -269,6 +269,15 @@ export const clonesConfigSchema = z.object({
 /** Parsed `clones:` block. */
 export type ClonesConfig = z.infer<typeof clonesConfigSchema>;
 
+/**
+ * Dead-code ratchet opt-in — the `deadCode:` block of `.noldor/config.json`.
+ * Off unless `enabled` is `true` (ADR 0011); a malformed value degrades to unset,
+ * so a typo turns the check off rather than throwing out of `loadConfig`.
+ */
+const deadCodeConfigSchema = z.object({
+  enabled: z.boolean().optional().catch(undefined),
+});
+
 export const noldorConfigSchema = z.object({
   crLanes: crLanesConfigSchema.optional(),
   crReview: crReviewConfigSchema.optional(),
@@ -279,6 +288,7 @@ export const noldorConfigSchema = z.object({
   release: releaseConfigSchema.optional(),
   garden: gardenConfigSchema.optional(),
   clones: clonesConfigSchema.optional().catch(undefined),
+  deadCode: deadCodeConfigSchema.optional().catch(undefined),
 });
 export type NoldorConfig = z.infer<typeof noldorConfigSchema>;
 

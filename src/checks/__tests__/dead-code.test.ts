@@ -10,11 +10,19 @@ import {
   defaultRunKnip,
   knipKeys,
   main,
+  summarizeDeadCode,
 } from '../dead-code.js';
 import type { RunKnip } from '../dead-code.js';
 
-function tempRepo(): { dir: string; [Symbol.dispose](): void } {
+function tempRepo(config: unknown = { deadCode: { enabled: true } }): {
+  dir: string;
+  [Symbol.dispose](): void;
+} {
   const dir = mkdtempSync(join(tmpdir(), 'noldor-dead-code-'));
+  if (config !== null) {
+    mkdirSync(join(dir, '.noldor'));
+    writeFileSync(join(dir, '.noldor/config.json'), JSON.stringify(config));
+  }
   return { dir, [Symbol.dispose]: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
@@ -197,9 +205,83 @@ describe('dead-code CLI', () => {
     expect(result.out).toContain('files (1)');
   });
 
+  it.each([
+    ['no config file', null],
+    ['no deadCode block', { clones: {} }],
+    ['enabled false', { deadCode: { enabled: false } }],
+    ['a malformed deadCode block', { deadCode: { enabled: 'yes' } }],
+  ])('check is off with %s: exit 0, knip never runs', async (_label, config) => {
+    using repo = tempRepo(config);
+    let ran = false;
+    const spy: RunKnip = () => ((ran = true), { ok: false, reason: 'should not run' });
+    const result = await run(['check'], repo.dir, spy);
+    expect(result.code).toBe(0);
+    expect(ran).toBe(false);
+    expect(result.out).toContain('deadCode');
+  });
+
+  it.each([
+    ['off', { crLanes: 'not lanes', deadCode: { enabled: false } }, 0],
+    ['on', { crLanes: 'not lanes', deadCode: { enabled: true } }, 3],
+  ])(
+    'reads only the deadCode block: an invalid unrelated block leaves the check %s',
+    async (_label, config, code) => {
+      using repo = tempRepo(config);
+      const result = await run(['check'], repo.dir, fakeKnip(TODAY));
+      expect(result.code).toBe(code);
+      expect(result.err).not.toContain('config.json');
+    },
+  );
+
+  it('check exits 3 when .noldor/config.json is not JSON', async () => {
+    using repo = tempRepo({});
+    writeFileSync(join(repo.dir, '.noldor/config.json'), '{ nope');
+    const result = await run(['check'], repo.dir, fakeKnip(TODAY));
+    expect(result.code).toBe(3);
+    expect(result.err).toContain('.noldor/config.json');
+  });
+
+  it.each(['report', 'baseline'])('%s runs with the check off', async (sub) => {
+    using repo = tempRepo(null);
+    expect((await run([sub], repo.dir, fakeKnip(TODAY))).code).toBe(0);
+  });
+
   it.each([[[]], [['nope']], [['check', 'extra']]])('exits 2 on usage %j', async (argv) => {
     using repo = tempRepo();
     expect((await run(argv, repo.dir, fakeKnip(TODAY))).code).toBe(2);
+  });
+});
+
+describe('summarizeDeadCode', () => {
+  it('counts every finding by type, and the ones the baseline lacks', async () => {
+    using repo = tempRepo();
+    await run(['baseline'], repo.dir, fakeKnip(TODAY));
+    const grown = knipJson(
+      row('src/a.ts', { exports: [{ name: 'unusedA' }, { name: 'newlyDead' }] }),
+      row('src/dead.ts', { files: [{ name: 'src/dead.ts' }] }),
+    );
+    expect(summarizeDeadCode(repo.dir, fakeKnip(grown))).toEqual({
+      total: 3,
+      byType: new Map([
+        ['exports', 2],
+        ['files', 1],
+      ]),
+      outsideBaseline: 1,
+    });
+  });
+
+  it('leaves the outside-baseline count null when no baseline reads under the installed knip', async () => {
+    using repo = tempRepo();
+    expect(summarizeDeadCode(repo.dir, fakeKnip(TODAY))?.outsideBaseline).toBeNull();
+    await run(['baseline'], repo.dir, fakeKnip(TODAY));
+    expect(summarizeDeadCode(repo.dir, fakeKnip(TODAY, '7.0.0'))?.outsideBaseline).toBeNull();
+  });
+
+  it('is null when the check is off or knip cannot run', () => {
+    using off = tempRepo(null);
+    expect(summarizeDeadCode(off.dir, fakeKnip(TODAY))).toBeNull();
+    using on = tempRepo();
+    expect(summarizeDeadCode(on.dir, () => ({ ok: false, reason: 'knip exited 2' }))).toBeNull();
   });
 });
 

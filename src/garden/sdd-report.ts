@@ -34,7 +34,13 @@ import {
   scanRoots as resolveScanRoots,
   walkCodeFiles,
 } from '../core/repo-paths.js';
-import { renderMetricsSection, reviewSkipCountLine } from './sdd-report-format.js';
+import {
+  renderDeadCodeSection,
+  renderMetricsSection,
+  reviewSkipCountLine,
+} from './sdd-report-format.js';
+import { summarizeDeadCode } from '../checks/dead-code.js';
+import type { DeadCodeSummary } from '../checks/dead-code.js';
 import { DEFAULT_CLONE_OPTIONS, detectClones } from '../clones/detect.js';
 import type { CloneReport } from '../clones/detect.js';
 import { readFileSync } from 'node:fs';
@@ -926,6 +932,7 @@ function renderReportMd(
   gateCompliance: GateComplianceSection | null,
   metricsReport: MetricsReport | null,
   cloneReport: CloneReport | null,
+  deadCode: DeadCodeSummary | null,
 ): string {
   const date = new Date().toISOString().slice(0, 10);
   const lines = [
@@ -962,6 +969,8 @@ function renderReportMd(
     }
     lines.push('');
   }
+
+  lines.push(...renderDeadCodeSection(deadCode));
 
   // Gate compliance section — only at release time. Without --release, the
   // counter ticks per-commit and pollutes diffs without conveying signal.
@@ -1129,6 +1138,7 @@ async function main(): Promise<void> {
     gateCompliance,
     metricsReport,
     cloneReport,
+    summarizeDeadCode(process.cwd()),
   );
   const outPath = resolveReportOutPath(process.argv.slice(2), process.env);
   await writeFile(outPath, `${reportMd.replace(/\n*$/, '')}\n`, 'utf8');

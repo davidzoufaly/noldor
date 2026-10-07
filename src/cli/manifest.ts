@@ -559,7 +559,7 @@ export const MANIFEST: Record<string, Group> = {
     },
   },
   'dead-code': {
-    desc: 'Set ratchet over knip dead-code findings (this repo only)',
+    desc: 'Set ratchet over knip dead-code findings (opt-in: deadCode.enabled)',
     subs: {
       '': { src: 'checks/dead-code.ts', desc: 'dead-code <report|check|baseline>' },
     },

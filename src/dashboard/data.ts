@@ -53,7 +53,12 @@ import {
   readPort,
 } from '../worktrees/worktree-status.js';
 import { loadPark, readInboxRows, type InboxRow } from '../autonomous/escalations.js';
-import { StateFileCorruptError } from '../core/state-file.js';
+import { StateFileCorruptError, readCheckedState } from '../core/state-file.js';
+import {
+  DEAD_CODE_BASELINE,
+  deadCodeBaselineSchema,
+  deadCodeEnabled,
+} from '../checks/dead-code.js';
 import { WATCH_LOG_REL } from '../autonomous/watch-detach.js';
 
 marked.use(
@@ -2080,9 +2085,9 @@ export type GraphCommunity = z.infer<typeof graphCommunitySchema>;
  *
  * @remarks
  * `reportDate` is the run date from the report header (`# Graph Report - src
- * (2026-06-01)`) — the snapshot's "as of" label. `deadExportCount` is `null`
- * because `/graphify` does not currently emit a dead-export section; the parser
- * still reads one if a future report version adds it (see {@link parseGraphReport}).
+ * (2026-06-01)`) — the snapshot's "as of" label. `deadCode` is not from the
+ * report: {@link loadGraphHealth} reads it from `.noldor/dead-code-baseline.json`
+ * when `deadCode.enabled` is on, and it is `null` otherwise.
  * `communityCount` is the Summary total (includes thin/omitted communities);
  * `scannedCommunityCount` is how many community blocks the report actually
  * details (the ones cohesion was scored for) — the correct denominator for the
@@ -2101,7 +2106,10 @@ export const graphHealthSnapshotSchema = z
     lowCohesionThreshold: z.number(),
     lowCohesionCount: z.number().int().nonnegative(),
     lowCohesionCommunities: z.array(graphCommunitySchema),
-    deadExportCount: z.number().int().nonnegative().nullable(),
+    deadCode: z
+      .object({ count: z.number().int().nonnegative(), recordedAt: z.string() })
+      .strict()
+      .nullable(),
   })
   .strict();
 export type GraphHealthSnapshot = z.infer<typeof graphHealthSnapshotSchema>;
@@ -2119,24 +2127,6 @@ function graphReportSection(raw: string, title: string): string | null {
   const after = raw.slice(start.index + start[0].length);
   const next = /^##\s/m.exec(after);
   return next === null ? after : after.slice(0, next.index);
-}
-
-/**
- * Count dead/unused exports if the report carries such a section. `/graphify`
- * does not emit one today, so this returns `null` (rendered as "not reported").
- * Kept forward-compatible: a future `## Dead Exports` / `## Unused Exports`
- * section is read as either an explicit count line or a bullet list.
- */
-function parseDeadExports(raw: string): number | null {
-  for (const title of ['Dead Exports', 'Unused Exports']) {
-    const body = graphReportSection(raw, title);
-    if (body === null) continue;
-    const countLine = /(\d+)\s+(?:dead|unused)\s+exports?/i.exec(body);
-    if (countLine !== null) return Number(countLine[1]);
-    const bullets = body.match(/^\s*[-*]\s+/gm);
-    return bullets === null ? 0 : bullets.length;
-  }
-  return null;
 }
 
 /**
@@ -2197,7 +2187,7 @@ export function parseGraphReport(raw: string): GraphHealthSnapshot {
     lowCohesionThreshold: LOW_COHESION_THRESHOLD,
     lowCohesionCount: lowCohesionCommunities.length,
     lowCohesionCommunities,
-    deadExportCount: parseDeadExports(raw),
+    deadCode: null,
   });
 }
 
@@ -2283,7 +2273,20 @@ export async function loadGraphHealth(): Promise<GraphHealthSnapshot | null> {
   } catch {
     return null;
   }
-  return parseGraphReport(raw);
+  return { ...parseGraphReport(raw), deadCode: readDeadCodeTile(getDocRoot()) };
+}
+
+/**
+ * The recorded baseline, not a live knip run, keeps knip out of the request path;
+ * the schema is checked but not the knip version, which would need knip installed.
+ */
+function readDeadCodeTile(root: string): GraphHealthSnapshot['deadCode'] {
+  const enabled = deadCodeEnabled(root);
+  if (!enabled.ok || !enabled.enabled) return null;
+  const read = readCheckedState(join(root, DEAD_CODE_BASELINE), deadCodeBaselineSchema);
+  return read.kind === 'ok'
+    ? { count: read.value.issues.length, recordedAt: read.value.recordedAt }
+    : null;
 }
 
 /** Fail-open: any compute error → null; the view renders a labeled degraded state. */

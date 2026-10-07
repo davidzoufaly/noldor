@@ -41,19 +41,6 @@ Today nothing makes an agent write what it learned. The `## Lessons` + `/noldor-
 
 Graph freshness is checked once per session, at the spec's structural-read step, and never again (surfaced 2026-10-04, charuy Q-0145). `noldor-spec` step 1.7 runs `design graph-context`, rebuilds on `stale`, reads the digest, then restores `graphify-out/`. Nothing re-checks before implementation starts, during it, or before the code-stage CR, so a long session (spec → 3 review rounds → code) can plan and code against a graph the tree has moved past, and other sessions' merges to `origin/main` mid-session are never pulled in. Worktrees branch from `origin/main` at create time and `pr-flow` fetches at the end, but nothing fetches in between. Options: (a) gate Step 3.5 (rule brief before the first edit) also runs `design graph-context` over the files about to be touched and rebuilds locally on `stale` (~15 s, restored afterwards, never committed); (b) a `git fetch origin main` + "main moved N commits since worktree create" notice at the same seam, so the operator can merge main in before coding rather than at push.
 
-### Dead-Code Detection for Consumers
-
-- id: Q-0345
-- area: tooling
-- type: feat
-- since: 2026-10-07
-- size: M
-- impact: med
-- split-from: Q-0342
-- recovered: 2026-10-07
-
-An opt-in dead-code check for consumers: it runs only when the consumer has knip installed, feeds the same recorded-baseline ratchet noldor uses on itself (Q-0342, `dead-code-detection-with-knip`), and surfaces the counts in `sdd-report`, the dashboard's "Unused Exports" slot (`src/dashboard/data.ts:2125`), and the `/noldor-refactor` report's Dead Code section. Do this after Q-0342 has run on noldor long enough to prove itself.
-
 ### UI Proof Screenshots on the PR
 
 - id: Q-0343

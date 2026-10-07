@@ -1,7 +1,7 @@
 {
   "algorithmVersion": 1,
   "knipVersion": "6.40.0",
-  "recordedAt": "2026-10-07T13:15:22.374Z",
+  "recordedAt": "2026-10-07T14:32:51.944Z",
   "issues": [
     "exports:bin/build-manifest.mjs:allSourceFiles",
     "exports:bin/build-manifest.mjs:compiledInputs",
@@ -21,7 +21,6 @@
     "exports:src/checks/check-shared-files.ts:main",
     "exports:src/checks/check-template-sync.ts:main",
     "exports:src/checks/check-ui-design-freshness.ts:main",
-    "exports:src/checks/dead-code.ts:deadCodeBaselineSchema",
     "exports:src/checks/dead-code.ts:readDeadCodeBaseline",
     "exports:src/checks/skill-router.ts:READ_NOW_MARKER",
     "exports:src/checks/skill-size.ts:skillSizeBaselineSchema",
