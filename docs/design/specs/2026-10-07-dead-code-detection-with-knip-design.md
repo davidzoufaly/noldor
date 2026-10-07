@@ -42,11 +42,11 @@ A `knip.ts` at the repo root. It is TypeScript so it can import `flattenManifest
 
 knip is pinned as an exact-version devDependency, so every run on every machine uses the same rules.
 
-The split between config and baseline is a rule: a finding that is not really dead goes into `knip.ts` — an entry or an ignore, each with a one-line comment saying why — and never into the baseline. `@swc/core` is the first case: knip calls it unused, but dependency-cruiser loads it as a parser (`src/invariants/slug-path-choke-point.ts:12`), so it goes in `ignoreDependencies`. `src/invariants/.dependency-cruiser.cjs` gets the same treatment, as an entry if something loads it and a delete-candidate in the baseline if nothing does. The baseline then holds only real dead code, so draining it later is honest work.
+The split between config and baseline is a rule: a finding that is not really dead goes into `knip.ts` — an entry or an ignore, each with a one-line comment saying why — and never into the baseline. `@swc/core` is the first case: knip calls it unused, but dependency-cruiser loads it as a parser (`src/invariants/slug-path-choke-point.ts:12`), so it goes in `ignoreDependencies`. `src/invariants/.dependency-cruiser.cjs` gets the same treatment, as an entry if something loads it and a delete-candidate in the baseline if nothing does. The baseline then holds only true findings — dead code, plus the real defects knip reports beside it (an unlisted dependency, an unresolved import) — so draining it later is honest work.
 
 ### The check: `noldor dead-code`
 
-`src/checks/dead-code.ts`, shaped like `src/checks/skill-size.ts`: `noldor dead-code <report|check|baseline>`. It runs the local knip binary with `--reporter json --no-progress --no-exit-code`, parses the JSON, and turns every finding into one key: `<type>:<file>:<name>` (for example `exports:src/core/config.ts:loadRaw`; a whole-file finding has no name).
+`src/checks/dead-code.ts`, shaped like `src/checks/skill-size.ts`: `noldor dead-code <report|check|baseline>`. It runs the local knip binary with `--reporter json --no-progress --no-exit-code`, parses the JSON, and turns every finding into one key: `<type>:<file>:<name>` (for example `exports:src/core/config.ts:loadRaw`; a whole-file finding has no name). For a member finding the name carries its parent (`enumMembers:<file>:Enum.member`), and a `duplicates` group joins its sorted names with `|`, so two findings never share a key.
 
 The manifest entry is a bare group like `skill-size`, desc ending `(this repo only)`.
 
@@ -64,7 +64,7 @@ A `knipVersion` or `algorithmVersion` mismatch is exit 3 with a re-record hint, 
 
 ### Wiring
 
-One pre-push job in the root `lefthook.yml`, next to `skill-size`: `pnpm noldor dead-code check`. Not in `lefthook/noldor.yml` — that file ships to every consumer. Noldor has no CI test workflow, so pre-push is the gate. A knip run over this repo takes about 2.5 s.
+One pre-push job in the root `lefthook.yml`, next to `skill-size`: `pnpm noldor dead-code check`. Not in `lefthook/noldor.yml` — that file ships to every consumer. The same command is appended to the `verify` script in `package.json`, which `.github/workflows/contract-e2e.yml` runs on every pull request — the backstop for a push made with `--no-verify`. A knip run over this repo takes about 2.5 s.
 
 ### Errors
 
@@ -77,10 +77,10 @@ knip missing, crashing, or printing JSON the parser rejects → exit 3, "could n
 - With the baseline recorded, `check` exits 0 on an unchanged tree.
 - Adding an unused export to a `src/` file makes `check` exit 1 and name that export.
 - Deleting a recorded unused export keeps `check` at exit 0 and prints a re-record hint.
-- A baseline with a different `knipVersion` makes `check` exit 3.
+- A baseline with a different `knipVersion` or `algorithmVersion` makes `check` exit 3.
 - A knip failure or unparseable output makes `check` exit 3.
 - No CLI leaf in `MANIFEST` is reported as an unused file.
-- `git push` from this repo runs the check.
+- `git push` from this repo and `pnpm verify` both run the check.
 - Nothing in `lefthook/noldor.yml` or `templates/` changes.
 
 ## Risks / trade-offs
@@ -88,6 +88,7 @@ knip missing, crashing, or printing JSON the parser rejects → exit 3, "could n
 - knip's TypeScript plugin resolution may disagree with how `bin/boot.mjs` picks `dist/` vs `src/`; if so, more config, not code.
 - Pre-push gets slower by one knip run (about 2.5 s here).
 - A knip upgrade can change findings; the exit-3 mismatch forces a deliberate re-record.
+- Pre-push checks the working tree, not the pushed ref, so an uncommitted edit can sway it — the same as skill-size; the CI run over the PR is exact.
 
 ## User Story
 
@@ -105,6 +106,6 @@ pnpm noldor dead-code check      # exit 1 if anything new appeared (runs on pre-
 
 1. _Set ratchet or count ratchet?_ -> Set: a knip finding has a name, so the check can say what is new, and a removal cannot fund an addition. (D1)
 2. _Clean up today's dead code in this PR, or baseline it?_ -> Baseline all of it, `package.json` findings and the broken test import included; one follow-up idea covers the drain, so this PR stays a tool. (D2)
-3. _Where does a false positive go?_ -> Into `knip.ts` as an entry or ignore with a one-line why, never into the baseline, so the baseline is only real dead code. (D3)
+3. _Where does a false positive go?_ -> Into `knip.ts` as an entry or ignore with a one-line why, never into the baseline, so the baseline holds only true findings. (D3)
 4. _Which knip issue types count?_ -> knip's defaults, all of them. Narrowing later is a config edit. (D4)
-5. _Pre-push or CI?_ -> Pre-push in the root `lefthook.yml`: noldor has no CI test workflow, and one knip run costs about 2.5 s. (D5)
+5. _Pre-push or CI?_ -> Both: pre-push in the root `lefthook.yml` for fast feedback, and the `verify` script that CI runs on every PR, since pre-push can be skipped. One knip run costs about 2.5 s. (D5)
