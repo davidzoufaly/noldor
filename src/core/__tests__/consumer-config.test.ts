@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, version-aware-upgrade-and-migration-chain, sdd-report-honours-ownerless-on-purpose
+// @tests: acceptance-verify-lane, version-aware-upgrade-and-migration-chain, sdd-report-honours-ownerless-on-purpose, ui-proof-screenshots-on-the-pr
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -564,5 +564,40 @@ describe('ConsumerConfigSchema ownerless', () => {
     expect(() =>
       ConsumerConfigSchema.parse({ ...MINIMAL_CONSUMER, ownerless: { features: { a: reason } } }),
     ).toThrow();
+  });
+});
+
+describe('consumer.uiProof', () => {
+  const messages = (r: ReturnType<typeof ConsumerConfigSchema.safeParse>) =>
+    r.success ? [] : r.error.issues.map((i) => i.message);
+
+  it('accepts a proof command for a declared surface and defaults its timeout', () => {
+    const cfg = ConsumerConfigSchema.parse({
+      ...MINIMAL_CONSUMER,
+      uiPaths: ['apps/web/**'],
+      uiSurfaces: { web: ['apps/web/**'] },
+      uiProof: { web: { command: 'pnpm test:e2e --grep @proof' } },
+    });
+    expect(cfg.uiProof).toEqual({
+      web: { command: 'pnpm test:e2e --grep @proof', timeoutMs: 300_000 },
+    });
+  });
+
+  it('rejects a proof command for an undeclared surface', () => {
+    const r = ConsumerConfigSchema.safeParse({
+      ...MINIMAL_CONSUMER,
+      uiPaths: ['apps/web/**'],
+      uiSurfaces: { web: ['apps/web/**'] },
+      uiProof: { site: { command: 'pnpm proof' } },
+    });
+    expect(messages(r).some((m) => m.includes("uiProof surface 'site'"))).toBe(true);
+  });
+
+  it('rejects a uiProof block when nothing is UI-bearing', () => {
+    const r = ConsumerConfigSchema.safeParse({
+      ...MINIMAL_CONSUMER,
+      uiProof: { app: { command: 'pnpm proof' } },
+    });
+    expect(messages(r).some((m) => m.includes('nothing is UI-bearing'))).toBe(true);
   });
 });

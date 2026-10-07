@@ -7,8 +7,10 @@
 // writes exactly one sink (Q-0100), and a per-surface failure never aborts the
 // round — outcomes aggregate by `fail` > `cannot-review` > `pass` (spec R7).
 
+import { execFile } from 'node:child_process';
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 
 import type { PNG } from 'pngjs';
 
@@ -48,6 +50,18 @@ import type { LaneAnswer } from '../lane-answer.js';
 import { writeFailByMode, writePenModified } from './ui-design-resolve.js';
 
 const LANE = 'render-compare' as const;
+
+const execFileAsync = promisify(execFile);
+
+async function headTree(repoRoot: string): Promise<string | null> {
+  try {
+    return (
+      await execFileAsync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: repoRoot })
+    ).stdout.trim();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Ratio formatting for findings and notes: six decimals so a boundary failure
@@ -423,11 +437,20 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     // ---- R6: persist artifacts, atomically per round ----
     // A round with no raster hands the swap an empty list, which keeps the prior
     // round's evidence (see round-artifacts.ts for why).
+    // The sidecar is how `pr-flow` tells this round's shot from a stale one
+    // (src/core/ui-proof.ts); without a readable tree the shot is simply never reused.
+    const shotTree = await headTree(input.repoRoot);
     const artifacts: RoundArtifact[] = [];
     for (const job of jobs) {
       artifacts.push({ name: `${job.sanitized}.design.png`, body: job.designBuf });
       if (job.shotBuf !== undefined) {
         artifacts.push({ name: `${job.sanitized}.shot.png`, body: job.shotBuf });
+        if (shotTree !== null) {
+          artifacts.push({
+            name: `${job.sanitized}.shot.json`,
+            body: JSON.stringify({ tree: shotTree }) + '\n',
+          });
+        }
       }
       if (job.diffBuf !== undefined) {
         artifacts.push({ name: `${job.sanitized}.diff.png`, body: job.diffBuf });

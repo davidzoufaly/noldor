@@ -33,6 +33,14 @@ export interface VerifySummary {
   evidence: VerifyEvidencePair[];
 }
 
+/** One UI surface's hosted proof: image URLs ready for the PR body, plus notes to show beside them. */
+export interface UiProofLink {
+  surface: string;
+  source: 'e2e' | 'render-compare' | null;
+  imageUrls: string[];
+  notes: string[];
+}
+
 /**
  * The commit a no-FD PR (fast-track / micro-chore) describes: there is no FD to
  * draw a summary from, so the PR title and Summary section come from here.
@@ -94,6 +102,8 @@ export interface PrFlowInput {
    * sibling shipped with it.
    */
   taskIds: readonly string[];
+  /** Hosted screenshots per UI surface the branch touched; absent or empty renders no UI Proof section. */
+  uiProof?: readonly UiProofLink[];
 }
 
 export interface PrFlowResult {
@@ -148,6 +158,30 @@ function renderVerifySection(verify: VerifySummary | null): string {
   return ['## Verify Evidence', '', `Lane verdict: \`${verify.verdict}\``, '', body, '', ''].join(
     '\n',
   );
+}
+
+const UI_PROOF_SOURCE_LABEL = {
+  e2e: 'Source: the proof command (`consumer.uiProof`).',
+  'render-compare': 'Source: the `render-compare` lane screenshot.',
+} as const;
+
+function renderUiProofSection(links: readonly UiProofLink[] | undefined): string {
+  if (links === undefined || links.length === 0) return '';
+  const blocks = links.map((l) => {
+    const lines = [`### ${l.surface}`, ''];
+    if (l.source !== null) lines.push(UI_PROOF_SOURCE_LABEL[l.source], '');
+    for (const [i, url] of l.imageUrls.entries())
+      lines.push(`![${l.surface} ${i + 1}](${url})`, '');
+    if (l.imageUrls.length === 0) {
+      lines.push(
+        `_No screenshot. Configure \`consumer.uiProof.${l.surface}.command\` or run the \`render-compare\` lane._`,
+        '',
+      );
+    }
+    for (const note of l.notes) lines.push(`_${note}_`, '');
+    return lines.join('\n');
+  });
+  return ['## UI Proof', '', ...blocks, ''].join('\n');
 }
 
 function renderLinksSection(input: PrFlowInput): string {
@@ -427,7 +461,7 @@ export function composeBody(input: PrFlowInput): string {
     '',
     crTable,
     '',
-    renderVerifySection(input.verify) + '## Test Plan',
+    renderUiProofSection(input.uiProof) + renderVerifySection(input.verify) + '## Test Plan',
     '',
     testPlanItems.join('\n'),
     '',
@@ -678,6 +712,12 @@ export interface OpenAndAutoMergeInput extends PrFlowInput {
   /** When true (parallel drain K>1, via `NOLDOR_DRAIN_OPEN_ONLY=1`): push + open the PR, then RETURN
    *  without merging or polling. The drain supervisor's serialized merge coordinator owns the merge. */
   openOnly?: boolean;
+  /**
+   * Captures and hosts the UI proof screenshots. Run only after the summary,
+   * gh and redundant-delivery guards pass, so a delivery that stops there
+   * never pays for an e2e run or pushes images. Must not throw.
+   */
+  prepareUiProof?: () => Promise<readonly UiProofLink[]>;
 }
 
 /**
@@ -909,6 +949,11 @@ export async function openAndAutoMerge(
   });
   if (redundant) return redundant;
 
+  const delivery: OpenAndAutoMergeInput =
+    input.prepareUiProof === undefined
+      ? input
+      : { ...input, uiProof: await input.prepareUiProof() };
+
   const push = await input.spawn('git', [
     'push',
     // --force-with-lease: safe no-op on first push; prevents overwriting diverged state on retry
@@ -935,9 +980,9 @@ export async function openAndAutoMerge(
       `pr-flow: an open PR (#${existing.prNumber}) already exists for ${input.branch} — ` +
         `reusing it instead of opening a second one: ${existing.prUrl}\n`,
     );
-    await refreshExistingPr({ pr: existing, input, spawn: input.spawn });
+    await refreshExistingPr({ pr: existing, input: delivery, spawn: input.spawn });
   }
-  const { prUrl, prNumber } = existing ?? (await createPr(input, input.spawn));
+  const { prUrl, prNumber } = existing ?? (await createPr(delivery, input.spawn));
 
   // Parallel drain (K>1): the child's job ends at PR-open. The supervisor's serialized merge
   // coordinator merges it (one at a time, rebased on the prior) — never merge here or two
