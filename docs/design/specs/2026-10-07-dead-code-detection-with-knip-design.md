@@ -40,7 +40,7 @@ No candidate paths: the FD has no `links.code` yet and the entry declared no `To
 
 A `knip.ts` at the repo root. It is TypeScript so it can import `flattenManifest()` from `src/cli/manifest.ts` and list every leaf's `src` as an entry — the manifest stays the one place that names the CLI's entry points, and a new command never needs a knip edit. Other entries: `bin/*.mjs`, `src/cli/index.ts`, `templates/scripts/*.mjs`. Ignored: test fixture trees (`src/indirection/__tests__/trees/**`, `src/fixtures/**`). knip's vitest plugin picks the test files up as entries on its own.
 
-knip is pinned as an exact-version devDependency, so every run on every machine uses the same rules.
+knip is pinned as an exact-version devDependency, so every run on every machine uses the same rules. `includeEntryExports` is on: knip skips unused exports in entry files by default, and every CLI leaf is an entry, so the default would leave most of `src/` unchecked.
 
 The split between config and baseline is a rule: a finding that is not really dead goes into `knip.ts` — an entry or an ignore, each with a one-line comment saying why — and never into the baseline. `@swc/core` is the first case: knip calls it unused, but dependency-cruiser loads it as a parser (`src/invariants/slug-path-choke-point.ts:12`), so it goes in `ignoreDependencies`. `src/invariants/.dependency-cruiser.cjs` gets the same treatment, as an entry if something loads it and a delete-candidate in the baseline if nothing does. The baseline then holds only true findings — dead code, plus the real defects knip reports beside it (an unlisted dependency, an unresolved import) — so draining it later is honest work.
 
@@ -81,7 +81,7 @@ knip missing, crashing, or printing JSON the parser rejects → exit 3, "could n
 - A knip failure or unparseable output makes `check` exit 3.
 - No CLI leaf in `MANIFEST` is reported as an unused file.
 - `git push` from this repo and `pnpm verify` both run the check.
-- Nothing in `lefthook/noldor.yml` or `templates/` changes.
+- No consumer behaviour changes: `lefthook/noldor.yml` is untouched, and `templates/` changes only in the command listings (`templates/AGENTS.md`, `templates/docs/noldor/script-catalog.md`), as for `skill-size`.
 
 ## Risks / trade-offs
 
