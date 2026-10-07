@@ -27,3 +27,7 @@ pre-push:
   jobs:
     - name: skill-size
       run: pnpm noldor skill-size check
+    # Self-host only, like skill-size: knip.ts describes this repo's entry points,
+    # not a consumer's.
+    - name: dead-code
+      run: pnpm noldor dead-code check

@@ -5,7 +5,8 @@ deps: []
 entry-id: Q-0342
 links:
   code: []
-  tests: []
+  tests:
+    - src/checks/__tests__/dead-code.test.ts
   spec: docs/design/specs/2026-10-07-dead-code-detection-with-knip-design.md
 name: Dead-Code Detection with knip
 packages:
@@ -44,5 +45,7 @@ Nothing in the framework finds dead code (unused files, unused exports, unused a
 ## Resources
 
 - **Spec:** [`docs/design/specs/2026-10-07-dead-code-detection-with-knip-design.md`](../../docs/design/specs/2026-10-07-dead-code-detection-with-knip-design.md)
+- **Tests:**
+  - [`src/checks/__tests__/dead-code.test.ts`](../../src/checks/__tests__/dead-code.test.ts)
 
 <!-- /generated: resources -->
