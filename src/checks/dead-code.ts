@@ -88,7 +88,8 @@ export function knipKeys(stdout: string): KeysResult {
     const file = row['file'];
     if (typeof file !== 'string') return { ok: false, reason: 'knip row without a file' };
     for (const [type, value] of Object.entries(row)) {
-      if (!Array.isArray(value)) continue;
+      // knip adds `owners` to every row when a CODEOWNERS file exists; it is metadata, not a finding.
+      if (!Array.isArray(value) || type === 'owners') continue;
       if (type === 'files') {
         if (value.length > 0) keys.add(`files:${file}`);
         continue;
@@ -166,12 +167,15 @@ type Measured = { ok: true; keys: string[]; version: string } | { ok: false };
 
 function measure(repo: string, runKnip: RunKnip): Measured {
   const run = runKnip(repo);
-  const parsed = run.ok ? knipKeys(run.stdout) : run;
-  if (!run.ok || !parsed.ok) {
-    process.stderr.write(`✗ dead-code: could not look — ${parsed.ok ? '' : parsed.reason}\n`);
-    return { ok: false };
-  }
+  if (!run.ok) return couldNotLook(run.reason);
+  const parsed = knipKeys(run.stdout);
+  if (!parsed.ok) return couldNotLook(parsed.reason);
   return { ok: true, keys: parsed.keys, version: run.version };
+}
+
+function couldNotLook(reason: string): Measured {
+  process.stderr.write(`✗ dead-code: could not look — ${reason}\n`);
+  return { ok: false };
 }
 
 function printReport(keys: string[]): number {

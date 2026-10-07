@@ -103,6 +103,13 @@ describe('knipKeys', () => {
     expect(result).toEqual({ ok: true, keys: ['duplicates:src/d.ts:a|b'] });
   });
 
+  it('ignores the owners metadata knip adds when a CODEOWNERS file exists', () => {
+    const result = knipKeys(
+      knipJson(row('src/a.ts', { owners: [{ name: '@team' }], exports: [{ name: 'unusedA' }] })),
+    );
+    expect(result).toEqual({ ok: true, keys: ['exports:src/a.ts:unusedA'] });
+  });
+
   it.each([
     ['not JSON', 'Error: knip crashed'],
     ['no issues array', JSON.stringify({ files: [] })],
