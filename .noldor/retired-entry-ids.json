@@ -795,5 +795,9 @@
   "Q-0337": {
     "slug": "gate-final-report-names-the-pr-url",
     "retiredAt": "2026-10-07"
+  },
+  "Q-0338": {
+    "slug": "fd-headers-for-five-real-gap-orphans",
+    "retiredAt": "2026-10-07"
   }
 }
