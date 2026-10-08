@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Fill-Links Skips Tag-Built FDs
-
-- id: Q-0347
-- area: tooling
-- type: fix
-- since: 2026-10-08
-- size: S
-- impact: high
-- confidence: high
-- parent: dead-code-detection-with-knip
-
-Pre-commit `features fill-links-code-gaps --auto-high` adds an untagged file to an FD whose links.code is tag-built, and the same commit warns that `sync code-links` will drop it, so every commit leaves that FD dirty (charuy: `apps/web/src/components/build/money.ts`). The auto-high pass should skip FDs that carry `// @fd:` tags. (charuy-noldor-1-16-0, PR #362, 2026-10-08)
-
 ### Worktree Copies Local Env Files
 
 - id: Q-0350

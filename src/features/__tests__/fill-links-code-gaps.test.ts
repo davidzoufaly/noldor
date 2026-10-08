@@ -1,6 +1,6 @@
 // @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100, noldor
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -14,6 +14,7 @@ import {
   parseLlmResponse,
   parseProposal,
   resolveByPath,
+  runAutoHigh,
 } from '../fill-links-code-gaps.js';
 import type { FeatureFrontmatter } from '../../core/feature-schema.js';
 
@@ -453,6 +454,67 @@ describe('collectTestOwners', () => {
       expect(matches.map((m) => m.fdSlug)).toEqual(['widget-fd']);
     } finally {
       process.chdir(previousCwd);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+function writeFd(dir: string, slug: string, pkg: string, code: string[]): void {
+  writeFileSync(
+    join(dir, 'docs', 'features', `${slug}.md`),
+    [
+      '---',
+      `name: ${slug}`,
+      'area: tooling',
+      'category: Core',
+      `packages: [${pkg}]`,
+      'phase: done',
+      'noldor-tier: specs-only',
+      'links:',
+      `  code: [${code.join(', ')}]`,
+      '---',
+      '',
+      '## Summary',
+      '',
+      'x',
+      '',
+    ].join('\n'),
+  );
+}
+
+function readCode(dir: string, slug: string): string {
+  return readFileSync(join(dir, 'docs', 'features', `${slug}.md`), 'utf8');
+}
+
+describe('runAutoHigh', () => {
+  // Regression (charuy, PR #362): the pass wrote an untagged file into an FD
+  // whose links.code `sync code-links` builds from `// @fd:` tags, and the sync
+  // dropped it again — so every commit left that FD dirty.
+  it('skips a high match onto a tag-built FD and still applies the others', async () => {
+    const dir = makeStandaloneRepo();
+    mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+    for (const pkg of ['money', 'plain']) {
+      mkdirSync(join(dir, 'packages', pkg, 'src'), { recursive: true });
+    }
+    writeFileSync(
+      join(dir, 'packages', 'money', 'src', 'build.ts'),
+      '// @fd: money-fd\nexport {};\n',
+    );
+    writeFileSync(join(dir, 'packages', 'money', 'src', 'money.ts'), 'export {};\n');
+    writeFileSync(join(dir, 'packages', 'plain', 'src', 'plain.ts'), 'export {};\n');
+    writeFd(dir, 'money-fd', 'money', ['packages/money/src/build.ts']);
+    writeFd(dir, 'plain-fd', 'plain', []);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const previousCwd = process.cwd();
+    process.chdir(dir);
+    try {
+      await runAutoHigh();
+      expect(readCode(dir, 'money-fd')).not.toContain('packages/money/src/money.ts');
+      expect(readCode(dir, 'plain-fd')).toContain('packages/plain/src/plain.ts');
+      expect(log.mock.calls.flat().join('\n')).toContain('skipped 1 matched to a tag-built FD');
+    } finally {
+      process.chdir(previousCwd);
+      log.mockRestore();
       rmSync(dir, { recursive: true, force: true });
     }
   });

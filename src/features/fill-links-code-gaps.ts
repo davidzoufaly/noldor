@@ -22,6 +22,9 @@ import { scanRoots } from '../core/repo-paths.js';
 import type { FeatureFrontmatter } from '../core/feature-schema.js';
 import { isEntrypoint } from '../core/cli-entry.js';
 import { extractTags } from '../sync/sync-test-links.js';
+import { codeAdapter } from '../sync/adapters/code.js';
+import { collectTaggedMany } from '../sync/projection.js';
+import type { ScanFailure } from '../sync/projection.js';
 
 /**
  * One candidate-FD match for an unreferenced code file. Confidence indicates
@@ -573,14 +576,43 @@ export async function collectCandidateFiles(referenced: Set<string>): Promise<st
 }
 
 /**
+ * FDs whose `links.code` is tag-built: some code file names them in a
+ * `// @fd:` tag. `sync code-links` rewrites such an FD to exactly its tagged
+ * files, so an untagged file written into it is dropped on the next sync.
+ *
+ * @param repoRoot - Consumer root to scan (default `process.cwd()`)
+ * @returns The tagged slugs, or the scan failures when a root or file could not
+ *   be read — a partial scan cannot tell which FDs are tag-built
+ */
+export async function collectTagBuiltSlugs(
+  repoRoot: string = process.cwd(),
+): Promise<{ success: true; data: Set<string> } | { success: false; errors: ScanFailure[] }> {
+  const scan = (await collectTaggedMany([codeAdapter], repoRoot)).get(codeAdapter.key)!;
+  if (scan.failures.length > 0) return { success: false, errors: scan.failures };
+  return { success: true, data: new Set(scan.tagged.flatMap((t) => t.tags)) };
+}
+
+/**
  * Non-interactive backfill: deterministically assign code files to FDs
  * when `resolveByPath` returns a single high-confidence match. Skip
  * everything else (zero / multi-candidate / LLM-needed) silently.
  *
+ * A match onto a tag-built FD (see {@link collectTagBuiltSlugs}) is skipped
+ * too: `sync code-links` would drop the file again, leaving that FD dirty after
+ * every commit. Tagging the file is the fix there, not a hand-kept link.
+ *
  * Safe to run from pre-commit hooks — no Claude invocation, no proposal
  * file, no operator prompts.
  */
-async function runAutoHigh(): Promise<void> {
+export async function runAutoHigh(): Promise<void> {
+  const tagBuilt = await collectTagBuiltSlugs();
+  if (!tagBuilt.success) {
+    console.warn(
+      `gaps:links-code --auto-high: skipped — the \`// @fd:\` tag scan could not read ${tagBuilt.errors.map((f) => f.root).join(', ')}, so tag-built FDs are unknown.`,
+    );
+    return;
+  }
+
   const features = await loadSddFeatures(FEATURES_DIR);
   const referenced = new Set<string>();
   for (const f of features) {
@@ -592,21 +624,27 @@ async function runAutoHigh(): Promise<void> {
   const featureRows = features.map((f) => ({ slug: f.slug, frontmatter: f.frontmatter }));
   const proposal = new Map<string, string[]>();
   let skipped = 0;
+  let tagged = 0;
 
   for (const file of candidateFiles) {
     const matches = resolveByPath({ filePath: file, features: featureRows });
-    if (matches.length === 1 && matches[0].confidence === 'high') {
+    if (matches.length !== 1 || matches[0].confidence !== 'high') {
+      skipped += 1;
+    } else if (tagBuilt.data.has(matches[0].fdSlug)) {
+      tagged += 1;
+    } else {
       const list = proposal.get(matches[0].fdSlug) ?? [];
       list.push(file);
       proposal.set(matches[0].fdSlug, list);
-    } else {
-      skipped += 1;
     }
   }
 
   const modified = applyProposal(proposal, FEATURES_DIR);
   console.log(
-    `gaps:links-code --auto-high: applied ${[...proposal.values()].flat().length} file(s) to ${modified} FD(s); skipped ${skipped} ambiguous/unmatched (run \`pnpm gaps:links-code\` interactively to resolve).`,
+    `gaps:links-code --auto-high: applied ${[...proposal.values()].flat().length} file(s) to ${modified} FD(s); skipped ${skipped} ambiguous/unmatched (run \`pnpm gaps:links-code\` interactively to resolve)` +
+      (tagged > 0
+        ? `; skipped ${tagged} matched to a tag-built FD (add a \`// @fd:\` tag to the file instead).`
+        : '.'),
   );
 }
 

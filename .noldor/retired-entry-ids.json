@@ -837,5 +837,9 @@
   "Q-0359": {
     "slug": "shared-lock-module",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0347": {
+    "slug": "fill-links-skips-tag-built-fds",
+    "retiredAt": "2026-10-08"
   }
 }
