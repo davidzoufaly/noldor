@@ -113,7 +113,7 @@ For the three drain rows the page is the whole contract: no step of this router 
 
 - **The final report names the PR, on every path.** Its first line is `Shipped: <pr-url>` — the full URL of the PR Step 4 merged, so the operator opens it in one click — and its second the retro's output or error line. Every branch below prints both first, the error branch too: the PR merged before this step ran.
 - Run `pnpm noldor next-priority`. Capture only the exit code; do NOT read or echo the entry name / size / impact / parent / description from stdout in any user-facing output.
-- Exit code 2 → queue empty. Print `Shipped: <pr-url>`, then `Queue empty — ship-ready. Session may exit.` Skip the rest of this step.
+- Exit code 2 → queue empty. Print both report lines, then `Queue empty — ship-ready. Session may exit.` Skip the rest of this step.
 - Exit code 0 → top entry exists. Print exactly:
 
   ```
@@ -131,7 +131,7 @@ For the three drain rows the page is the whole contract: no step of this router 
   The fresh /noldor-gate will read top-of-roadmap at Step 0 and surface the entry there.
   ```
 
-- Any other exit code → print `Shipped: <pr-url>`, then report the stderr message and stop.
+- Any other exit code → print both report lines, then report the stderr message and stop.
 
 **Do NOT name, summarize, paraphrase, or otherwise leak the top entry in the current session.** Even read-only mention biases the operator's framing with stale-context residue from the just-shipped work — exactly the drift the always-clear policy closes. The top entry surfaces ONLY in a fresh `/noldor-gate` Step 0 invocation. Same rule applies if the operator asks "what's next?" in the dirty session — answer: "the roadmap holds it; /clear + /noldor-gate to see."
 
