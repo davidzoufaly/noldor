@@ -91,19 +91,6 @@ SDD gaps left after the v1.16.0 garden pass: links.code is stale against `// @fd
 
 README's Configuration section hand-lists the optional `.noldor/config.json` blocks and drifted when `deadCode` landed (caught only by the v1.16.0 sweep's read-through). `checks readme` could compare that list with the `noldorConfigSchema` keys so the next new block fails the check. (readme-config-blocks-drift, PR #692, 2026-10-08)
 
-### Dead-Code Guide Ignore Build Output
-
-- id: Q-0356
-- area: tooling
-- type: docs
-- since: 2026-10-08
-- size: XS
-- impact: low
-- confidence: high
-- parent: dead-code-detection-with-knip
-
-The adoption guide's dead-code setup should tell consumers to ignore build output in their knip config (`**/dist/**`). charuy recorded its baseline in a fresh worktree, then the main checkout's stale `dist/*.d.ts` failed the pre-push check (charuy PR #363). (charuy-noldor-1-16-0, PR #362, 2026-10-08)
-
 ### Gate Load Budget Headroom
 
 - id: Q-0357
