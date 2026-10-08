@@ -11,6 +11,7 @@ function deps(overrides = {}) {
         branch: 'feat/foo',
         port: 5174,
         installWarning: null,
+        envFilesCopied: [],
       },
     })),
     existsImpl: vi.fn(() => false),

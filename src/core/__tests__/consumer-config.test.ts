@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, version-aware-upgrade-and-migration-chain, sdd-report-honours-ownerless-on-purpose, ui-proof-screenshots-on-the-pr
+// @tests: acceptance-verify-lane, version-aware-upgrade-and-migration-chain, sdd-report-honours-ownerless-on-purpose, ui-proof-screenshots-on-the-pr, parallel-worktree-workflow
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,6 +7,7 @@ import {
   loadConsumerConfig,
   loadScopeAliases,
   loadVerifyCommands,
+  loadWorktreeEnvFiles,
   ConsumerConfigSchema,
   BoundaryRuleSchema,
 } from '../consumer-config.js';
@@ -564,6 +565,37 @@ describe('ConsumerConfigSchema ownerless', () => {
     expect(() =>
       ConsumerConfigSchema.parse({ ...MINIMAL_CONSUMER, ownerless: { features: { a: reason } } }),
     ).toThrow();
+  });
+});
+
+describe('consumer.worktreeEnvFiles', () => {
+  it('keeps repo-relative paths', () => {
+    const parsed = ConsumerConfigSchema.parse({
+      ...MINIMAL_CONSUMER,
+      worktreeEnvFiles: ['.env', 'apps/api/.env.local'],
+    });
+    expect(parsed.worktreeEnvFiles).toStrictEqual(['.env', 'apps/api/.env.local']);
+  });
+
+  it.each(['/etc/passwd', '../secrets/.env', 'apps/../../.env', 'C:/x/.env', 'apps\\.env', ''])(
+    'rejects %j',
+    (path) => {
+      expect(
+        ConsumerConfigSchema.safeParse({ ...MINIMAL_CONSUMER, worktreeEnvFiles: [path] }).success,
+      ).toBe(false);
+    },
+  );
+
+  it('loads [] with no config file and throws on an invalid one', () => {
+    const empty = mkdtempSync(join(tmpdir(), 'noldor-consumer-cfg-'));
+    const bad = makeTmpRepo({ consumer: { ...MINIMAL_CONSUMER, worktreeEnvFiles: ['../x'] } });
+    try {
+      expect(loadWorktreeEnvFiles(empty)).toStrictEqual([]);
+      expect(() => loadWorktreeEnvFiles(bad)).toThrow();
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+      rmSync(bad, { recursive: true, force: true });
+    }
   });
 });
 

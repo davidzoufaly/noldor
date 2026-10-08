@@ -107,6 +107,17 @@ const UiGlobSchema = z
     message: 'uiPaths/uiSurfaces globs must not contain .. segments',
   });
 
+/** A repo-relative POSIX file path that cannot reach outside the repo. */
+const WorktreeEnvFileSchema = z
+  .string()
+  .min(1)
+  .refine((p) => !p.startsWith('/') && !/^[A-Za-z]:/.test(p) && !p.includes('\\'), {
+    message: 'worktreeEnvFiles entries must be repo-relative POSIX paths',
+  })
+  .refine((p) => !p.split('/').includes('..'), {
+    message: 'worktreeEnvFiles entries must not contain .. segments',
+  });
+
 /** Baseline surface names become `docs/design/ui/baseline/<name>.pen` — keep them slug-shaped. */
 const SURFACE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -362,6 +373,12 @@ export const ConsumerConfigSchema = z
     /** Per-task dev surfaces booted by `worktrees up`. Absent = nothing booted. */
     dev: DevConfigSchema.optional(),
     /**
+     * Gitignored local files (a root `.env`, say) that `worktrees create` copies
+     * from the main workspace into each new tree — `git worktree add` checks out
+     * tracked files only. Repo-relative paths. Absent ⇒ nothing is copied.
+     */
+    worktreeEnvFiles: z.array(WorktreeEnvFileSchema).optional(),
+    /**
      * Globs naming this consumer's UI source (e.g. `src/dashboard/app/**`).
      * Drives the UI-design-stage predicate (`src/core/ui-predicate.ts`).
      * Absent or empty ⇒ the design stage never fires for this consumer.
@@ -516,6 +533,17 @@ export function loadUiConfig(cwd: string): {
 }
 
 const CONFIG_FILE = '.noldor/config.json';
+
+/**
+ * The consumer's `worktreeEnvFiles`, or `[]` when no consumer config file
+ * exists or the key is absent. A config that exists but fails to parse still
+ * throws, as in {@link loadUiConfig}: an empty list would silently leave every
+ * new worktree without the files the repo asked for.
+ */
+export function loadWorktreeEnvFiles(cwd: string): readonly string[] {
+  if (!existsSync(join(cwd, CONFIG_FILE))) return [];
+  return loadConsumerConfig(cwd).worktreeEnvFiles ?? [];
+}
 
 /**
  * Reads and validates the noldor consumer configuration for the given working

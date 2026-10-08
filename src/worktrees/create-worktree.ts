@@ -2,14 +2,16 @@
 //
 // Vendored worktree mechanics from docs/noldor/worktree-discipline.md:
 // .worktrees/<slug> on feat/<slug> (or --branch) cut from a freshly fetched
-// origin/main, pnpm install with the lefthook-postinstall tolerance, port
-// stamped into .env.local.
+// origin/main, configured local env files copied in, pnpm install with the
+// lefthook-postinstall tolerance, port stamped into .env.local.
 
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { constants, existsSync } from 'node:fs';
+import { copyFile, mkdir } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
+import { loadWorktreeEnvFiles } from '../core/consumer-config.js';
 import { parseSlug } from '../core/slug.js';
 import { worktreePath } from './worktree-paths.js';
 import { resolveErrorMessage, type ResolveError } from '../core/slug-paths.js';
@@ -72,6 +74,8 @@ export interface CreateOptions {
   branch?: string;
   /** Main-workspace root; defaults to `process.cwd()`. */
   cwd?: string;
+  /** Local files to copy from `cwd` into the tree; defaults to `consumer.worktreeEnvFiles`. */
+  envFiles?: readonly string[];
   /** Run `pnpm install` in the new tree (default true). */
   install?: boolean;
   installRunner?: InstallRunner;
@@ -84,6 +88,8 @@ export interface CreateResult {
   branch: string;
   port: number | null;
   installWarning: string | null;
+  /** The `envFiles` entries that were copied into the tree. */
+  envFilesCopied: string[];
 }
 
 const defaultInstall: InstallRunner = async (cwd) => {
@@ -125,8 +131,37 @@ async function resolveBase(cwd: string, log: (line: string) => void): Promise<st
 }
 
 /**
+ * Copy each local env file from the main workspace into the new tree. A file
+ * the main workspace lacks is skipped, and so is one the checkout already holds:
+ * a tracked file of that name is the branch's own and must not be overwritten.
+ */
+async function copyEnvFiles(
+  from: string,
+  to: string,
+  files: readonly string[],
+  log: (line: string) => void,
+): Promise<string[]> {
+  const copied: string[] = [];
+  for (const file of files) {
+    if (!existsSync(join(from, file))) {
+      log(`env file skipped: ${file} (not in the main workspace)`);
+      continue;
+    }
+    if (existsSync(join(to, file))) {
+      log(`env file skipped: ${file} (already in the worktree)`);
+      continue;
+    }
+    await mkdir(dirname(join(to, file)), { recursive: true });
+    await copyFile(join(from, file), join(to, file), constants.COPYFILE_EXCL);
+    copied.push(file);
+    log(`env file copied: ${file}`);
+  }
+  return copied;
+}
+
+/**
  * Create `.worktrees/<slug>` on a fresh branch from `origin/main` (see {@link resolveBase}),
- * install dependencies (tolerating the known lefthook hooksPath failure), and
+ * copy the configured local env files in (see {@link copyEnvFiles}), install dependencies (tolerating the known lefthook hooksPath failure), and
  * stamp a dev-server port into the tree's `.env.local`.
  *
  * @param opts - See {@link CreateOptions}.
@@ -173,9 +208,11 @@ export async function createWorktree(
     return { ok: false, error: { kind: 'branch-exists', branch } };
   }
 
+  const envFiles = opts.envFiles ?? loadWorktreeEnvFiles(cwd);
   const base = await resolveBase(cwd, log);
   await execFileP('git', ['worktree', 'add', path, '-b', branch, base], { cwd });
   log(`worktree created: .worktrees/${parsed.slug} on ${branch} from ${base}`);
+  const envFilesCopied = await copyEnvFiles(cwd, path, envFiles, log);
 
   let installWarning: string | null = null;
   if (opts.install !== false) {
@@ -206,7 +243,7 @@ export async function createWorktree(
   }
   const port = await readPort(path);
 
-  return { ok: true, result: { path, branch, port, installWarning } };
+  return { ok: true, result: { path, branch, port, installWarning, envFilesCopied } };
 }
 
 function parseArgs(argv: string[]): { slug: string | null; branch?: string; install: boolean } {
