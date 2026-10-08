@@ -28,15 +28,3 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 - parent: memory-intake-lessons-learned-pipeline
 
 Today nothing makes an agent write what it learned. The `## Lessons` + `/noldor-absorb` loop only fires when someone asks, so lessons leak into the assistant's private memory instead (charuy, Q-0321, PR #346: the `Why:`-vs-`Why —` PR-summary trap went to memory, three follow-ups only reached `ideas.md` on request). Add a gate step after merge (Step 4.11, before the Step 5 handoff), on every path: the agent appends (1) follow-ups and unfixed findings — verifier notes, deferred review lows, spec drift, unpriced or skipped bits — as raw bullets under `## Not groomed`, and (2) traps that cost a debugging cycle under `## Lessons`, each with slug + PR + date, and never names the next roadmap entry (always-clear stays intact). Open: (a) scaffold `## Lessons` when a consumer's `ideas.md` lacks it (charuy's has none); (b) `ideas.md` is gitignored in some consumers (charuy) and tracked in others (noldor), so the step writes the file and never commits it; (c) an empty retro is fine and should say so, not pad; (d) a drain child needs the same step, headless.
-
-### Graph and Main Freshness Before Coding
-
-- id: Q-0341
-- area: tooling
-- type: feat
-- since: 2026-10-07
-- size: M
-- impact: med
-- confidence: med
-
-Graph freshness is checked once per session, at the spec's structural-read step, and never again (surfaced 2026-10-04, charuy Q-0145). `noldor-spec` step 1.7 runs `design graph-context`, rebuilds on `stale`, reads the digest, then restores `graphify-out/`. Nothing re-checks before implementation starts, during it, or before the code-stage CR, so a long session (spec → 3 review rounds → code) can plan and code against a graph the tree has moved past, and other sessions' merges to `origin/main` mid-session are never pulled in. Worktrees branch from `origin/main` at create time and `pr-flow` fetches at the end, but nothing fetches in between. Options: (a) gate Step 3.5 (rule brief before the first edit) also runs `design graph-context` over the files about to be touched and rebuilds locally on `stale` (~15 s, restored afterwards, never committed); (b) a `git fetch origin main` + "main moved N commits since worktree create" notice at the same seam, so the operator can merge main in before coding rather than at push.

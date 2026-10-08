@@ -97,6 +97,13 @@ so the prompt stays a thin pointer and no second rendering exists to drift.
   so a stage-only brief reports "no rules match" however full the store is.
 - Nothing blocks a skipped brief — but the code-stage CR resolves the same rules
   from the changed files, so skipping it converts guidance into findings.
+- With the first brief, run `pnpm noldor worktrees freshness --rebuild` over the
+  same `--file` set (exit 0 on every verdict). When it prints
+  `next: git rebase origin/main`, rebase before the first edit and re-run it
+  once. On a conflicting rebase, `git rebase --abort`, log the conflicting files
+  and carry on: the conflict resurfaces at `pr-flow`, and parking the child over
+  a conflict it may never hit costs more than it saves. Rebase, never merge — a
+  merge commit trips the `commit-msg` scope hooks over main's files.
 - Every drain child gets rule injection from this page; an interactive gate
   session gets it from `/noldor-gate` Step 3.5. Keep the two renderings in
   sync.

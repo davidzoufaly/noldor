@@ -69,7 +69,12 @@ describe('the gate skill loads only the branch a session takes', () => {
 
   it('loads a clean specs-only-new run in under half the pre-split skill', () => {
     const row = loadTable().find((r) => r.session === '`specs-only-new`');
-    expect(row?.everyRun).toEqual(['artifact-review.md', 'fd-close.md', 'code-review.md']);
+    expect(row?.everyRun).toEqual([
+      'artifact-review.md',
+      'freshness.md',
+      'fd-close.md',
+      'code-review.md',
+    ]);
     const load = [join(GATE_DIR, 'SKILL.md'), ...(row?.everyRun ?? []).map(resolveLoadFile)]
       .map(wordsIn)
       .reduce((sum, n) => sum + n, 0);

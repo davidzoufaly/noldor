@@ -73,7 +73,7 @@ outputs and exit codes: `docs/noldor/script-catalog.md`.
 - `graphify` — Graphify runner + helpers: build, graph-to-toon, enrich-docs, refactor-precondition
 - `dashboard` — Dev dashboard: server, ensure, status
 - `docs` — Docs builders + checks: api, howto, check, transclude, adr, architecture, capability-index
-- `worktrees` — Worktree create + status + launch: create, status, conflicts, launch, up, down
+- `worktrees` — Worktree create + status + launch: create, status, freshness, conflicts, launch, up, down
 - `verify` — Acceptance verification (smoke floor): smoke
 - `invariants` — Same as `checks invariants`; alias kept for the spec cheatsheet: run
 - `noldor` — Noldor utilities (changelog, session marker, etc.): changelog, bump-session-marker, set-autonomous, lint-plan-snippets, split-check, rename-plan-only-tier

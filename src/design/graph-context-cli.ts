@@ -7,7 +7,7 @@
 // paths, and a usage error exits 2 before any verdict is computed.
 
 import { runIfDirect } from '../core/cli-entry.js';
-import { repoRelativePath } from '../core/repo-paths.js';
+import { repoFileArgs } from '../core/repo-paths.js';
 import { graphContext, type GraphContextResult, type PathDigest } from './graph-context.js';
 
 /** Exit codes. `stale` is non-zero so a shell caller can branch on it. */
@@ -23,7 +23,7 @@ type ParsedArgs = { ok: true; paths: string[]; json: boolean } | { ok: false; er
  * whichever way it was spelled.
  */
 export function parseArgs(argv: readonly string[], cwd: string): ParsedArgs {
-  const paths: string[] = [];
+  const raw: string[] = [];
   let json = false;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]!;
@@ -39,14 +39,10 @@ export function parseArgs(argv: readonly string[], cwd: string): ParsedArgs {
       return { ok: false, error: '--path needs a value' };
     }
     i += 1;
-    const rel = repoRelativePath(cwd, value);
-    // An empty `rel` is the repo root, which names no file.
-    if (rel === null || rel.length === 0) {
-      return { ok: false, error: `path escapes the repository: ${value}` };
-    }
-    if (!paths.includes(rel)) paths.push(rel);
+    raw.push(value);
   }
-  return { ok: true, paths, json };
+  const normalized = repoFileArgs(cwd, raw);
+  return normalized.ok ? { ok: true, paths: normalized.paths, json } : normalized;
 }
 
 /** One digest as the prose an artifact's Structural context unit quotes. */

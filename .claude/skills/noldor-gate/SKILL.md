@@ -21,11 +21,11 @@ This file is a router. It holds what every session runs; each branch lives in it
 | Session | Reads on every run | Reads only when |
 | --- | --- | --- |
 | `micro-chore` | `micro-chore.md` | — |
-| `fast-track` | `fast-track.md`, `code-review.md` | `blockers.md` on a red round or a red test run; `design-writeback.md` when `checks arch-baseline` reports findings |
-| `specs-only-new` | `artifact-review.md`, `fd-close.md`, `code-review.md` | `blockers.md` on a red round or a red test run; `design-writeback.md` for a UI or architecture design, or when `checks arch-baseline` reports findings |
-| `specs-only-attach` | `attach.md`, `artifact-review.md`, `fd-close.md`, `code-review.md` | as `specs-only-new` |
-| `full-new` | `artifact-review.md`, `fd-close.md`, `code-review.md` | as `specs-only-new`; `autonomous.md` after `proceed-autonomous` |
-| `full-attach` | `attach.md`, `artifact-review.md`, `fd-close.md`, `code-review.md` | as `full-new` |
+| `fast-track` | `fast-track.md`, `freshness.md`, `code-review.md` | `blockers.md` on a red round or a red test run; `design-writeback.md` when `checks arch-baseline` reports findings |
+| `specs-only-new` | `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md` | `blockers.md` on a red round or a red test run; `design-writeback.md` for a UI or architecture design, or when `checks arch-baseline` reports findings |
+| `specs-only-attach` | `attach.md`, `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md` | as `specs-only-new` |
+| `full-new` | `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md` | as `specs-only-new`; `autonomous.md` after `proceed-autonomous` |
+| `full-attach` | `attach.md`, `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md` | as `full-new` |
 | `--drain <slug>` | `docs/noldor/drain-mode.md` | — |
 | `--drain <slug> --finish` | `docs/noldor/drain-mode.md` | — |
 | `--resume <slug>` under `NOLDOR_DRAIN=1` | `docs/noldor/drain-mode.md` | — |
@@ -92,6 +92,8 @@ For the three drain rows the page is the whole contract: no step of this router 
    `--file` is required and there is no stage-only form: a file-scoped rule never matches a query without a file ([`src/rules/resolve.ts`](../../../src/rules/resolve.ts) `fileMatches`), so a stage-only brief would report "no rules match" however full the store is. The command also stamps `session.injectedRules` with what it surfaced — an exposure record, never a compliance claim.
 
    Re-run it when the session starts touching a file family it has not briefed on (e.g. moving from `src/**/*.ts` into `src/**/*.test.ts`, which carries its own rules). Skipping the brief does not block anything — Step 4's reviewer still holds the rule text — but then the rules arrive as findings instead of as guidance.
+
+   **Freshness on the first brief** (worktree-backed paths). With the session's first brief, run `pnpm noldor worktrees freshness --rebuild` over the same `--file` set. **Read now:** [`freshness.md`](freshness.md) — what to do when `origin/main` moved under those files.
 
 4. **End-of-flow (PR flow).** When the user signals "ready to ship", run these in order. Each line names the sessions it applies to and the file that holds its steps; skip a line that does not apply. A `micro-chore` runs only lines 10 and 11.
    1. **Refresh the FD body** — FD-carrying paths (`specs-only-*`, `full-*`). **Read now:** [`fd-close.md`](fd-close.md); on attach paths the scope comes from `attach.md`. Fast-track and micro-chore skip it — neither has an FD of its own.
