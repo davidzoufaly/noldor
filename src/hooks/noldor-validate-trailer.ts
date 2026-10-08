@@ -104,6 +104,16 @@ function docImpactRefusal(value: string | undefined, cwd: string): string | null
   );
 }
 
+/**
+ * Why a `Noldor-UI-Proof` declaration is invalid, or `null` when it is absent
+ * or `skip`. pr-flow skips the proof only on an exact `skip`, so a typo
+ * (`skipped`, `none`) would otherwise run the proof the author meant to skip.
+ */
+function uiProofRefusal(value: string | undefined): string | null {
+  if (value === undefined || value.trim() === 'skip') return null;
+  return `Noldor-UI-Proof must be 'skip' (the only value pr-flow reads); got ${JSON.stringify(value)}`;
+}
+
 function missingPathReason(cwd: string): string {
   if (!sessionMarkerExists(cwd)) {
     return (
@@ -178,6 +188,9 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
 
   const docImpact = docImpactRefusal(t['Noldor-Doc-Impact'], opts.cwd);
   if (docImpact !== null) return { ok: false, reason: docImpact };
+
+  const uiProof = uiProofRefusal(t['Noldor-UI-Proof']);
+  if (uiProof !== null) return { ok: false, reason: uiProof };
 
   if (path === 'micro-chore') {
     // Re-validate staged diff vs allowlist as defense-in-depth: pre-commit may have been bypassed,
