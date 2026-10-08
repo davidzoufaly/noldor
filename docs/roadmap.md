@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Gate CR Cleanup After Merge
-
-- id: Q-0352
-- area: tooling
-- type: fix
-- since: 2026-10-08
-- size: S
-- impact: med
-- confidence: high
-
-Gate Step 4 context cleanup deletes the autofix ledger and decision store before `pr-flow`; when the merge then fails and the branch is rebased and re-reviewed, the round cap restarts and earlier operator rulings are no longer shown to lanes. Move the cleanup after the merge. (session-retro-auto-capture, PR #687, 2026-10-08)
-
 ### SDD Gaps After v1.16.0
 
 - id: Q-0353
