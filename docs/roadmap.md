@@ -29,19 +29,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Pre-commit `features fill-links-code-gaps --auto-high` adds an untagged file to an FD whose links.code is tag-built, and the same commit warns that `sync code-links` will drop it, so every commit leaves that FD dirty (charuy: `apps/web/src/components/build/money.ts`). The auto-high pass should skip FDs that carry `// @fd:` tags. (charuy-noldor-1-16-0, PR #362, 2026-10-08)
 
-### Release Sweep Installs Before Verify
-
-- id: Q-0349
-- area: tooling
-- type: chore
-- since: 2026-10-08
-- size: XS
-- impact: med
-- confidence: high
-- parent: release-sweep-process-hardening
-
-The release-sweep skill's pre-flight could run `pnpm install --frozen-lockfile` (or read doctor's `install:` row) before its first `pnpm verify`, so a stale dependency tree is fixed in place instead of reading as a red main. (release-sweep-v1-16-0, PR #691, 2026-10-08)
-
 ### Worktree Copies Local Env Files
 
 - id: Q-0350
