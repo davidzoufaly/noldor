@@ -78,7 +78,7 @@ That is deliberate, and it is why `validatePrSummary` does **not** re-check the 
 
 A branch whose diff touches a `consumer.uiPaths` surface gets a `## UI Proof` section in its PR body: one or more screenshots per surface, rendered inline. [`src/core/ui-proof.ts`](../../src/core/ui-proof.ts) builds it in three steps.
 
-1. **Which surfaces.** The branch's changed files are matched against `uiSurfaces` (or the implicit `app` surface). An FD `design: skip` turns the section off. No surface means nothing runs and the PR body is unchanged.
+1. **Which surfaces.** The branch's changed files are matched against `uiSurfaces` (or the implicit `app` surface). Test files (`__tests__/`, `*.test.*`, `*.spec.*`) never match. No surface means nothing runs and the PR body is unchanged. A change with no visual delta declares a skip: a `Noldor-UI-Proof: skip` trailer on any branch commit (the way for a fast-track or micro-chore, which has no FD), or FD `design: skip`. Then nothing runs either, and each touched surface shows `UI proof skipped: no visual change declared` so a reviewer sees the claim.
 2. **Which images.** For a surface with a `consumer.uiProof.<surface>.command`, Noldor empties `.noldor/cr/ui-proof/<slug>/<surface>/` (gitignored with the rest of `.noldor/cr/`), runs the command with that folder as `{out}` and as `NOLDOR_PROOF_OUT`, and keeps up to 3 PNGs it wrote, by name. Otherwise, or when that run fails or writes nothing, it falls back to the `render-compare` lane's shot — but only when the shot's `<surface>.shot.json` records the same `HEAD^{tree}` being shipped. Files without the PNG signature are skipped.
 3. **Where they live.** The images are committed, through a throwaway index, onto the orphan `noldor/ui-proof` branch under `<branch>/<headSha>/` and linked as `<repoUrl>/blob/<proof-commit>/<path>?raw=true`. The feature branch, its index and its working tree are never touched, and nothing lands on `main`.
 
@@ -88,7 +88,7 @@ A branch whose diff touches a `consumer.uiPaths` surface gets a `## UI Proof` se
 }
 ```
 
-Write `{out}` bare in the command — Noldor substitutes it as one single-quoted shell token, so `"{out}"` would put literal quotes in the path. A proof test writes its screenshots into the folder it is handed, e.g. `` await page.screenshot({ path: `${process.env.NOLDOR_PROOF_OUT}/home.png` }) ``.
+Write `{out}` bare in the command — Noldor substitutes it as one single-quoted shell token, so `"{out}"` would put literal quotes in the path. A proof test writes its screenshots into the folder it is handed, e.g. `` await page.screenshot({ path: `${process.env.NOLDOR_PROOF_OUT}/home.png`, animations: 'disabled' }) ``. Turn motion off in proof tests: `animations: 'disabled'` finishes CSS transitions before the shot, and `test.use({ reducedMotion: 'reduce' })` asks the app to skip its own (a fade that survives `toBeHidden()`, a camera fly-to). Without both, a shot can catch a frame mid-animation.
 
 **It never blocks a delivery.** A failed or timed-out command, a missing or stale shot, or a rejected push shows up on the PR as a note under the surface (`No screenshot.` when no image is left) and as one stderr warning per surface without an image. `pr-flow`'s exit code does not change.
 

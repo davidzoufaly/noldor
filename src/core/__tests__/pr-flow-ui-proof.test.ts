@@ -76,6 +76,26 @@ describe('composeBody UI Proof section', () => {
     expect(body).toContain('proof command timed out after 300000 ms');
     expect(body).not.toContain('No screenshot');
   });
+
+  it('states a declared skip instead of asking for a screenshot', () => {
+    const body = composeBody({
+      ...input,
+      uiProof: [
+        {
+          surface: 'app',
+          source: null,
+          imageUrls: [],
+          notes: [],
+          skipped: '`Noldor-UI-Proof: skip`',
+        },
+      ],
+    });
+    expect(body).toContain('### app');
+    expect(body).toContain(
+      '_UI proof skipped: no visual change declared (`Noldor-UI-Proof: skip`)._',
+    );
+    expect(body).not.toContain('No screenshot');
+  });
 });
 
 describe('openAndAutoMerge UI proof step', () => {

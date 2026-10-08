@@ -49,10 +49,11 @@ As a reviewer of a consumer PR that changes UI (human or agent), I want the PR b
 **Agent/Programmatic API**
 
 - `pnpm noldor pr-flow` — when the branch diff touches a `consumer.uiPaths` surface, the PR body gains a `## UI Proof` section with up to 3 inline screenshots per surface. Nothing changes for a branch that touches no UI path.
-- `consumer.uiProof.<surface>.command` (`.noldor/config.json`, optional `timeoutMs`, default 300000) — a proof command run at ship time into an emptied folder, passed as `{out}` and as `NOLDOR_PROOF_OUT`. Example: `"uiProof": { "app": { "command": "pnpm test:e2e --grep @proof" } }`, with a test that calls `` page.screenshot({ path: `${process.env.NOLDOR_PROOF_OUT}/home.png` }) ``.
+- `consumer.uiProof.<surface>.command` (`.noldor/config.json`, optional `timeoutMs`, default 300000) — a proof command run at ship time into an emptied folder, passed as `{out}` and as `NOLDOR_PROOF_OUT`. Example: `"uiProof": { "app": { "command": "pnpm test:e2e --grep @proof" } }`, with a test that calls `` page.screenshot({ path: `${process.env.NOLDOR_PROOF_OUT}/home.png`, animations: 'disabled' }) `` under `test.use({ reducedMotion: 'reduce' })`, so the shot never catches a frame mid-animation.
 - No proof command, or it failed → the `render-compare` lane's shot is used when its `<surface>.shot.json` matches the shipped tree.
 - Images are hosted on the `noldor/ui-proof` branch and linked by commit SHA. A missing image shows as a note on the PR and never blocks the merge.
-- FD `design: skip` turns the section off.
+- Test files (`__tests__/`, `*.test.*`, `*.spec.*`) never count as a UI change.
+- No visual change? Add a `Noldor-UI-Proof: skip` trailer to any branch commit (works on fast-track and micro-chore, which have no FD), or set FD `design: skip`. Nothing is captured, and the PR shows `UI proof skipped: no visual change declared` for each touched surface.
 
 ## PRs
 

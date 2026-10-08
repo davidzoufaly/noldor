@@ -1,6 +1,6 @@
 // @tests: ui-proof-screenshots-on-the-pr
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,6 +11,7 @@ import {
   UI_PROOF_BRANCH,
   collectUiProof,
   hostUiProof,
+  uiProofSkipReason,
   uiProofSurfaces,
   uiProofStep,
   type UiProofItem,
@@ -74,27 +75,39 @@ describe('uiProofSurfaces', () => {
   };
 
   it('returns no surface for a branch that touches no UI path', () => {
-    expect(uiProofSurfaces(['src/core/x.ts', 'README.md'], config, undefined)).toEqual([]);
+    expect(uiProofSurfaces(['src/core/x.ts', 'README.md'], config)).toEqual([]);
   });
 
   it('returns each surface the branch touched, sorted', () => {
-    expect(
-      uiProofSurfaces(['apps/site/a.tsx', 'apps/web/b.tsx', 'src/x.ts'], config, undefined),
-    ).toEqual(['app', 'site']);
+    expect(uiProofSurfaces(['apps/site/a.tsx', 'apps/web/b.tsx', 'src/x.ts'], config)).toEqual([
+      'app',
+      'site',
+    ]);
   });
 
   it('uses the implicit app surface when only uiPaths is set', () => {
-    expect(uiProofSurfaces(['apps/web/b.tsx'], { uiPaths: ['apps/web/**'] }, undefined)).toEqual([
+    expect(uiProofSurfaces(['apps/web/b.tsx'], { uiPaths: ['apps/web/**'] })).toEqual(['app']);
+  });
+
+  it('never lets a test file pull a surface in', () => {
+    expect(
+      uiProofSurfaces(
+        [
+          'apps/web/__tests__/b.tsx',
+          'apps/web/src/b.test.tsx',
+          'apps/site/a.spec.ts',
+          'apps/site/e2e/home.spec.tsx',
+        ],
+        config,
+      ),
+    ).toEqual([]);
+    expect(uiProofSurfaces(['apps/web/src/b.test.tsx', 'apps/web/src/b.tsx'], config)).toEqual([
       'app',
     ]);
   });
 
-  it('returns nothing when the FD declares design: skip', () => {
-    expect(uiProofSurfaces(['apps/web/b.tsx'], config, 'skip')).toEqual([]);
-  });
-
   it('returns nothing when the repo declares no uiPaths', () => {
-    expect(uiProofSurfaces(['apps/web/b.tsx'], {}, undefined)).toEqual([]);
+    expect(uiProofSurfaces(['apps/web/b.tsx'], {})).toEqual([]);
   });
 });
 
@@ -285,6 +298,18 @@ describe('hostUiProof', () => {
   });
 });
 
+describe('uiProofSkipReason', () => {
+  it('runs the proof when nothing declares a skip', () => {
+    expect(uiProofSkipReason(undefined, [])).toBeNull();
+    expect(uiProofSkipReason('required', ['run'])).toBeNull();
+  });
+
+  it('names the trailer or the FD field that declared it', () => {
+    expect(uiProofSkipReason(undefined, [' skip '])).toBe('`Noldor-UI-Proof: skip`');
+    expect(uiProofSkipReason('skip', [])).toBe('FD `design: skip`');
+  });
+});
+
 describe('uiProofStep', () => {
   it('is absent for a branch that touches no UI path, so nothing runs', () => {
     expect(
@@ -296,6 +321,7 @@ describe('uiProofStep', () => {
         repoUrl: 'https://github.com/o/r',
         branchFiles: ['src/core/x.ts'],
         fdDesign: undefined,
+        trailerValues: [],
         config: {
           uiPaths: ['apps/web/**'],
           uiProof: { app: { command: 'exit 1', timeoutMs: 1000 } },
@@ -303,6 +329,35 @@ describe('uiProofStep', () => {
         capture: runCapture,
       }),
     ).toBeUndefined();
+  });
+
+  it('runs and pushes nothing on a declared skip, but names each touched surface', async () => {
+    const step = uiProofStep({
+      cwd: repo,
+      slug: 'feat-slug',
+      branch: 'feat/x',
+      headSha: 'abc',
+      repoUrl: 'https://github.com/o/r',
+      branchFiles: ['apps/web/App.tsx'],
+      fdDesign: undefined,
+      trailerValues: ['skip'],
+      config: {
+        uiPaths: ['apps/web/**'],
+        uiProof: { app: { command: WRITE_PNG('home.png'), timeoutMs: 10_000 } },
+      },
+      capture: runCapture,
+    });
+    expect(await step?.()).toEqual([
+      {
+        surface: 'app',
+        source: null,
+        imageUrls: [],
+        notes: [],
+        skipped: '`Noldor-UI-Proof: skip`',
+      },
+    ]);
+    expect(existsSync(join(repo, '.noldor', 'cr', 'ui-proof'))).toBe(false);
+    expect(git(remote, 'for-each-ref')).toBe('');
   });
 
   it('captures, hosts and links the proof for a UI-bearing branch', async () => {
@@ -314,6 +369,7 @@ describe('uiProofStep', () => {
       repoUrl: 'https://github.com/o/r',
       branchFiles: ['apps/web/App.tsx'],
       fdDesign: undefined,
+      trailerValues: [],
       config: {
         uiPaths: ['apps/web/**'],
         uiProof: { app: { command: WRITE_PNG('home.png'), timeoutMs: 10_000 } },
