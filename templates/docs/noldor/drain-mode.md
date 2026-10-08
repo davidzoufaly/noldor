@@ -201,7 +201,7 @@ so the prompt stays a thin pointer and no second rendering exists to drift.
   bit, or `--none` when there is nothing (the common case — never pad). It writes
   the main checkout's `ideas.md` even from this worktree and never commits; never
   put these notes in private memory instead. A non-zero exit is reported, not
-  fatal. Prose: the gate's `retro.md`.
+  fatal.
 - On CR-red, run `pnpm noldor cr autofix plan --slug <slug> --kind code` FIRST.
   On exit 0 (`next: reround`), apply the listed `M<n>` mechanical blockers — each with the
   smallest change that resolves it, preferring to delete a claim over adding one (the

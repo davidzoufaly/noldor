@@ -22,4 +22,4 @@ A micro-chore session entered from a roadmap pick (a `micro-chore` `suggestedPat
 
 ## Merge cleanup
 
-`git checkout main` (a no-op when `gh` already switched back) + `git branch -D <temp-branch>` + `git fetch origin main && git merge --ff-only --autostash origin/main` to refresh the local main pointer (`--autostash` carries a tracked `ideas.md` an earlier retro left modified). Local main must match `origin/main` before the session exits. Then the session retro (gate Step 4.12, `retro.md`).
+`git checkout main` (a no-op when `gh` already switched back) + `git branch -D <temp-branch>` + `git fetch origin main && git merge --ff-only --autostash origin/main` to refresh the local main pointer (`--autostash` carries a tracked `ideas.md` an earlier retro left modified). Local main must match `origin/main` before the session exits. Then the session retro (gate Step 4.12).
