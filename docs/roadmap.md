@@ -40,15 +40,3 @@ Today nothing makes an agent write what it learned. The `## Lessons` + `/noldor-
 - confidence: med
 
 Graph freshness is checked once per session, at the spec's structural-read step, and never again (surfaced 2026-10-04, charuy Q-0145). `noldor-spec` step 1.7 runs `design graph-context`, rebuilds on `stale`, reads the digest, then restores `graphify-out/`. Nothing re-checks before implementation starts, during it, or before the code-stage CR, so a long session (spec → 3 review rounds → code) can plan and code against a graph the tree has moved past, and other sessions' merges to `origin/main` mid-session are never pulled in. Worktrees branch from `origin/main` at create time and `pr-flow` fetches at the end, but nothing fetches in between. Options: (a) gate Step 3.5 (rule brief before the first edit) also runs `design graph-context` over the files about to be touched and rebuilds locally on `stale` (~15 s, restored afterwards, never committed); (b) a `git fetch origin main` + "main moved N commits since worktree create" notice at the same seam, so the operator can merge main in before coding rather than at push.
-
-### UI Proof Screenshots on the PR
-
-- id: Q-0343
-- area: tooling
-- type: feat
-- since: 2026-10-07
-- size: M
-- impact: med
-- confidence: low
-
-When a feature touches UI, the PR should carry a screenshot of it working as proof — and when the feature is e2e-tested on the UI end, the screenshot comes from that run. Today a UI change ships with a text-only PR body, so a reviewer has to check out the branch to see the result. Capture screenshots from the e2e/verify run (or a dedicated capture step) and attach them to the PR body via `pr-flow`.

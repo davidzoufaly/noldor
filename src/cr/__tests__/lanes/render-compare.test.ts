@@ -1,4 +1,4 @@
-// @tests: ui-design-review-lane, cr-lane-verdicts-blocked-by-serialization-not-substance, specs-cr-gate-multi-reviewer
+// @tests: ui-design-review-lane, ui-proof-screenshots-on-the-pr, cr-lane-verdicts-blocked-by-serialization-not-substance, specs-cr-gate-multi-reviewer
 // Lane tests for `render-compare`: real git fixture repos (the resolution half
 // is shared with ui-reviewer and tested through the same production loaders),
 // with the exporter dispatch, boot, capture, fetch, and port seams injected.
@@ -566,6 +566,20 @@ describe('runRenderCompare — the diff verdict', () => {
     for (const f of ['dashboard.design.png', 'dashboard.shot.png', 'dashboard.diff.png']) {
       expect(existsSync(join(dir, f))).toBe(true);
     }
+  });
+
+  it('records the tree each shot was taken from, so pr-flow can tell a fresh shot', async () => {
+    exporterWriting(DESIGN_PNG);
+    seams(DESIGN_PNG);
+    const { cwd, input } = repo({ uiBoot: DEFAULT_BOOT });
+    await runRenderCompare(input);
+    const record = JSON.parse(
+      readFileSync(
+        join(cwd, '.noldor', 'cr', 'render-compare', SLUG, 'dashboard.shot.json'),
+        'utf8',
+      ),
+    ) as { tree: string };
+    expect(record.tree).toBe(git(cwd, ['rev-parse', 'HEAD^{tree}']));
   });
 
   it('advisory fail maps findings to low suggestions with ok: true (AC9)', async () => {

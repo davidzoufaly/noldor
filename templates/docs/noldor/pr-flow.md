@@ -14,6 +14,7 @@ gate end-of-flow (any path)
   ├─ code-stage CR (noldor cr orchestrate --kind code, reviewer lane; codex opt-in via crLanes.code, forced on M/L/XL sessions) — address inline, no retry cap
   ├─ pnpm noldor pr-flow → openAndAutoMerge (src/core/pr-flow-cli.ts → pr-flow.ts):
   │    1. preflight: gh --version + gh auth status
+  │    1b. UI proof (only when the branch touched a `uiPaths` surface, and only after the summary, gh and redundant-delivery guards): run each `consumer.uiProof` command, push the screenshots to the `noldor/ui-proof` branch — see [UI proof](#ui-proof)
   │    2. git push --force-with-lease --set-upstream origin <branch>
   │    3. gh pr list --state open --head <branch> --base main → reuse that PR (gh pr edit refreshes its title + body) OR gh pr create --base main --head <branch> --title <…> --body <…>
   │    4. gh pr merge <pr> --auto --squash
@@ -72,6 +73,24 @@ A branch that retired several entries names them all, comma-joined: an entry tha
 **Nothing about the bullet can block a delivery.** Both sources are files a person can edit — a JSON map and FD frontmatter — so `resolveTaskId` filters each as it reads it, and anything that is not a `Q-NNNN` (or a map too corrupt to parse) degrades to "no ID" with a warning on stderr. An empty result then renders `none — no queue entry`, which is also the honest answer for a change that never was a queue entry: an ad-hoc fast-track, or an FD promoted before stable IDs existed.
 
 That is deliberate, and it is why `validatePrSummary` does **not** re-check the value. Refusing delivery here would stop work that already passed review, over a fact no commit amend could fix, and would fail a whole drain iteration under `autonomous.onFailure: 'abort'`. One input, one place that decides — filtered where it enters.
+
+## UI proof
+
+A branch whose diff touches a `consumer.uiPaths` surface gets a `## UI Proof` section in its PR body: one or more screenshots per surface, rendered inline. [`src/core/ui-proof.ts`](../../src/core/ui-proof.ts) builds it in three steps.
+
+1. **Which surfaces.** The branch's changed files are matched against `uiSurfaces` (or the implicit `app` surface). An FD `design: skip` turns the section off. No surface means nothing runs and the PR body is unchanged.
+2. **Which images.** For a surface with a `consumer.uiProof.<surface>.command`, Noldor empties `.noldor/cr/ui-proof/<slug>/<surface>/` (gitignored with the rest of `.noldor/cr/`), runs the command with that folder as `{out}` and as `NOLDOR_PROOF_OUT`, and keeps up to 3 PNGs it wrote, by name. Otherwise, or when that run fails or writes nothing, it falls back to the `render-compare` lane's shot — but only when the shot's `<surface>.shot.json` records the same `HEAD^{tree}` being shipped. Files without the PNG signature are skipped.
+3. **Where they live.** The images are committed, through a throwaway index, onto the orphan `noldor/ui-proof` branch under `<branch>/<headSha>/` and linked as `<repoUrl>/blob/<proof-commit>/<path>?raw=true`. The feature branch, its index and its working tree are never touched, and nothing lands on `main`.
+
+```json
+"consumer": {
+  "uiProof": { "app": { "command": "pnpm test:e2e --grep @proof", "timeoutMs": 300000 } }
+}
+```
+
+Write `{out}` bare in the command — Noldor substitutes it as one single-quoted shell token, so `"{out}"` would put literal quotes in the path. A proof test writes its screenshots into the folder it is handed, e.g. `` await page.screenshot({ path: `${process.env.NOLDOR_PROOF_OUT}/home.png` }) ``.
+
+**It never blocks a delivery.** A failed or timed-out command, a missing or stale shot, or a rejected push shows up on the PR as a note under the surface (`No screenshot.` when no image is left) and as one stderr warning per surface without an image. `pr-flow`'s exit code does not change.
 
 ## One-time operator setup
 

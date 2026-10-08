@@ -220,7 +220,7 @@ export const uiCaptureRecipeSchema = z
     // whitespace-only command would advance the receipt without any capture
     // having run — the exact false-fresh this feature exists to remove.
     command: z.string().refine((c) => c.trim().length > 0, {
-      message: 'uiCapture command must not be blank',
+      message: 'command must not be blank',
     }),
     // Rejected at validate when out of contract, never clamped — same posture
     // as `UiBootRecipeSchema.captureTimeoutMs`.
@@ -288,9 +288,10 @@ function checkSurfaceKeys(
     uiSurfaces?: Record<string, string[]>;
     uiCapture?: Record<string, unknown>;
     uiCoverage?: Record<string, unknown>;
+    uiProof?: Record<string, unknown>;
   },
   ctx: z.RefinementCtx,
-  block: 'uiCapture' | 'uiCoverage',
+  block: 'uiCapture' | 'uiCoverage' | 'uiProof',
   unreachable: string,
 ): void {
   const keyed = cfg[block];
@@ -394,6 +395,13 @@ export const ConsumerConfigSchema = z
      */
     uiCoverage: z.record(z.string().regex(SURFACE_NAME_RE), uiCoverageSchema).optional(),
     /**
+     * Per-surface proof commands `pr-flow` runs for a UI-bearing branch. The
+     * command writes PNGs into the folder it receives as `{out}` (shell-quoted)
+     * or `NOLDOR_PROOF_OUT`; those images go on the PR. Same shape and key rule
+     * as `uiCapture`.
+     */
+    uiProof: z.record(z.string().regex(SURFACE_NAME_RE), uiCaptureRecipeSchema).optional(),
+    /**
      * Floor requirements this repo deliberately does not meet, each with a
      * reason. Read by the `toolchain-floor` invariant. Absent ⇒ the full floor
      * applies.
@@ -444,6 +452,7 @@ export const ConsumerConfigSchema = z
         ...Object.keys(cfg.uiBoot ?? {}),
         ...Object.keys(cfg.uiCapture ?? {}),
         ...Object.keys(cfg.uiCoverage ?? {}),
+        ...Object.keys(cfg.uiProof ?? {}),
       ]),
     ];
     for (const issue of sanitizationIssues(surfaceNames)) {
@@ -451,6 +460,7 @@ export const ConsumerConfigSchema = z
     }
     checkSurfaceKeys(cfg, ctx, 'uiCapture', 'no capture could ever run');
     checkSurfaceKeys(cfg, ctx, 'uiCoverage', 'no coverage could ever be checked');
+    checkSurfaceKeys(cfg, ctx, 'uiProof', 'no proof could ever be captured');
 
     if (cfg.uiBoot === undefined) return;
     for (const [surface, recipe] of Object.entries(cfg.uiBoot)) {

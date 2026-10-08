@@ -18,6 +18,10 @@ import {
   type VerifySummary,
 } from './pr-flow.js';
 import { isEntrypoint } from './cli-entry.js';
+import { loadConsumerConfig } from './consumer-config.js';
+import { runCapture } from './run-capture.js';
+import { sanitizeSurfaceName } from './ui-boot.js';
+import { uiProofStep } from './ui-proof.js';
 
 const DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;
 
@@ -157,6 +161,19 @@ function execGit(args: readonly string[]): string {
     throw new Error(`git ${args.join(' ')} failed: ${r.stderr}`);
   }
   return r.stdout;
+}
+
+/** The FD's `design:` frontmatter override, or `undefined` when the FD is absent or unparseable. */
+function loadFdDesign(cwd: string, slug: string): unknown {
+  let md: string;
+  try {
+    md = readFileSync(join(cwd, 'docs', 'features', `${slug}.md`), 'utf8');
+  } catch {
+    // loadFdSummary reads the same file and already warns when it cannot.
+    return undefined;
+  }
+  const parsed = readFrontmatter(md);
+  return parsed.ok ? parsed.data.design : undefined;
 }
 
 function loadFdSummary(cwd: string, slug: string): FdSummary | null {
@@ -465,6 +482,18 @@ export async function runCli(cwd: string): Promise<number> {
 
   const repoUrl = normalizeRepoUrl(execGit(['remote', 'get-url', 'origin']));
 
+  const prepareUiProof = uiProofStep({
+    cwd,
+    slug: fdSlug ?? sanitizeSurfaceName(branch),
+    branch,
+    headSha,
+    repoUrl,
+    branchFiles,
+    fdDesign: fdSlug !== undefined ? loadFdDesign(cwd, fdSlug) : undefined,
+    config: loadConsumerConfig(cwd),
+    capture: runCapture,
+  });
+
   const result = await openAndAutoMerge({
     cwd,
     branch,
@@ -480,6 +509,7 @@ export async function runCli(cwd: string): Promise<number> {
     summaryCommit,
     branchFiles,
     taskIds,
+    ...(prepareUiProof !== undefined ? { prepareUiProof } : {}),
     spawn: nodeSpawn(),
     onStatus: (line) => process.stderr.write(line + '\n'),
     // Parallel drain K>1: the supervisor's merge coordinator merges; this call stops at PR-open.
