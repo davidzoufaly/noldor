@@ -107,7 +107,7 @@ Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you overrid
 
    - **`now`** target → write the block exactly as a `roadmap` insert at `top` (same required fields — `size` and `impact` gate it). With multiple `now` rows, insert in reverse confirmation-table order so the final roadmap order matches the table. The auto-chain to `/noldor-promote` happens in step 8, never here — a failed validation must abort the chain.
 
-   **Hold the `ideas.md` lock across these writes:** run `pnpm noldor triage ideas-lock acquire` before the first edit to `ideas.md` and `pnpm noldor triage ideas-lock release` after the last — on an abort too. A session retro (`pnpm noldor triage retro`) writes the same file from another session; without the lock one write silently drops the other. Exit 1 on `acquire` = a retro is mid-write; retry once.
+   **Lock first:** `pnpm noldor triage ideas-lock acquire` before the first `ideas.md` edit, `… release` after the last (abort too) — else a session retro can drop the write. Exit 1 = retro mid-write; retry once.
 
    Append `[triaged YYYY-MM-DD → <slug>]` to the original bullet in `ideas.md` — for merges, `<slug>` is the host's slug, not a new one (preserves traceability back to the host). Then **relocate the stamped bullet** out of its live phase section to the end of a `## Triaged` section at the bottom of `ideas.md` (create the heading when absent; keep the bullet text + marker verbatim). Live `#### Now|Next|Later` sections then hold only raw bullets, so a phase scan shows exactly what still needs triage. The `## Triaged` section is invisible to `list-untriaged` (its walk is scoped to `## Verticals`), so the move implies no parser change.
 

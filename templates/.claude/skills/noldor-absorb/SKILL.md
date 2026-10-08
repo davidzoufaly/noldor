@@ -42,12 +42,12 @@ unambiguous.
 1. Read `ideas.md`; collect top-level `-` bullets under `## Lessons` without an `[absorbed …]` marker. Zero unfiled → report "nothing to absorb" and stop.
 2. For each bullet, propose class + destination + a one-line rationale. For `gotcha`/`feedback`, draft the destination text (match the target page's entry style — e.g. `gotchas.md` entries are bold-headline bullets naming the concrete file/command/condition).
 3. **Batch-confirm** the full disposition table via AskUserQuestion before ANY write. Operator overrides per row. Nothing is written for rows the operator rejects.
-4. On confirm, run `pnpm noldor triage ideas-lock acquire` (exit 1 = a session retro is mid-write; retry once), then per bullet:
+4. On confirm, run `pnpm noldor triage ideas-lock acquire` (exit 1: retry once), then per bullet:
    - `drop` → no write.
    - `gotcha` / `feedback` → append the drafted entry to the destination page **AND its byte-identical `templates/docs/noldor/` twin** (see Twin discipline below).
    - `actionable` → append the bullet under `## Verticals → <best-fit vertical> → #### Later` in `ideas.md`.
    - Then stamp ` [absorbed YYYY-MM-DD → <dest>]` at the end of the source bullet in `## Lessons`.
-   - After the last bullet — or on an abort — run `pnpm noldor triage ideas-lock release`. The lock is the one `pnpm noldor triage retro` writes under, so a retro landing mid-absorb waits instead of being overwritten.
+   - After the last bullet (or an abort): `pnpm noldor triage ideas-lock release`.
 5. Report: table of filed lessons with clickable destination links. Do not commit — staging/commit is the operator's (or the gate's).
 
 ## Idempotency
