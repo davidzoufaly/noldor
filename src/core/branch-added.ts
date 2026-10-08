@@ -20,6 +20,8 @@ export interface RunGitOptions {
   stdin?: string;
   /** Raise when output can exceed the 1 MiB default (a large `rev-list`). */
   maxBuffer?: number;
+  /** Kill the command after this many ms — for anything that touches a remote. */
+  timeout?: number;
 }
 
 /** Test seam — mirrors the `spawnSync` shape this module needs. */
@@ -40,6 +42,7 @@ export function defaultRunGit(cwd: string | undefined): RunGit {
       cwd,
       encoding: 'utf8',
       ...(opts?.maxBuffer === undefined ? {} : { maxBuffer: opts.maxBuffer }),
+      ...(opts?.timeout === undefined ? {} : { timeout: opts.timeout }),
       ...(opts?.stdin === undefined ? {} : { input: opts.stdin }),
     });
     // A spawn-level failure (git not on PATH, EACCES, cwd gone, maxBuffer

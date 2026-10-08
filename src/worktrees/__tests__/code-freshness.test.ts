@@ -135,6 +135,31 @@ describe('codeFreshness — main leg', () => {
     expect(r.main).toMatchObject({ overlap: 'unknown', rebaseAdvised: true, touching: [] });
   });
 
+  it('sees a file a merge commit on main brought in', async () => {
+    using tmp = scratchDir('freshness-');
+    const { work, other } = fixture(tmp.path);
+    git(other, 'checkout', '-qb', 'side');
+    write(other, 'src/a.ts', 'export const a = 3;\n');
+    commitAll(other, 'side change a');
+    git(other, 'checkout', '-q', 'main');
+    pushToMain(other, 'src/c.ts', 'export const c = 1;\n', 'add c');
+    git(other, 'merge', '-q', '--no-ff', '-m', 'merge side', 'side');
+    git(other, 'push', '-q', 'origin', 'main');
+
+    const r = await codeFreshness({ cwd: work, files: ['src/a.ts'], rebuild: false });
+    expect(r.main.overlap).toBe('touching');
+    expect(r.main.touching.map((c) => c.subject)).toContain('merge side');
+  });
+
+  it('matches a non-ASCII path git would otherwise C-quote', async () => {
+    using tmp = scratchDir('freshness-');
+    const { work, other } = fixture(tmp.path);
+    pushToMain(other, 'src/café.ts', 'export const c = 1;\n', 'add café');
+
+    const r = await codeFreshness({ cwd: work, files: ['src/café.ts'], rebuild: false });
+    expect(r.main.touching[0]).toMatchObject({ subject: 'add café', files: ['src/café.ts'] });
+  });
+
   it('reports unknown when the fetch fails, and the graph leg still answers', async () => {
     using tmp = scratchDir('freshness-');
     const { work } = fixture(tmp.path);

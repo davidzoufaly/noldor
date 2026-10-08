@@ -146,8 +146,17 @@ function restoreGraphOnExit(run: RunGit, warnings: string[]): Disposable {
   };
 }
 
+/** A full AST build takes ~15 s here; ten minutes means it hung. */
+const BUILD_TIMEOUT_MS = 10 * 60_000;
+/** A fetch that has not answered in a minute is offline or prompting. */
+const FETCH_TIMEOUT_MS = 60_000;
+
 function spawnGraphBuild(cwd: string): BuildOutcome {
-  const r = spawnSync('pnpm', ['noldor', 'graphify', 'build'], { cwd, encoding: 'utf8' });
+  const r = spawnSync('pnpm', ['noldor', 'graphify', 'build'], {
+    cwd,
+    encoding: 'utf8',
+    timeout: BUILD_TIMEOUT_MS,
+  });
   if (r.error !== undefined) return { ok: false, reason: `graphify build: ${r.error.message}` };
   if (r.status !== 0) {
     const tail = (r.stderr || r.stdout).trim().split('\n').slice(-3).join(' | ');
@@ -172,16 +181,32 @@ function mainLeg(files: readonly string[], run: RunGit): MainLeg {
 
   // A named-branch fetch also updates `refs/remotes/origin/main` (git >= 1.8.4,
   // default refspec) — the same call `resolveBase` in create-worktree.ts makes.
-  const fetch = run(['fetch', '-q', 'origin', 'main']);
+  // `credential.interactive=never` + the timeout keep a credential prompt or a
+  // dead remote from hanging gate Step 3.5 — both read as `unknown` instead.
+  const fetch = run(['-c', 'credential.interactive=never', 'fetch', '-q', 'origin', 'main'], {
+    timeout: FETCH_TIMEOUT_MS,
+  });
   if (fetch.status !== 0) {
     return unknown(`could not fetch origin main: ${fetch.stderr.trim() || 'no reason given'}`);
   }
 
   // One unfiltered walk classifies every commit by its file list, so the
   // count, the graph-only subset and the touching subset agree by construction.
-  const log = run(['log', '--name-only', `--format=${SEP}%h%x09%s`, 'HEAD..origin/main'], {
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  // `--diff-merges=first-parent`: a merge commit lists no files by default, so
+  // it would never count as touching. `core.quotepath=false`: a C-quoted
+  // non-ASCII path never matches the requested set (see `namesFrom`).
+  const log = run(
+    [
+      '-c',
+      'core.quotepath=false',
+      'log',
+      '--name-only',
+      '--diff-merges=first-parent',
+      `--format=${SEP}%h%x09%s`,
+      'HEAD..origin/main',
+    ],
+    { maxBuffer: 64 * 1024 * 1024 },
+  );
   if (log.status !== 0) return unknown(`git log HEAD..origin/main failed: ${log.stderr.trim()}`);
 
   const commits = log.stdout
