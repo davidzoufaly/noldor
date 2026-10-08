@@ -49,6 +49,14 @@ Milestone tracking is optional — the framework validates green without any act
 - `/noldor-milestone edit <slug>` — open `docs/milestones/<slug>.md` for body edits (gate, success criteria, out of scope). No status mutation.
 - `/noldor-milestone list` — print all milestones grouped by status (active, draft, shipped).
 
+The skill runs the CLI underneath, which works the same from any repo with noldor installed:
+
+```bash
+pnpm noldor milestones draft <slug> [description]
+pnpm noldor milestones activate <slug>
+pnpm noldor milestones list
+```
+
 **Validation**
 
 ```bash
