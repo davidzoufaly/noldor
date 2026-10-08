@@ -20,12 +20,12 @@ This file is a router. It holds what every session runs; each branch lives in it
 
 | Session | Reads on every run | Reads only when |
 | --- | --- | --- |
-| `micro-chore` | `micro-chore.md` | — |
-| `fast-track` | `fast-track.md`, `freshness.md`, `code-review.md` | `blockers.md` on a red round or a red test run; `design-writeback.md` when `checks arch-baseline` reports findings |
-| `specs-only-new` | `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md` | `blockers.md` on a red round or a red test run; `design-writeback.md` for a UI or architecture design, or when `checks arch-baseline` reports findings |
-| `specs-only-attach` | `attach.md`, `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md` | as `specs-only-new` |
-| `full-new` | `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md` | as `specs-only-new`; `autonomous.md` after `proceed-autonomous` |
-| `full-attach` | `attach.md`, `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md` | as `full-new` |
+| `micro-chore` | `micro-chore.md`, `retro.md` | — |
+| `fast-track` | `fast-track.md`, `freshness.md`, `code-review.md`, `retro.md` | `blockers.md` on a red round or a red test run; `design-writeback.md` when `checks arch-baseline` reports findings |
+| `specs-only-new` | `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md`, `retro.md` | `blockers.md` on a red round or a red test run; `design-writeback.md` for a UI or architecture design, or when `checks arch-baseline` reports findings |
+| `specs-only-attach` | `attach.md`, `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md`, `retro.md` | as `specs-only-new` |
+| `full-new` | `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md`, `retro.md` | as `specs-only-new`; `autonomous.md` after `proceed-autonomous` |
+| `full-attach` | `attach.md`, `artifact-review.md`, `freshness.md`, `fd-close.md`, `code-review.md`, `retro.md` | as `full-new` |
 | `--drain <slug>` | `docs/noldor/drain-mode.md` | — |
 | `--drain <slug> --finish` | `docs/noldor/drain-mode.md` | — |
 | `--resume <slug>` under `NOLDOR_DRAIN=1` | `docs/noldor/drain-mode.md` | — |
@@ -95,7 +95,7 @@ For the three drain rows the page is the whole contract: no step of this router 
 
    **Freshness on the first brief** (worktree-backed paths). With the session's first brief, run `pnpm noldor worktrees freshness --rebuild` over the same `--file` set. **Read now:** [`freshness.md`](freshness.md) — what to do when `origin/main` moved under those files.
 
-4. **End-of-flow (PR flow).** When the user signals "ready to ship", run these in order. Each line names the sessions it applies to and the file that holds its steps; skip a line that does not apply. A `micro-chore` runs only lines 10 and 11.
+4. **End-of-flow (PR flow).** When the user signals "ready to ship", run these in order. Each line names the sessions it applies to and the file that holds its steps; skip a line that does not apply. A `micro-chore` runs only lines 10, 11 and 12.
    1. **Refresh the FD body** — FD-carrying paths (`specs-only-*`, `full-*`). **Read now:** [`fd-close.md`](fd-close.md); on attach paths the scope comes from `attach.md`. Fast-track and micro-chore skip it — neither has an FD of its own.
    2. **Doc-impact check** — `fast-track` only, per `fast-track.md`, before the push-gate preflight.
    3. **Archive this session's design artifacts** — FD-carrying paths, per `fd-close.md`.
@@ -106,17 +106,19 @@ For the three drain rows the page is the whole contract: no step of this router 
    8. **Code-stage review** — `fast-track`, `specs-only-*`, `full-*`. Tests and typecheck are green first; a red verification run, at any point before this review, **Read now:** [`blockers.md`](blockers.md) — escalate on test-red. Then **Read now:** [`code-review.md`](code-review.md) — wait for artifact lanes, preflight the push gates, orchestrate, aggregate, clean up. A red aggregate goes on to `blockers.md` from there.
    9. **Bootstrap immunity** — FD-carrying paths, per `fd-close.md`, after the green code-stage review and before `pr-flow`.
    10. **`pnpm noldor pr-flow`** — every path. The CLI ([`src/core/pr-flow-cli.ts`](../../../src/core/pr-flow-cli.ts)) reads `.noldor/session.json`, derives its input from the session, the FD frontmatter, the `Noldor-Reviewed-Subagent` trailer and the branch's spec/plan paths, then runs preflight `gh` → `git push --force-with-lease --set-upstream origin <branch>` → `gh pr create` → `gh pr merge --auto --squash` → poll until merged. Flow diagram, push runbook and failure runbook: [`docs/noldor/pr-flow.md`](../../../docs/noldor/pr-flow.md).
-   11. **On merged, clean up** — scripted, no interactive finishing skill. **Worktree-backed paths** (`fast-track`, `specs-only-*`, `full-*`): from the **main workspace** run `git worktree remove [--force] .worktrees/<name>` then `git branch -D feat/<name>`. Do NOT use the `ExitWorktree` native tool: the framework creates worktrees with `git worktree add`, so `ExitWorktree` is a no-op that leaves the worktree and branch on disk. `-D` (force) is required because the squash merge leaves the branch's commits off `main`, so `-d` rejects them as not fully merged; `--force` on the remove only when the worktree has uncommitted changes (it should not). **Then sync local `main`: `git fetch origin main && git checkout main && git merge --ff-only origin/main`** — a PR is not finished until local `main` matches `origin/main`. If `--ff-only` rejects, stop and surface the divergence; never force it. **Micro-chore:** per `micro-chore.md`. **Every path:** keep the merged PR's URL from `pr-flow`'s `PR merged: <url>` line — Step 5 opens its report with it — then Step 5.
+   11. **On merged, clean up** — scripted, no interactive finishing skill. **Worktree-backed paths** (`fast-track`, `specs-only-*`, `full-*`): from the **main workspace** run `git worktree remove [--force] .worktrees/<name>` then `git branch -D feat/<name>`. Do NOT use the `ExitWorktree` native tool: the framework creates worktrees with `git worktree add`, so `ExitWorktree` is a no-op that leaves the worktree and branch on disk. `-D` (force) is required because the squash merge leaves the branch's commits off `main`, so `-d` rejects them as not fully merged; `--force` on the remove only when the worktree has uncommitted changes (it should not). **Then sync local `main`: `git fetch origin main && git checkout main && git merge --ff-only --autostash origin/main`** — a PR is not finished until local `main` matches `origin/main`. `--autostash` carries uncommitted edits (a tracked `ideas.md` holding an earlier retro) across the fast-forward. If `--ff-only` rejects, or git reports the autostash re-apply conflicted, stop and surface it; never force it. **Micro-chore:** per `micro-chore.md`. **Every path:** keep the merged PR's URL from `pr-flow`'s `PR merged: <url>` line — Step 5 opens its report with it.
+   12. **Session retro** — every path. **Read now:** [`retro.md`](retro.md) — write this session's follow-ups and lessons with `pnpm noldor triage retro`, or `--none`. Then Step 5.
 
 5. **Next-priority handoff (always-clear).** After Step 4's PR merges and cleanup completes:
 
-- **The final report names the PR, on every path.** Its first line is `Shipped: <pr-url>` — the full URL of the PR Step 4 merged, so the operator opens it in one click. Every branch below prints it first, the error branch too: the PR merged before this step ran.
+- **The final report names the PR, on every path.** Its first line is `Shipped: <pr-url>` — the full URL of the PR Step 4 merged, so the operator opens it in one click — and its second is the Step 4.12 retro line (`retro.md`). Every branch below prints both first, the error branch too: the PR merged before this step ran.
 - Run `pnpm noldor next-priority`. Capture only the exit code; do NOT read or echo the entry name / size / impact / parent / description from stdout in any user-facing output.
-- Exit code 2 → queue empty. Print `Shipped: <pr-url>`, then `Queue empty — ship-ready. Session may exit.` Skip the rest of this step.
+- Exit code 2 → queue empty. Print `Shipped: <pr-url>` and the retro line, then `Queue empty — ship-ready. Session may exit.` Skip the rest of this step.
 - Exit code 0 → top entry exists. Print exactly:
 
   ```
   Shipped: <pr-url>
+  Retro: <n> lessons, <m> follow-ups → ideas.md
 
   Queue non-empty — top priority lives in docs/roadmap.md.
 

@@ -1,8 +1,8 @@
 {
   "algorithmVersion": 1,
-  "recordedAt": "2026-10-08T10:47:00.415Z",
+  "recordedAt": "2026-10-08T11:04:04.492Z",
   "files": {
-    ".claude/skills/noldor-absorb/SKILL.md": 677,
+    ".claude/skills/noldor-absorb/SKILL.md": 722,
     ".claude/skills/noldor-debug/SKILL.md": 1039,
     ".claude/skills/noldor-draft-feature-md/SKILL.md": 1605,
     ".claude/skills/noldor-garden/SKILL.md": 1655,
@@ -15,8 +15,9 @@
     ".claude/skills/noldor-gate/fast-track.md": 756,
     ".claude/skills/noldor-gate/fd-close.md": 667,
     ".claude/skills/noldor-gate/freshness.md": 231,
-    ".claude/skills/noldor-gate/micro-chore.md": 741,
-    ".claude/skills/noldor-gate/SKILL.md": 2847,
+    ".claude/skills/noldor-gate/micro-chore.md": 762,
+    ".claude/skills/noldor-gate/retro.md": 429,
+    ".claude/skills/noldor-gate/SKILL.md": 2919,
     ".claude/skills/noldor-milestone/SKILL.md": 849,
     ".claude/skills/noldor-new-feature/SKILL.md": 593,
     ".claude/skills/noldor-plan/SKILL.md": 1866,

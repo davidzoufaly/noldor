@@ -13,7 +13,7 @@ the classifier that empties the section.
 
 ## Inputs
 
-- `ideas.md` `## Lessons` section — top-level `-` bullets. **Unfiled** = no `[absorbed YYYY-MM-DD → <dest>]` marker.
+- `ideas.md` `## Lessons` section — top-level `-` bullets. **Unfiled** = no `[absorbed YYYY-MM-DD → <dest>]` marker. Most arrive from the gate's session retro (`pnpm noldor triage retro`, Step 4.12), stamped `(<slug>, PR #<n>, <date>)` — use that stamp to find the PR when judging `drop`; the section may have been created by that command on a repo that never had one.
 - `docs/noldor/*.md` — destination runbooks (each has a `templates/docs/noldor/` twin).
 - `docs/release-notes.md` + git history — evidence for the `drop` class.
 
