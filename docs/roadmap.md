@@ -65,15 +65,3 @@ Other `pnpm noldor` verbs still take free text on argv (`design log --decide/--b
 - parent: dead-code-detection-with-knip
 
 `/noldor-refactor` "Dead Code" report section: when `deadCode.enabled` is on, run `pnpm noldor dead-code check` after the refactor and list what it reports outside the baseline. Promised in the consumers spec; a `.claude/skills/**` edit plus its `templates/` twin, so it needs its own micro-chore PR. (dead-code-detection-with-knip consumers, PR #681, 2026-10-07)
-
-### Ideas-md Writers Take the Lock
-
-- id: Q-0363
-- area: tooling
-- type: fix
-- since: 2026-10-08
-- size: S
-- impact: low
-- confidence: med
-
-`/noldor-triage`, `/noldor-absorb` and hand edits write `ideas.md` without `noldor-ideas.lock`, so a retro landing mid-edit can drop the other write (CR low). (session-retro-auto-capture, PR #687, 2026-10-08)
