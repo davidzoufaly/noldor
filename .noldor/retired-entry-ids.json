@@ -849,5 +849,9 @@
   "Q-0351": {
     "slug": "dead-code-baseline-diffs-across-knip-drift",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0352": {
+    "slug": "gate-cr-cleanup-after-merge",
+    "retiredAt": "2026-10-08"
   }
 }

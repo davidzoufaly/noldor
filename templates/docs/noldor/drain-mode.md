@@ -182,15 +182,19 @@ so the prompt stays a thin pointer and no second rendering exists to drift.
   the rebased twin of the last reviewed head instead (see
   [`worktree-discipline.md`](worktree-discipline.md#resuming-a-parked-or-dead-session)),
   or `--base-sha origin/main` to review the whole branch. (Q-0292)
-- Once the code-stage aggregate is green, remove this slug's review state so
-  stale failure context cannot leak into a later retry:
-  `rm -f .noldor/cr/<slug>-escalation-context.md .noldor/cr/autofix/<slug>-{spec,plan,code}.json{,.bad} .noldor/cr/decisions/<slug>-{spec,plan,code}.json`
-  (enumerate the files; a `<slug>-*` glob would also match a sibling slug that
-  shares the prefix).
 - Ship via `pnpm noldor pr-flow` (auto-merge; polls until the PR merges).
   Under parallel drain the supervisor sets `NOLDOR_DRAIN_OPEN_ONLY=1`:
   `pr-flow` then pushes + opens the PR and returns at PR-open — the
   supervisor's serialized merge coordinator does the merging.
+- Once `pr-flow` reports the merge — never at the green aggregate — remove
+  this slug's review state so stale failure context cannot leak into a later
+  retry:
+  `rm -f .noldor/cr/<slug>-escalation-context.md .noldor/cr/autofix/<slug>-{spec,plan,code}.json{,.bad} .noldor/cr/decisions/<slug>-{spec,plan,code}.json`
+  (enumerate the files; a `<slug>-*` glob would also match a sibling slug that
+  shares the prefix). A merge can fail after a green round, and the rebased
+  re-review needs the autofix ledger's round count and the decision store's
+  rulings. Under `NOLDOR_DRAIN_OPEN_ONLY=1` the child never sees the merge, so
+  it leaves the state in the worktree for a finish run to reuse.
 - Session retro, once `pr-flow` returns with the PR, in every path that runs
   this end-of-flow: Finish and Resume included. That is after the merge, except
   under `NOLDOR_DRAIN_OPEN_ONLY=1`, where it runs at PR-open: this child exits

@@ -64,11 +64,11 @@ Recovering the green tip when it wasn't captured: only when the fix landed as a 
 pnpm noldor cr aggregate --slug <slug> --kind code
 ```
 
-Exit 0 → context cleanup below, then back to the router's Step 4 checklist. Exit 1 → **Read now:** [`blockers.md`](blockers.md) — try the auto-fix seam, then escalate.
+Exit 0 → back to the router's Step 4 checklist (cleanup waits for the merge). Exit 1 → **Read now:** [`blockers.md`](blockers.md) — try the auto-fix seam, then escalate.
 
-## Context cleanup on clean exit
+## Context cleanup after merge
 
-Once all aggregates are green and the gate is about to enter PR flow, remove the escalation context file so stale failure context can't leak into a subsequent retry on the next feature, together with the auto-fix round ledgers, any quarantine remnant, and the series' decision stores (the green code round's receipt has already named every ruling in its `Noldor-CR-Settled:` trailers):
+Run at Step 4.11, after `pr-flow` prints `PR merged:`, inside the worktree before its removal — never at the green aggregate: a failed merge's rebased re-review needs the ledgers' round cap and the stores' rulings. Remove the escalation context file, so stale failure context can't leak into a later retry, plus the auto-fix round ledgers, any quarantine remnant and the decision stores (the green receipt's `Noldor-CR-Settled:` trailers already name every ruling):
 
 ```
 rm -f .noldor/cr/<slug>-escalation-context.md \
@@ -79,4 +79,4 @@ rm -f .noldor/cr/<slug>-escalation-context.md \
       .noldor/cr/decisions/<slug>-code.json
 ```
 
-All three kinds are listed because a `full-*` session runs Step 2.5 at both `spec` and `plan` and Step 4 at `code`, so up to three ledgers and three decision stores exist; `rm -f` on an absent path is a no-op, so enumeration beats deriving the set from the session path. Nothing else ever removes a `.bad` file. Do **not** collapse this to `.noldor/cr/autofix/<slug>-*`: the directory is shared in the main workspace, so a slug that is a prefix of another (`foo` vs `foo-bar`) would cross-match and delete a sibling feature's ledger. In bash/zsh `rm -f .noldor/cr/autofix/<slug>-{spec,plan,code}.json{,.bad}` is an equivalent shorthand — brace expansion is deterministic expansion, not pattern matching — but the enumerated form above is the portable one.
+All three kinds are listed because a `full-*` session runs Step 2.5 at both `spec` and `plan` and Step 4 at `code`, so up to three ledgers and three decision stores exist; `rm -f` on an absent path is a no-op, so enumeration beats deriving the set from the session path. Nothing else ever removes a `.bad` file. Do **not** collapse this to `.noldor/cr/autofix/<slug>-*`: the directory is shared in the main workspace, so a slug that is a prefix of another (`foo` vs `foo-bar`) would cross-match and delete a sibling feature's ledger.
