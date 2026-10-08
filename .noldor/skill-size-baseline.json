@@ -1,6 +1,6 @@
 {
   "algorithmVersion": 1,
-  "recordedAt": "2026-10-08T11:46:29.912Z",
+  "recordedAt": "2026-10-08T19:50:06.646Z",
   "files": {
     ".claude/skills/noldor-absorb/SKILL.md": 722,
     ".claude/skills/noldor-debug/SKILL.md": 1039,
@@ -17,12 +17,12 @@
     ".claude/skills/noldor-gate/freshness.md": 231,
     ".claude/skills/noldor-gate/micro-chore.md": 761,
     ".claude/skills/noldor-gate/SKILL.md": 2916,
-    ".claude/skills/noldor-milestone/SKILL.md": 849,
+    ".claude/skills/noldor-milestone/SKILL.md": 844,
     ".claude/skills/noldor-new-feature/SKILL.md": 593,
     ".claude/skills/noldor-plan/SKILL.md": 1866,
     ".claude/skills/noldor-promote/SKILL.md": 2775,
     ".claude/skills/noldor-refactor/SKILL.md": 2164,
-    ".claude/skills/noldor-release-sweep/SKILL.md": 3290,
+    ".claude/skills/noldor-release-sweep/SKILL.md": 3321,
     ".claude/skills/noldor-research/SKILL.md": 350,
     ".claude/skills/noldor-spec/arch-design.md": 296,
     ".claude/skills/noldor-spec/pen-canvas.md": 2005,
