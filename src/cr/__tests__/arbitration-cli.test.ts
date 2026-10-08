@@ -109,7 +109,7 @@ describe('cr arbitration — usage', () => {
 
   it('lists the closed disposition vocabulary, which no other surface prints', () => {
     writeRecord();
-    const r = run('dispose', '--slug', 'slug', '--kind', 'code');
+    const r = run('dispose', '--slug', 'slug', '--kind', 'code', '--blocker', 'b1');
     expect(r.status).toBe(2);
     for (const d of ['accepted', 'rejected', 'deferred']) expect(r.stderr).toContain(d);
   });
@@ -209,6 +209,26 @@ describe('cr arbitration dispose', () => {
       expect(r.status).toBe(0);
     }
     expect(readRecord().dispositions).toEqual([{ blockerId: 'b1', disposition: 'rejected' }]);
+  });
+
+  it("lists the record's blockers on stdout and exits 0 when given no ruling flags (Q-0355)", () => {
+    writeRecord({ dispositions: [{ blockerId: 'b1', disposition: 'rejected', note: 'n' }] });
+    for (const env of [{}, { NOLDOR_DRAIN: '1' }]) {
+      const r = runEnv(env, 'dispose', '--slug', 'slug', '--kind', 'code');
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain('b1  [reviewer][high] (disposed rejected) wrong default');
+      expect(r.stdout).toContain('b2  [codex][med] naming');
+      expect(r.stdout).toContain('next: noldor cr arbitration dispose --slug slug --kind code');
+    }
+    expect(readRecord().dispositions).toHaveLength(1);
+  });
+
+  it('keeps a disposition with no blocker a usage error, so exit 0 never reads as recorded', () => {
+    writeRecord();
+    const r = run('dispose', '--slug', 'slug', '--kind', 'code', '--disposition', 'rejected');
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('--blocker is required');
+    expect(r.stderr).toContain('b1, b2');
   });
 
   it('refuses an unknown blocker id and names the ones it has', () => {
@@ -425,10 +445,28 @@ describe('cr arbitration dispose — a ruling before the cap (Q-0261)', () => {
     });
   });
 
+  it('lists the standing blockers on stdout and exits 0 for a bare dispose, even under a drain child (Q-0355)', () => {
+    reviewedRound();
+    for (const env of [{}, { NOLDOR_DRAIN: '1' }]) {
+      const r = runEnv(env, 'dispose', '--slug', 'slug', '--kind', 'code');
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain(`${ID}  [reviewer][high] the fallback hides a failure`);
+      expect(r.stderr).not.toContain('usage:');
+    }
+    expect(store()).toBeNull();
+  });
+
+  it('says there is nothing to rule on when no blocker stands', () => {
+    reviewedRound([]);
+    const r = run('dispose', '--slug', 'slug', '--kind', 'code');
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('no blockers to rule on before the round cap');
+  });
+
   it('lists the standing blockers and their ids when --blocker is missing or unknown, recording nothing', () => {
     reviewedRound();
     for (const args of [
-      ['dispose', '--slug', 'slug', '--kind', 'code'],
+      ['dispose', '--slug', 'slug', '--kind', 'code', '--note', 'x'],
       [
         'dispose',
         '--slug',
