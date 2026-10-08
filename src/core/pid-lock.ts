@@ -45,7 +45,7 @@ export interface LockHolder {
  * was readable. A live reclaim holds its claim for microseconds, so one still
  * there a minute later was stranded by a process that died mid-reclaim.
  */
-export interface HeldBy {
+interface HeldBy {
   holder?: LockHolder;
   claim?: string;
 }
@@ -189,7 +189,7 @@ function replaceDead(
 }
 
 /** The holder named by the lock file at `path`; a read error other than `ENOENT` throws. */
-export function readHolder(path: string): SeenHolder {
+function readHolder(path: string): SeenHolder {
   let raw: string;
   try {
     raw = readFileSync(path, 'utf8');
