@@ -162,7 +162,7 @@ Details: [`autonomy.md`](docs/noldor/autonomy.md) and [`drain-mode.md`](docs/nol
 
 ## Drift detection
 
-Docs rot faster than code, so Noldor treats them as something to test. `pnpm noldor garden detect` runs more than twenty detectors over the repo: done features without tests, plans without specs, stale backlog, rule pages that contradict each other, quoted commands that no longer exist, and so on. A separate clone detector ratchets code duplication against a committed baseline at push time. The release preflight runs its own row of probes over the same state and names every failing row at once instead of stopping at the first.
+Docs rot faster than code, so Noldor treats them as something to test. `pnpm noldor garden detect` runs more than twenty detectors over the repo: done features without tests, plans without specs, stale backlog, rule pages that contradict each other, quoted commands that no longer exist, and so on. A separate clone detector ratchets code duplication against a committed baseline at push time. An [opt-in dead-code check](docs/noldor/adoption-guide.md#optional-dead-code-check) does the same for the unused files, exports, and dependencies that knip finds. The release preflight runs its own row of probes over the same state and names every failing row at once instead of stopping at the first.
 
 The code graph comes from graphify, and a release will not cut against a stale one. This README is checked too. Every documentation surface under `docs/` has to be reachable by following links from here, and every command quoted on this page has to resolve against the live CLI. That is `pnpm noldor checks readme`.
 
@@ -201,9 +201,9 @@ WIP age and hot zones: work that is aging, and the files that churn most.
 
 ## How it is built
 
-Three runnable units and one directory of state. The CLI, `noldor <group> <subcommand>`, is the only entry point. The hook jobs in `lefthook/noldor.yml` shell into it at four git stages. Pre-commit formats, syncs link projections, and validates. Prepare-commit-msg injects trailers from the session marker. Commit-msg checks scope and trailers. Pre-push enforces the review receipt, template parity, and the code-clone ratchet. The dashboard reads the same files over local HTTP.
+Three runnable units and one directory of state. The CLI, `noldor <group> <subcommand>`, is the only entry point. The hook jobs in `lefthook/noldor.yml` shell into it at four git stages. Pre-commit formats, syncs link projections, and validates. Prepare-commit-msg injects trailers from the session marker. Commit-msg checks scope and trailers. Pre-push enforces the review receipt, template parity, the code-clone ratchet, and the dead-code ratchet once it is turned on. The dashboard reads the same files over local HTTP.
 
-`.noldor/` holds the durable state as plain files: the session marker, one review sink per lane, the ID counter and retired-ID map, the clone and indirection baselines, scoped engineering rules, and the drain's logs and heartbeat. Documentation lives in `docs/`: feature docs, specs and plans, the roadmap and backlog, four architecture pages, and decision records.
+`.noldor/` holds the durable state as plain files: the session marker, one review sink per lane, the ID counter and retired-ID map, the clone, indirection, and dead-code baselines, scoped engineering rules, and the drain's logs and heartbeat. Documentation lives in `docs/`: feature docs, specs and plans, the roadmap and backlog, four architecture pages, and decision records.
 
 Noldor depends on git, the GitHub CLI, graphify for the code graph, and whichever agent runtimes it dispatches. It never talks to a network service of its own.
 
@@ -211,7 +211,7 @@ The architecture pages carry the diagrams: [context](docs/architecture/context.m
 
 ## Configuration
 
-One file, `.noldor/config.json`. The `consumer:` block is required: repo URL, scan paths, lockstep packages, dependency boundaries, release categories. Nine optional blocks change behaviour, and every one of them has a working default: `crLanes`, `crReview`, `autonomous`, `gate`, `agents`, `release`, `garden`, `clones`, `design`.
+One file, `.noldor/config.json`. The `consumer:` block is required: repo URL, scan paths, lockstep packages, dependency boundaries, release categories. Ten optional blocks change behaviour, and every one of them has a working default: `crLanes`, `crReview`, `autonomous`, `gate`, `agents`, `release`, `garden`, `clones`, `design`, `deadCode`.
 
 ```bash
 pnpm noldor validate noldor-config
