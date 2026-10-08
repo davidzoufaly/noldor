@@ -8,6 +8,7 @@ import {
   refResolves,
   tableBareNames,
 } from '../cli/command-registry.js';
+import { noldorConfigSchema } from '../core/config.js';
 import { toPosixRelative } from '../core/repo-paths.js';
 
 import { extractLinks, walkMd } from './docs-check.js';
@@ -300,6 +301,44 @@ export function commandFindings(body: string, registry: Set<string>): Finding[] 
   return findings;
 }
 
+/**
+ * The README's hand-written list of optional `.noldor/config.json` blocks,
+ * compared with the schema's top-level keys both ways: a key the list omits
+ * (it drifted when `deadCode` landed) and a listed name the schema no longer
+ * has.
+ *
+ * The list is the paragraph of the `## Configuration` section that names
+ * `.noldor/config.json` and says "optional block"; its backticked bare
+ * identifiers are the listed blocks. A README without that paragraph — every
+ * consumer's — yields nothing, so the check only binds where the list exists.
+ *
+ * Pure over its inputs; the caller supplies the schema keys.
+ */
+export function configBlockFindings(body: string, schemaKeys: readonly string[]): Finding[] {
+  const section = /^## Configuration[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(body)?.[1];
+  const paragraph = section
+    ?.split(/\n[ \t]*\n/)
+    .find((p) => p.includes('`.noldor/config.json`') && /optional blocks?/i.test(p));
+  if (paragraph === undefined) return [];
+
+  const listed = new Set(
+    [...paragraph.matchAll(/`([A-Za-z][A-Za-z0-9]*)`/g)].map((m) => m[1] ?? ''),
+  );
+  const keys = new Set(schemaKeys);
+  return [
+    ...schemaKeys
+      .filter((key) => !listed.has(key))
+      .map((key) => ({
+        message: `README.md Configuration section does not list the \`${key}\` config block`,
+      })),
+    ...[...listed]
+      .filter((name) => !keys.has(name))
+      .map((name) => ({
+        message: `README.md Configuration section lists \`${name}\`, which is not a config block`,
+      })),
+  ];
+}
+
 export type ReadmeStatus = 'absent' | 'ok' | 'findings';
 
 /** One thing the README fails to say that it should. */
@@ -316,11 +355,12 @@ export interface ReadmeReport {
 }
 
 /**
- * Check the root `README.md` on two axes: every documentation surface under
- * `docs/` is reachable by following links from it, and every command it quotes
+ * Check the root `README.md` on three axes: every documentation surface under
+ * `docs/` is reachable by following links from it, every command it quotes
  * still resolves against the live CLI surface (via the shared
  * `src/cli/command-registry.ts` helpers the fd-command-rot detector also uses —
- * one resolver, not a third copy; Q-0148).
+ * one resolver, not a third copy; Q-0148), and its list of optional config
+ * blocks matches `noldorConfigSchema` ({@link configBlockFindings}).
  *
  * Never rejects for an EXPECTED failure — I/O errors and malformed input each
  * degrade to a note and the rest of the check continues. Programmer errors are
@@ -350,6 +390,7 @@ export async function checkReadme(cwd: string = process.cwd()): Promise<ReadmeRe
     // proved the seed readable — a failure here is a genuine race, noted.
     const body = await readFile(join(cwd, 'README.md'), 'utf8');
     findings.push(...commandFindings(body, await buildCommandRegistry(cwd)));
+    findings.push(...configBlockFindings(body, Object.keys(noldorConfigSchema.shape)));
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     notes.push(`cannot re-read README.md for command check: ${code ?? 'unknown'}`);
