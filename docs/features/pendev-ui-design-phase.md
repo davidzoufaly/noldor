@@ -32,6 +32,7 @@ links:
     - src/core/__tests__/init-vscode-settings.test.ts
     - src/core/__tests__/run-capture.test.ts
     - src/core/__tests__/ui-predicate.test.ts
+    - src/core/__tests__/ui-proof.test.ts
     - src/cr/__tests__/geometry/geometry-review-cli.test.ts
     - src/cr/__tests__/geometry/geometry-review.test.ts
     - src/design/__tests__/design-approval.test.ts
@@ -159,6 +160,7 @@ Consumer config schema now accepts `uiPaths` and `uiSurfaces` (#342).
   - [`src/core/__tests__/init-vscode-settings.test.ts`](../../src/core/__tests__/init-vscode-settings.test.ts)
   - [`src/core/__tests__/run-capture.test.ts`](../../src/core/__tests__/run-capture.test.ts)
   - [`src/core/__tests__/ui-predicate.test.ts`](../../src/core/__tests__/ui-predicate.test.ts)
+  - [`src/core/__tests__/ui-proof.test.ts`](../../src/core/__tests__/ui-proof.test.ts)
   - [`src/cr/__tests__/geometry/geometry-review-cli.test.ts`](../../src/cr/__tests__/geometry/geometry-review-cli.test.ts)
   - [`src/cr/__tests__/geometry/geometry-review.test.ts`](../../src/cr/__tests__/geometry/geometry-review.test.ts)
   - [`src/design/__tests__/design-approval.test.ts`](../../src/design/__tests__/design-approval.test.ts)

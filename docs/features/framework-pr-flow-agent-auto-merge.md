@@ -14,6 +14,7 @@ links:
   spec: lost-pre-extraction
   tests:
     - src/core/__tests__/phase-revert.test.ts
+    - src/core/__tests__/pr-flow-ui-proof.test.ts
     - src/core/__tests__/pr-flow.test.ts
     - src/garden/detectors/__tests__/branch-protection.test.ts
     - src/garden/detectors/__tests__/override-audit.test.ts
@@ -145,6 +146,7 @@ This release fixes composeBody's Feature MD link falling through to session.pare
   - [`src/release/release-find-first-pr-commit.ts`](../../src/release/release-find-first-pr-commit.ts)
 - **Tests:**
   - [`src/core/__tests__/phase-revert.test.ts`](../../src/core/__tests__/phase-revert.test.ts)
+  - [`src/core/__tests__/pr-flow-ui-proof.test.ts`](../../src/core/__tests__/pr-flow-ui-proof.test.ts)
   - [`src/core/__tests__/pr-flow.test.ts`](../../src/core/__tests__/pr-flow.test.ts)
   - [`src/garden/detectors/__tests__/branch-protection.test.ts`](../../src/garden/detectors/__tests__/branch-protection.test.ts)
   - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)

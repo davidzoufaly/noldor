@@ -1,4 +1,4 @@
-// @tests: graph-and-main-freshness-before-coding
+// @tests: graph-and-main-freshness-before-coding, self-refreshing-compact-knowledge-graph
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
