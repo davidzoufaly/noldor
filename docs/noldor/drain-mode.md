@@ -198,7 +198,7 @@ so the prompt stays a thin pointer and no second rendering exists to drift.
   which holds whether or not the PR lands. One headless call,
   `pnpm noldor triage retro --slug <slug> --pr <n>` with a `--lesson` per trap
   that cost a debugging cycle and a `--followup` per deferred finding or skipped
-  bit, or `--none` when there is nothing (the common case — never pad). It writes
+  bit, or `--none` when there is nothing (never pad). It writes
   the main checkout's `ideas.md` even from this worktree and never commits; never
   put these notes in private memory instead. A non-zero exit is reported, not
   fatal.
