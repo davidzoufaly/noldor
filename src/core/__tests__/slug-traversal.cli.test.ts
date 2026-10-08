@@ -6,8 +6,6 @@ import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/noldor.mjs');
-const MILESTONE_CLI = resolve(import.meta.dirname, '../../milestones/cli.ts');
-const TSX = resolve(import.meta.dirname, '../../../node_modules/.bin/tsx');
 
 /**
  * Hostile slug shapes. Every one must be refused before a protected operation.
@@ -101,20 +99,6 @@ function run(args: string[]): Run {
   }
 }
 
-function runMilestone(args: string[]): Run {
-  try {
-    execFileSync(TSX, [MILESTONE_CLI, ...args], {
-      cwd: repo,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    return { status: 0, stderr: '' };
-  } catch (err) {
-    const e = err as { status?: number; stderr?: string };
-    return { status: e.status ?? -1, stderr: e.stderr ?? '' };
-  }
-}
-
 /** Nothing outside the repo may differ after a refusal. */
 function sentinelUnchanged(): boolean {
   return outsideTree() === treeBefore;
@@ -182,7 +166,7 @@ describe('payloads that land on a real file — the escape itself', () => {
     // so the refusal has to come from the guard, and the REFUSED matcher pins
     // which refusal it was.
     writeFileSync(join(repo, 'docs', 'vision.md'), '---\n---\n\n# Vision\n');
-    const r = runMilestone(['activate', CANONICAL]);
+    const r = run(['milestones', 'activate', CANONICAL]);
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(REFUSED);
     expect(readFileSync(join(base, 'a', 'sentinel-target.md'), 'utf8')).toBe(SENTINEL_BODY);
@@ -198,14 +182,14 @@ describe('the remaining entry points — canonical traversal payload', () => {
   });
 
   it('milestones draft refuses and creates nothing', () => {
-    const r = runMilestone(['draft', CANONICAL]);
+    const r = run(['milestones', 'draft', CANONICAL]);
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(REFUSED);
     expect(sentinelUnchanged()).toBe(true);
   });
 
   it('milestones activate refuses and rewrites nothing', () => {
-    const r = runMilestone(['activate', CANONICAL]);
+    const r = run(['milestones', 'activate', CANONICAL]);
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(REFUSED);
     expect(sentinelUnchanged()).toBe(true);
