@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { atomicWriteFileSync } from '../core/atomic-write.js';
 import { isEntrypoint } from '../core/cli-entry.js';
 import { loadDocRoots } from '../core/doc-roots.js';
-import { acquirePidLock, releasePidLock } from '../core/pid-lock.js';
+import { acquirePidLock, type LockHolder, releasePidLock } from '../core/pid-lock.js';
 
 const LABEL = 'retro';
 const USAGE =
@@ -15,7 +15,8 @@ const USAGE =
   '  <notes> holds one "lesson: <text>" or "followup: <text>" per line\n';
 const LESSONS = 'Lessons';
 const FOLLOWUPS = 'Not groomed';
-const LOCK_FILE = 'noldor-ideas.lock';
+/** The `ideas.md` lock, in git's common dir so every worktree contends for one file. */
+export const IDEAS_LOCK_FILE = 'noldor-ideas.lock';
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const PR_RE = /^[1-9]\d*$/;
 const NOTE_KINDS = [
@@ -111,7 +112,7 @@ function oneLine(text: string): string {
  * child runs in `.worktrees/<slug>/`, and an `ideas.md` written there is deleted
  * with the worktree, so the retro always targets that parent.
  */
-function gitCommonDir(cwd: string): Parsed<string> {
+export function gitCommonDir(cwd: string): Parsed<string> {
   try {
     const dir = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
       cwd,
@@ -191,6 +192,11 @@ function applyRetro(
   return { content: `${lines.join('\n')}\n`, lessons, followups };
 }
 
+function heldBy(holder: LockHolder | undefined): string {
+  if (holder?.holdUntil === undefined) return `held by pid ${holder?.pid ?? '?'}`;
+  return `an ideas.md edit holds it until ${holder.holdUntil}`;
+}
+
 /** Injectable context for tests: the directory the command runs in and today's date. */
 export interface RetroContext {
   cwd?: string;
@@ -227,11 +233,11 @@ export async function main(argv: readonly string[], ctx: RetroContext = {}): Pro
     return 1;
   }
   const target = loadDocRoots(dirname(common.data)).ideas;
-  const lockPath = join(common.data, LOCK_FILE);
+  const lockPath = join(common.data, IDEAS_LOCK_FILE);
   const self = { pid: process.pid, startedAt: new Date().toISOString() };
   const lock = await acquirePidLock(lockPath, self, { timeoutMs: 5_000, pollMs: 50 });
   if (lock.kind === 'timed-out' || lock.kind === 'failed') {
-    const why = lock.kind === 'failed' ? lock.reason : `held by pid ${lock.holder?.pid ?? '?'}`;
+    const why = lock.kind === 'failed' ? lock.reason : heldBy(lock.holder);
     process.stderr.write(`${LABEL}: could not lock ${lockPath} (${why}); re-run once\n`);
     return 1;
   }

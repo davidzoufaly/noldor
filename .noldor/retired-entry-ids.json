@@ -865,5 +865,9 @@
   "Q-0357": {
     "slug": "gate-load-budget-headroom",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0363": {
+    "slug": "ideas-md-writers-take-the-lock",
+    "retiredAt": "2026-10-08"
   }
 }

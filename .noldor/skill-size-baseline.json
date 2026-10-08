@@ -1,8 +1,8 @@
 {
   "algorithmVersion": 1,
-  "recordedAt": "2026-10-08T20:30:46.662Z",
+  "recordedAt": "2026-10-08T21:00:27.437Z",
   "files": {
-    ".claude/skills/noldor-absorb/SKILL.md": 722,
+    ".claude/skills/noldor-absorb/SKILL.md": 746,
     ".claude/skills/noldor-debug/SKILL.md": 1039,
     ".claude/skills/noldor-draft-feature-md/SKILL.md": 1605,
     ".claude/skills/noldor-garden/SKILL.md": 1655,
@@ -10,7 +10,7 @@
     ".claude/skills/noldor-gate/attach.md": 737,
     ".claude/skills/noldor-gate/autonomous.md": 457,
     ".claude/skills/noldor-gate/blockers.md": 1912,
-    ".claude/skills/noldor-gate/code-review.md": 1551,
+    ".claude/skills/noldor-gate/code-review.md": 1258,
     ".claude/skills/noldor-gate/design-writeback.md": 1071,
     ".claude/skills/noldor-gate/fast-track.md": 756,
     ".claude/skills/noldor-gate/fd-close.md": 667,
@@ -28,7 +28,7 @@
     ".claude/skills/noldor-spec/pen-canvas.md": 2005,
     ".claude/skills/noldor-spec/SKILL.md": 2895,
     ".claude/skills/noldor-spec/ui-design.md": 984,
-    ".claude/skills/noldor-triage/SKILL.md": 3548,
+    ".claude/skills/noldor-triage/SKILL.md": 3583,
     ".claude/skills/noldor-verify/SKILL.md": 860
   }
 }
