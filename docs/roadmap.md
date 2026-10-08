@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Gate Load Budget Headroom
-
-- id: Q-0357
-- area: tooling
-- type: chore
-- since: 2026-10-08
-- size: S
-- impact: med
-- confidence: med
-
-specs-only-new gate load is 6841 of 6844 words after #685 + #687; the next gate prose addition must trim first, or the half-of-pre-split budget needs revisiting. (session-retro-auto-capture, PR #687, 2026-10-08)
-
 ### Charuy Adopts Next Release
 
 - id: Q-0358
