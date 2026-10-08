@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Dead-Code Baseline Diffs Across Knip Drift
-
-- id: Q-0351
-- area: tooling
-- type: fix
-- since: 2026-10-08
-- size: S
-- impact: med
-- confidence: high
-- parent: dead-code-detection-with-knip
-
-`noldor dead-code baseline` re-records silently when the old baseline is "unreadable" only because of knip/algorithm version drift — its `issues` array is still well-formed, so a finding that lands alongside a knip bump is absorbed without the ADDED/dropped diff. Diff against the parsed issues whenever the schema parse succeeded. (reviewer low, PR #679, 2026-10-07)
-
 ### Gate CR Cleanup After Merge
 
 - id: Q-0352
