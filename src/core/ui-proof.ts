@@ -1,4 +1,4 @@
-// @tests: ui-proof-screenshots-on-the-pr
+// @fd: ui-proof-screenshots-on-the-pr
 // UI proof for the PR body: which surfaces a branch touched, which screenshots
 // prove them, and where those images are hosted so a PR body can show them.
 // Images live on an orphan branch, never the feature branch, because a squash
