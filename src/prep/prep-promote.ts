@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { dirname, join } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
+import { ffSyncMain } from '../core/ff-sync.js';
 import { nodeSpawn } from '../core/pr-flow-cli.js';
 import { isLinkedWorktree, mergePrWithFallback } from '../core/pr-flow.js';
 import { readSession, writeSession, clearSession } from '../core/session.js';
@@ -305,8 +306,7 @@ async function shipBranch(
     // so the local branch may already be gone. Not a failure.
   }
   try {
-    git(cwd, ['fetch', 'origin', 'main']);
-    git(cwd, ['merge', '--ff-only', 'origin/main']);
+    ffSyncMain(cwd);
   } catch {
     return { prUrl, note: `PR merged at ${mergedAt}; local main not yet synced` };
   }

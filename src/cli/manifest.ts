@@ -206,6 +206,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'triage/backfill-ids-cli.ts',
         desc: 'Idempotent one-sweep stamp of `- id:` onto all id-less roadmap/backlog entries',
       },
+      retro: {
+        src: 'triage/retro-cli.ts',
+        desc: "Write a session's lessons + follow-ups into the main checkout's ideas.md (never commits)",
+      },
       'merge-candidates': {
         src: 'triage/merge-candidates-cli.ts',
         desc: 'Emit the merge-candidate corpus (FDs + roadmap + backlog) for /noldor-triage; --json for machine output',

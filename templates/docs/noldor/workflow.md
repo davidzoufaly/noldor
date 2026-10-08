@@ -73,3 +73,5 @@ For agentic operators who want to chain through to PR-merge without checkpoints,
 ## Lessons belong in the framework, not private memory
 
 When a trap or gotcha is discovered, fix it in the framework directly — a code fix, or a bullet under `## Lessons` in `ideas.md` for `/noldor-absorb` to file into these runbooks. Never journal it only in an agent's private memory: Noldor is a product, and lessons must travel with the repo to every operator and consumer. Reserve private memory for cross-session state the framework can't hold.
+
+The gate does the capture for you: after every merge, on every path and in every drain child, Step 4.12 runs `pnpm noldor triage retro`, which appends the session's lessons under `## Lessons` and its follow-ups under `## Not groomed` in the main checkout's `ideas.md` (creating either section when it is missing) and never commits. `/noldor-absorb` files the lessons from there.

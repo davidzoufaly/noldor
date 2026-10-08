@@ -15,16 +15,3 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 > - **L / XL** → `full` (spec + plan), and only when there's real design risk — a mechanical L can still fast-track.
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
-
-### Session Retro Auto-Capture
-
-- id: Q-0340
-- area: tooling
-- type: feat
-- since: 2026-10-07
-- size: M
-- impact: high
-- confidence: med
-- parent: memory-intake-lessons-learned-pipeline
-
-Today nothing makes an agent write what it learned. The `## Lessons` + `/noldor-absorb` loop only fires when someone asks, so lessons leak into the assistant's private memory instead (charuy, Q-0321, PR #346: the `Why:`-vs-`Why —` PR-summary trap went to memory, three follow-ups only reached `ideas.md` on request). Add a gate step after merge (Step 4.11, before the Step 5 handoff), on every path: the agent appends (1) follow-ups and unfixed findings — verifier notes, deferred review lows, spec drift, unpriced or skipped bits — as raw bullets under `## Not groomed`, and (2) traps that cost a debugging cycle under `## Lessons`, each with slug + PR + date, and never names the next roadmap entry (always-clear stays intact). Open: (a) scaffold `## Lessons` when a consumer's `ideas.md` lacks it (charuy's has none); (b) `ideas.md` is gitignored in some consumers (charuy) and tracked in others (noldor), so the step writes the file and never commits it; (c) an empty retro is fine and should say so, not pad; (d) a drain child needs the same step, headless.
