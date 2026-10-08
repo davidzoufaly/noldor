@@ -39,6 +39,8 @@ export interface UiProofLink {
   source: 'e2e' | 'render-compare' | null;
   imageUrls: string[];
   notes: string[];
+  /** Set when the session declared no visual change: how it declared it. Nothing was captured. */
+  skipped?: string;
 }
 
 /**
@@ -172,7 +174,9 @@ function renderUiProofSection(links: readonly UiProofLink[] | undefined): string
     if (l.source !== null) lines.push(UI_PROOF_SOURCE_LABEL[l.source], '');
     for (const [i, url] of l.imageUrls.entries())
       lines.push(`![${l.surface} ${i + 1}](${url})`, '');
-    if (l.imageUrls.length === 0) {
+    if (l.skipped !== undefined) {
+      lines.push(`_UI proof skipped: no visual change declared (${l.skipped})._`, '');
+    } else if (l.imageUrls.length === 0) {
       lines.push(
         `_No screenshot. Configure \`consumer.uiProof.${l.surface}.command\` or run the \`render-compare\` lane._`,
         '',

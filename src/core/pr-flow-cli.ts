@@ -21,7 +21,7 @@ import { isEntrypoint } from './cli-entry.js';
 import { loadConsumerConfig } from './consumer-config.js';
 import { runCapture } from './run-capture.js';
 import { sanitizeSurfaceName } from './ui-boot.js';
-import { uiProofStep } from './ui-proof.js';
+import { UI_PROOF_TRAILER, uiProofStep } from './ui-proof.js';
 
 const DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;
 
@@ -490,6 +490,13 @@ export async function runCli(cwd: string): Promise<number> {
     repoUrl,
     branchFiles,
     fdDesign: fdSlug !== undefined ? loadFdDesign(cwd, fdSlug) : undefined,
+    trailerValues: execGit([
+      'log',
+      `--format=%(trailers:key=${UI_PROOF_TRAILER},valueonly)`,
+      'origin/main..HEAD',
+    ])
+      .split('\n')
+      .filter((v) => v.trim() !== ''),
     config: loadConsumerConfig(cwd),
     capture: runCapture,
   });

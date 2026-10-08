@@ -35,23 +35,38 @@ export interface UiProofItem {
   notes: string[];
 }
 
+/** The commit trailer any session (FD or not) uses to declare its UI diff changes nothing on screen. */
+export const UI_PROOF_TRAILER = 'Noldor-UI-Proof';
+
+/** A test file renders nothing a user sees, so it never pulls a surface into the proof. */
+function isTestPath(file: string): boolean {
+  return /(^|\/)__tests__\//.test(file) || /\.(test|spec)\.[^/]+$/.test(file);
+}
+
 /**
- * The surfaces whose globs match a path the branch touched, sorted. An FD
- * `design: skip` suppresses every surface: the operator declared the change
- * carries no visual delta worth proving.
+ * The surfaces whose globs match a non-test path the branch touched, sorted.
  */
-export function uiProofSurfaces(
-  branchFiles: readonly string[],
-  config: UiConfig,
-  fdDesign: unknown,
-): string[] {
-  if (fdDesign === 'skip') return [];
+export function uiProofSurfaces(branchFiles: readonly string[], config: UiConfig): string[] {
+  const files = branchFiles.filter((f) => !isTestPath(f));
   return Object.entries(surfaceMap(config))
-    .filter(([, globs]) =>
-      branchFiles.some((f) => globs.some((g) => minimatch(f, g, { dot: true }))),
-    )
+    .filter(([, globs]) => files.some((f) => globs.some((g) => minimatch(f, g, { dot: true }))))
     .map(([surface]) => surface)
     .sort();
+}
+
+/**
+ * Why the proof is skipped, or `null` when it runs. An FD `design: skip` or a
+ * `Noldor-UI-Proof: skip` trailer on any branch commit declares the change
+ * carries no visual delta worth proving; the trailer is how a fast-track or
+ * micro-chore, which has no FD, says so.
+ */
+export function uiProofSkipReason(
+  fdDesign: unknown,
+  trailerValues: readonly string[],
+): string | null {
+  if (trailerValues.some((v) => v.trim() === 'skip')) return `\`${UI_PROOF_TRAILER}: skip\``;
+  if (fdDesign === 'skip') return 'FD `design: skip`';
+  return null;
 }
 
 async function hasPngSignature(file: string): Promise<boolean> {
@@ -314,8 +329,10 @@ export async function hostUiProof(opts: {
 /**
  * The lazy step `pr-flow` hands to `openAndAutoMerge`, or `undefined` when the
  * branch touched no UI surface (or the repo declares none) — then nothing runs
- * and the PR body is unchanged. Each surface left without an image warns once
- * on stderr; the step itself never throws.
+ * and the PR body is unchanged. A declared skip runs nothing either, but still
+ * names each touched surface with the claim, so a reviewer sees it was made.
+ * Each surface left without an image warns once on stderr; the step itself
+ * never throws.
  */
 export function uiProofStep(opts: {
   cwd: string;
@@ -325,11 +342,26 @@ export function uiProofStep(opts: {
   repoUrl: string;
   branchFiles: readonly string[];
   fdDesign: unknown;
+  /** Every `Noldor-UI-Proof` trailer value on the branch's commits. */
+  trailerValues: readonly string[];
   config: UiConfig & { uiProof?: Record<string, UiCaptureRecipe> };
   capture: typeof runCapture;
 }): (() => Promise<readonly UiProofLink[]>) | undefined {
-  const surfaces = uiProofSurfaces(opts.branchFiles, opts.config, opts.fdDesign);
+  const surfaces = uiProofSurfaces(opts.branchFiles, opts.config);
   if (surfaces.length === 0) return undefined;
+  const skip = uiProofSkipReason(opts.fdDesign, opts.trailerValues);
+  if (skip !== null) {
+    return () =>
+      Promise.resolve(
+        surfaces.map((surface) => ({
+          surface,
+          source: null,
+          imageUrls: [],
+          notes: [],
+          skipped: skip,
+        })),
+      );
+  }
   return async () => {
     let headTree: string | null = null;
     try {
