@@ -129,6 +129,25 @@ describe('noldor triage retro', () => {
     expect(copies).toStrictEqual([`- same (s, PR #6, ${TODAY})`, `- same (s, PR #7, ${TODAY})`]);
   });
 
+  it('writes a note repeated within one call once', async () => {
+    await retro('--slug', 's', '--pr', '14', '--lesson', 'twice', '--lesson', 'twice');
+
+    expect(
+      ideas()
+        .split('\n')
+        .filter((l) => l.startsWith('- twice ')),
+    ).toHaveLength(1);
+  });
+
+  it('appends to an existing heading that carries trailing whitespace', async () => {
+    writeFileSync(join(repo, 'ideas.md'), '## Lessons  \n\n- old\n');
+
+    await retro('--slug', 's', '--pr', '15', '--lesson', 'new');
+
+    expect(ideas().match(/^## Lessons/gm)).toHaveLength(1);
+    expect(ideas()).toContain('- new (s, PR #15');
+  });
+
   it('collapses multi-line text onto one bullet line', async () => {
     await retro('--slug', 's', '--pr', '8', '--lesson', 'first\n  second');
 

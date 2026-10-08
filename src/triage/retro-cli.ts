@@ -98,8 +98,12 @@ function isH1orH2(line: string): boolean {
   return line.startsWith('# ') || line.startsWith('## ');
 }
 
+function headingIndex(lines: readonly string[], name: string): number {
+  return lines.findIndex((l) => l.trim() === `## ${name}`);
+}
+
 function ensureSection(lines: string[], name: string): void {
-  if (lines.includes(`## ${name}`)) return;
+  if (headingIndex(lines, name) !== -1) return;
   const verticals = lines.indexOf('## Verticals');
   if (verticals !== -1) {
     lines.splice(verticals, 0, `## ${name}`, '');
@@ -116,11 +120,13 @@ function appendToSection(
   name: string,
   bullets: { key: string; line: string }[],
 ): number {
-  const heading = lines.indexOf(`## ${name}`);
+  const heading = headingIndex(lines, name);
   let end = heading + 1;
   while (end < lines.length && !isH1orH2(lines[end]!)) end++;
   const section = lines.slice(heading + 1, end);
-  const fresh = bullets.filter((b) => !section.some((l) => l.startsWith(b.key)));
+  const fresh = [...new Map(bullets.map((b) => [b.key, b])).values()].filter(
+    (b) => !section.some((l) => l.startsWith(b.key)),
+  );
   if (fresh.length === 0) return 0;
   let last = end - 1;
   while (last > heading && lines[last]!.trim() === '') last--;

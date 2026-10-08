@@ -191,8 +191,11 @@ so the prompt stays a thin pointer and no second rendering exists to drift.
   Under parallel drain the supervisor sets `NOLDOR_DRAIN_OPEN_ONLY=1`:
   `pr-flow` then pushes + opens the PR and returns at PR-open — the
   supervisor's serialized merge coordinator does the merging.
-- Session retro, once `pr-flow` returns with the PR (open or merged), in every
-  path that runs this end-of-flow: Finish and Resume included. One headless call,
+- Session retro, once `pr-flow` returns with the PR, in every path that runs
+  this end-of-flow: Finish and Resume included. That is after the merge, except
+  under `NOLDOR_DRAIN_OPEN_ONLY=1`, where it runs at PR-open: this child exits
+  before the coordinator merges, and the notes record what the session learned,
+  which holds whether or not the PR lands. One headless call,
   `pnpm noldor triage retro --slug <slug> --pr <n>` with a `--lesson` per trap
   that cost a debugging cycle and a `--followup` per deferred finding or skipped
   bit, or `--none` when there is nothing (the common case — never pad). It writes
