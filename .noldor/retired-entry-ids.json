@@ -817,5 +817,9 @@
   "Q-0346": {
     "slug": "milestone-skill-consumer-command-path",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0348": {
+    "slug": "ui-proof-trailer-validation",
+    "retiredAt": "2026-10-08"
   }
 }

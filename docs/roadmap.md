@@ -29,19 +29,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Pre-commit `features fill-links-code-gaps --auto-high` adds an untagged file to an FD whose links.code is tag-built, and the same commit warns that `sync code-links` will drop it, so every commit leaves that FD dirty (charuy: `apps/web/src/components/build/money.ts`). The auto-high pass should skip FDs that carry `// @fd:` tags. (charuy-noldor-1-16-0, PR #362, 2026-10-08)
 
-### UI-Proof Trailer Validation
-
-- id: Q-0348
-- area: tooling
-- type: fix
-- since: 2026-10-08
-- size: XS
-- impact: med
-- confidence: high
-- parent: ui-proof-screenshots-on-the-pr
-
-The commit-msg hook does not validate `Noldor-UI-Proof` values, so a typo (`skipped`, `none`) silently runs the proof anyway. Refuse anything but `skip`, the way `Noldor-Doc-Impact` is checked. (ui-proof-skip, PR #693, 2026-10-08)
-
 ### Release Sweep Installs Before Verify
 
 - id: Q-0349

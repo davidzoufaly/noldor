@@ -1,4 +1,4 @@
-// @tests: noldor, scope-sibling-trailer-for-doc-sync-commits, fast-track-changes-can-obsolete-an-unattached-fd, framework-doc-extraction
+// @tests: noldor, scope-sibling-trailer-for-doc-sync-commits, fast-track-changes-can-obsolete-an-unattached-fd, framework-doc-extraction, ui-proof-screenshots-on-the-pr
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
@@ -42,6 +42,16 @@ function setupRepo(): string {
     }),
   );
   return dir;
+}
+
+/** Commit past a rollout marker so the gate enforces instead of soft-passing. */
+function armPostRollout(dir: string): void {
+  writeFileSync(join(dir, 'a'), 'init');
+  execSync('git add a && git commit -q -m init', { cwd: dir });
+  const sha = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+  writeFileSync(join(dir, '.noldor', 'rollout-marker'), sha + '\n');
+  writeFileSync(join(dir, 'b'), 'x');
+  execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
 }
 
 describe('validateTrailer', () => {
@@ -751,15 +761,6 @@ describe('validateTrailer', () => {
   // trailer: inject-trailers no-ops without a marker, so the bare "Missing
   // Noldor-Path trailer" blamed the commit message instead of the marker.
   describe('missing Noldor-Path trailer', () => {
-    function armPostRollout(dir: string): void {
-      writeFileSync(join(dir, 'a'), 'init');
-      execSync('git add a && git commit -q -m init', { cwd: dir });
-      const sha = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
-      writeFileSync(join(dir, '.noldor', 'rollout-marker'), sha + '\n');
-      writeFileSync(join(dir, 'b'), 'x');
-      execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
-    }
-
     it('names the absent session marker and points at the gate scaffold', () => {
       const dir = setupRepo();
       armPostRollout(dir);
@@ -851,6 +852,36 @@ describe('validateTrailer', () => {
       });
       expect(r.ok).toBe(false);
       expect(r.reason).toContain('gamma');
+    });
+  });
+  describe('Noldor-UI-Proof declaration', () => {
+    const fastTrack = (declaration: string): string =>
+      `fix(tooling): x\n\nNoldor-UI-Proof: ${declaration}\nNoldor-Path: fast-track\n`;
+
+    it('accepts skip', () => {
+      const dir = setupRepo();
+      armPostRollout(dir);
+      expect(validateTrailer({ message: fastTrack('skip'), cwd: dir })).toEqual({ ok: true });
+    });
+
+    it.each(['skipped', 'none', 'Skip'])('rejects %s and names it', (declaration) => {
+      const dir = setupRepo();
+      armPostRollout(dir);
+      const r = validateTrailer({ message: fastTrack(declaration), cwd: dir });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain('Noldor-UI-Proof');
+      expect(r.reason).toContain(JSON.stringify(declaration));
+    });
+
+    it('checks the declaration on every path, not only fast-track', () => {
+      const dir = setupRepo();
+      armPostRollout(dir);
+      const r = validateTrailer({
+        message: 'docs: x\n\nNoldor-UI-Proof: none\nNoldor-Path: micro-chore\n',
+        cwd: dir,
+      });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain('Noldor-UI-Proof');
     });
   });
 });

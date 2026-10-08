@@ -11,6 +11,7 @@ links:
     - src/core/__tests__/pr-flow-ui-proof.test.ts
     - src/core/__tests__/ui-proof.test.ts
     - src/cr/__tests__/lanes/render-compare.test.ts
+    - src/hooks/__tests__/noldor-validate-trailer.test.ts
   spec: >-
     docs/design/specs/archive/2026-10-07-ui-proof-screenshots-on-the-pr-design.md
 name: UI Proof Screenshots on the PR
@@ -21,6 +22,7 @@ since: 2026-10-07T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.16.0
 ---
+
 ## Summary
 
 When a feature touches UI, the PR should carry a screenshot of it working as proof — and when the feature is e2e-tested on the UI end, the screenshot comes from that run. Today a UI change ships with a text-only PR body, so a reviewer has to check out the branch to see the result. Capture screenshots from the e2e/verify run (or a dedicated capture step) and attach them to the PR body via `pr-flow`.
@@ -53,7 +55,7 @@ As a reviewer of a consumer PR that changes UI (human or agent), I want the PR b
 - No proof command, or it failed → the `render-compare` lane's shot is used when its `<surface>.shot.json` matches the shipped tree.
 - Images are hosted on the `noldor/ui-proof` branch and linked by commit SHA. A missing image shows as a note on the PR and never blocks the merge.
 - Test files (`__tests__/`, `*.test.*`, `*.spec.*`) never count as a UI change.
-- No visual change? Add a `Noldor-UI-Proof: skip` trailer to any branch commit (works on fast-track and micro-chore, which have no FD), or set FD `design: skip`. Nothing is captured, and the PR shows `UI proof skipped: no visual change declared` for each touched surface.
+- No visual change? Add a `Noldor-UI-Proof: skip` trailer to any branch commit (works on fast-track and micro-chore, which have no FD), or set FD `design: skip`. `skip` is the only value the trailer takes: the commit-msg hook refuses a commit carrying any other (`skipped`, `none`). Nothing is captured, and the PR shows `UI proof skipped: no visual change declared` for each touched surface.
 
 ## PRs
 
@@ -83,5 +85,6 @@ This release adds screenshots of UI changes to the PR (#683).
   - [`src/core/__tests__/pr-flow-ui-proof.test.ts`](../../src/core/__tests__/pr-flow-ui-proof.test.ts)
   - [`src/core/__tests__/ui-proof.test.ts`](../../src/core/__tests__/ui-proof.test.ts)
   - [`src/cr/__tests__/lanes/render-compare.test.ts`](../../src/cr/__tests__/lanes/render-compare.test.ts)
+  - [`src/hooks/__tests__/noldor-validate-trailer.test.ts`](../../src/hooks/__tests__/noldor-validate-trailer.test.ts)
 
 <!-- /generated: resources -->
