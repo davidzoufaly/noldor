@@ -486,6 +486,8 @@ Q-0244's lane rule only fires when an entry declares `Touches:`, and no entry in
 
 Nobody has looked at `docs/design/architecture/baseline.pen` on the canvas yet. It was emitted as schema-2.19 JSON by a generator while the operator was away; `pen-bridge` requested an open, but pencil MCP never answered. Still owed, and operator-only (it needs a human at the pen.dev canvas, so it stays off the roadmap the drain reads): open it in VS Code, confirm it renders, tidy the layout, then run `design arch-route` for each view. (found 2026-09-25, architecture-design-phase)
 
+- The baseline also lacks the two arrows PR #681 added (`src/dashboard -> src/checks`, `src/garden -> src/checks`), on top of ~100 older undrawn-edge rows from `checks arch-baseline`. (PR #681, 2026-10-07)
+
 ### Architecture-Design-Phase Review Lows
 
 - id: Q-0312
@@ -558,3 +560,23 @@ Geometry-compare text right edges are partly paint: on charuy four text right ed
 - parent: code-clone-detector
 
 `noldor clones` only scans TS/JS (`src/clones/tokenize.ts`), so a consumer with mostly Python, Go or other code gets no clone signal; jscpd covers 150+ languages. It was turned down as a dependency in 2026-07 (code-clone-detector spec, D1: a big dependency tree shipped to every consumer). Keep our detector as the default and add an opt-in `clones.engine: jscpd` that runs jscpd only when the consumer has it installed, maps its JSON into `CloneReport`, and feeds the same baseline ratchet and diff-scoped `check`. Not needed until a non-TS consumer shows up (charuy is TS).
+
+### Session Retro Review Lows
+
+- id: Q-0364
+- area: tooling
+- type: fix
+- since: 2026-10-08
+- size: S
+- impact: low
+- confidence: med
+- parent: session-retro-auto-capture
+
+Review lows and spec drift left by the session-retro work, filed so they are not lost:
+
+- `triage retro` resolves its target as `dirname(git-common-dir)`, which is wrong when the repo is itself a submodule (`.git/modules/<name>`).
+- `triage retro` heading match trims any leading whitespace; CommonMark allows at most 3 spaces, and `## ` lines inside fenced or indented code blocks match too.
+- Gate Step 4.12 no longer says that on attach paths `--slug` is the enhancement slug (cut for the word budget).
+- Spec drift: the archived session-retro spec describes a separate `retro.md` gate branch file (it shipped folded into Step 4.12) and still shows `--lesson`/`--followup` argv flags (the shipped interface is `--file <notes>`).
+
+(session-retro-auto-capture PR #687, retro-notes-from-file PR #689, 2026-10-08)
