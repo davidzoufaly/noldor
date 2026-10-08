@@ -289,8 +289,8 @@ choices: `retry-implementation`, `spawn-deep-review`,
 implementation pass are written to
 `.noldor/cr/<slug>-escalation-context.md` — on retry the gate skill
 appends that file's contents under the `## Findings to address`
-heading in the plan MD, then deletes the side-channel file on a
-clean exit so stale context never leaks into a future loop. Exit
+heading in the plan MD, then deletes the side-channel file once the
+PR merges so stale context never leaks into a future loop. Exit
 codes from `pnpm noldor cr escalate` encode the chosen outcome (see
 `src/cr/escalate-cli.ts`).
 
