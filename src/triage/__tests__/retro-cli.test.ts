@@ -148,6 +148,16 @@ describe('noldor triage retro', () => {
     expect(ideas()).toContain('- new (s, PR #15');
   });
 
+  it('treats an indented heading as the same section, and as a section end', async () => {
+    writeFileSync(join(repo, 'ideas.md'), '  ## Lessons\n\n- old\n\n  ## Verticals\n\n- v\n');
+
+    await retro('--slug', 's', '--pr', '16', '--lesson', 'new');
+
+    const body = ideas();
+    expect(body.match(/^\s*## Lessons/gm)).toHaveLength(1);
+    expect(body.indexOf('- new')).toBeLessThan(body.indexOf('## Verticals'));
+  });
+
   it('collapses multi-line text onto one bullet line', async () => {
     await retro('--slug', 's', '--pr', '8', '--lesson', 'first\n  second');
 

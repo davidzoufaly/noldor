@@ -95,11 +95,12 @@ function gitCommonDir(
 }
 
 function isH1orH2(line: string): boolean {
-  return line.startsWith('# ') || line.startsWith('## ');
+  const text = line.trimStart();
+  return text.startsWith('# ') || text.startsWith('## ');
 }
 
 function headingIndex(lines: readonly string[], name: string): number {
-  return lines.findIndex((l) => l.trimEnd() === `## ${name}`);
+  return lines.findIndex((l) => l.trim() === `## ${name}`);
 }
 
 function ensureSection(lines: string[], name: string): void {
