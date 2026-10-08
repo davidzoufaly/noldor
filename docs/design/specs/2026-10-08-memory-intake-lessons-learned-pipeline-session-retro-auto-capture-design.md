@@ -22,7 +22,7 @@ The loop also does not work on consumers yet. charuy's `ideas.md` has no `## Les
 
 ## Non-goals
 
-- Classifying or filing lessons. `/noldor-absorb` keeps that job; the retro only captures.
+- Classifying or filing lessons. `/noldor-absorb` keeps that job unchanged; the retro only captures.
 - Committing `ideas.md`. Tracked or not, the step writes the file and leaves it.
 - Migrating existing private-memory notes into `ideas.md` (a separate follow-up already exists).
 - A config knob to turn the retro off. Add one only if a consumer asks.
@@ -76,7 +76,7 @@ The Step 5 report gains one line after `Shipped:` — `Retro: <n> lessons, <m> f
 
 ### Main sync tolerates a dirty `ideas.md`
 
-Where `ideas.md` is tracked (this repo), the retro leaves it modified on `main` after every merge, and a plain `git merge --ff-only origin/main` refuses as soon as an incoming commit also touches it. So every place that syncs local `main` gains `--autostash`: `syncMainCleanState` in `src/autonomous/drain-io.ts`, the post-merge sync in `src/prep/prep-promote.ts`, `src/release/preflight-fix.ts` and the remedy string in `src/release/preflight-probes.ts`, plus the cleanup line in gate Step 4.11 (`.claude/skills/noldor-gate/SKILL.md`, `micro-chore.md`) and its `templates/` twins. Git parks the local edits, fast-forwards, and re-applies them. When the re-apply conflicts, git keeps the stash and reports it; the caller surfaces that as today's ff-only failure plus the `git stash list` entry to recover from. A diverged `main` still fails exactly as before.
+Where `ideas.md` is tracked (this repo), the retro leaves it modified on `main` after every merge, and a plain `git merge --ff-only origin/main` refuses as soon as an incoming commit also touches it. So every place that syncs local `main` gains `--autostash`: `syncMainCleanState` in `src/autonomous/drain-io.ts`, the post-merge sync in `src/prep/prep-promote.ts`, plus the cleanup line in gate Step 4.11 (`.claude/skills/noldor-gate/SKILL.md`, `micro-chore.md`) and its `templates/` twins. Git parks the local edits, fast-forwards, and re-applies them. When the re-apply conflicts, git keeps the stash and reports it; the caller surfaces that as today's ff-only failure plus the stash's SHA, so recovery is `git stash apply <sha>` (the stash stack is shared across worktrees and sessions). A diverged `main` still fails exactly as before.
 
 ### Error handling
 
@@ -111,6 +111,7 @@ Architecture verdict: skip — the CLI sits in the existing `src/triage/` direct
 - **Noise in `## Not groomed`.** Follow-ups there are not surfaced by `triage list-untriaged` (by design, see `src/triage/triage-list-untriaged.ts`), so they need a human move. That is the point of open question 1.
 - **Skill edits from a worktree.** `checks shared-files` refuses `.claude/skills/**` from `.worktrees/`; the commit needs `NOLDOR_ALLOW_SHARED=1` (precedent: PR #511).
 - **Writers outside the lock.** `/noldor-triage`, `/noldor-absorb` and hand edits do not take the lock, so a retro landing mid-edit can still drop the other side's change. Reading under the lock keeps the window to milliseconds; accepted.
+- **Release still needs a clean tree.** Release preflight (`src/release/preflight-probes.ts` `tree-clean`, `src/release/preflight-fix.ts`) refuses any dirty path, so a tracked `ideas.md` with retro bullets is committed before a release, as today.
 - **Autostash re-apply conflict.** Rare (the retro only appends), and it leaves the edits in a named stash rather than losing them.
 - **Lock file left behind** by a killed process. Reuse the liveness check in `drain-lock.ts` so a dead holder's lock is taken over.
 
@@ -141,3 +142,4 @@ pnpm noldor triage retro --slug <slug> --pr <n> --none
 3. *Where does the step sit?* -> After cleanup, before Step 5, on every path. The PR number exists only after merge, and the always-clear rule already lives in Step 5 (D3).
 4. *Should the step commit `ideas.md` when it is tracked?* -> No. Tracked here, gitignored in charuy; one rule for both is "write, never commit". The dirty tracked file this leaves on `main` is handled by the autostash sync, not by committing (D4).
 5. *Doctor row for a missing `## Lessons`?* -> No. The writer scaffolds it on first use (D5).
+6. *The parent FD says the intake adds no new CLI. Does this enhancement keep that?* -> No. The parent shipped the manual loop and said to validate it before automating; this is the automation step, and the parent Summary is refreshed at ship to say so (D6).
