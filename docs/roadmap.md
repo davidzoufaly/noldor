@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Milestone Skill Consumer Command Path
-
-- id: Q-0346
-- area: tooling
-- type: fix
-- since: 2026-10-08
-- size: XS
-- impact: high
-- confidence: high
-
-The shipped `noldor-milestone` skill (`templates/`) tells the agent to run `tsx src/milestones/cli.ts`, a path that exists only in noldor itself, so the skill is broken in every consumer. Point it at `pnpm noldor milestones …` instead, in the skill and its `templates/` twin. (found while writing knip.ts entries, PR #679, 2026-10-07)
-
 ### Fill-Links Skips Tag-Built FDs
 
 - id: Q-0347
