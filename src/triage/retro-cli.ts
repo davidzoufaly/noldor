@@ -99,12 +99,12 @@ function isH1orH2(line: string): boolean {
 }
 
 function headingIndex(lines: readonly string[], name: string): number {
-  return lines.findIndex((l) => l.trim() === `## ${name}`);
+  return lines.findIndex((l) => l.trimEnd() === `## ${name}`);
 }
 
 function ensureSection(lines: string[], name: string): void {
   if (headingIndex(lines, name) !== -1) return;
-  const verticals = lines.indexOf('## Verticals');
+  const verticals = headingIndex(lines, 'Verticals');
   if (verticals !== -1) {
     lines.splice(verticals, 0, `## ${name}`, '');
     return;
