@@ -427,7 +427,7 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 | `pnpm noldor triage mint-id`        | [`src/triage/mint-id-cli.ts`](../../src/triage/mint-id-cli.ts) | Mint N stable entry IDs (`--count N`); bumps `.noldor/id-counter.json`.              |
 | `pnpm noldor triage backfill-ids`   | [`src/triage/backfill-ids-cli.ts`](../../src/triage/backfill-ids-cli.ts) | Idempotent one-sweep stamp of `- id:` onto all id-less roadmap/backlog entries. |
 | `pnpm noldor triage merge-candidates` | [`src/triage/merge-candidates-cli.ts`](../../src/triage/merge-candidates-cli.ts) | Emit the merge-candidate corpus for `/noldor-triage` (`--json` for machine output). |
-| `pnpm noldor triage retro` | [`src/triage/retro-cli.ts`](../../src/triage/retro-cli.ts) | Session retro: `--slug <s> --pr <n>` plus repeatable `--lesson`/`--followup` (or `--none`) into the main checkout's `ideas.md` (`## Lessons` / `## Not groomed`, scaffolded when missing); never stages. Exit 0 / 2 usage / 1 I/O or lock. |
+| `pnpm noldor triage retro` | [`src/triage/retro-cli.ts`](../../src/triage/retro-cli.ts) | Session retro: `--slug <s> --pr <n> --file <notes>` (one `lesson: <text>` or `followup: <text>` per line) or `--none`, into the main checkout's `ideas.md` (`## Lessons` / `## Not groomed`, scaffolded when missing); never stages. Notes never ride argv, which pnpm's `sh` would expand. Exit 0 / 2 usage or bad notes file / 1 I/O or lock. |
 
 ## Rules
 

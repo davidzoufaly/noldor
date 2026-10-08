@@ -107,18 +107,18 @@ For the three drain rows the page is the whole contract: no step of this router 
    9. **Bootstrap immunity** — FD-carrying paths, per `fd-close.md`, after the green code-stage review and before `pr-flow`.
    10. **`pnpm noldor pr-flow`** — every path. The CLI ([`src/core/pr-flow-cli.ts`](../../../src/core/pr-flow-cli.ts)) reads `.noldor/session.json`, derives its input from the session, the FD frontmatter, the `Noldor-Reviewed-Subagent` trailer and the branch's spec/plan paths, then runs preflight `gh` → `git push --force-with-lease --set-upstream origin <branch>` → `gh pr create` → `gh pr merge --auto --squash` → poll until merged. Flow diagram, push runbook and failure runbook: [`docs/noldor/pr-flow.md`](../../../docs/noldor/pr-flow.md).
    11. **On merged, clean up** — scripted, no interactive finishing skill. **Worktree-backed paths** (`fast-track`, `specs-only-*`, `full-*`): from the **main workspace** run `git worktree remove [--force] .worktrees/<name>` then `git branch -D feat/<name>`. Do NOT use the `ExitWorktree` native tool: the framework creates worktrees with `git worktree add`, so `ExitWorktree` is a no-op that leaves the worktree and branch on disk. `-D` (force) is required because the squash merge leaves the branch's commits off `main`, so `-d` rejects them as not fully merged; `--force` on the remove only when the worktree has uncommitted changes (it should not). **Then sync local `main`: `git fetch origin main && git checkout main && git merge --ff-only --autostash origin/main`** — a PR is not finished until local `main` matches `origin/main`. If it rejects or the autostash conflicts, stop and surface it; never force it. **Micro-chore:** per `micro-chore.md`. **Every path:** keep the merged PR's URL from `pr-flow`'s `PR merged: <url>` line — Step 5 opens its report with it.
-   12. **Session retro** — every path: `pnpm noldor triage retro --slug <slug> --pr <n>`, a `--lesson` per trap that cost a debugging cycle, a `--followup` per deferred finding, drift or skipped bit, else `--none`; never pad, never use private memory instead. Non-zero exit: re-run once, then report it and continue to Step 5.
+   12. **Session retro** — every path: write `lesson:` lines for traps costing a debugging cycle and `followup:` lines for deferred findings, drift, skipped bits to a file (not via a shell), then `pnpm noldor triage retro --slug <slug> --pr <n> --file <path>`, else `--none`. Never pad or use private memory. On failure, re-run once, report, go on.
 
 5. **Next-priority handoff (always-clear).** After Step 4's PR merges and cleanup completes:
 
-- **The final report names the PR, on every path.** Its first line is `Shipped: <pr-url>` — the full URL of the PR Step 4 merged, so the operator opens it in one click — and its second the retro's output or error line. Every branch below prints both first, the error branch too: the PR merged before this step ran.
+- **The final report names the PR, on every path.** Its first line is `Shipped: <pr-url>` — the full URL of the PR Step 4 merged, so the operator opens it in one click; its second, the retro's output or error. Every branch below prints both first, the error branch too: the PR merged before this step ran.
 - Run `pnpm noldor next-priority`. Capture only the exit code; do NOT read or echo the entry name / size / impact / parent / description from stdout in any user-facing output.
 - Exit code 2 → queue empty. Print both report lines, then `Queue empty — ship-ready. Session may exit.` Skip the rest of this step.
 - Exit code 0 → top entry exists. Print exactly:
 
   ```
   Shipped: <pr-url>
-  <retro output line>
+  <retro line>
 
   Queue non-empty — top priority lives in docs/roadmap.md.
 

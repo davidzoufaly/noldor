@@ -195,13 +195,14 @@ so the prompt stays a thin pointer and no second rendering exists to drift.
   this end-of-flow: Finish and Resume included. That is after the merge, except
   under `NOLDOR_DRAIN_OPEN_ONLY=1`, where it runs at PR-open: this child exits
   before the coordinator merges, and the notes record what the session learned,
-  which holds whether or not the PR lands. One headless call,
-  `pnpm noldor triage retro --slug <slug> --pr <n>` with a `--lesson` per trap
-  that cost a debugging cycle and a `--followup` per deferred finding or skipped
-  bit, or `--none` when there is nothing (never pad). It writes
-  the main checkout's `ideas.md` even from this worktree and never commits; never
-  put these notes in private memory instead. A non-zero exit is reported, not
-  fatal.
+  which holds whether or not the PR lands. Write the notes to a file with the
+  file tool, never through a shell: one `lesson: <text>` line per trap that cost
+  a debugging cycle, one `followup: <text>` line per deferred finding or skipped
+  bit. Then one headless call,
+  `pnpm noldor triage retro --slug <slug> --pr <n> --file <path>`, or `--none`
+  when there is nothing (never pad). It writes the main checkout's `ideas.md`
+  even from this worktree and never commits; never put these notes in private
+  memory instead. A non-zero exit is reported, not fatal.
 - On CR-red, run `pnpm noldor cr autofix plan --slug <slug> --kind code` FIRST.
   On exit 0 (`next: reround`), apply the listed `M<n>` mechanical blockers — each with the
   smallest change that resolves it, preferring to delete a claim over adding one (the
