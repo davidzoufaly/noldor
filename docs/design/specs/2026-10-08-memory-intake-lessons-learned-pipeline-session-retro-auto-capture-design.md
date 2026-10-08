@@ -43,10 +43,11 @@ pnpm noldor triage retro --slug <slug> --pr <n> \
 ```
 
 - **Target file.** Resolves the *main checkout's* `ideas.md`, not the cwd's: `git rev-parse --path-format=absolute --git-common-dir`, take its parent, then `loadDocRoots(<that root>).ideas`. Run from `.worktrees/<slug>/` it still writes `<repo>/ideas.md`.
-- **Scaffold.** No file → create one with a `## Not groomed` and a `## Lessons` heading. File without the needed section → insert the heading before `## Verticals` when present, else at the end. Existing content is never reordered.
+- **Scaffold.** No file → create one with a `## Not groomed` and a `## Lessons` heading. A file missing either heading gets it inserted before `## Verticals` when present, else at the end (`## Not groomed` first when both are missing). Existing content is never reordered.
+- **Arguments.** `--slug` must be kebab-case and `--pr` a positive integer; missing or malformed values exit 2. Note text is collapsed to one line (runs of whitespace, newlines included, become one space); text that is empty after that, or that starts with `#`, exits 2.
 - **Bullet shape.** Each bullet is one top-level `-` line ending in `(<slug>, PR #<n>, <YYYY-MM-DD>)`. Lessons go under `## Lessons`; follow-ups go under `## Not groomed` (see open question 1).
-- **Idempotent.** A bullet whose text is already present in the target section is skipped, so a re-run after a crash does not double-write.
-- **Write.** Whole-file rewrite through `atomicWriteFileSync` (`src/core/atomic-write.ts`), under a short-lived lock file beside `ideas.md` so two drain children finishing together do not lose each other's bullets (reuse the `tryAcquire` shape from `src/autonomous/drain-lock.ts`).
+- **Idempotent.** The dedup key is the collapsed note text plus slug plus PR, without the date. A bullet whose key is already present in the target section is skipped, so a re-run after a crash (or after midnight) does not double-write, while the same lesson from two PRs keeps both.
+- **Write.** Whole-file rewrite through `atomicWriteFileSync` (`src/core/atomic-write.ts`), under a short-lived lock file beside `ideas.md` so two drain children finishing together do not lose each other's bullets (reuse the `tryAcquire` shape from `src/autonomous/drain-lock.ts`; it returns at once, so the CLI wraps it in a bounded retry of about five seconds). The file is read after the lock is taken, never before.
 - **Never stages, never commits.**
 - **`--none`** writes nothing and prints `retro: nothing to capture`. Passing `--none` with any `--lesson`/`--followup` is a usage error.
 - **Exit codes.** 0 written or nothing to write; 2 usage error; 1 I/O failure. The step is advisory: a non-zero exit is reported and the session still ends normally.
@@ -73,13 +74,17 @@ The Step 5 report gains one line after `Shipped:` — `Retro: <n> lessons, <m> f
 - `.claude/skills/noldor-absorb/SKILL.md` notes that bullets now arrive stamped with slug + PR + date and that `## Lessons` may have been scaffolded.
 - No `noldor doctor` row for an `ideas.md` without `## Lessons`: the writer scaffolds the section on first use, so the row would only report a gap that fixes itself.
 
+### Main sync tolerates a dirty `ideas.md`
+
+Where `ideas.md` is tracked (this repo), the retro leaves it modified on `main` after every merge, and a plain `git merge --ff-only origin/main` refuses as soon as an incoming commit also touches it. So every place that syncs local `main` gains `--autostash`: `syncMainCleanState` in `src/autonomous/drain-io.ts`, the post-merge sync in `src/prep/prep-promote.ts`, `src/release/preflight-fix.ts` and the remedy string in `src/release/preflight-probes.ts`, plus the cleanup line in gate Step 4.11 (`.claude/skills/noldor-gate/SKILL.md`, `micro-chore.md`) and its `templates/` twins. Git parks the local edits, fast-forwards, and re-applies them. When the re-apply conflicts, git keeps the stash and reports it; the caller surfaces that as today's ff-only failure plus the `git stash list` entry to recover from. A diverged `main` still fails exactly as before.
+
 ### Error handling
 
-Every failure is advisory. No `ideas.md` and no write permission → exit 1 with the path; the gate prints it and finishes. Lock held past a few seconds → exit 1 naming the holder; the agent re-runs once. The step never blocks `pr-flow` (it runs after the merge) and never blocks the always-clear handoff.
+Every failure is advisory. No `ideas.md` and no write permission → exit 1 with the path; the gate prints it and finishes. Lock still held when the bounded retry runs out → exit 1 naming the holder; the agent re-runs once. The step never blocks `pr-flow` (it runs after the merge) and never blocks the always-clear handoff.
 
 ### Testing
 
-Unit tests for `retro-cli.ts` against a temp repo: scaffold from nothing, insert a missing section before `## Verticals`, idempotent re-run, worktree cwd writes to the main checkout, `--none`, `--none` + text is exit 2, concurrent writers both land. A skill-code-drift style check that the gate's `retro.md` names a real CLI verb comes for free from the existing skill checks.
+Unit tests for `retro-cli.ts` against a temp repo: scaffold from nothing, insert a missing section before `## Verticals`, idempotent re-run, argument validation, worktree cwd writes to the main checkout, `--none`, `--none` + text is exit 2, concurrent writers both land. A `syncMainCleanState` test syncs a temp `main` whose `ideas.md` is dirty while the incoming commit edits the same file. A skill-code-drift style check that the gate's `retro.md` names a real CLI verb comes for free from the existing skill checks.
 
 UI verdict: skip — no `consumer.uiPaths` surface; the change is a CLI plus skill and doc prose.
 
@@ -94,7 +99,8 @@ Architecture verdict: skip — the CLI sits in the existing `src/triage/` direct
 - Running the same call twice leaves one copy of each bullet.
 - `--none` exits 0, writes nothing, and prints a line saying nothing was captured; `--none` with `--lesson` exits 2.
 - Two concurrent calls with different bullets both appear in the file.
-- The command never stages or commits (`git status` shows `ideas.md` modified or untracked, index unchanged).
+- The command never stages or commits: the index and `HEAD` are unchanged after it runs, whether `ideas.md` is tracked, untracked, or gitignored.
+- Local `main` syncs to `origin/main` while `ideas.md` holds uncommitted retro bullets, both when the incoming commits touch `ideas.md` and when they do not, and the bullets are still in the file afterwards.
 - The gate skill runs the retro after cleanup on every path, before the Step 5 handoff, and the Step 5 report carries a retro line.
 - `drain-mode.md` runs the same call after merge in the normal, Finish and Resume paths.
 - Every edited shipped skill or runbook matches its `templates/` twin (`checks template-sync` green).
@@ -104,6 +110,8 @@ Architecture verdict: skip — the CLI sits in the existing `src/triage/` direct
 - **Padding.** An agent told "write a retro" may invent lessons. Mitigation: `--none` is a first-class answer and the prose says an empty retro is fine.
 - **Noise in `## Not groomed`.** Follow-ups there are not surfaced by `triage list-untriaged` (by design, see `src/triage/triage-list-untriaged.ts`), so they need a human move. That is the point of open question 1.
 - **Skill edits from a worktree.** `checks shared-files` refuses `.claude/skills/**` from `.worktrees/`; the commit needs `NOLDOR_ALLOW_SHARED=1` (precedent: PR #511).
+- **Writers outside the lock.** `/noldor-triage`, `/noldor-absorb` and hand edits do not take the lock, so a retro landing mid-edit can still drop the other side's change. Reading under the lock keeps the window to milliseconds; accepted.
+- **Autostash re-apply conflict.** Rare (the retro only appends), and it leaves the edits in a named stash rather than losing them.
 - **Lock file left behind** by a killed process. Reuse the liveness check in `drain-lock.ts` so a dead holder's lock is taken over.
 
 ## User Story
@@ -131,5 +139,5 @@ pnpm noldor triage retro --slug <slug> --pr <n> --none
 1. *Follow-ups go under `## Not groomed` (as the entry says) or straight under `## Verticals → #### Later` (where triage reads)?* -> `## Not groomed`. Triage deliberately ignores it, so a raw follow-up gets a human look before it enters the scored queue (D1).
 2. *A CLI, or prose that tells the agent to edit `ideas.md` by hand?* -> CLI. Hand edits in a drain child land in the worktree and vanish; the main-checkout resolution and the scaffold need code (D2).
 3. *Where does the step sit?* -> After cleanup, before Step 5, on every path. The PR number exists only after merge, and the always-clear rule already lives in Step 5 (D3).
-4. *Should the step commit `ideas.md` when it is tracked?* -> No. Tracked here, gitignored in charuy; one rule for both is "write, never commit" (D4).
+4. *Should the step commit `ideas.md` when it is tracked?* -> No. Tracked here, gitignored in charuy; one rule for both is "write, never commit". The dirty tracked file this leaves on `main` is handled by the autostash sync, not by committing (D4).
 5. *Doctor row for a missing `## Lessons`?* -> No. The writer scaffolds it on first use (D5).
