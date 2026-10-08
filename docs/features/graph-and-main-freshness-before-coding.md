@@ -8,11 +8,11 @@ links:
   tests:
     - src/worktrees/__tests__/code-freshness.test.ts
   spec: >-
-    docs/design/specs/2026-10-08-graph-and-main-freshness-before-coding-design.md
+    docs/design/specs/archive/2026-10-08-graph-and-main-freshness-before-coding-design.md
 name: Graph and Main Freshness Before Coding
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-10-07T00:00:00.000Z
 noldor-tier: specs-only
 ---
@@ -23,17 +23,20 @@ Graph freshness is checked once per session, at the spec's structural-read step,
 
 ## Diagram
 
-<!-- TODO: one mermaid fence at the C4 level that fits this feature, and a sentence or
-     two beside it for readers that do not render mermaid. No shape worth drawing?
-     Replace this comment with: noldor:cut <reason> -->
+noldor:cut one CLI running two independent checks — no structure worth drawing beyond the Usage list
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an agent (or operator) about to write the first line of code in a long spec session, I want one command that tells me whether the knowledge graph is still fresh for my files and whether `origin/main` has moved under them, so that I rebase before coding instead of finding the drift as a conflict at push.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**Agent/Programmatic API**
+
+- `pnpm noldor worktrees freshness [--file <path>]... [--rebuild] [--json]` — run by gate Step 3.5 (and drain mode) with the session's first `rules brief`, over the same `--file` set. Prints a `graph:` verdict (with per-path digests when fresh) and a `main:` verdict (commits behind, graph-refresh-only commits counted apart, commits touching the files). Always exits 0; 2 on a usage error.
+- `--rebuild` rebuilds a stale graph and always restores `graphify-out/` afterwards, a failed build included; an already-dirty `graphify-out/` is left alone.
+- A `next: git rebase origin/main` line means rebase before the first edit, then re-run once; on a conflicting rebase, `git rebase --abort` (see `.claude/skills/noldor-gate/freshness.md`).
+- `--json` prints `{ graph: { verdict, reason, digests, warnings }, main: { verdict, reason, behind, graphOnly, touching, overlap, rebaseAdvised } }`.
 
 ## PRs
 
@@ -45,7 +48,7 @@ Graph freshness is checked once per session, at the spec's structural-read step,
 
 ## Resources
 
-- **Spec:** [`docs/design/specs/2026-10-08-graph-and-main-freshness-before-coding-design.md`](../../docs/design/specs/2026-10-08-graph-and-main-freshness-before-coding-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-10-08-graph-and-main-freshness-before-coding-design.md`](../../docs/design/specs/archive/2026-10-08-graph-and-main-freshness-before-coding-design.md)
 - **Tests:**
   - [`src/worktrees/__tests__/code-freshness.test.ts`](../../src/worktrees/__tests__/code-freshness.test.ts)
 
