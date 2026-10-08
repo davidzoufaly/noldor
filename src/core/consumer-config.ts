@@ -83,6 +83,24 @@ export const DevConfigSchema = z
   .strict();
 export type DevConfig = z.infer<typeof DevConfigSchema>;
 
+/** Refuse a path that is absolute, uses a backslash, or climbs out of the repo with `..`. */
+function repoRelativeIssues(label: string) {
+  return (path: string, ctx: z.RefinementCtx) => {
+    if (path.startsWith('/') || /^[A-Za-z]:/.test(path) || path.includes('\\')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${label} must be repo-relative POSIX paths`,
+      });
+    }
+    if (path.split('/').includes('..')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${label} must not contain .. segments`,
+      });
+    }
+  };
+}
+
 /**
  * A repo-relative POSIX glob for UI-surface config. The accepted language is
  * the intersection the predicate (minimatch) and the freshness engine (git
@@ -100,23 +118,12 @@ const UiGlobSchema = z
   .refine((g) => !/[@!+?*]\(/.test(g), {
     message: 'extglob patterns are not supported in uiPaths/uiSurfaces (plain globs + braces only)',
   })
-  .refine((g) => !g.startsWith('/') && !/^[A-Za-z]:/.test(g) && !g.includes('\\'), {
-    message: 'uiPaths/uiSurfaces globs must be repo-relative POSIX paths',
-  })
-  .refine((g) => !g.split('/').includes('..'), {
-    message: 'uiPaths/uiSurfaces globs must not contain .. segments',
-  });
+  .superRefine(repoRelativeIssues('uiPaths/uiSurfaces globs'));
 
-/** A repo-relative POSIX file path that cannot reach outside the repo. */
 const WorktreeEnvFileSchema = z
   .string()
   .min(1)
-  .refine((p) => !p.startsWith('/') && !/^[A-Za-z]:/.test(p) && !p.includes('\\'), {
-    message: 'worktreeEnvFiles entries must be repo-relative POSIX paths',
-  })
-  .refine((p) => !p.split('/').includes('..'), {
-    message: 'worktreeEnvFiles entries must not contain .. segments',
-  });
+  .superRefine(repoRelativeIssues('worktreeEnvFiles entries'));
 
 /** Baseline surface names become `docs/design/ui/baseline/<name>.pen` — keep them slug-shaped. */
 const SURFACE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
