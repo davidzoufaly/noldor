@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-09-29 by `pnpm sdd:report`.
+Generated: 2026-10-08 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
@@ -10,29 +10,45 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ## Summary
 
-- Total features: 100
+- Total features: 103
 - Untriaged ideas: 0
-- Backlog entries: 41
-- Gap categories with issues: 4 / 15
+- Backlog entries: 42
+- Gap categories with issues: 5 / 15
 
 ## Code clones
 
-- 215 clone group(s), 5.91% duplicated tokens across 474 file(s)
+- 214 clone group(s), 5.80% duplicated tokens across 481 file(s)
 - src/dashboard/views.ts:758-767 and src/dashboard/views.ts:1023-1032 (252 tokens)
 - src/features/phase-flip-done-cli.ts:13-46 and src/features/phase-revert-cli.ts:13-46 (230 tokens)
 - src/dashboard/views.ts:887-910 and src/dashboard/views.ts:1061-1136 (176 tokens)
 - src/features/validate-features.ts:196-232 and src/features/validate-features.ts:353-389 (171 tokens)
 - src/core/prefix-skills-codemod.ts:66-96 and src/core/rename-plan-only-tier.ts:84-115 (170 tokens)
 
+## Dead code
+
+- 388 finding(s) from knip
+- 0 outside the baseline
+- exports: 223
+- files: 2
+- types: 162
+- unresolved: 1
+
 ## Gate compliance
 
 ### Tier distribution
 
 - `full` (brainstorm + spec + plan): 44
-- `specs-only` (no brainstorm): 56
+- `specs-only` (no brainstorm): 59
 
 ### Override usage (last 30 days)
 
+- `1301d84` — ci-graph-refresh machine-written graph regeneration
+- `bfd4914` — ci-graph-refresh machine-written graph regeneration
+- `379b00c` — ci-graph-refresh machine-written graph regeneration
+- `00e90c7` — ci-graph-refresh machine-written graph regeneration
+- `14089f9` — ci-graph-refresh machine-written graph regeneration
+- `da4a39a` — ci-graph-refresh machine-written graph regeneration
+- `e58fe45` — ci-graph-refresh machine-written graph regeneration
 - `0cd1c62` — ci-graph-refresh machine-written graph regeneration
 - `566340a` — ci-graph-refresh machine-written graph regeneration
 - `d05aede` — ci-graph-refresh machine-written graph regeneration
@@ -99,17 +115,10 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 - `00aabcd` — cr-arbitration c3e915b25538 — round cap spent after 4 red rounds; the one standing blocker was correct and is fixed in this commit, arbitrated as accepted with the fix unreviewed
 - `683b356` — cr-arbitration f523dc86756e — reviewer approved and verifier verified; both remaining codex blockers were fixed in this commit, not carried, and the round cap is spent
 - `5377b5d` — cr-arbitration 2613fe542270 — all 5 blockers accepted and fixed in this tree; the sinks predate it and every flagged sentence is grep-absent
-- `4b85199` — cr-arbitration cbda7d58035b — reviewer lane approved and verifier was green every round; both remaining blockers are accepted and already fixed in this tree (win32 test literals skipIf-guarded, second-spelling decision recorded in the FD and Q-0221 as the reviewer proposed); the round cap refuses a further dispatch to confirm it
-- `3b8ad2f` — cr-arbitration a90e58f1bf62 — the sole open blocker (a mirror test row) is applied in this tree at detect.test.ts:473-476 and passing; the 4-round cap refuses the dispatch that would observe it. codex: no actionable issues; verifier: verified.
-- `43f7a46` — cr-arbitration 3 blockers — 2 already fixed at 42d0263 (the sink is stale round-4 output), 1 declined as pre-existing and out of scope; codex green, verifier verified, suite 5461 green, push-gates green
-- `5c6da4d` — code-stage CR stopped at 2 red rounds — the mandatory codex lane never reviewed (OpenAI workspace spend cap), so no round can go green; both reviewer rounds' blockers are fixed but the round-2 fixes are not themselves re-reviewed
-- `87b6c12` — code CR arbitrated after 6 rounds without convergence. Every finding was applied, none waived (~30 findings, ~11 high); verifier lane passed all 6 rounds. Rounds 5 and 6 each reversed a round-3 decision, and every round found defects in the prior round's fix — the documented no-fixed-point shape, since each fix is fresh surface. The cap fired correctly on its own review at round 4 and marked it terminal; rounds 5-6 ran only after an operator-authorised ledger reset, preserved at .noldor/cr/autofix/<slug>-code.json.forced-reset. Residual risk is asymmetric: a round is marked terminal only when a lane that ran that round filed a real non-integrity finding, so every degraded path (crashed lane, corrupt sink, stale sink, nothing resolved) is non-terminal and an undiscovered bug of this family under-enforces rather than wedging. Harder half carved to Q-0209. tests 5259, lint, typecheck, template-sync and push-gates all green.
-- `86ed29a` — operator-waived review receipt at the CR re-round cap after 3 rounds and 23 fixed findings; all mechanical gates green
-- `c601952` — reviewer approve + codex clean at round 7; verify lane red is infra-only (own transcript reports success, then a dispatch timeout) — receipt could not be amended on a red aggregate
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 159
+Gated commits missing `Noldor-Reviewed` trailer: 131
 
 ## Metrics
 
@@ -196,7 +205,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "mandatory-codex-review-round": 1,
       "clones-ratchet-and-clone-group-check-disagree-on-attribution": 2
     },
-    "meanDurationMs": 636242
+    "meanDurationMs": 634785
   }
 }
 ```
@@ -333,20 +342,27 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Done features missing introduced
 
-- `sdd-report-honours-ownerless-on-purpose` — SDD Report Honours Ownerless On Purpose is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `dead-code-detection-with-knip` — Dead-Code Detection with knip is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `graph-and-main-freshness-before-coding` — Graph and Main Freshness Before Coding is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `ui-proof-screenshots-on-the-pr` — UI Proof Screenshots on the PR is phase=done but introduced is unset (release script should fill on next pnpm release)
 
 ### Stale backlog entries (>90 days)
 
-- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 109 days since 2026-06-12
+- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 118 days since 2026-06-12
 
 ### Code files not referenced by any feature
 
-- `src/cr/cut-scan.ts` — src/cr/cut-scan.ts is not referenced by any feature MD links.code — probable owner: specs-cr-gate-multi-reviewer, ui-design-review-lane, cr-re-round-cap-enforcement-and-oscillation-detector
-- `src/cr/geometry/geometry-export-cli.ts` — src/cr/geometry/geometry-export-cli.ts is not referenced by any feature MD links.code — probable owner: ui-design-review-lane
-- `src/cr/lanes/geometry-extract-dispatch.ts` — src/cr/lanes/geometry-extract-dispatch.ts is not referenced by any feature MD links.code — probable owner: cr-lane-verdicts-blocked-by-serialization-not-substance, ui-design-review-lane, acceptance-verify-lane
-- `src/design/arch-draw.ts` — src/design/arch-draw.ts is not referenced by any feature MD links.code — probable owner: architecture-design-phase
-- `src/release/index.ts` — src/release/index.ts is not referenced by any feature MD links.code — probable owner: dynamic-fd-changelog, noldor, framework-script-test-migration-cleanup
+- `src/migrations/1.16.0.ts` — src/migrations/1.16.0.ts is not referenced by any feature MD links.code — probable owner: version-aware-upgrade-and-migration-chain
+- `src/worktrees/code-freshness-cli.ts` — src/worktrees/code-freshness-cli.ts is not referenced by any feature MD links.code — probable owner: graphify-plan-of-edges-nodes-for-plans-specs
+- `src/worktrees/code-freshness.ts` — src/worktrees/code-freshness.ts is not referenced by any feature MD links.code — probable owner: graphify-plan-of-edges-nodes-for-plans-specs
 
 ### Tests with incomplete co-tag
 
-- `src/features/__tests__/seed-test-tags.test.ts` — imports files owned by FDs missing from @tests: tag — add: sdd-report-honours-ownerless-on-purpose
+- `src/core/__tests__/pr-flow-ui-proof.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-pr-flow-agent-auto-merge
+- `src/core/__tests__/ui-proof.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase
+- `src/garden/__tests__/sdd-report-dead-code.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-script-sddreport-skip-if-only-count-line-changed
+- `src/worktrees/__tests__/code-freshness.test.ts` — imports files owned by FDs missing from @tests: tag — add: self-refreshing-compact-knowledge-graph
+
+### Done features without code
+
+- `graph-and-main-freshness-before-coding` — Graph and Main Freshness Before Coding (tooling) has no entries in links.code
