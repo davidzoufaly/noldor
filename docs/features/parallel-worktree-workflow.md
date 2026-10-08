@@ -13,6 +13,8 @@ links:
     - src/worktrees/worktree-status.ts
   tests:
     - src/checks/__tests__/check-shared-files.test.ts
+    - src/core/__tests__/consumer-config.test.ts
+    - src/worktrees/__tests__/create-worktree.test.ts
     - src/worktrees/__tests__/launch-worktrees.test.ts
     - src/worktrees/__tests__/worktree-conflicts.test.ts
     - src/worktrees/__tests__/worktree-status.test.ts
@@ -57,6 +59,8 @@ _none — out-of-process tooling for human or agent-driven shell sessions._
   - [`src/worktrees/worktree-status.ts`](../../src/worktrees/worktree-status.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-shared-files.test.ts`](../../src/checks/__tests__/check-shared-files.test.ts)
+  - [`src/core/__tests__/consumer-config.test.ts`](../../src/core/__tests__/consumer-config.test.ts)
+  - [`src/worktrees/__tests__/create-worktree.test.ts`](../../src/worktrees/__tests__/create-worktree.test.ts)
   - [`src/worktrees/__tests__/launch-worktrees.test.ts`](../../src/worktrees/__tests__/launch-worktrees.test.ts)
   - [`src/worktrees/__tests__/worktree-conflicts.test.ts`](../../src/worktrees/__tests__/worktree-conflicts.test.ts)
   - [`src/worktrees/__tests__/worktree-status.test.ts`](../../src/worktrees/__tests__/worktree-status.test.ts)
