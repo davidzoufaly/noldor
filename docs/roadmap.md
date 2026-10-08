@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Worktree Copies Local Env Files
-
-- id: Q-0350
-- area: tooling
-- type: feat
-- since: 2026-10-08
-- size: S
-- impact: high
-- confidence: med
-- parent: parallel-worktree-workflow
-
-`noldor worktrees create` leaves the gitignored root `.env` behind, so a consumer `verifyCommands` entry that needs it fails in every worktree. charuy's `server` surface exited on DATABASE_URL until charuy PR #362 set the .env.example default inline. Copy a configured list of local env files into the worktree, or say so in worktree-discipline.md. (charuy-noldor-1-16-0, PR #362, 2026-10-08)
-
 ### Dead-Code Baseline Diffs Across Knip Drift
 
 - id: Q-0351
