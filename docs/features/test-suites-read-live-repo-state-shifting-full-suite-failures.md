@@ -5,6 +5,7 @@ deps: []
 entry-id: Q-0171
 links:
   code:
+    - src/core/pid-lock.ts
     - src/release/run-command.ts
     - src/testing/suite-lock.ts
   tests:
@@ -82,7 +83,8 @@ Baseline on the 18-core dev machine (2026-09-24): one suite alone passes in ~51s
 - `runPreflight({ ..., runCommand })` — inject a `RunCommand` so the probes spawn nothing. It resolves `{ code, stdout, stderr }` and must never reject; `makeProbeContext` normalises it if it does, because a type cannot forbid a throw.
 - `runPreflight({ ..., budgetMs })` — budget for one probe, shared by every command in it. A caller bounded by its own harness passes something smaller and gets a timeout row back instead of being killed mid-probe.
 - `src/release/run-command.ts` exports `defaultRunCommand` (the only sanctioned spawn in the preflight path), `normalizeRunner`, and `resultFromError`.
-- `src/testing/suite-lock.ts` — its default export is the vitest `globalSetup`. `tryAcquire` takes the lock once, `acquireSuiteLock` waits for it with a deadline and an optional `AbortSignal`, `releaseSuiteLock` removes it only while it is still the caller's, and `suiteLockSkipReason` says which runs do not queue.
+- `src/testing/suite-lock.ts` — its default export is the vitest `globalSetup`, and `suiteLockSkipReason` says which runs do not queue.
+- `src/core/pid-lock.ts` — the lock primitive the suite lock shares with the drain lock and `noldor triage retro`: `tryAcquire` takes a lock once, `acquirePidLock` waits for it with a deadline and an optional `AbortSignal`, and `releasePidLock` removes it only while it is still the caller's.
 
 ## PRs
 
@@ -115,6 +117,7 @@ Preflight probes now go through one injectable command seam (#464).
 ## Resources
 
 - **Code:**
+  - [`src/core/pid-lock.ts`](../../src/core/pid-lock.ts)
   - [`src/release/run-command.ts`](../../src/release/run-command.ts)
   - [`src/testing/suite-lock.ts`](../../src/testing/suite-lock.ts)
 - **Tests:**

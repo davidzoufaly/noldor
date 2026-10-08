@@ -6,77 +6,12 @@
 // `vitest.config.ts`; `NOLDOR_SUITE_LOCK=0` turns it off, which the
 // reproduction recipe in the feature doc relies on.
 import { execFileSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { setTimeout as sleep } from 'node:timers/promises';
 
-import {
-  readHolder,
-  tryAcquire,
-  type HeldBy,
-  type LockHolder,
-  type SeenHolder,
-} from '../autonomous/drain-lock.js';
-
-export { tryAcquire };
+import { acquirePidLock, releasePidLock, type LockHolder } from '../core/pid-lock.js';
 
 /** The lock's file name inside the repository's git common dir. */
 export const SUITE_LOCK_FILE = 'noldor-suite.lock';
-
-/** Remove the lock only while its payload is still `self` — never another suite's lock. */
-export function releaseSuiteLock(lockPath: string, self: LockHolder): void {
-  try {
-    if (sameHolder(readHolder(lockPath), self)) rmSync(lockPath, { force: true });
-  } catch (err) {
-    warn(`could not release ${lockPath}: ${errorText(err)}`);
-  }
-}
-
-/** How a bounded wait for the lock ended. */
-export type AcquireOutcome =
-  | { kind: 'acquired'; waited: boolean }
-  | { kind: 'own' }
-  | ({ kind: 'timed-out' } & HeldBy)
-  | { kind: 'failed'; reason: string };
-
-export interface AcquireOptions {
-  timeoutMs: number;
-  pollMs: number;
-  signal?: AbortSignal;
-  /** Called each time this wait starts queuing behind a different holder or claim. */
-  onWait?: (by: HeldBy) => void;
-}
-
-/** Poll {@link tryAcquire} until the lock is ours, the deadline passes, or `signal` aborts. */
-export async function acquireSuiteLock(
-  lockPath: string,
-  self: LockHolder,
-  opts: AcquireOptions,
-): Promise<AcquireOutcome> {
-  const deadline = AbortSignal.any([
-    AbortSignal.timeout(opts.timeoutMs),
-    ...(opts.signal === undefined ? [] : [opts.signal]),
-  ]);
-  let announced: HeldBy = {};
-  let waited = false;
-  while (true) {
-    const attempt = tryAcquire(lockPath, self);
-    if (attempt.kind === 'acquired') return { kind: 'acquired', waited };
-    if (attempt.kind !== 'held') return attempt;
-    const { kind: _held, ...by } = attempt;
-    if ((by.holder !== undefined || by.claim !== undefined) && !sameHeldBy(by, announced)) {
-      announced = by;
-      opts.onWait?.(by);
-    }
-    waited = true;
-    try {
-      await sleep(opts.pollMs, undefined, { signal: deadline });
-    } catch (err) {
-      if (!deadline.aborted) throw err;
-      return { kind: 'timed-out', ...announced };
-    }
-  }
-}
 
 /**
  * Why this run does not queue, or `null` when it takes the lock. Only a full,
@@ -148,7 +83,7 @@ export default async function setup(project: GlobalSetupProject): Promise<() => 
     worktree: project.config.root,
   };
   const startedMs = Date.now();
-  const outcome = await acquireSuiteLock(lockPath, self, {
+  const outcome = await acquirePidLock(lockPath, self, {
     timeoutMs: 15 * 60_000,
     pollMs: 1000,
     onWait: ({ holder, claim }) =>
@@ -163,7 +98,7 @@ export default async function setup(project: GlobalSetupProject): Promise<() => 
   switch (outcome.kind) {
     case 'acquired': {
       if (outcome.waited) warn(`acquired after ${((Date.now() - startedMs) / 1000).toFixed(1)}s`);
-      const release = (): void => releaseSuiteLock(lockPath, self);
+      const release = (): void => releasePidLock(lockPath, self);
       process.once('exit', release);
       return () => {
         process.removeListener('exit', release);
@@ -205,18 +140,6 @@ function resolveLockPath(root: string): { path: string } | { error: string } {
 
 function deadHolderText(holder: LockHolder | undefined): string {
   return holder === undefined ? '' : ` on the lock of exited pid ${holder.pid}`;
-}
-
-function sameHeldBy(a: HeldBy, b: HeldBy): boolean {
-  const holderMatches =
-    a.holder === undefined ? b.holder === undefined : sameHolder(b.holder ?? 'absent', a.holder);
-  return holderMatches && a.claim === b.claim;
-}
-
-function sameHolder(seen: SeenHolder, expected: LockHolder): boolean {
-  return (
-    typeof seen === 'object' && seen.pid === expected.pid && seen.startedAt === expected.startedAt
-  );
 }
 
 function errorText(err: unknown): string {

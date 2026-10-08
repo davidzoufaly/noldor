@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { atomicWriteFileSync } from '../core/atomic-write.js';
 import { isEntrypoint } from '../core/cli-entry.js';
 import { loadDocRoots } from '../core/doc-roots.js';
-import { acquireSuiteLock, releaseSuiteLock } from '../testing/suite-lock.js';
+import { acquirePidLock, releasePidLock } from '../core/pid-lock.js';
 
 const LABEL = 'retro';
 const USAGE =
@@ -229,7 +229,7 @@ export async function main(argv: readonly string[], ctx: RetroContext = {}): Pro
   const target = loadDocRoots(dirname(common.data)).ideas;
   const lockPath = join(common.data, LOCK_FILE);
   const self = { pid: process.pid, startedAt: new Date().toISOString() };
-  const lock = await acquireSuiteLock(lockPath, self, { timeoutMs: 5_000, pollMs: 50 });
+  const lock = await acquirePidLock(lockPath, self, { timeoutMs: 5_000, pollMs: 50 });
   if (lock.kind === 'timed-out' || lock.kind === 'failed') {
     const why = lock.kind === 'failed' ? lock.reason : `held by pid ${lock.holder?.pid ?? '?'}`;
     process.stderr.write(`${LABEL}: could not lock ${lockPath} (${why}); re-run once\n`);
@@ -247,7 +247,7 @@ export async function main(argv: readonly string[], ctx: RetroContext = {}): Pro
     process.stderr.write(`${LABEL}: ${err instanceof Error ? err.message : String(err)}\n`);
     return 1;
   } finally {
-    if (lock.kind === 'acquired') releaseSuiteLock(lockPath, self);
+    if (lock.kind === 'acquired') releasePidLock(lockPath, self);
   }
 }
 
