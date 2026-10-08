@@ -80,6 +80,7 @@ async function validPngs(files: readonly string[], notes: string[]): Promise<str
 
 /** `{out}` substituted as one single-quoted shell token; `null` when the path itself holds a quote. */
 function substituteOut(template: string, outDir: string): string | null {
+  if (!template.includes('{out}')) return template;
   if (outDir.includes("'")) return null;
   return template.replaceAll('{out}', `'${outDir}'`);
 }
@@ -95,6 +96,7 @@ async function runProofCommand(opts: {
   const outDir = join(
     opts.cwd,
     '.noldor',
+    'cr',
     'ui-proof',
     opts.slug,
     sanitizeSurfaceName(opts.surface),
@@ -138,7 +140,7 @@ async function renderCompareShot(opts: {
   cwd: string;
   slug: string;
   surface: string;
-  headTree: string;
+  headTree: string | null;
   notes: string[];
 }): Promise<string[]> {
   const base = join(
@@ -158,6 +160,10 @@ async function renderCompareShot(opts: {
     }
     return [];
   }
+  if (opts.headTree === null) {
+    opts.notes.push('render-compare shot not used: the shipped tree could not be read');
+    return [];
+  }
   if (tree !== opts.headTree) {
     opts.notes.push('render-compare shot is from an older tree; not used');
     return [];
@@ -175,7 +181,7 @@ export async function collectUiProof(opts: {
   slug: string;
   surfaces: readonly string[];
   recipes: Readonly<Record<string, UiCaptureRecipe>>;
-  headTree: string;
+  headTree: string | null;
   capture: typeof runCapture;
 }): Promise<UiProofItem[]> {
   const items: UiProofItem[] = [];
@@ -204,10 +210,14 @@ export async function collectUiProof(opts: {
   return items;
 }
 
+const GIT_TIMEOUT_MS = 60_000;
+
 async function git(cwd: string, args: string[], env?: NodeJS.ProcessEnv): Promise<string> {
   const { stdout } = await execFileAsync('git', args, {
     cwd,
-    ...(env !== undefined ? { env: { ...process.env, ...env } } : {}),
+    timeout: GIT_TIMEOUT_MS,
+    // A credential prompt would wait on a terminal pr-flow does not read from.
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...env },
   });
   return stdout.trim();
 }
@@ -257,9 +267,9 @@ async function commitAndPush(opts: {
 
 /**
  * Host the items' images on {@link UI_PROOF_BRANCH} and return PR-ready links
- * pinned to the proof commit. A rejected push (another session moved the
- * branch) retries once on the new tip; any other failure turns every image
- * into a note, so the caller never has to catch.
+ * pinned to the proof commit. Any failure retries once from a fresh read of
+ * the remote tip (the usual cause is another session pushing first); a second
+ * failure turns every image into a note, so the caller never has to catch.
  */
 export async function hostUiProof(opts: {
   cwd: string;
@@ -321,12 +331,20 @@ export function uiProofStep(opts: {
   const surfaces = uiProofSurfaces(opts.branchFiles, opts.config, opts.fdDesign);
   if (surfaces.length === 0) return undefined;
   return async () => {
+    let headTree: string | null = null;
+    try {
+      headTree = await git(opts.cwd, ['rev-parse', 'HEAD^{tree}']);
+    } catch (err) {
+      process.stderr.write(
+        `pr-flow: warning — could not read HEAD^{tree}, so no render-compare shot can be used: ${errMessage(err)}\n`,
+      );
+    }
     const items = await collectUiProof({
       cwd: opts.cwd,
       slug: opts.slug,
       surfaces,
       recipes: opts.config.uiProof ?? {},
-      headTree: await git(opts.cwd, ['rev-parse', 'HEAD^{tree}']).catch(() => ''),
+      headTree,
       capture: opts.capture,
     });
     const links = await hostUiProof({ ...opts, items });

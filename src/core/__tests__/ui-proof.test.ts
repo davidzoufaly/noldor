@@ -155,6 +155,54 @@ describe('collectUiProof', () => {
     expect(item?.files).toEqual([]);
   });
 
+  it('runs a command that reads NOLDOR_PROOF_OUT even when the path holds a quote', async () => {
+    const quoted = join(root, "it's");
+    mkdirSync(quoted);
+    const [item] = await collectUiProof({
+      cwd: quoted,
+      slug: 'feat-slug',
+      surfaces: ['app'],
+      recipes: {
+        app: {
+          command: `printf '\\211PNG\\r\\n\\032\\nxx' > "$NOLDOR_PROOF_OUT/env.png"`,
+          timeoutMs: 10_000,
+        },
+      },
+      headTree: null,
+      capture: runCapture,
+    });
+    expect(item?.files.map((f) => f.split('/').at(-1))).toEqual(['env.png']);
+  });
+
+  it('refuses to substitute {out} when the path holds a quote', async () => {
+    const quoted = join(root, "it's");
+    mkdirSync(quoted);
+    const [item] = await collectUiProof({
+      cwd: quoted,
+      slug: 'feat-slug',
+      surfaces: ['app'],
+      recipes: { app: { command: WRITE_PNG('a.png'), timeoutMs: 10_000 } },
+      headTree: null,
+      capture: runCapture,
+    });
+    expect(item?.files).toEqual([]);
+    expect(item?.notes.join('\n')).toContain('single quote');
+  });
+
+  it('does not use a render-compare shot when the shipped tree is unknown', async () => {
+    writeShot('app', git(repo, 'rev-parse', 'HEAD^{tree}'));
+    const [item] = await collectUiProof({
+      cwd: repo,
+      slug: 'feat-slug',
+      surfaces: ['app'],
+      recipes: {},
+      headTree: null,
+      capture: runCapture,
+    });
+    expect(item?.files).toEqual([]);
+    expect(item?.notes.join('\n')).toContain('could not be read');
+  });
+
   it('reports a timed-out proof command', async () => {
     const [item] = await collect({ app: { command: 'sleep 5', timeoutMs: 200 } });
     expect(item?.files).toEqual([]);
@@ -277,10 +325,9 @@ describe('uiProofStep', () => {
     expect(links?.[0]?.imageUrls).toHaveLength(1);
     const proofTip = git(remote, 'rev-parse', `refs/heads/${UI_PROOF_BRANCH}`);
     expect(
-      readFileSync(join(repo, '.noldor', 'ui-proof', 'feat-slug', 'app', 'home.png')).subarray(
-        0,
-        4,
-      ),
+      readFileSync(
+        join(repo, '.noldor', 'cr', 'ui-proof', 'feat-slug', 'app', 'home.png'),
+      ).subarray(0, 4),
     ).toEqual(PNG.subarray(0, 4));
     expect(git(remote, 'ls-tree', '-r', '--name-only', proofTip)).toBe('feat/x/abc/app-1.png');
   });
