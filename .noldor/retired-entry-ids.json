@@ -857,5 +857,9 @@
   "Q-0353": {
     "slug": "sdd-gaps-after-v1160",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0354": {
+    "slug": "readme-config-blocks-check",
+    "retiredAt": "2026-10-08"
   }
 }

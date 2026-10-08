@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   checkReadme,
   commandFindings,
+  configBlockFindings,
   enumerateDocSurfaces,
   reachableTargets,
   unreachableSurfaces,
@@ -336,5 +337,70 @@ describe('artifact dirs are dead ends, not just non-surfaces', () => {
     await write(root, 'docs/features/x.md', '# x');
     const reached = await reachableTargets(root);
     expect(reached.dirs.size).toBe(0);
+  });
+});
+
+describe('configBlockFindings', () => {
+  const keys = ['crLanes', 'agents', 'deadCode'];
+  const readme = (list: string, tail = ''): string =>
+    [
+      '# Repo',
+      '',
+      '## Configuration',
+      '',
+      `One file, \`.noldor/config.json\`. The \`consumer:\` block is required. Optional blocks: ${list}.`,
+      '',
+      'Add `reviewer` lanes later.',
+      tail,
+      '## Command groups',
+      '',
+      '`deadCode` is mentioned here but is outside the section.',
+    ].join('\n');
+
+  it('passes a list that names every schema key', () => {
+    expect(configBlockFindings(readme('`crLanes`, `agents`, `deadCode`'), keys)).toEqual([]);
+  });
+
+  it('flags a schema key the list omits, even when named outside the paragraph', () => {
+    expect(configBlockFindings(readme('`crLanes`, `agents`'), keys).map((f) => f.message)).toEqual([
+      'README.md Configuration section does not list the `deadCode` config block',
+    ]);
+  });
+
+  it('flags a listed name the schema no longer has', () => {
+    expect(
+      configBlockFindings(readme('`crLanes`, `agents`, `deadCode`, `legacy`'), keys).map(
+        (f) => f.message,
+      ),
+    ).toEqual(['README.md Configuration section lists `legacy`, which is not a config block']);
+  });
+
+  it('reads a Configuration section that ends the file', () => {
+    const body = '## Configuration\n\n`.noldor/config.json` has optional blocks: `crLanes`.';
+    expect(configBlockFindings(body, keys).map((f) => f.message)).toEqual([
+      'README.md Configuration section does not list the `agents` config block',
+      'README.md Configuration section does not list the `deadCode` config block',
+    ]);
+  });
+
+  it('stays silent on a README without the config-block list', () => {
+    expect(configBlockFindings('# App\n\n## Configuration\n\nSet `PORT`.', keys)).toEqual([]);
+    expect(configBlockFindings('# App\n\nNo config section.', keys)).toEqual([]);
+  });
+});
+
+describe('checkReadme config-block validation', () => {
+  it('reports a config block missing from the README list against the live schema', async () => {
+    const root = await makeRepo();
+    await write(
+      root,
+      'README.md',
+      '## Configuration\n\n`.noldor/config.json` takes optional blocks: `crLanes`.\n',
+    );
+    const report = await checkReadme(root);
+    expect(report.status).toBe('findings');
+    expect(report.findings.map((f) => f.message)).toContain(
+      'README.md Configuration section does not list the `deadCode` config block',
+    );
   });
 });

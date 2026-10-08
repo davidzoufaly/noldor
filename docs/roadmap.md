@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### README Config Blocks Check
-
-- id: Q-0354
-- area: tooling
-- type: feat
-- since: 2026-10-08
-- size: S
-- impact: med
-- confidence: high
-
-README's Configuration section hand-lists the optional `.noldor/config.json` blocks and drifted when `deadCode` landed (caught only by the v1.16.0 sweep's read-through). `checks readme` could compare that list with the `noldorConfigSchema` keys so the next new block fails the check. (readme-config-blocks-drift, PR #692, 2026-10-08)
-
 ### Gate Load Budget Headroom
 
 - id: Q-0357
