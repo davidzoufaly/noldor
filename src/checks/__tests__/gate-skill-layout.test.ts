@@ -74,6 +74,7 @@ describe('the gate skill loads only the branch a session takes', () => {
       'freshness.md',
       'fd-close.md',
       'code-review.md',
+      'retro.md',
     ]);
     const load = [join(GATE_DIR, 'SKILL.md'), ...(row?.everyRun ?? []).map(resolveLoadFile)]
       .map(wordsIn)

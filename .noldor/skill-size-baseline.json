@@ -1,6 +1,6 @@
 {
   "algorithmVersion": 1,
-  "recordedAt": "2026-10-08T11:04:04.492Z",
+  "recordedAt": "2026-10-08T11:04:24.448Z",
   "files": {
     ".claude/skills/noldor-absorb/SKILL.md": 722,
     ".claude/skills/noldor-debug/SKILL.md": 1039,
@@ -16,7 +16,7 @@
     ".claude/skills/noldor-gate/fd-close.md": 667,
     ".claude/skills/noldor-gate/freshness.md": 231,
     ".claude/skills/noldor-gate/micro-chore.md": 762,
-    ".claude/skills/noldor-gate/retro.md": 429,
+    ".claude/skills/noldor-gate/retro.md": 209,
     ".claude/skills/noldor-gate/SKILL.md": 2919,
     ".claude/skills/noldor-milestone/SKILL.md": 849,
     ".claude/skills/noldor-new-feature/SKILL.md": 593,
