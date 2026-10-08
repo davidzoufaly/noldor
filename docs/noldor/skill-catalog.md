@@ -59,7 +59,7 @@ Noldor ships 15 user-invocable skills, each owned by a single concern. This page
 - **Trigger:** `/noldor-milestone <sub-command> [args]`. Sub-commands: `draft`, `activate`, `edit`, `list`.
 - **Inputs:** sub-command name; `slug` (kebab-case codename) for `activate` + `edit`, optional for `draft` (skill proposes one when omitted); optional `description` one-liner for `draft`.
 - **Outputs:** `draft` scaffolds `docs/milestones/<slug>.md` with `status: draft` + body stubs. `activate` flips previous active to `shipped`, target to `active`, and updates `docs/vision.md` `current-milestone:`; preflights all state before any write so partial failures leave the filesystem unchanged. `edit` opens the file for body edits (never mutates `name` / `status`). `list` prints all milestones grouped by status. Never commits.
-- **When to use:** managing strategic gates decoupled from semver. Milestones are optional; framework validates green without any active milestone. Use `draft` when starting to scope a new gate, `activate` once the definition is locked, `edit` for iterative refinement of gate/success-criteria/out-of-scope, `list` for inspection. Backed by `tsx src/milestones/cli.ts`.
+- **When to use:** managing strategic gates decoupled from semver. Milestones are optional; framework validates green without any active milestone. Use `draft` when starting to scope a new gate, `activate` once the definition is locked, `edit` for iterative refinement of gate/success-criteria/out-of-scope, `list` for inspection. Backed by `pnpm noldor milestones draft|activate|list`.
 
 ## /noldor-new-feature
 

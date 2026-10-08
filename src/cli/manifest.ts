@@ -292,7 +292,7 @@ export const MANIFEST: Record<string, Group> = {
     },
   },
   milestones: {
-    desc: 'Milestone validators',
+    desc: 'Milestone lifecycle + validators',
     subs: {
       validate: { src: 'milestones/validate-milestones.ts', desc: 'Validate milestones' },
       show: {
@@ -303,6 +303,15 @@ export const MANIFEST: Record<string, Group> = {
         src: 'milestones/assign-cli.ts',
         desc: 'Tag roadmap/backlog entries and feature MDs with a milestone (--replace to move one)',
       },
+      draft: {
+        src: 'milestones/draft-cli.ts',
+        desc: 'Scaffold docs/milestones/<slug>.md with status: draft (draft <slug> [description])',
+      },
+      activate: {
+        src: 'milestones/activate-cli.ts',
+        desc: 'Promote a draft milestone to active; the previous active one flips to shipped',
+      },
+      list: { src: 'milestones/list-cli.ts', desc: 'Print every milestone grouped by status' },
     },
   },
   sync: {

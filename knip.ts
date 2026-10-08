@@ -18,8 +18,6 @@ const config: KnipConfig = {
     ...flattenManifest().map((leaf) => leaf.src),
     // bin/noldor-stub-gate.mjs boots it by a string path, like the CLI above.
     'src/testing/stub-gate-cli.ts',
-    // The noldor-milestone skill runs it with `tsx src/milestones/cli.ts`.
-    'src/milestones/cli.ts',
   ],
   project: ['bin/**/*.mjs', 'src/**/*.{ts,mjs,cjs}', 'templates/scripts/**/*.mjs'],
   ignore: ['src/indirection/__tests__/trees/**', 'src/fixtures/**'],

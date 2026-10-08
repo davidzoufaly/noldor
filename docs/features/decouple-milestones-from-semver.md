@@ -5,7 +5,10 @@ deps: []
 links:
   spec: lost-pre-extraction
   code:
-    - src/milestones/cli.ts
+    - src/milestones/draft-cli.ts
+    - src/milestones/activate-cli.ts
+    - src/milestones/list-cli.ts
+    - src/milestones/write-cli.ts
     - src/milestones/lib.ts
     - src/milestones/validate-milestones.ts
     - src/features/attach-milestone.ts
@@ -46,6 +49,14 @@ Milestone tracking is optional — the framework validates green without any act
 - `/noldor-milestone activate <slug>` — promote a draft to active; flip the previous active (if any) to shipped; update `docs/vision.md` frontmatter `current-milestone: <slug>`. Preflights all state before any write.
 - `/noldor-milestone edit <slug>` — open `docs/milestones/<slug>.md` for body edits (gate, success criteria, out of scope). No status mutation.
 - `/noldor-milestone list` — print all milestones grouped by status (active, draft, shipped).
+
+The skill runs the CLI underneath, which works the same from any repo with noldor installed:
+
+```bash
+pnpm noldor milestones draft <slug> [description]
+pnpm noldor milestones activate <slug>
+pnpm noldor milestones list
+```
 
 **Validation**
 
@@ -113,7 +124,10 @@ This release applies code review fixes (skills count + YAML safety + triage buck
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/milestones/cli.ts`](../../src/milestones/cli.ts)
+  - [`src/milestones/draft-cli.ts`](../../src/milestones/draft-cli.ts)
+  - [`src/milestones/activate-cli.ts`](../../src/milestones/activate-cli.ts)
+  - [`src/milestones/list-cli.ts`](../../src/milestones/list-cli.ts)
+  - [`src/milestones/write-cli.ts`](../../src/milestones/write-cli.ts)
   - [`src/milestones/lib.ts`](../../src/milestones/lib.ts)
   - [`src/milestones/validate-milestones.ts`](../../src/milestones/validate-milestones.ts)
   - [`src/features/attach-milestone.ts`](../../src/features/attach-milestone.ts)

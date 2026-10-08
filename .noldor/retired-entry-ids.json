@@ -813,5 +813,9 @@
     "slug": "session-retro-auto-capture",
     "retiredInto": "memory-intake-lessons-learned-pipeline",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0346": {
+    "slug": "milestone-skill-consumer-command-path",
+    "retiredAt": "2026-10-08"
   }
 }
