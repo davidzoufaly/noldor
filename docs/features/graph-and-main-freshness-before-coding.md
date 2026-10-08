@@ -5,7 +5,8 @@ deps: []
 entry-id: Q-0341
 links:
   code: []
-  tests: []
+  tests:
+    - src/worktrees/__tests__/code-freshness.test.ts
   spec: >-
     docs/design/specs/2026-10-08-graph-and-main-freshness-before-coding-design.md
 name: Graph and Main Freshness Before Coding
@@ -45,5 +46,7 @@ Graph freshness is checked once per session, at the spec's structural-read step,
 ## Resources
 
 - **Spec:** [`docs/design/specs/2026-10-08-graph-and-main-freshness-before-coding-design.md`](../../docs/design/specs/2026-10-08-graph-and-main-freshness-before-coding-design.md)
+- **Tests:**
+  - [`src/worktrees/__tests__/code-freshness.test.ts`](../../src/worktrees/__tests__/code-freshness.test.ts)
 
 <!-- /generated: resources -->

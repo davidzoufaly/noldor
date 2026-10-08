@@ -475,6 +475,10 @@ export const MANIFEST: Record<string, Group> = {
         desc: 'Create .worktrees/<slug> on feat/<slug> (--branch overrides), install deps, stamp port',
       },
       status: { src: 'worktrees/worktree-status.ts', desc: 'Per-tree status table' },
+      freshness: {
+        src: 'worktrees/code-freshness-cli.ts',
+        desc: 'Before the first edit: graph freshness for the files (--rebuild, restored after) + origin/main drift touching them',
+      },
       conflicts: {
         src: 'worktrees/worktree-conflicts.ts',
         desc: 'Pre-flight conflict scan across worktrees (direct + graphify-community)',

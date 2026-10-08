@@ -492,6 +492,14 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 - **When to use:** pre-flight before merging or rebasing parallel worktrees, when the inline overlap warning in `worktrees status` is too coarse (3+ active trees).
 - **Source:** [`src/worktrees/worktree-conflicts.ts`](../../src/worktrees/worktree-conflicts.ts)
 
+### `worktree:freshness`
+
+- **Trigger:** `pnpm noldor worktrees freshness [--file <path>]... [--rebuild] [--json]`, run by gate Step 3.5 (and drain mode) on the session's first edit, with the same `--file` set as `rules brief`.
+- **Inputs:** `graphify-out/graph.json` via `design graph-context`; `git fetch origin main`, then one `git log --name-only HEAD..origin/main` walk.
+- **Outputs:** a graph verdict (`skipped` / `fresh` / `stale` / `rebuilt-fresh` / `rebuilt-stale` / `rebuild-failed` / `rebuild-skipped-dirty`, with per-path digests when fresh) and a main verdict (`current` / `behind` / `unknown`, the commit count, graph-refresh-only commits counted apart, and the commits touching the given files). Prints a `git rebase origin/main` next step when those commits touch the files, or when no file was given and non-graph commits landed. `--rebuild` runs `graphify build` on `stale` and always restores `graphify-out/` afterwards, a failed build included; a `graphify-out/` that was already dirty is left alone. `--json` prints the result object. Exit 0 on every verdict; 2 on a usage error.
+- **When to use:** before the first edit of a long session, so the code is written on top of current main and the structural read matches the tree.
+- **Source:** [`src/worktrees/code-freshness.ts`](../../src/worktrees/code-freshness.ts), [`src/worktrees/code-freshness-cli.ts`](../../src/worktrees/code-freshness-cli.ts)
+
 ### `worktree:launch`
 
 - **Trigger:** `pnpm noldor worktrees launch` from any tree.
