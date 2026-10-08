@@ -18,16 +18,12 @@ import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
-import setup, {
-  SUITE_LOCK_FILE,
-  acquireSuiteLock,
-  releaseSuiteLock,
-  suiteLockSkipReason,
-  tryAcquire,
-} from '../suite-lock.js';
+import { acquirePidLock, releasePidLock, tryAcquire } from '../../core/pid-lock.js';
+import setup, { SUITE_LOCK_FILE, suiteLockSkipReason } from '../suite-lock.js';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../../..');
 const MODULE_URL = pathToFileURL(join(REPO_ROOT, 'src/testing/suite-lock.ts')).href;
+const PID_LOCK_URL = pathToFileURL(join(REPO_ROOT, 'src/core/pid-lock.ts')).href;
 const execFileAsync = promisify(execFile);
 
 let dir: string;
@@ -126,23 +122,23 @@ describe('tryAcquire', () => {
   });
 });
 
-describe('releaseSuiteLock', () => {
+describe('releasePidLock', () => {
   it('removes the lock this suite holds', () => {
     tryAcquire(lockIn(dir), self);
-    releaseSuiteLock(lockIn(dir), self);
+    releasePidLock(lockIn(dir), self);
     expect(existsSync(lockIn(dir))).toBe(false);
   });
 
   it("never removes another suite's lock", () => {
     writeFileSync(lockIn(dir), JSON.stringify(other));
-    releaseSuiteLock(lockIn(dir), self);
+    releasePidLock(lockIn(dir), self);
     expect(readJson(lockIn(dir))).toEqual(other);
   });
 });
 
-describe('acquireSuiteLock', () => {
+describe('acquirePidLock', () => {
   it('takes a free lock without waiting', async () => {
-    const outcome = await acquireSuiteLock(lockIn(dir), self, { timeoutMs: 5000, pollMs: 20 });
+    const outcome = await acquirePidLock(lockIn(dir), self, { timeoutMs: 5000, pollMs: 20 });
     expect(outcome).toEqual({ kind: 'acquired', waited: false });
   });
 
@@ -150,7 +146,7 @@ describe('acquireSuiteLock', () => {
     writeFileSync(lockIn(dir), JSON.stringify(other));
     const announced: unknown[] = [];
     setTimeout(() => rmSync(lockIn(dir)), 150);
-    const outcome = await acquireSuiteLock(lockIn(dir), self, {
+    const outcome = await acquirePidLock(lockIn(dir), self, {
       timeoutMs: 5000,
       pollMs: 20,
       onWait: (holder) => announced.push(holder),
@@ -162,7 +158,7 @@ describe('acquireSuiteLock', () => {
 
   it('stops at the deadline instead of waiting forever', async () => {
     writeFileSync(lockIn(dir), JSON.stringify(other));
-    const outcome = await acquireSuiteLock(lockIn(dir), self, { timeoutMs: 150, pollMs: 20 });
+    const outcome = await acquirePidLock(lockIn(dir), self, { timeoutMs: 150, pollMs: 20 });
     expect(outcome).toEqual({ kind: 'timed-out', holder: other });
     expect(readJson(lockIn(dir))).toEqual(other);
   });
@@ -173,7 +169,7 @@ describe('acquireSuiteLock', () => {
     const claim = `${lockIn(dir)}.reclaim.${statSync(lockIn(dir), { bigint: true }).ino}`;
     linkSync(lockIn(dir), claim);
     const announced: unknown[] = [];
-    const outcome = await acquireSuiteLock(lockIn(dir), self, {
+    const outcome = await acquirePidLock(lockIn(dir), self, {
       timeoutMs: 150,
       pollMs: 20,
       onWait: (by) => announced.push(by),
@@ -184,7 +180,7 @@ describe('acquireSuiteLock', () => {
 
   it('stops when the caller aborts', async () => {
     writeFileSync(lockIn(dir), JSON.stringify(other));
-    const outcome = await acquireSuiteLock(lockIn(dir), self, {
+    const outcome = await acquirePidLock(lockIn(dir), self, {
       timeoutMs: 60_000,
       pollMs: 20,
       signal: AbortSignal.timeout(100),
@@ -315,7 +311,7 @@ describe('setup (vitest globalSetup)', () => {
   });
 });
 
-/** A `tsx` child running `body`, which can import the lock module; killed on dispose. */
+/** A `tsx` child running `body`, which can import the lock modules; killed on dispose. */
 function lockChild(
   body: string,
   env: Record<string, string>,
@@ -323,7 +319,8 @@ function lockChild(
   const script = join(dir, `child-${randomUUID()}.mts`);
   writeFileSync(
     script,
-    `import setup, { tryAcquire } from ${JSON.stringify(MODULE_URL)};\n${body}\n`,
+    `import setup from ${JSON.stringify(MODULE_URL)};\n` +
+      `import { tryAcquire } from ${JSON.stringify(PID_LOCK_URL)};\n${body}\n`,
   );
   const child = spawn(process.execPath, ['--import', 'tsx', script], {
     cwd: REPO_ROOT,

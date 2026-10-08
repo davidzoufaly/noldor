@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { isAlive } from './drain-lock.js';
+import { isAlive } from '../core/pid-lock.js';
 import { classifyMergeView, mergePr, type MergeOutcome } from './drain-io.js';
 import { checkoutDirtState, spawnRunner } from './salvage.js';
 import type { DrainSource } from './drain-source.js';
