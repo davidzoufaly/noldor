@@ -808,5 +808,10 @@
     "slug": "dead-code-detection-for-consumers",
     "retiredInto": "dead-code-detection-with-knip",
     "retiredAt": "2026-10-07"
+  },
+  "Q-0340": {
+    "slug": "session-retro-auto-capture",
+    "retiredInto": "memory-intake-lessons-learned-pipeline",
+    "retiredAt": "2026-10-08"
   }
 }
