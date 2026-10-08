@@ -584,7 +584,7 @@ export async function collectCandidateFiles(referenced: Set<string>): Promise<st
  * @returns The tagged slugs, or the scan failures when a root or file could not
  *   be read — a partial scan cannot tell which FDs are tag-built
  */
-export async function collectTagBuiltSlugs(
+async function collectTagBuiltSlugs(
   repoRoot: string = process.cwd(),
 ): Promise<{ success: true; data: Set<string> } | { success: false; errors: ScanFailure[] }> {
   const scan = (await collectTaggedMany([codeAdapter], repoRoot)).get(codeAdapter.key)!;
