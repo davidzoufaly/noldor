@@ -181,8 +181,9 @@ function mainLeg(files: readonly string[], run: RunGit): MainLeg {
 
   // A named-branch fetch also updates `refs/remotes/origin/main` (git >= 1.8.4,
   // default refspec) — the same call `resolveBase` in create-worktree.ts makes.
-  // `credential.interactive=never` + the timeout keep a credential prompt or a
-  // dead remote from hanging gate Step 3.5 — both read as `unknown` instead.
+  // The timeout is the real guard: a dead remote or a prompt (ssh passphrase,
+  // or a credential helper on a git too old for `credential.interactive`) is
+  // killed after a minute and reads as `unknown`, never a hung gate.
   const fetch = run(['-c', 'credential.interactive=never', 'fetch', '-q', 'origin', 'main'], {
     timeout: FETCH_TIMEOUT_MS,
   });
