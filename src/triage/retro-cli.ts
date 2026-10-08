@@ -2,7 +2,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { atomicWriteFileSync } from '../core/atomic-write.js';
 import { isEntrypoint } from '../core/cli-entry.js';
@@ -11,33 +11,31 @@ import { acquireSuiteLock, releaseSuiteLock } from '../testing/suite-lock.js';
 
 const LABEL = 'retro';
 const USAGE =
-  'usage: noldor triage retro --slug <slug> --pr <n> [--lesson <text>]... [--followup <text>]... | --none\n';
+  'usage: noldor triage retro --slug <slug> --pr <n> --file <notes> | --none\n' +
+  '  <notes> holds one "lesson: <text>" or "followup: <text>" per line\n';
 const LESSONS = 'Lessons';
 const FOLLOWUPS = 'Not groomed';
 const LOCK_FILE = 'noldor-ideas.lock';
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const PR_RE = /^[1-9]\d*$/;
+const NOTE_KINDS = [
+  ['lesson:', 'lessons'],
+  ['followup:', 'followups'],
+] as const;
+
+type Parsed<T> = { success: true; data: T } | { success: false; errors: string[] };
 
 /** A validated `noldor triage retro` invocation. */
-interface RetroArgs {
-  slug: string;
-  pr: string;
+type RetroArgs = { slug: string; pr: string } & ({ none: true } | { none: false; file: string });
+
+/** The notes a retro writes, one entry per bullet. */
+interface Notes {
   lessons: string[];
   followups: string[];
-  none: boolean;
 }
 
-type Parsed = { success: true; data: RetroArgs } | { success: false; errors: string[] };
-
-/**
- * Read and validate the retro flags. Note text is collapsed to one line, so a
- * pasted multi-line note cannot break the section structure; a note that is
- * empty after that, or that would read as a heading, is refused.
- */
-function parseRetroArgs(argv: readonly string[]): Parsed {
+function parseRetroArgs(argv: readonly string[]): Parsed<RetroArgs> {
   const values = new Map<string, string>();
-  const lessons: string[] = [];
-  const followups: string[] = [];
   let none = false;
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i]!;
@@ -45,29 +43,63 @@ function parseRetroArgs(argv: readonly string[]): Parsed {
       none = true;
       continue;
     }
-    if (!['--slug', '--pr', '--lesson', '--followup'].includes(flag)) {
+    if (!['--slug', '--pr', '--file'].includes(flag)) {
       return { success: false, errors: [`unknown argument ${flag}`] };
     }
     const value = argv[++i];
     if (value === undefined) return { success: false, errors: [`${flag} requires a value`] };
-    if (flag === '--lesson') lessons.push(oneLine(value));
-    else if (flag === '--followup') followups.push(oneLine(value));
-    else values.set(flag, value);
+    values.set(flag, value);
   }
   const slug = values.get('--slug') ?? '';
   const pr = values.get('--pr') ?? '';
-  const notes = [...lessons, ...followups];
+  const file = values.get('--file');
   const errors = [
     ...(SLUG_RE.test(slug) ? [] : ['--slug must be a kebab-case slug']),
     ...(PR_RE.test(pr) ? [] : ['--pr must be a positive integer']),
-    ...(none && notes.length > 0 ? ['--none cannot be combined with --lesson/--followup'] : []),
-    ...(!none && notes.length === 0 ? ['pass at least one --lesson/--followup, or --none'] : []),
-    ...(notes.some((n) => n === '') ? ['a note is empty'] : []),
-    ...(notes.some((n) => n.startsWith('#')) ? ['a note cannot start with #'] : []),
+    ...(none && file !== undefined ? ['--none cannot be combined with --file'] : []),
+    ...(!none && file === undefined ? ['pass --file <notes>, or --none'] : []),
   ];
-  return errors.length > 0
-    ? { success: false, errors }
-    : { success: true, data: { slug, pr, lessons, followups, none } };
+  if (errors.length > 0) return { success: false, errors };
+  return {
+    success: true,
+    data: file === undefined ? { slug, pr, none: true } : { slug, pr, none: false, file },
+  };
+}
+
+/**
+ * Read the notes file: one `lesson: <text>` or `followup: <text>` per line, blank
+ * lines skipped. Notes come from a file, never from argv: where `pnpm noldor` is a
+ * package script, pnpm hands argv to `sh` inside double quotes, which runs any
+ * backtick or `$(...)` a note quotes. A note that would read as a heading is
+ * refused, so it cannot break the section structure.
+ */
+function readNotes(path: string): Parsed<Notes> {
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    return { success: false, errors: [`cannot read --file ${path}: ${reason}`] };
+  }
+  const notes: Notes = { lessons: [], followups: [] };
+  const errors: string[] = [];
+  for (const [i, line] of raw.split('\n').entries()) {
+    const text = line.trim();
+    if (text === '') continue;
+    const kind = NOTE_KINDS.find(([prefix]) => text.startsWith(prefix));
+    if (kind === undefined) {
+      errors.push(`line ${i + 1}: start it with "lesson:" or "followup:"`);
+      continue;
+    }
+    const note = oneLine(text.slice(kind[0].length));
+    if (note === '') errors.push(`line ${i + 1}: the note is empty`);
+    else if (note.startsWith('#')) errors.push(`line ${i + 1}: a note cannot start with #`);
+    else notes[kind[1]].push(note);
+  }
+  if (errors.length === 0 && notes.lessons.length + notes.followups.length === 0) {
+    errors.push(`${path} holds no notes; pass --none instead`);
+  }
+  return errors.length > 0 ? { success: false, errors } : { success: true, data: notes };
 }
 
 function oneLine(text: string): string {
@@ -79,9 +111,7 @@ function oneLine(text: string): string {
  * child runs in `.worktrees/<slug>/`, and an `ideas.md` written there is deleted
  * with the worktree, so the retro always targets that parent.
  */
-function gitCommonDir(
-  cwd: string,
-): { success: true; data: string } | { success: false; errors: string[] } {
+function gitCommonDir(cwd: string): Parsed<string> {
   try {
     const dir = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
       cwd,
@@ -146,6 +176,7 @@ function appendToSection(
 function applyRetro(
   content: string,
   args: RetroArgs,
+  notes: Notes,
   today: string,
 ): { content: string; lessons: number; followups: number } {
   const lines = content === '' ? [] : content.replace(/\n$/, '').split('\n');
@@ -153,10 +184,10 @@ function applyRetro(
     const key = `- ${text} (${args.slug}, PR #${args.pr}, `;
     return { key, line: `${key}${today})` };
   };
-  if (content === '' || args.followups.length > 0) ensureSection(lines, FOLLOWUPS);
-  if (content === '' || args.lessons.length > 0) ensureSection(lines, LESSONS);
-  const followups = appendToSection(lines, FOLLOWUPS, args.followups.map(bullet));
-  const lessons = appendToSection(lines, LESSONS, args.lessons.map(bullet));
+  if (content === '' || notes.followups.length > 0) ensureSection(lines, FOLLOWUPS);
+  if (content === '' || notes.lessons.length > 0) ensureSection(lines, LESSONS);
+  const followups = appendToSection(lines, FOLLOWUPS, notes.followups.map(bullet));
+  const lessons = appendToSection(lines, LESSONS, notes.lessons.map(bullet));
   return { content: `${lines.join('\n')}\n`, lessons, followups };
 }
 
@@ -167,9 +198,10 @@ export interface RetroContext {
 }
 
 /**
- * CLI entrypoint for `noldor triage retro`. Writes the session's lessons and
- * follow-ups into the main checkout's `ideas.md` under a cross-worktree lock and
- * never stages or commits. Exit 0 written or nothing to write, 2 usage, 1 I/O.
+ * CLI entrypoint for `noldor triage retro`. Reads the session's lessons and
+ * follow-ups from `--file` and writes them into the main checkout's `ideas.md`
+ * under a cross-worktree lock; never stages or commits. Exit 0 written or nothing
+ * to write, 2 usage (including a malformed notes file), 1 I/O or lock.
  */
 export async function main(argv: readonly string[], ctx: RetroContext = {}): Promise<number> {
   const parsed = parseRetroArgs(argv);
@@ -183,6 +215,11 @@ export async function main(argv: readonly string[], ctx: RetroContext = {}): Pro
     return 0;
   }
   const cwd = ctx.cwd ?? process.cwd();
+  const notes = readNotes(resolve(cwd, args.file));
+  if (!notes.success) {
+    process.stderr.write(`${LABEL}: ${notes.errors.join('; ')}\n${USAGE}`);
+    return 2;
+  }
   const today = ctx.today ?? new Date().toISOString().slice(0, 10);
   const common = gitCommonDir(cwd);
   if (!common.success) {
@@ -200,7 +237,7 @@ export async function main(argv: readonly string[], ctx: RetroContext = {}): Pro
   }
   try {
     const before = existsSync(target) ? readFileSync(target, 'utf8') : '';
-    const after = applyRetro(before, args, today);
+    const after = applyRetro(before, args, notes.data, today);
     if (after.content !== before) atomicWriteFileSync(target, after.content);
     process.stdout.write(
       `${LABEL}: ${after.lessons} lessons, ${after.followups} follow-ups → ${target}\n`,
