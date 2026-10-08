@@ -833,5 +833,9 @@
   "Q-0356": {
     "slug": "dead-code-guide-ignore-build-output",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0359": {
+    "slug": "shared-lock-module",
+    "retiredAt": "2026-10-08"
   }
 }

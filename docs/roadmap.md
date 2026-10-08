@@ -115,18 +115,6 @@ specs-only-new gate load is 6841 of 6844 words after #685 + #687; the next gate 
 
 Roll the next release out to charuy: run `noldor upgrade` + `noldor init --update` there (its `ideas.md` has no `## Lessons`; the first retro scaffolds it), and add `animations: 'disabled'` + `test.use({ reducedMotion: 'reduce' })` to its proof tests, now that UI proof can be skipped with `Noldor-UI-Proof: skip`. (session-retro-auto-capture PR #687, ui-proof-skip PR #693, 2026-10-08)
 
-### Shared Lock Module
-
-- id: Q-0359
-- area: tooling
-- type: refactor
-- since: 2026-10-08
-- size: XS
-- impact: low
-- confidence: med
-
-Move the lock-wait helper (`acquireSuiteLock`/`releaseSuiteLock`) out of `src/testing/suite-lock.ts` into a shared lock module; `src/triage/retro-cli.ts` imports it from test infrastructure (new undrawn `src/triage -> src/testing` edge). (session-retro-auto-capture, PR #687, 2026-10-08)
-
 ### Drain the Dead-Code Baseline
 
 - id: Q-0360
