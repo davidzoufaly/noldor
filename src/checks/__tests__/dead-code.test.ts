@@ -175,7 +175,49 @@ describe('dead-code CLI', () => {
     const path = join(repo.dir, DEAD_CODE_BASELINE);
     const recorded = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
     writeFileSync(path, JSON.stringify({ ...recorded, ...drift }));
-    expect((await run(['check'], repo.dir, fakeKnip(TODAY))).code).toBe(3);
+    const result = await run(['check'], repo.dir, fakeKnip(TODAY));
+    expect(result.code).toBe(3);
+    expect(result.err).toContain('was recorded under');
+  });
+
+  it.each([
+    ['knipVersion', { knipVersion: '5.0.0' }, 'knip 5.0.0; installed is 6.40.0'],
+    [
+      'algorithmVersion',
+      { algorithmVersion: DEAD_CODE_ALGORITHM_VERSION + 1 },
+      `algorithm version ${DEAD_CODE_ALGORITHM_VERSION + 1}`,
+    ],
+  ])(
+    'baseline still prints the diff when the old one was recorded under another %s',
+    async (_label, drift, why) => {
+      using repo = tempRepo();
+      await run(['baseline'], repo.dir, fakeKnip(TODAY));
+      const path = join(repo.dir, DEAD_CODE_BASELINE);
+      const recorded = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+      writeFileSync(path, JSON.stringify({ ...recorded, ...drift }));
+      const swapped = knipJson(
+        row('src/a.ts', { exports: [{ name: 'unusedA' }, { name: 'newlyDead' }] }),
+      );
+      const result = await run(['baseline'], repo.dir, fakeKnip(swapped));
+      expect(result.code).toBe(0);
+      expect(result.out).toContain(`previous baseline recorded under ${why}`);
+      expect(result.out).toContain('ADDED exports:src/a.ts:newlyDead');
+      expect(result.out).toContain('dropped files:src/dead.ts');
+      expect(result.out).not.toContain('unusedA');
+      expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({
+        algorithmVersion: DEAD_CODE_ALGORITHM_VERSION,
+        knipVersion: '6.40.0',
+      });
+    },
+  );
+
+  it('baseline prints no diff over a baseline that fails its schema', async () => {
+    using repo = tempRepo();
+    writeFileSync(join(repo.dir, DEAD_CODE_BASELINE), JSON.stringify({ issues: 'nope' }));
+    const result = await run(['baseline'], repo.dir, fakeKnip(TODAY));
+    expect(result.code).toBe(0);
+    expect(result.out).not.toContain('ADDED');
+    expect(result.out).not.toContain('previous baseline');
   });
 
   it.each(['report', 'check', 'baseline'])(

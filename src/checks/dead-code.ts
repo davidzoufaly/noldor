@@ -13,7 +13,8 @@
  *   no finding outside the baseline        0        0        0
  *   a finding the baseline lacks           0        1        0   (records, prints the diff)
  *   baseline absent                        0        3        0
- *   baseline unreadable / version drift    0        3        0   (overwrites)
+ *   baseline version drift                 0        3        0   (overwrites, prints the diff)
+ *   baseline unreadable                    0        3        0   (overwrites)
  *   knip missing, failed or unparseable    3        3        3
  *   usage error                            2        2        2
  */
@@ -65,6 +66,8 @@ export type KeysResult =
 export type BaselineRead =
   | { kind: 'ok'; baseline: DeadCodeBaseline }
   | { kind: 'absent' }
+  /** Well-formed, but recorded under another knip or algorithm version. */
+  | { kind: 'drifted'; reason: string; baseline: DeadCodeBaseline }
   | { kind: 'unreadable'; reason: string };
 
 const byKey = (a: string, b: string): number => a.localeCompare(b, 'en');
@@ -149,7 +152,10 @@ export const defaultRunKnip: RunKnip = (repo) => {
   return { ok: true, stdout: run.stdout, version };
 };
 
-/** Read `.noldor/dead-code-baseline.json`; a parse, schema or version failure is `unreadable`, never a throw. */
+/**
+ * Read `.noldor/dead-code-baseline.json`; a parse or schema failure is `unreadable`
+ * and a version mismatch is `drifted`, never a throw.
+ */
 export function readDeadCodeBaseline(repo: string, knipVersion: string): BaselineRead {
   const read = readCheckedState(join(repo, DEAD_CODE_BASELINE), deadCodeBaselineSchema);
   if (read.kind !== 'ok') return read;
@@ -162,7 +168,7 @@ export function readDeadCodeBaseline(repo: string, knipVersion: string): Baselin
         : null;
   return drift === null
     ? { kind: 'ok', baseline: read.value }
-    : { kind: 'unreadable', reason: `recorded under ${drift}` };
+    : { kind: 'drifted', reason: `recorded under ${drift}`, baseline: read.value };
 }
 
 const REMEDY = 'pnpm noldor dead-code baseline';
@@ -262,7 +268,9 @@ function check(repo: string, keys: string[], version: string): number {
     const why =
       read.kind === 'absent'
         ? `no baseline at ${DEAD_CODE_BASELINE}`
-        : `${DEAD_CODE_BASELINE} is unreadable: ${read.reason}`;
+        : read.kind === 'drifted'
+          ? `${DEAD_CODE_BASELINE} was ${read.reason}`
+          : `${DEAD_CODE_BASELINE} is unreadable: ${read.reason}`;
     process.stderr.write(`✗ dead-code: ${why}. Record one: ${REMEDY}\n`);
     return 3;
   }
@@ -287,6 +295,7 @@ function check(repo: string, keys: string[], version: string): number {
 
 function record(repo: string, keys: string[], version: string, now: Date): number {
   const read = readDeadCodeBaseline(repo, version);
+  const prior = read.kind === 'ok' || read.kind === 'drifted' ? read.baseline : null;
   const baseline: DeadCodeBaseline = {
     algorithmVersion: DEAD_CODE_ALGORITHM_VERSION,
     knipVersion: version,
@@ -295,8 +304,10 @@ function record(repo: string, keys: string[], version: string, now: Date): numbe
   };
   writeJsonState(join(repo, DEAD_CODE_BASELINE), baseline);
   process.stdout.write(`dead-code: recorded ${keys.length} finding(s) to ${DEAD_CODE_BASELINE}\n`);
-  if (read.kind !== 'ok') return 0;
-  const before = new Set(read.baseline.issues);
+  if (prior === null) return 0;
+  // A drifted baseline still diffs: a finding landing beside a knip bump must not be absorbed silently.
+  if (read.kind === 'drifted') process.stdout.write(`  previous baseline ${read.reason}\n`);
+  const before = new Set(prior.issues);
   const after = new Set(keys);
   for (const k of [...after.difference(before)].sort(byKey)) process.stdout.write(`  ADDED ${k}\n`);
   for (const k of [...before.difference(after)].sort(byKey))
