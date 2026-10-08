@@ -841,5 +841,9 @@
   "Q-0347": {
     "slug": "fill-links-skips-tag-built-fds",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0350": {
+    "slug": "worktree-copies-local-env-files",
+    "retiredAt": "2026-10-08"
   }
 }

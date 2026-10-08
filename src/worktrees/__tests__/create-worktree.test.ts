@@ -1,7 +1,7 @@
-// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows
+// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows, parallel-worktree-workflow
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -174,6 +174,79 @@ describe('createWorktree', () => {
       );
       expect(git(['rev-parse', 'HEAD'], res.path).trim()).toBe(local);
       expect(log).toHaveBeenCalledWith(expect.stringMatching(/could not fetch origin main/));
+    });
+  });
+
+  describe('local env files', () => {
+    it('copies each listed file the main workspace has, nested paths included', async () => {
+      await writeFile(join(root, '.env'), 'DATABASE_URL=postgres://local\n');
+      await mkdir(join(root, 'apps', 'api'), { recursive: true });
+      await writeFile(join(root, 'apps', 'api', '.env'), 'API_KEY=k\n');
+      const res = unwrap(
+        await createWorktree({
+          slug: 'with-env',
+          cwd: root,
+          installRunner: okInstall,
+          envFiles: ['.env', 'apps/api/.env', '.env.missing'],
+        }),
+      );
+      expect(res.envFilesCopied).toEqual(['.env', 'apps/api/.env']);
+      expect(await readFile(join(res.path, '.env'), 'utf-8')).toBe(
+        'DATABASE_URL=postgres://local\n',
+      );
+      expect(await readFile(join(res.path, 'apps', 'api', '.env'), 'utf-8')).toBe('API_KEY=k\n');
+      expect(existsSync(join(res.path, '.env.missing'))).toBe(false);
+    });
+
+    it('never overwrites a file the branch already tracks', async () => {
+      await writeFile(join(root, 'config.env'), 'TRACKED=1\n');
+      git(['add', 'config.env'], root);
+      git(['commit', '-q', '-m', 'track config.env'], root);
+      await writeFile(join(root, 'config.env'), 'LOCAL_EDIT=1\n');
+      const res = unwrap(
+        await createWorktree({
+          slug: 'tracked-env',
+          cwd: root,
+          installRunner: okInstall,
+          envFiles: ['config.env'],
+        }),
+      );
+      expect(res.envFilesCopied).toEqual([]);
+      expect(await readFile(join(res.path, 'config.env'), 'utf-8')).toBe('TRACKED=1\n');
+    });
+
+    it('reads the list from consumer.worktreeEnvFiles when none is passed', async () => {
+      await mkdir(join(root, '.noldor'), { recursive: true });
+      await writeFile(
+        join(root, '.noldor', 'config.json'),
+        JSON.stringify({
+          consumer: {
+            name: 'c',
+            repoUrl: 'https://example.com/c',
+            lockstepPackages: ['package.json'],
+            e2ePrefix: 'e2e/',
+            samplesPath: 'samples',
+            packagePrefix: '@c/',
+            appPathPrefix: 'src',
+            worktreeEnvFiles: ['.env'],
+          },
+        }),
+      );
+      await writeFile(join(root, '.env'), 'FROM_CONFIG=1\n');
+      const res = unwrap(
+        await createWorktree({ slug: 'cfg-env', cwd: root, installRunner: okInstall }),
+      );
+      expect(res.envFilesCopied).toEqual(['.env']);
+      expect(await readFile(join(res.path, '.env'), 'utf-8')).toBe('FROM_CONFIG=1\n');
+    });
+
+    it('copies nothing when the repo has no config', async () => {
+      await writeFile(join(root, '.env'), 'X=1\n');
+      const res = unwrap(
+        await createWorktree({ slug: 'no-cfg', cwd: root, installRunner: okInstall }),
+      );
+      expect(res.envFilesCopied).toEqual([]);
+      expect(existsSync(join(res.path, '.env'))).toBe(false);
     });
   });
 

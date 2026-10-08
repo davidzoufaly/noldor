@@ -83,6 +83,24 @@ export const DevConfigSchema = z
   .strict();
 export type DevConfig = z.infer<typeof DevConfigSchema>;
 
+/** Refuse a path that is absolute, uses a backslash, or climbs out of the repo with `..`. */
+function repoRelativeIssues(label: string) {
+  return (path: string, ctx: z.RefinementCtx) => {
+    if (path.startsWith('/') || /^[A-Za-z]:/.test(path) || path.includes('\\')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${label} must be repo-relative POSIX paths`,
+      });
+    }
+    if (path.split('/').includes('..')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${label} must not contain .. segments`,
+      });
+    }
+  };
+}
+
 /**
  * A repo-relative POSIX glob for UI-surface config. The accepted language is
  * the intersection the predicate (minimatch) and the freshness engine (git
@@ -100,12 +118,12 @@ const UiGlobSchema = z
   .refine((g) => !/[@!+?*]\(/.test(g), {
     message: 'extglob patterns are not supported in uiPaths/uiSurfaces (plain globs + braces only)',
   })
-  .refine((g) => !g.startsWith('/') && !/^[A-Za-z]:/.test(g) && !g.includes('\\'), {
-    message: 'uiPaths/uiSurfaces globs must be repo-relative POSIX paths',
-  })
-  .refine((g) => !g.split('/').includes('..'), {
-    message: 'uiPaths/uiSurfaces globs must not contain .. segments',
-  });
+  .superRefine(repoRelativeIssues('uiPaths/uiSurfaces globs'));
+
+const WorktreeEnvFileSchema = z
+  .string()
+  .min(1)
+  .superRefine(repoRelativeIssues('worktreeEnvFiles entries'));
 
 /** Baseline surface names become `docs/design/ui/baseline/<name>.pen` — keep them slug-shaped. */
 const SURFACE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -362,6 +380,12 @@ export const ConsumerConfigSchema = z
     /** Per-task dev surfaces booted by `worktrees up`. Absent = nothing booted. */
     dev: DevConfigSchema.optional(),
     /**
+     * Gitignored local files (a root `.env`, say) that `worktrees create` copies
+     * from the main workspace into each new tree — `git worktree add` checks out
+     * tracked files only. Repo-relative paths. Absent ⇒ nothing is copied.
+     */
+    worktreeEnvFiles: z.array(WorktreeEnvFileSchema).optional(),
+    /**
      * Globs naming this consumer's UI source (e.g. `src/dashboard/app/**`).
      * Drives the UI-design-stage predicate (`src/core/ui-predicate.ts`).
      * Absent or empty ⇒ the design stage never fires for this consumer.
@@ -516,6 +540,17 @@ export function loadUiConfig(cwd: string): {
 }
 
 const CONFIG_FILE = '.noldor/config.json';
+
+/**
+ * The consumer's `worktreeEnvFiles`, or `[]` when no consumer config file
+ * exists or the key is absent. A config that exists but fails to parse still
+ * throws, as in {@link loadUiConfig}: an empty list would silently leave every
+ * new worktree without the files the repo asked for.
+ */
+export function loadWorktreeEnvFiles(cwd: string): readonly string[] {
+  if (!existsSync(join(cwd, CONFIG_FILE))) return [];
+  return loadConsumerConfig(cwd).worktreeEnvFiles ?? [];
+}
 
 /**
  * Reads and validates the noldor consumer configuration for the given working
