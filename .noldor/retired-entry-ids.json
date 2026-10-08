@@ -845,5 +845,9 @@
   "Q-0350": {
     "slug": "worktree-copies-local-env-files",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0351": {
+    "slug": "dead-code-baseline-diffs-across-knip-drift",
+    "retiredAt": "2026-10-08"
   }
 }
