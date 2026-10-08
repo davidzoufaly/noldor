@@ -821,5 +821,9 @@
   "Q-0348": {
     "slug": "ui-proof-trailer-validation",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0349": {
+    "slug": "release-sweep-installs-before-verify",
+    "retiredAt": "2026-10-08"
   }
 }

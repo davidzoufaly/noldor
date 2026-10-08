@@ -24,6 +24,7 @@ Anything else that is noldor-repo-only carries a `<!-- noldor-skill-drift-ignore
 1. **Branch + clean check**:
    - Run `git status` and `git rev-parse --abbrev-ref HEAD`. Must be on `main` and tree must be clean (any uncommitted state aborts — ask the user to commit/stash first).
 2. **Verify project state**:
+   - Run `pnpm install --frozen-lockfile` first: a pull that changed the lockfile installs nothing, and a stale `node_modules` reads as a red `main`. If the install fails, abort with its output.
    - `pnpm verify` must pass before starting. If it fails, abort with the exact failure and let the user fix it. The sweep is a release prerequisite — you don't run it on a broken main.
 3. **Open a sweep branch and write the session marker**:
 
