@@ -91,18 +91,6 @@ SDD gaps left after the v1.16.0 garden pass: links.code is stale against `// @fd
 
 README's Configuration section hand-lists the optional `.noldor/config.json` blocks and drifted when `deadCode` landed (caught only by the v1.16.0 sweep's read-through). `checks readme` could compare that list with the `noldorConfigSchema` keys so the next new block fails the check. (readme-config-blocks-drift, PR #692, 2026-10-08)
 
-### Arbitration Dispose Lists Blocker IDs
-
-- id: Q-0355
-- area: tooling
-- type: fix
-- since: 2026-10-08
-- size: XS
-- impact: low
-- confidence: high
-
-`cr arbitration dispose --slug <s> --kind <k>` with no other flags prints usage (exit 2) instead of the blocker-id list its help promises; the list appears only once `--disposition` and `--note` are set. (session-retro-auto-capture, PR #687, 2026-10-08)
-
 ### Dead-Code Guide Ignore Build Output
 
 - id: Q-0356
