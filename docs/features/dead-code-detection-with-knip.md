@@ -18,8 +18,8 @@ packages:
 phase: done
 since: 2026-10-07T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.16.0
 ---
-
 ## Summary
 
 Nothing in the framework finds dead code (unused files, unused exports, unused and unlisted dependencies). `noldor clones` finds code that exists twice, not code that should not exist; the `/noldor-refactor` report's "Dead Code" section is filled in by hand; the dashboard already looks for an "Unused Exports" count (`src/dashboard/data.ts:2125`) that nothing produces. This feature covers noldor itself: add knip as a devDependency, run it in pre-push or CI, and ratchet it like `clones` (a recorded baseline; the count may not rise). Consumers get the same check opt-in: it ships on every pre-push and stays off until `.noldor/config.json` sets `deadCode.enabled: true` (ADR 0011); with it on, `sdd-report` and the dashboard show the count.
@@ -59,6 +59,17 @@ Consumer setup: [adoption guide → Optional: dead-code check](../noldor/adoptio
 <!-- @prs-since-last-release: dead-code-detection-with-knip -->
 
 ## Changelog
+
+### Initial Release (v1.16.0)
+
+#### Summary
+
+This release adds a dead-code ratchet over knip findings (#679), along with an opt-in dead-code check for consumers (#681).
+
+#### PRs
+
+- #681: opt-in dead-code check for consumers ([link](https://github.com/davidzoufaly/noldor/pull/681))
+- #679: dead-code ratchet over knip findings ([link](https://github.com/davidzoufaly/noldor/pull/679))
 
 <!-- generated: resources -->
 

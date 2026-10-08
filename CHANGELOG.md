@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.16.0 — 2026-10-08
+
+### Features
+
+- feat(core): triage retro writes session lessons into the main ideas.md ([d53baf5](https://github.com/davidzoufaly/noldor/commit/d53baf5ef009209e8e604016836bb249658cecd5)) ([#687](https://github.com/davidzoufaly/noldor/pull/687))
+- feat(core): check graph and main freshness before the first edit ([ff71090](https://github.com/davidzoufaly/noldor/commit/ff710903db3754268031f3801aa7cd4bb03fd9a9)) ([#685](https://github.com/davidzoufaly/noldor/pull/685))
+- feat(core): screenshots of UI changes on the PR ([e2f82e7](https://github.com/davidzoufaly/noldor/commit/e2f82e75fb011ee11cd41d1e531487e4901328f6)) ([#683](https://github.com/davidzoufaly/noldor/pull/683))
+- feat(core): opt-in dead-code check for consumers ([ddec67f](https://github.com/davidzoufaly/noldor/commit/ddec67f7cffa38bf719a5c039dd1c5f1cbeca7df)) ([#681](https://github.com/davidzoufaly/noldor/pull/681))
+- feat(core): dead-code ratchet over knip findings ([1577dfa](https://github.com/davidzoufaly/noldor/commit/1577dfa4cde13f492f9a71293cb97d01da63f47e)) ([#679](https://github.com/davidzoufaly/noldor/pull/679))
+
+### Fixes
+
+- fix(core): triage retro reads its notes from a file, never argv ([316eaa2](https://github.com/davidzoufaly/noldor/commit/316eaa273946c15daf75da8a22cb9eb01a24c877)) ([#689](https://github.com/davidzoufaly/noldor/pull/689))
+- fix(dashboard): show an FD's changelog from its Initial Release on ([03377df](https://github.com/davidzoufaly/noldor/commit/03377df26811ff14627e0a32894134c32a524c12)) ([#673](https://github.com/davidzoufaly/noldor/pull/673))
+
+### Other changes
+
+- docs(readme): name the deadCode config block and the dead-code ratchet ([97f3216](https://github.com/davidzoufaly/noldor/commit/97f3216fbba796fcb6ea72df5bbc93f0c588b8c3)) ([#692](https://github.com/davidzoufaly/noldor/pull/692))
+- chore(release-sweep): pre-empt sdd:report drift ([1a9306c](https://github.com/davidzoufaly/noldor/commit/1a9306c434800525f1110dba48581594e8bb66d7)) ([#691](https://github.com/davidzoufaly/noldor/pull/691))
+- chore(graph): refresh the committed knowledge graph ([1301d84](https://github.com/davidzoufaly/noldor/commit/1301d84a64dec00a334f312ba5b3c506a6db129b)) ([#690](https://github.com/davidzoufaly/noldor/pull/690))
+- chore(graph): refresh the committed knowledge graph ([bfd4914](https://github.com/davidzoufaly/noldor/commit/bfd49149d002d608be13ebe2af4a62bef500e80c)) ([#688](https://github.com/davidzoufaly/noldor/pull/688))
+- chore(graph): refresh the committed knowledge graph ([379b00c](https://github.com/davidzoufaly/noldor/commit/379b00c3efef36c7209abf6a3633a61948985ac0)) ([#686](https://github.com/davidzoufaly/noldor/pull/686))
+- chore(graph): refresh the committed knowledge graph ([00e90c7](https://github.com/davidzoufaly/noldor/commit/00e90c7f3c56e3d662b81d84c7f12e1cca877343)) ([#684](https://github.com/davidzoufaly/noldor/pull/684))
+- chore(graph): refresh the committed knowledge graph ([14089f9](https://github.com/davidzoufaly/noldor/commit/14089f98cd3d70f897b3760967df26c679405a1e)) ([#682](https://github.com/davidzoufaly/noldor/pull/682))
+- chore(graph): refresh the committed knowledge graph ([da4a39a](https://github.com/davidzoufaly/noldor/commit/da4a39af10d0627bd1f1f2491202ace3c3db6266)) ([#680](https://github.com/davidzoufaly/noldor/pull/680))
+- docs(gate): priority pickup always confirms the entry ([e1f1d97](https://github.com/davidzoufaly/noldor/commit/e1f1d97b863858ae9ae8c6357c9b83b709577d4b)) ([#678](https://github.com/davidzoufaly/noldor/pull/678))
+- chore(features): give owners to the last five code orphans ([acfde26](https://github.com/davidzoufaly/noldor/commit/acfde26d48f397e545b5dde3b1e4eb9cd1cf8f2b)) ([#677](https://github.com/davidzoufaly/noldor/pull/677))
+- docs(triage): queue Q-0338..Q-0344 from the 2026-10-07 triage ([27a736a](https://github.com/davidzoufaly/noldor/commit/27a736a906c3403a21d3c52e30e0488edd9094e4)) ([#676](https://github.com/davidzoufaly/noldor/pull/676))
+- docs(gate): final report names the merged PR URL on every path ([a9689ad](https://github.com/davidzoufaly/noldor/commit/a9689ad5e1c53f491ba8a9bcd91caea693936bd2)) ([#675](https://github.com/davidzoufaly/noldor/pull/675))
+- chore(graph): refresh the committed knowledge graph ([e58fe45](https://github.com/davidzoufaly/noldor/commit/e58fe45c9f9d485b7caf2d4deedcf9eabf7432ea)) ([#674](https://github.com/davidzoufaly/noldor/pull/674))
+
 ## v1.15.0 — 2026-09-29
 
 ### Features

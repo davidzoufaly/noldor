@@ -1,5 +1,33 @@
 # Release Notes
 
+## v1.16.0 — 2026-10-08
+
+### Tooling
+
+#### Dead-Code Detection with knip
+
+This release adds a dead-code ratchet over knip findings (#679), along with an opt-in dead-code check for consumers (#681).
+
+[Feature page](/features/dead-code-detection-with-knip)
+
+#### Graph and Main Freshness Before Coding
+
+This release checks that the graph and `main` are fresh before the first edit (#685).
+
+[Feature page](/features/graph-and-main-freshness-before-coding)
+
+#### Memory-Intake / Lessons-Learned Pipeline *(updated)*
+
+`triage retro` now writes session lessons straight into the main `ideas.md` (#687).
+
+[Feature page](/features/memory-intake-lessons-learned-pipeline)
+
+#### UI Proof Screenshots on the PR
+
+This release adds screenshots of UI changes to the PR (#683).
+
+[Feature page](/features/ui-proof-screenshots-on-the-pr)
+
 ## v1.15.0 — 2026-09-29
 
 ### Tooling
