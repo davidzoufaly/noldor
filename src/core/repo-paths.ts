@@ -42,6 +42,26 @@ export function repoRelativePath(cwd: string, value: string): string | null {
 }
 
 /**
+ * Normalize a CLI's file arguments to unique repo-relative POSIX paths,
+ * refusing any outside the repository. The repo root itself names no file, so
+ * an empty result is refused too.
+ */
+export function repoFileArgs(
+  cwd: string,
+  values: readonly string[],
+): { ok: true; paths: string[] } | { ok: false; error: string } {
+  const paths: string[] = [];
+  for (const value of values) {
+    const rel = repoRelativePath(cwd, value);
+    if (rel === null || rel.length === 0) {
+      return { ok: false, error: `path escapes the repository: ${value}` };
+    }
+    if (!paths.includes(rel)) paths.push(rel);
+  }
+  return { ok: true, paths };
+}
+
+/**
  * Scan roots: consumer `scanPaths` when configured (non-empty), else
  * {@link DEFAULT_SCAN_ROOTS}. Single source of truth for every repo-walking
  * surface (sync code-links, sdd-report, dashboard, gap fillers, pointers) —

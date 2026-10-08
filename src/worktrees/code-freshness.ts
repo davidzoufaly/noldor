@@ -18,7 +18,7 @@ import { graphContext, type PathDigest } from '../design/graph-context.js';
 
 const GRAPH_DIR = 'graphify-out/';
 
-export type GraphVerdict =
+type GraphVerdict =
   | 'skipped'
   | 'fresh'
   | 'stale'
@@ -27,7 +27,7 @@ export type GraphVerdict =
   | 'rebuild-failed'
   | 'rebuild-skipped-dirty';
 
-export interface GraphLeg {
+interface GraphLeg {
   verdict: GraphVerdict;
   reason: string;
   /** Empty unless the final read was fresh. */
@@ -36,14 +36,14 @@ export interface GraphLeg {
   warnings: string[];
 }
 
-export interface TouchingCommit {
+interface TouchingCommit {
   sha: string;
   subject: string;
   /** The subset of the requested files this commit changed. */
   files: string[];
 }
 
-export interface MainLeg {
+interface MainLeg {
   verdict: 'current' | 'behind' | 'unknown';
   reason: string;
   /** Commits on `origin/main` not in `HEAD`; 0 when unknown. */

@@ -3,8 +3,10 @@
 // gate Step 3.5 runs before the first edit. Every verdict exits 0: the command
 // reports, the gate prose acts.
 
+import { parseArgs as parseCliArgs } from 'node:util';
+
 import { runIfDirect } from '../core/cli-entry.js';
-import { repoRelativePath } from '../core/repo-paths.js';
+import { repoFileArgs } from '../core/repo-paths.js';
 import { renderDigest } from '../design/graph-context-cli.js';
 import { codeFreshness, type CodeFreshness } from './code-freshness.js';
 
@@ -16,27 +18,29 @@ type ParsedArgs =
   | { ok: false; error: string };
 
 export function parseArgs(argv: readonly string[], cwd: string): ParsedArgs {
-  const files: string[] = [];
-  let rebuild = false;
-  let json = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i]!;
-    if (arg === '--json') json = true;
-    else if (arg === '--rebuild') rebuild = true;
-    else if (arg === '--file') {
-      const value = argv[i + 1];
-      if (value === undefined || value.startsWith('--')) {
-        return { ok: false, error: '--file needs a value' };
-      }
-      i += 1;
-      const rel = repoRelativePath(cwd, value);
-      if (rel === null || rel.length === 0) {
-        return { ok: false, error: `path escapes the repository: ${value}` };
-      }
-      if (!files.includes(rel)) files.push(rel);
-    } else return { ok: false, error: `unknown argument: ${arg}` };
+  let values: { file?: string[]; rebuild?: boolean; json?: boolean };
+  try {
+    ({ values } = parseCliArgs({
+      args: [...argv],
+      options: {
+        file: { type: 'string', multiple: true },
+        rebuild: { type: 'boolean' },
+        json: { type: 'boolean' },
+      },
+      strict: true,
+      allowPositionals: false,
+    }));
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
   }
-  return { ok: true, files, rebuild, json };
+  const files = repoFileArgs(cwd, values.file ?? []);
+  if (!files.ok) return files;
+  return {
+    ok: true,
+    files: files.paths,
+    rebuild: values.rebuild === true,
+    json: values.json === true,
+  };
 }
 
 export function renderReport(r: CodeFreshness): string {
@@ -62,17 +66,17 @@ export function renderReport(r: CodeFreshness): string {
   return `${lines.join('\n')}\n`;
 }
 
+const USAGE = 'usage: noldor worktrees freshness [--file <path>]... [--rebuild] [--json]';
+
 async function main(argv: readonly string[]): Promise<number> {
-  const cwd = process.cwd();
-  const parsed = parseArgs(argv, cwd);
+  const parsed = parseArgs(argv, process.cwd());
   if (!parsed.ok) {
-    process.stderr.write(
-      `worktrees freshness: ${parsed.error}\nusage: noldor worktrees freshness [--file <path>]... [--rebuild] [--json]\n`,
-    );
+    process.stderr.write(`worktrees freshness: ${parsed.error}\n${USAGE}\n`);
     return EXIT_USAGE;
   }
-  const result = await codeFreshness({ cwd, files: parsed.files, rebuild: parsed.rebuild });
-  process.stdout.write(parsed.json ? `${JSON.stringify(result, null, 2)}\n` : renderReport(result));
+  const { files, rebuild, json } = parsed;
+  const result = await codeFreshness({ cwd: process.cwd(), files, rebuild });
+  process.stdout.write(json ? `${JSON.stringify(result, null, 2)}\n` : renderReport(result));
   return EXIT_OK;
 }
 
