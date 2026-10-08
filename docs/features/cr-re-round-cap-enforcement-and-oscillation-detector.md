@@ -145,7 +145,7 @@ pnpm noldor cr arbitration dispose --slug <slug> --kind <kind> \
   --blocker <id> --disposition rejected --note "<why>"
 ```
 
-Run it without `--blocker` to list the standing reviewer and codex blockers and their ids. Before the round cap `--note` is required, and the command records nothing and exits 2 under `NOLDOR_DRAIN=1`, with no session marker, or when git cannot read the round's reviewed head. Later rounds of the session stop handing that finding to any lane as a prior while the lines it cites are unchanged. Both prior-aware lanes see every decided finding after their own priors:
+Run it with only `--slug` and `--kind` to list the standing reviewer and codex blockers and their ids (at the cap, the arbitration record's): it prints them on stdout, exits 0 and records nothing, so it answers under `NOLDOR_DRAIN=1` too. Before the round cap `--note` is required, and the command records nothing and exits 2 under `NOLDOR_DRAIN=1`, with no session marker, or when git cannot read the round's reviewed head. Later rounds of the session stop handing that finding to any lane as a prior while the lines it cites are unchanged. Both prior-aware lanes see every decided finding after their own priors:
 
 ```
 S1 [fixed r2][high] the check is missing — added the check

@@ -825,5 +825,9 @@
   "Q-0349": {
     "slug": "release-sweep-installs-before-verify",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0355": {
+    "slug": "arbitration-dispose-lists-blocker-ids",
+    "retiredAt": "2026-10-08"
   }
 }

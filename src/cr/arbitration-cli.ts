@@ -69,7 +69,8 @@ usage:
 dispose works at any round. Before the round cap it records a ruling on a standing
 reviewer or codex blocker (--note required): later rounds stop carrying it while the
 content it cites is unchanged, and every prior-aware lane is shown it. At the cap it
-also fills the arbitration record. Run it without --blocker to list the ids.
+also fills the arbitration record. Run it with only --slug and --kind to list the ids
+(exit 0, on stdout).
 
 dispositions — what you are saying about a blocker you are not fixing:
   accepted  the finding is right and the debt is taken on deliberately
@@ -220,7 +221,13 @@ async function main(argv: string[]): Promise<number> {
   // Only a record that stands for the current tree takes the disposition; anything else is a
   // ruling made before the cap — including over a record left from an earlier round series.
   const tree = treeOf(cwd, 'HEAD');
-  if (record.kind === 'found' && tree !== null && priorRecordStands(record.rec, tree)) {
+  const atCap = record.kind === 'found' && tree !== null && priorRecordStands(record.rec, tree);
+  // A bare `dispose` is the listing the help promises, not a malformed ruling: it reads and
+  // writes nothing, so it answers under a drain child too. A half-given ruling (a disposition
+  // or note with no blocker) stays a usage error, so a script never reads exit 0 as recorded.
+  if (!['--blocker', '--disposition', '--note'].some((f) => read.values.has(f)))
+    return listBlockers(cwd, slug, kind.data, atCap ? record.rec : null);
+  if (record.kind === 'found' && atCap) {
     const code = await dispose(path, record.rec, read.values);
     if (code === EXIT.ok) {
       const noted = await recordRuling(cwd, slug, kind.data, read.values);
@@ -387,6 +394,67 @@ async function latestRound(
   }
 }
 
+/** A finding's message on one listing line. */
+const oneLine = (s: string): string => s.replace(/\r\n|\r|\n/g, ' ⏎ ');
+
+/**
+ * The ids a ruling before the cap can take — the standing reviewer and codex blockers plus the
+ * earlier rulings — and one display line per id, plus one per sink that could not be read.
+ */
+async function rulableLines(
+  cwd: string,
+  slug: Slug,
+  kind: ArtifactKind,
+): Promise<{ ids: Set<string>; lines: string[] }> {
+  const { byId, unread } = await standingBlockers(cwd, slug, kind);
+  const rulings = await readDecisions(cwd, slug, kind, sessionKey(cwd));
+  const ruled = rulings.ok ? rulings.decisions.filter((d) => d.disposition !== 'fixed') : [];
+  return {
+    ids: new Set([...byId.keys(), ...ruled.map((d) => d.id)]),
+    lines: [
+      ...[...byId].map(
+        ([id, s]) =>
+          `  ${id}  [${s.lanes.join(',')}][${s.finding.severity}] ${oneLine(s.finding.message)}`,
+      ),
+      ...ruled.map((d) => `  ${d.id}  (ruled ${d.disposition}) ${oneLine(d.finding.message)}`),
+      ...unread.map((p) => `  (could not read ${p})`),
+    ],
+  };
+}
+
+/**
+ * `dispose` with no ruling flags: print the ids `--blocker` takes on stdout and exit 0. At the
+ * cap those are the arbitration record's blockers; before it, the standing ones and earlier rulings.
+ */
+async function listBlockers(
+  cwd: string,
+  slug: Slug,
+  kind: ArtifactKind,
+  rec: ArbitrationRecord | null,
+): Promise<number> {
+  let lines: string[];
+  if (rec === null) {
+    lines = (await rulableLines(cwd, slug, kind)).lines;
+  } else {
+    const ruled = new Map(rec.dispositions.map((d) => [d.blockerId, d.disposition]));
+    lines = rec.blockers.map(
+      (b) =>
+        `  ${b.id}  [${b.lanes.join(',')}][${b.severity}]${ruled.has(b.id) ? ` (disposed ${ruled.get(b.id)})` : ''} ${oneLine(b.message)}`,
+    );
+  }
+  const where = rec === null ? 'before the round cap' : 'at the round cap (arbitration record)';
+  if (lines.length === 0) {
+    console.log(`no blockers to rule on ${where} for ${slug} ${kind}`);
+    return EXIT.ok;
+  }
+  console.log(`blockers --blocker takes, ${where}:`);
+  for (const l of lines) console.log(l);
+  console.log(
+    `next: noldor cr arbitration dispose --slug ${slug} --kind ${kind} --blocker <id> --disposition <${DISPOSITIONS.join('|')}> --note <why>`,
+  );
+  return EXIT.ok;
+}
+
 /** Before the cap: validate the ruling, then record it for the rest of the series. */
 async function disposeBeforeCap(
   cwd: string,
@@ -401,22 +469,8 @@ async function disposeBeforeCap(
     return EXIT.error;
   }
   const blockerId = values.get('--blocker');
-  const { byId, unread } = await standingBlockers(cwd, slug, kind);
-  const key = sessionKey(cwd);
-  const rulings = await readDecisions(cwd, slug, kind, key);
-  const ruled = rulings.ok ? rulings.decisions.filter((d) => d.disposition !== 'fixed') : [];
-  if (blockerId === undefined || (!byId.has(blockerId) && !ruled.some((d) => d.id === blockerId))) {
-    const lines = [
-      ...[...byId].map(
-        ([id, s]) =>
-          `  ${id}  [${s.lanes.join(',')}][${s.finding.severity}] ${s.finding.message.replace(/\r\n|\r|\n/g, ' ⏎ ')}`,
-      ),
-      ...ruled.map(
-        (d) =>
-          `  ${d.id}  (ruled ${d.disposition}) ${d.finding.message.replace(/\r\n|\r|\n/g, ' ⏎ ')}`,
-      ),
-      ...unread.map((p) => `  (could not read ${p})`),
-    ];
+  const { ids, lines } = await rulableLines(cwd, slug, kind);
+  if (blockerId === undefined || !ids.has(blockerId)) {
     return usage(
       `${blockerId === undefined ? '--blocker is required' : `--blocker ${blockerId} names no standing reviewer or codex blocker and no earlier ruling`}; ` +
         (lines.length === 0
