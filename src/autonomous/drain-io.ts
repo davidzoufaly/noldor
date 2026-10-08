@@ -2,6 +2,7 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { spawnAgent } from '../core/agent-runner/registry.js';
+import { ffSyncMain } from '../core/ff-sync.js';
 import { makeRoadmapConflictResolver, spawnRunner, type GitRunner } from './salvage.js';
 
 /**
@@ -107,7 +108,8 @@ export async function mergePr(
 }
 
 /**
- * Checkout main, fetch, ff-only sync, prune stale worktree admin entries, drop
+ * Checkout main, fetch, ff-only sync (via {@link ffSyncMain}, which carries
+ * uncommitted retro bullets across), prune stale worktree admin entries, drop
  * stale escalation context. Throws on an ff-only rejection (caller aborts the
  * drain — local main diverged, spec Error handling).
  *
@@ -124,8 +126,7 @@ export function syncMainCleanState(cwd: string): void {
     execFileSync('git', args, { cwd, stdio: 'pipe' });
   };
   git(['checkout', 'main']);
-  git(['fetch', 'origin', 'main']);
-  git(['merge', '--ff-only', 'origin/main']); // throws on divergence → abort
+  ffSyncMain(cwd); // throws on divergence or an autostash conflict → abort
   git(['worktree', 'prune']); // admin-only: drops entries for already-deleted dirs; never deletes a live worktree
   // Drop stale escalation context so a failed iteration's context can't bleed into the next.
   spawnSync('bash', ['-c', 'rm -f .noldor/cr/*-escalation-context.md 2>/dev/null || true'], {
@@ -137,7 +138,7 @@ export function syncMainCleanState(cwd: string): void {
 /**
  * Pre-flight divergence guard: throw loud when local `main` is AHEAD of
  * `origin/main` (an un-pushed commit — e.g. a triage commit on local main). The
- * existing `git merge --ff-only origin/main` in {@link syncMainCleanState} only
+ * existing ff-only sync in {@link syncMainCleanState} only
  * catches *behind* divergence; a local-ahead state reads as "Already up to date"
  * and slips through, surfacing only AFTER a gate child did the work and tried to
  * retire the entry against an out-of-sync `origin/main`. Runs after `syncMain`

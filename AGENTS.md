@@ -60,7 +60,7 @@ outputs and exit codes: `docs/noldor/script-catalog.md`.
 - `garden` — Garden drift detection + SDD report + receipts: detect, receipt, sdd-report, demote-stale
 - `metrics` — Effectiveness metrics derived from repo history: compute
 - `cr` — Code-review orchestration (subagent / codex / standalone lanes): orchestrate, aggregate, codex, escalate, autofix, bootstrap, arbitration
-- `triage` — Triage + score backlog entries: score, list-untriaged, validate, mint-id, backfill-ids, merge-candidates
+- `triage` — Triage + score backlog entries: score, list-untriaged, validate, mint-id, backfill-ids, retro, merge-candidates
 - `rules` — Engineering rule store: resolve / list / validate: resolve, brief, list, validate
 - `features` — Feature MD validators + migrations: validate, attach-milestone, fill-links-code-gaps, migrate-features, migrate-code-tags, propose-pointers, seed-test-tags, owners, migrate-fd-commits-to-prs, migrate-link-rot, phase-flip-done, phase-revert
 - `roadmap` — Roadmap/backlog block operations: remove-block, has-block
