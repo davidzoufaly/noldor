@@ -1,4 +1,4 @@
-// @tests: dead-code-detection-with-knip
+// @tests: dead-code-detection-with-knip, release-script-sddreport-skip-if-only-count-line-changed
 import { describe, expect, it } from 'vitest';
 
 import { renderDeadCodeSection } from '../sdd-report-format.js';

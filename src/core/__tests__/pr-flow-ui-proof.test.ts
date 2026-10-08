@@ -1,4 +1,4 @@
-// @tests: ui-proof-screenshots-on-the-pr
+// @tests: ui-proof-screenshots-on-the-pr, framework-pr-flow-agent-auto-merge
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { composeBody, openAndAutoMerge } from '../pr-flow.js';

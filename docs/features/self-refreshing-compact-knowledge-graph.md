@@ -20,6 +20,7 @@ links:
     - src/graphify/__tests__/build.test.ts
     - src/graphify/__tests__/graph-to-toon.test.ts
     - src/templates/__tests__/templates.test.ts
+    - src/worktrees/__tests__/code-freshness.test.ts
 name: 'Self-Refreshing, Compact Knowledge Graph'
 packages:
   - scripts
@@ -28,6 +29,7 @@ noldor-tier: full
 introduced: 1.12.0
 updated: 1.14.0
 ---
+
 ## Summary
 
 The committed knowledge graph refreshes itself: a merged `feat`, `fix` or
@@ -155,5 +157,6 @@ This release ships a knowledge-graph refresh workflow (#501).
   - [`src/graphify/__tests__/build.test.ts`](../../src/graphify/__tests__/build.test.ts)
   - [`src/graphify/__tests__/graph-to-toon.test.ts`](../../src/graphify/__tests__/graph-to-toon.test.ts)
   - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)
+  - [`src/worktrees/__tests__/code-freshness.test.ts`](../../src/worktrees/__tests__/code-freshness.test.ts)
 
 <!-- /generated: resources -->

@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### SDD Gaps After v1.16.0
-
-- id: Q-0353
-- area: tooling
-- type: chore
-- since: 2026-10-08
-- size: S
-- impact: med
-- confidence: high
-
-SDD gaps left after the v1.16.0 garden pass: links.code is stale against `// @fd:` tags on dead-code-detection-with-knip and graph-and-main-freshness-before-coding (`pnpm noldor sync code-links`; the second also reads "done without code"), 4 tests miss FD co-tags (pr-flow-ui-proof, ui-proof, sdd-report-dead-code, code-freshness), and `src/migrations/1.16.0.ts` + `src/worktrees/code-freshness*.ts` have no owning FD. (release-sweep-v1-16-0, PR #691, 2026-10-08)
-
 ### README Config Blocks Check
 
 - id: Q-0354

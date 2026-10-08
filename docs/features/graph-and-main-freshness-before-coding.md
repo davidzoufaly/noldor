@@ -4,7 +4,9 @@ category: Tooling
 deps: []
 entry-id: Q-0341
 links:
-  code: []
+  code:
+    - src/worktrees/code-freshness-cli.ts
+    - src/worktrees/code-freshness.ts
   tests:
     - src/worktrees/__tests__/code-freshness.test.ts
   spec: >-
@@ -17,6 +19,7 @@ since: 2026-10-07T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.16.0
 ---
+
 ## Summary
 
 Graph freshness is checked once per session, at the spec's structural-read step, and never again (surfaced 2026-10-04, charuy Q-0145). `noldor-spec` step 1.7 runs `design graph-context`, rebuilds on `stale`, reads the digest, then restores `graphify-out/`. Nothing re-checks before implementation starts, during it, or before the code-stage CR, so a long session (spec → 3 review rounds → code) can plan and code against a graph the tree has moved past, and other sessions' merges to `origin/main` mid-session are never pulled in. Worktrees branch from `origin/main` at create time and `pr-flow` fetches at the end, but nothing fetches in between. Options: (a) gate Step 3.5 (rule brief before the first edit) also runs `design graph-context` over the files about to be touched and rebuilds locally on `stale` (~15 s, restored afterwards, never committed); (b) a `git fetch origin main` + "main moved N commits since worktree create" notice at the same seam, so the operator can merge main in before coding rather than at push.
@@ -59,6 +62,9 @@ This release checks that the graph and `main` are fresh before the first edit (#
 ## Resources
 
 - **Spec:** [`docs/design/specs/archive/2026-10-08-graph-and-main-freshness-before-coding-design.md`](../../docs/design/specs/archive/2026-10-08-graph-and-main-freshness-before-coding-design.md)
+- **Code:**
+  - [`src/worktrees/code-freshness-cli.ts`](../../src/worktrees/code-freshness-cli.ts)
+  - [`src/worktrees/code-freshness.ts`](../../src/worktrees/code-freshness.ts)
 - **Tests:**
   - [`src/worktrees/__tests__/code-freshness.test.ts`](../../src/worktrees/__tests__/code-freshness.test.ts)
 

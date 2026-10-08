@@ -1,4 +1,4 @@
-// @tests: ui-proof-screenshots-on-the-pr
+// @tests: ui-proof-screenshots-on-the-pr, pendev-ui-design-phase
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

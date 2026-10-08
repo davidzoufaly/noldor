@@ -10,6 +10,7 @@ links:
   tests:
     - src/features/__tests__/seed-test-tags.test.ts
     - src/garden/__tests__/graph-fd-lookup.test.ts
+    - src/garden/__tests__/sdd-report-dead-code.test.ts
     - src/garden/__tests__/sdd-report-metrics.test.ts
     - src/garden/__tests__/sdd-report.test.ts
     - src/release/__tests__/preflight-render.test.ts
@@ -56,6 +57,7 @@ Automatic — no manual step. During `pnpm release`, after `noldor garden sdd-re
 - **Tests:**
   - [`src/features/__tests__/seed-test-tags.test.ts`](../../src/features/__tests__/seed-test-tags.test.ts)
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
+  - [`src/garden/__tests__/sdd-report-dead-code.test.ts`](../../src/garden/__tests__/sdd-report-dead-code.test.ts)
   - [`src/garden/__tests__/sdd-report-metrics.test.ts`](../../src/garden/__tests__/sdd-report-metrics.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
   - [`src/release/__tests__/preflight-render.test.ts`](../../src/release/__tests__/preflight-render.test.ts)
