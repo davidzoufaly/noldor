@@ -1,4 +1,5 @@
-import { draftMilestone, milestoneRefusalMessage } from './lib.js';
+import { draftMilestone } from './lib.js';
+import { writeOrExit } from './write-cli.js';
 
 function usage(): never {
   console.error(`Usage: noldor milestones draft <slug> [description]
@@ -10,20 +11,5 @@ Scaffold docs/milestones/<slug>.md with status: draft.`);
 const [slug, ...words] = process.argv.slice(2);
 if (!slug || slug.startsWith('-')) usage();
 
-// The repository-state refusals (already exists, shipped is terminal, …) still throw;
-// print their message alone, without the router's stack trace.
-function attempt() {
-  try {
-    return draftMilestone(slug, words.join(' ') || undefined);
-  } catch (err) {
-    console.error((err as Error).message);
-    process.exit(1);
-  }
-}
-
-const drafted = attempt();
-if (!drafted.ok) {
-  console.error(milestoneRefusalMessage(drafted.error));
-  process.exit(1);
-}
+writeOrExit(() => draftMilestone(slug, words.join(' ') || undefined));
 console.log(`Drafted docs/milestones/${slug}.md`);

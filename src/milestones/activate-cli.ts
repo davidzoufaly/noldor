@@ -1,4 +1,5 @@
-import { activateMilestone, milestoneRefusalMessage } from './lib.js';
+import { activateMilestone } from './lib.js';
+import { writeOrExit } from './write-cli.js';
 
 function usage(): never {
   console.error(`Usage: noldor milestones activate <slug>
@@ -11,20 +12,5 @@ and docs/vision.md's current-milestone follows.`);
 const slug = process.argv[2];
 if (!slug || slug.startsWith('-')) usage();
 
-// The repository-state refusals (already exists, shipped is terminal, …) still throw;
-// print their message alone, without the router's stack trace.
-function attempt() {
-  try {
-    return activateMilestone(slug);
-  } catch (err) {
-    console.error((err as Error).message);
-    process.exit(1);
-  }
-}
-
-const activated = attempt();
-if (!activated.ok) {
-  console.error(milestoneRefusalMessage(activated.error));
-  process.exit(1);
-}
+writeOrExit(() => activateMilestone(slug));
 console.log(`Activated ${slug}; vision.md updated`);

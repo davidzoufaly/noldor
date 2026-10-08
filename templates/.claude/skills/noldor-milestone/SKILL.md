@@ -63,6 +63,5 @@ user_invocable: true
 
 - `docs/milestones/<slug>.md` — per-milestone definition.
 - `docs/vision.md` — frontmatter `current-milestone: <slug>` points at the active milestone (optional).
-- `pnpm noldor milestones draft|activate|list` — the CLI this skill invokes (`src/milestones/*-cli.ts`).
-- `src/milestones/lib.ts` — pure functions backing the CLI.
+- `src/milestones/lib.ts` — pure functions backing `pnpm noldor milestones`.
 - `src/milestones/validate-milestones.ts` — snapshot validator (pre-commit).

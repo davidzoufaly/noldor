@@ -8,6 +8,7 @@ links:
     - src/milestones/draft-cli.ts
     - src/milestones/activate-cli.ts
     - src/milestones/list-cli.ts
+    - src/milestones/write-cli.ts
     - src/milestones/lib.ts
     - src/milestones/validate-milestones.ts
     - src/features/attach-milestone.ts
@@ -126,6 +127,7 @@ This release applies code review fixes (skills count + YAML safety + triage buck
   - [`src/milestones/draft-cli.ts`](../../src/milestones/draft-cli.ts)
   - [`src/milestones/activate-cli.ts`](../../src/milestones/activate-cli.ts)
   - [`src/milestones/list-cli.ts`](../../src/milestones/list-cli.ts)
+  - [`src/milestones/write-cli.ts`](../../src/milestones/write-cli.ts)
   - [`src/milestones/lib.ts`](../../src/milestones/lib.ts)
   - [`src/milestones/validate-milestones.ts`](../../src/milestones/validate-milestones.ts)
   - [`src/features/attach-milestone.ts`](../../src/features/attach-milestone.ts)
