@@ -431,6 +431,7 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 | `pnpm noldor triage backfill-ids`   | [`src/triage/backfill-ids-cli.ts`](../../src/triage/backfill-ids-cli.ts) | Idempotent one-sweep stamp of `- id:` onto all id-less roadmap/backlog entries. |
 | `pnpm noldor triage merge-candidates` | [`src/triage/merge-candidates-cli.ts`](../../src/triage/merge-candidates-cli.ts) | Emit the merge-candidate corpus for `/noldor-triage` (`--json` for machine output). |
 | `pnpm noldor triage retro` | [`src/triage/retro-cli.ts`](../../src/triage/retro-cli.ts) | Session retro: `--slug <s> --pr <n> --file <notes>` (one `lesson: <text>` or `followup: <text>` per line) or `--none`, into the main checkout's `ideas.md` (`## Lessons` / `## Not groomed`, scaffolded when missing); never stages. Notes never ride argv, which pnpm's `sh` would expand. Exit 0 / 2 usage or bad notes file / 1 I/O or lock. |
+| `pnpm noldor triage ideas-lock` | [`src/triage/ideas-lock-cli.ts`](../../src/triage/ideas-lock-cli.ts) | Hold the `ideas.md` lock `triage retro` writes under across a multi-edit session: `acquire [--minutes <n>]` (default 30, max 120; a detached sleeper holds it, so a forgotten hold lapses) / `release` (drops only a hold, never a retro mid-write). Exit 0 / 2 usage / 1 lock held or I/O. |
 
 ## Rules
 

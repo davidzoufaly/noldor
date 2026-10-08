@@ -32,6 +32,18 @@ page's flow as ordinary `#### Later` bullets. Stamped bullets may be pruned;
 git history is the audit trail. See the [skill catalog](skill-catalog.md) for
 the `/noldor-absorb` contract.
 
+### Writing `ideas.md` under the lock
+
+Every `ideas.md` writer contends for one lock, `noldor-ideas.lock` in git's
+common dir, so a write from one worktree cannot drop a write from another.
+`pnpm noldor triage retro` takes it for its own read-modify-write.
+`/noldor-triage`, `/noldor-absorb` and a hand edit span many tool calls, so
+they hold it with `pnpm noldor triage ideas-lock acquire` before the first
+edit and `pnpm noldor triage ideas-lock release` after the last. `acquire`
+names a detached sleeper as the holder: a forgotten hold lapses after
+`--minutes` (default 30), and a retro that meets a live hold fails with
+`re-run once` rather than writing past it.
+
 ## Triage flow
 
 `/noldor-triage` is a bulk operation. Run it when `ideas.md` accumulates new top-level bullets and you want to advance them onto the engineering queue.

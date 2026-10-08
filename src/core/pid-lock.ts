@@ -1,7 +1,7 @@
 // @fd: test-suites-read-live-repo-state-shifting-full-suite-failures
 // The pid lock primitive every lock in the repo shares: the drain lock
 // (`src/autonomous/drain-lock.ts`), the full-suite lock (`src/testing/suite-lock.ts`)
-// and the `ideas.md` lock of `noldor triage retro`. Node builtins only: vitest loads
+// and the `ideas.md` lock of `noldor triage retro` and `noldor triage ideas-lock`. Node builtins only: vitest loads
 // the suite lock, and so this module, as a globalSetup through vite-node, which could
 // not resolve a package import from it when the setup ran for a project rooted
 // outside this repo.
@@ -31,12 +31,13 @@ export function isAlive(pid: number): boolean {
  * it may run a different version of this module, and liveness is decided by the
  * pid alone, so a missing display field must never make a live lock look
  * reclaimable. The drain lock writes `pid` and `startedAt`; the suite lock adds
- * the `worktree` it runs in.
+ * the `worktree` it runs in; an `ideas.md` hold adds the ISO time it lapses.
  */
 export interface LockHolder {
   pid: number;
   startedAt?: string;
   worktree?: string;
+  holdUntil?: string;
 }
 
 /**
@@ -212,12 +213,13 @@ export function readHolderOrAbsent(path: string): SeenHolder {
 function parseHolder(raw: string): LockHolder | undefined {
   const value = parseJson(raw);
   if (typeof value !== 'object' || value === null) return undefined;
-  const { pid, startedAt, worktree } = value as Record<string, unknown>;
+  const { pid, startedAt, worktree, holdUntil } = value as Record<string, unknown>;
   if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return undefined;
   return {
     pid,
     ...(typeof startedAt === 'string' ? { startedAt } : {}),
     ...(typeof worktree === 'string' ? { worktree } : {}),
+    ...(typeof holdUntil === 'string' ? { holdUntil } : {}),
   };
 }
 

@@ -210,6 +210,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'triage/retro-cli.ts',
         desc: "Write a session's lessons + follow-ups into the main checkout's ideas.md (never commits)",
       },
+      'ideas-lock': {
+        src: 'triage/ideas-lock-cli.ts',
+        desc: 'Hold or drop the ideas.md lock retro writes under (acquire [--minutes <n>] | release)',
+      },
       'merge-candidates': {
         src: 'triage/merge-candidates-cli.ts',
         desc: 'Emit the merge-candidate corpus (FDs + roadmap + backlog) for /noldor-triage; --json for machine output',
