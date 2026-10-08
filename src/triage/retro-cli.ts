@@ -19,7 +19,7 @@ const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const PR_RE = /^[1-9]\d*$/;
 
 /** A validated `noldor triage retro` invocation. */
-export interface RetroArgs {
+interface RetroArgs {
   slug: string;
   pr: string;
   lessons: string[];
@@ -34,7 +34,7 @@ type Parsed = { success: true; data: RetroArgs } | { success: false; errors: str
  * pasted multi-line note cannot break the section structure; a note that is
  * empty after that, or that would read as a heading, is refused.
  */
-export function parseRetroArgs(argv: readonly string[]): Parsed {
+function parseRetroArgs(argv: readonly string[]): Parsed {
   const values = new Map<string, string>();
   const lessons: string[] = [];
   const followups: string[] = [];
@@ -136,7 +136,7 @@ function appendToSection(
  * section. The dedup key is note + slug + PR without the date, so a re-run on a
  * later day skips while the same lesson from another PR is kept.
  */
-export function applyRetro(
+function applyRetro(
   content: string,
   args: RetroArgs,
   today: string,
