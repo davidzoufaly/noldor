@@ -78,7 +78,10 @@ describe('the gate skill loads only the branch a session takes', () => {
     const load = [join(GATE_DIR, 'SKILL.md'), ...(row?.everyRun ?? []).map(resolveLoadFile)]
       .map(wordsIn)
       .reduce((sum, n) => sum + n, 0);
-    expect(load).toBeLessThan(PRE_SPLIT_WORDS / 2);
+    expect(
+      load,
+      `trim gate prose: load ${load} must stay under ${PRE_SPLIT_WORDS / 2}`,
+    ).toBeLessThan(PRE_SPLIT_WORDS / 2);
   });
 
   it('carries no incident-history ids in any gate skill file', () => {
