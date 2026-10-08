@@ -104,7 +104,7 @@ Neither block is required — a config with only `consumer:` runs autonomous CR 
 
 `pnpm noldor dead-code check` runs on every pre-push and does nothing until `.noldor/config.json` sets `"deadCode": { "enabled": true }` ([ADR 0011](../adr/0011-opt-in-consumer-checks-use-a-config-switch.md)). Turned on, it fails the push when [knip](https://knip.dev) reports a finding (unused file, export, type or dependency) that `.noldor/dead-code-baseline.json` lacks. `noldor upgrade` adds the block with `enabled: false`. To turn it on:
 
-1. Install knip as a devDependency and write a knip config for your repo's entry points — noldor ships none.
+1. Install knip as a devDependency and write a knip config for your repo's entry points — noldor ships none. Add your build output (`**/dist/**`) to its `ignore`: a baseline recorded in a fresh worktree has no `dist/`, so a stale `dist/*.d.ts` in the main checkout shows up as new findings and fails the push.
 2. `pnpm noldor dead-code report` until the list holds only real dead code; silence false positives in the knip config.
 3. `pnpm noldor dead-code baseline`, then commit `.noldor/dead-code-baseline.json`.
 4. Set `"enabled": true`.

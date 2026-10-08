@@ -829,5 +829,9 @@
   "Q-0355": {
     "slug": "arbitration-dispose-lists-blocker-ids",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0356": {
+    "slug": "dead-code-guide-ignore-build-output",
+    "retiredAt": "2026-10-08"
   }
 }
