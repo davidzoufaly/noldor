@@ -110,7 +110,7 @@ export const NO_FEATURE_PROOF = 'no feature proof';
  * and the branch must have added or changed it. A spec left by an earlier
  * branch with the same slug is in the tree but not in `branchFiles`.
  */
-export async function featureSpecOnBranch(
+async function featureSpecOnBranch(
   cwd: string,
   spec: string,
   branchFiles: readonly string[],
