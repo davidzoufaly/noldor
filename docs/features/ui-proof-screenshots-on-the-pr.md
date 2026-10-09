@@ -5,8 +5,10 @@ deps: []
 entry-id: Q-0343
 links:
   code:
+    - src/checks/check-ui-proof-spec.ts
     - src/core/ui-proof.ts
   tests:
+    - src/checks/__tests__/check-ui-proof-spec.test.ts
     - src/core/__tests__/consumer-config.test.ts
     - src/core/__tests__/pr-flow-ui-proof.test.ts
     - src/core/__tests__/ui-proof.test.ts
@@ -17,11 +19,12 @@ links:
 name: UI Proof Screenshots on the PR
 packages:
   - package.json
-phase: in-progress
+phase: done
 since: 2026-10-07T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.16.0
 ---
+
 ## Summary
 
 When a feature touches UI, the PR should carry a screenshot of it working as proof — and when the feature is e2e-tested on the UI end, the screenshot comes from that run. Today a UI change ships with a text-only PR body, so a reviewer has to check out the branch to see the result. Capture screenshots from the e2e/verify run (or a dedicated capture step) and attach them to the PR body via `pr-flow`.
@@ -51,6 +54,8 @@ As a reviewer of a consumer PR that changes UI (human or agent), I want the PR b
 
 - `pnpm noldor pr-flow` — when the branch diff touches a `consumer.uiPaths` surface, the PR body gains a `## UI Proof` section with up to 3 inline screenshots per surface. Nothing changes for a branch that touches no UI path.
 - `consumer.uiProof.<surface>.command` (`.noldor/config.json`, optional `timeoutMs`, default 300000) — a proof command run at ship time into an emptied folder, passed as `{out}` and as `NOLDOR_PROOF_OUT`. Example: `"uiProof": { "app": { "command": "pnpm test:e2e --grep @proof" } }`, with a test that calls `` page.screenshot({ path: `${process.env.NOLDOR_PROOF_OUT}/home.png`, animations: 'disabled' }) `` under `test.use({ reducedMotion: 'reduce' })`, so the shot never catches a frame mid-animation.
+- `consumer.uiProof.<surface>.featureSpec` (optional) — proof from the branch's own test. A repo-relative path holding `{slug}` (the branch's last segment, sanitized — the worktree name), e.g. `"featureSpec": "apps/web/e2e/proof/{slug}.spec.ts"` with `"command": "pnpm test:e2e {spec}"`. The command runs only when this branch added or changed that test; `{slug}` and `{spec}` are substituted like `{out}` and passed as `NOLDOR_PROOF_SLUG` / `NOLDOR_PROOF_SPEC`. No such test → the command does not run, the PR shows a `no feature proof` note naming the path, and stderr warns even when a `render-compare` shot fills the gap.
+- `pnpm noldor checks ui-proof-spec [--base <ref>]` — exit 1 names each touched feature-proof surface whose test the branch has not added or changed; exit 0 when none applies or a UI-proof skip is declared. The gate runs it before code review.
 - No proof command, or it failed → the `render-compare` lane's shot is used when its `<surface>.shot.json` matches the shipped tree.
 - Images are hosted on the `noldor/ui-proof` branch and linked by commit SHA. A missing image shows as a note on the PR and never blocks the merge.
 - Test files (`__tests__/`, `*.test.*`, `*.spec.*`) never count as a UI change.
@@ -78,8 +83,10 @@ This release adds screenshots of UI changes to the PR (#683).
 
 - **Spec:** [`docs/design/specs/archive/2026-10-07-ui-proof-screenshots-on-the-pr-design.md`](../../docs/design/specs/archive/2026-10-07-ui-proof-screenshots-on-the-pr-design.md)
 - **Code:**
+  - [`src/checks/check-ui-proof-spec.ts`](../../src/checks/check-ui-proof-spec.ts)
   - [`src/core/ui-proof.ts`](../../src/core/ui-proof.ts)
 - **Tests:**
+  - [`src/checks/__tests__/check-ui-proof-spec.test.ts`](../../src/checks/__tests__/check-ui-proof-spec.test.ts)
   - [`src/core/__tests__/consumer-config.test.ts`](../../src/core/__tests__/consumer-config.test.ts)
   - [`src/core/__tests__/pr-flow-ui-proof.test.ts`](../../src/core/__tests__/pr-flow-ui-proof.test.ts)
   - [`src/core/__tests__/ui-proof.test.ts`](../../src/core/__tests__/ui-proof.test.ts)
