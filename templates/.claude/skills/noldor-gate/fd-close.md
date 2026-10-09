@@ -1,6 +1,6 @@
 # /noldor-gate — FD close-out (Step 4)
 
-Read by FD-carrying sessions (`specs-only-*`, `full-*`) at Step 4. Holds the FD body refresh, the design-artifact archive, the phase flip, and bootstrap immunity, in the order the router's checklist runs them.
+Read by FD-carrying sessions (`specs-only-*`, `full-*`) at Step 4. Holds the FD body refresh, the feature proof test, the design-artifact archive, the phase flip, and bootstrap immunity, in the order the router's checklist runs them.
 
 ## Refresh the feature-MD body
 
@@ -10,6 +10,10 @@ Run `/noldor-draft-feature-md --refresh` *before* the phase-flip below, so the r
 - **Attach paths** (`specs-only-attach`, `full-attach`): target, scope and the zero-file skip come from `attach.md` → Parent-FD refresh scope.
 
 `/noldor-draft-feature-md` never stages or commits — the flip step below commits the refreshed body together with `phase: done`. In autonomous mode `--yes` runs it non-interactively (no prompt). Because the flip commits the refreshed FD onto the branch, it rides the `origin/main..HEAD` diff that the code-stage CR reviews (that step passes `--base-sha origin/main`) — that is the mechanism behind "reviewed by the code-stage CR".
+
+## Feature proof test
+
+Before the archive and flip below. Run `pnpm noldor checks ui-proof-spec`. Exit 1 names each UI surface whose `consumer.uiProof.<surface>.featureSpec` test this branch has not written. Write it at the printed path: it drives the new UI, shoots it into `NOLDOR_PROOF_OUT`, and skips itself when that is unset. Commit it. `pr-flow` runs only that test; without it the PR carries a `no feature proof` note.
 
 ## Archive this session's design artifacts
 

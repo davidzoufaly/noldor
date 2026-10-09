@@ -1,16 +1,27 @@
 // @tests: ui-proof-screenshots-on-the-pr, pendev-ui-design-phase
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runCapture } from '../run-capture.js';
 import {
   UI_PROOF_BRANCH,
+  NO_FEATURE_PROOF,
   collectUiProof,
   hostUiProof,
+  missingFeatureSpecs,
+  proofSlug,
   uiProofSkipReason,
   uiProofSurfaces,
   uiProofStep,
@@ -48,12 +59,15 @@ function writeShot(surface: string, tree: string | null, body: Buffer = PNG): vo
 }
 
 const collect = (
-  recipes: Record<string, { command: string; timeoutMs: number }>,
+  recipes: Record<string, { command: string; timeoutMs: number; featureSpec?: string }>,
   surfaces: string[] = ['app'],
+  branchFiles: string[] = [],
 ): Promise<UiProofItem[]> =>
   collectUiProof({
     cwd: repo,
     slug: 'feat-slug',
+    proofSlug: 'x',
+    branchFiles,
     surfaces,
     recipes,
     headTree: git(repo, 'rev-parse', 'HEAD^{tree}'),
@@ -223,6 +237,110 @@ describe('collectUiProof', () => {
   });
 });
 
+describe('proofSlug', () => {
+  it('is the branch name after its last slash, sanitized', () => {
+    expect(proofSlug('feat/ui-proof-delivered-feature-proof')).toBe(
+      'ui-proof-delivered-feature-proof',
+    );
+    expect(proofSlug('fast/Fix_Bar')).toBe('fix-bar');
+    expect(proofSlug('main')).toBe('main');
+  });
+});
+
+describe('feature proof', () => {
+  const SPEC = 'e2e/proof/{slug}.spec.ts';
+
+  function commitSpec(path = 'e2e/proof/x.spec.ts'): void {
+    mkdirSync(join(repo, 'e2e', 'proof'), { recursive: true });
+    writeFileSync(join(repo, path), 'test\n');
+    git(repo, 'add', path);
+    git(repo, 'commit', '--quiet', '-m', 'proof');
+  }
+
+  it('runs the command with {slug}/{spec} and both env vars when the branch added the spec', async () => {
+    commitSpec();
+    const command = `printf '%s|%s|%s|%s' {slug} {spec} "$NOLDOR_PROOF_SLUG" "$NOLDOR_PROOF_SPEC" > {out}/args.txt && ${WRITE_PNG('a.png')}`;
+    const [item] = await collect(
+      { app: { command, timeoutMs: 10_000, featureSpec: SPEC } },
+      ['app'],
+      ['e2e/proof/x.spec.ts'],
+    );
+    expect(item?.source).toBe('e2e');
+    const out = join(repo, '.noldor', 'cr', 'ui-proof', 'feat-slug', 'app');
+    expect(readFileSync(join(out, 'args.txt'), 'utf8')).toBe(
+      'x|e2e/proof/x.spec.ts|x|e2e/proof/x.spec.ts',
+    );
+  });
+
+  it('never re-substitutes a placeholder that appears inside an inserted value', async () => {
+    const moved = join(root, 'repo-{slug}');
+    renameSync(repo, moved);
+    repo = moved;
+    const command = `printf '%s' {out} > "$NOLDOR_PROOF_OUT/args.txt" && ${WRITE_PNG('a.png')}`;
+    await collect({ app: { command, timeoutMs: 10_000 } });
+    const out = join(repo, '.noldor', 'cr', 'ui-proof', 'feat-slug', 'app');
+    expect(readFileSync(join(out, 'args.txt'), 'utf8')).toBe(out);
+  });
+
+  it('does not run the command and notes the missing proof when the spec is absent', async () => {
+    writeShot('app', git(repo, 'rev-parse', 'HEAD^{tree}'));
+    const [item] = await collect(
+      { app: { command: `touch ${join(root, 'ran')}`, timeoutMs: 10_000, featureSpec: SPEC } },
+      ['app'],
+      ['apps/web/a.tsx'],
+    );
+    expect(existsSync(join(root, 'ran'))).toBe(false);
+    expect(item?.source).toBe('render-compare');
+    expect(item?.notes.some((n) => n.startsWith(NO_FEATURE_PROOF))).toBe(true);
+    expect(item?.notes.join('\n')).toContain('e2e/proof/x.spec.ts');
+  });
+
+  it('does not count a spec in the tree that this branch did not change', async () => {
+    commitSpec();
+    const [item] = await collect(
+      { app: { command: `touch ${join(root, 'ran')}`, timeoutMs: 10_000, featureSpec: SPEC } },
+      ['app'],
+      ['apps/web/a.tsx'],
+    );
+    expect(existsSync(join(root, 'ran'))).toBe(false);
+    expect(item?.notes.some((n) => n.startsWith(NO_FEATURE_PROOF))).toBe(true);
+  });
+
+  it('does not count a spec the branch touched but no longer holds', async () => {
+    const [item] = await collect(
+      { app: { command: `touch ${join(root, 'ran')}`, timeoutMs: 10_000, featureSpec: SPEC } },
+      ['app'],
+      ['e2e/proof/x.spec.ts'],
+    );
+    expect(existsSync(join(root, 'ran'))).toBe(false);
+    expect(item?.notes.some((n) => n.startsWith(NO_FEATURE_PROOF))).toBe(true);
+  });
+
+  it('missingFeatureSpecs names each touched feature-proof surface without its spec', async () => {
+    const config = {
+      uiPaths: ['apps/**'],
+      uiSurfaces: { app: ['apps/web/**'], site: ['apps/site/**'] },
+      uiProof: {
+        app: { command: 'x', timeoutMs: 1, featureSpec: SPEC },
+        site: { command: 'x', timeoutMs: 1 },
+      },
+    };
+    const files = ['apps/web/a.tsx', 'apps/site/b.tsx'];
+    expect(
+      await missingFeatureSpecs({ cwd: repo, branch: 'feat/x', branchFiles: files, config }),
+    ).toEqual([{ surface: 'app', spec: 'e2e/proof/x.spec.ts' }]);
+    commitSpec();
+    expect(
+      await missingFeatureSpecs({
+        cwd: repo,
+        branch: 'feat/x',
+        branchFiles: [...files, 'e2e/proof/x.spec.ts'],
+        config,
+      }),
+    ).toEqual([]);
+  });
+});
+
 describe('hostUiProof', () => {
   const item = (files: string[]): UiProofItem => ({
     surface: 'app',
@@ -386,5 +504,36 @@ describe('uiProofStep', () => {
       ).subarray(0, 4),
     ).toEqual(PNG.subarray(0, 4));
     expect(git(remote, 'ls-tree', '-r', '--name-only', proofTip)).toBe('feat/x/abc/app-1.png');
+  });
+
+  it('warns on stderr about a missing feature proof even when a fallback image fills the gap', async () => {
+    writeShot('app', git(repo, 'rev-parse', 'HEAD^{tree}'));
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const step = uiProofStep({
+        cwd: repo,
+        slug: 'feat-slug',
+        branch: 'feat/x',
+        headSha: 'abc',
+        repoUrl: 'https://github.com/o/r',
+        branchFiles: ['apps/web/App.tsx'],
+        fdDesign: undefined,
+        trailerValues: [],
+        config: {
+          uiPaths: ['apps/web/**'],
+          uiProof: {
+            app: { command: 'true', timeoutMs: 10_000, featureSpec: 'e2e/proof/{slug}.spec.ts' },
+          },
+        },
+        capture: runCapture,
+      });
+      const links = await step?.();
+      expect(links?.[0]?.source).toBe('render-compare');
+      const written = stderr.mock.calls.map((c) => String(c[0])).join('');
+      expect(written).toContain(NO_FEATURE_PROOF);
+      expect(written).toContain('e2e/proof/x.spec.ts');
+    } finally {
+      stderr.mockRestore();
+    }
   });
 });

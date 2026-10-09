@@ -98,6 +98,7 @@ describe('the gate skill loads only the branch a session takes', () => {
       [...gateFile('fd-close.md').matchAll(/pnpm noldor [a-z-]+ [a-z-]+/g)].map((m) => m[0]),
     );
     expect([...commands].toSorted()).toEqual([
+      'pnpm noldor checks ui-proof-spec',
       'pnpm noldor cr bootstrap',
       'pnpm noldor design archive',
       'pnpm noldor features phase-flip-done',

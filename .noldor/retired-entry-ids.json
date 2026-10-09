@@ -869,5 +869,10 @@
   "Q-0363": {
     "slug": "ideas-md-writers-take-the-lock",
     "retiredAt": "2026-10-08"
+  },
+  "Q-0365": {
+    "slug": "ui-proof-shows-the-delivered-feature",
+    "retiredInto": "ui-proof-screenshots-on-the-pr",
+    "retiredAt": "2026-10-09"
   }
 }

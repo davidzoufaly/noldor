@@ -249,6 +249,34 @@ export const uiCaptureRecipeSchema = z
 export type UiCaptureRecipe = z.infer<typeof uiCaptureRecipeSchema>;
 
 /**
+ * A `uiProof` recipe: the capture shape plus an optional `featureSpec`, the
+ * repo-relative path of the branch's own proof test with `{slug}` standing for
+ * the branch's last segment. Set, it switches the surface to feature proof.
+ */
+const uiProofRecipeSchema = uiCaptureRecipeSchema
+  .extend({
+    featureSpec: z
+      .string()
+      .min(1)
+      .refine((p) => p.includes('{slug}'), { message: 'featureSpec must contain {slug}' })
+      .superRefine(repoRelativeIssues('featureSpec'))
+      .optional(),
+  })
+  .strict()
+  // A command that never names the branch's test would still run a fixed tour.
+  .refine(
+    (r) =>
+      r.featureSpec === undefined || /\{spec\}|\{slug\}|NOLDOR_PROOF_S(PEC|LUG)/.test(r.command),
+    {
+      message:
+        'a uiProof command with featureSpec must target the test: use {spec}, {slug}, NOLDOR_PROOF_SPEC or NOLDOR_PROOF_SLUG',
+      path: ['command'],
+    },
+  );
+
+export type UiProofRecipe = z.infer<typeof uiProofRecipeSchema>;
+
+/**
  * The pages one surface's baseline must hold: one top-level page per state,
  * times each mode when modes are declared, with page id `<state>-<mode>`
  * (`<state>` alone without modes). `noldor checks ui-design-freshness` reports a
@@ -421,10 +449,10 @@ export const ConsumerConfigSchema = z
     /**
      * Per-surface proof commands `pr-flow` runs for a UI-bearing branch. The
      * command writes PNGs into the folder it receives as `{out}` (shell-quoted)
-     * or `NOLDOR_PROOF_OUT`; those images go on the PR. Same shape and key rule
-     * as `uiCapture`.
+     * or `NOLDOR_PROOF_OUT`; those images go on the PR. Same key rule as
+     * `uiCapture`; `featureSpec` additionally names the branch's own proof test.
      */
-    uiProof: z.record(z.string().regex(SURFACE_NAME_RE), uiCaptureRecipeSchema).optional(),
+    uiProof: z.record(z.string().regex(SURFACE_NAME_RE), uiProofRecipeSchema).optional(),
     /**
      * Floor requirements this repo deliberately does not meet, each with a
      * reason. Read by the `toolchain-floor` invariant. Absent ⇒ the full floor
