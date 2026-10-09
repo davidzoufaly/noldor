@@ -12,7 +12,7 @@
 
 ## Goals
 
-- A UI-touching branch can carry its own proof test, and `pr-flow` runs that test, so the PR shows the feature that shipped.
+- On a surface that opts in with `featureSpec`, a UI-touching branch carries its own proof test and `pr-flow` runs that test, so the PR shows the feature that shipped.
 - The proof command learns which branch it is proving, through a `{slug}` / `{spec}` placeholder and a `NOLDOR_PROOF_SLUG` / `NOLDOR_PROOF_SPEC` env var.
 - A branch with no proof test of its own gets a loud `no feature proof` note on the PR and a warning on stderr, never a silent fall back to the fixed tour.
 - The gate asks for the proof test before the code-stage review, on fast-track and on FD paths, so the note is the exception.
@@ -22,6 +22,7 @@
 - Writing the proof test for the consumer. Noldor names the expected path and asks; the agent in the session writes the Playwright code.
 - Judging whether the screenshots actually show the change. That stays a reviewer call.
 - Blocking the merge. A missing proof is a note, as today.
+- Turning feature proof on by default. A surface without `featureSpec` keeps its fixed command; each consumer opts in per surface (charuy's adoption is its own step).
 - Changing the image hosting (`hostUiProof`, the `noldor/ui-proof` branch) or the render-compare fallback.
 
 ## Design
@@ -40,20 +41,20 @@ Architecture verdict: skip — no new directory, package or external; the new ch
 
 ### Unit 2 — the proof slug
 
-The proof slug is the last segment of the branch name, run through `sanitizeSurfaceName`: `feat/ui-proof-delivered-feature-proof` → `ui-proof-delivered-feature-proof`, `fast/fix-bar` → `fix-bar`. That is also the worktree folder name, so an agent knows it without asking. It is not `session.slug` or the FD slug: on an attach path the FD slug is the parent's, shared by every enhancement, which would make two branches write the same file.
+The proof slug is the last segment of the branch name, run through `sanitizeSurfaceName`: `feat/ui-proof-delivered-feature-proof` → `ui-proof-delivered-feature-proof`, `fast/fix-bar` → `fix-bar`. That is also the worktree folder name, so an agent knows it without asking. It is not `session.slug` or the FD slug: on an attach path the FD slug is the parent's, shared by every enhancement, which would make two branches write the same file. Two live branches whose last segments match would share a slug, but they cannot both hold a worktree of that name. Branches spread out over time are the real collision, because a merged proof spec stays in the repo. Unit 3 handles that by counting a spec only when this branch changed it.
 
 ### Unit 3 — running the feature proof
 
 In `runProofCommand`, when the recipe has `featureSpec`:
 
 1. Resolve `spec = featureSpec.replace('{slug}', proofSlug)`.
-2. Check the file exists in the shipped tree (`git cat-file -e HEAD:<spec>`), not just on disk, so an uncommitted file does not count.
+2. Count the spec only when it exists in `HEAD` **and** this branch added or modified it (`git diff --name-only origin/main...HEAD`). An uncommitted file does not count. Neither does a spec left by an earlier branch with the same slug.
 3. Present → substitute `{slug}` and `{spec}` in the command (single-quoted, like `{out}` today), set `NOLDOR_PROOF_SLUG` and `NOLDOR_PROOF_SPEC` beside `NOLDOR_PROOF_OUT`, run it. Everything after that — PNG collection, hosting — is unchanged.
-4. Absent → do not run the command. Add the note `no feature proof: <spec> is not on this branch` and fall through to the render-compare shot, as a failed command does today. `uiProofStep` warns on stderr for every `no feature proof` note, even when the render-compare shot fills the gap — the existing warning fires only for a surface left with no image, which would hide the missing proof behind a fallback picture.
+4. Not counted → do not run the command. Add the note `no feature proof: <spec> is not on this branch` and fall through to the render-compare shot, as a failed command does today. `uiProofStep` warns on stderr for every `no feature proof` note, even when the render-compare shot fills the gap — the existing warning fires only for a surface left with no image, which would hide the missing proof behind a fallback picture.
 
 ### Unit 4 — `checks ui-proof-spec`
 
-A new `pnpm noldor checks ui-proof-spec [--base origin/main]` reports, for each surface the branch touches (same `uiProofSurfaces` filter `pr-flow` uses) whose recipe has `featureSpec`, whether the expected spec exists. Exit 0 when every such surface has one, or none applies, or a `Noldor-UI-Proof: skip` / FD `design: skip` is declared. Exit 1 lists each missing path. It never runs the test.
+A new `pnpm noldor checks ui-proof-spec [--base origin/main]` reports, for each surface the branch touches (same `uiProofSurfaces` filter `pr-flow` uses) whose recipe has `featureSpec`, whether the expected spec counts under the Unit 3 rule. Exit 0 when every such surface has one, or none applies, or a `Noldor-UI-Proof: skip` / FD `design: skip` is declared. Exit 1 lists each missing path. It never runs the test.
 
 ### Unit 5 — gate step
 
@@ -70,9 +71,9 @@ A `featureSpec` without `{slug}`, an absolute path, or a `..` segment fails `val
 ## Acceptance criteria
 
 1. A surface whose recipe has no `featureSpec` produces the same proof as before (command, notes, fallback).
-2. With `featureSpec` set and the resolved file committed on the branch, `pr-flow` runs the proof command with `{slug}`/`{spec}` substituted and `NOLDOR_PROOF_SLUG`/`NOLDOR_PROOF_SPEC` set.
-3. With `featureSpec` set and the file absent from `HEAD`, the command does not run, the PR gets a `no feature proof` note naming the expected path, and stderr warns.
-4. The proof slug is the branch's last segment, sanitized; two attach branches under one parent FD get different slugs.
+2. With `featureSpec` set and the resolved file added or modified on the branch, `pr-flow` runs the proof command with `{slug}`/`{spec}` substituted and `NOLDOR_PROOF_SLUG`/`NOLDOR_PROOF_SPEC` set.
+3. With `featureSpec` set and the file absent from `HEAD`, or present but unchanged since `origin/main`, the command does not run, the PR gets a `no feature proof` note naming the expected path, and stderr warns.
+4. The proof slug is the branch's last segment, sanitized; two attach branches under one parent FD with different enhancement names get different slugs.
 5. `validate noldor-config` rejects a `featureSpec` that lacks `{slug}`, is absolute, or contains `..`.
 6. `checks ui-proof-spec` exits 1 and names the path when a touched surface's spec is missing; exits 0 when present, when no surface applies, or when a UI-proof skip is declared.
 7. The fast-track and fd-close gate pages tell the session to run the check and write the spec on exit 1; `gate-skill-layout.test.ts` stays green.
