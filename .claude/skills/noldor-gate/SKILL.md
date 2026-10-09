@@ -97,7 +97,7 @@ For the three drain rows the page is the whole contract: no step of this router 
 
 4. **End-of-flow (PR flow).** When the user signals "ready to ship", run these in order. Each line names the sessions it applies to and the file that holds its steps; skip a line that does not apply. A `micro-chore` runs only lines 10, 11 and 12.
    1. **Refresh the FD body** — FD-carrying paths (`specs-only-*`, `full-*`). **Read now:** [`fd-close.md`](fd-close.md); on attach paths the scope comes from `attach.md`. Fast-track and micro-chore skip it — neither has an FD of its own.
-   2. **Doc-impact check** — `fast-track` only, per `fast-track.md`, before the push-gate preflight.
+   2. **Feature proof test + doc-impact check** — `fast-track` only, per `fast-track.md`, before the push-gate preflight.
    3. **Archive this session's design artifacts** — FD-carrying paths, per `fd-close.md`.
    4. **UI baseline write-back** — UI-bearing sessions, including one whose UI emerged during implementation. **Read now:** [`design-writeback.md`](design-writeback.md).
    5. **Architecture baseline write-back** — every path, when `docs/design/architecture/baseline.pen` exists: run `pnpm noldor checks arch-baseline`. When the session approved an architecture `.pen`, or the check reports findings, **Read now:** [`design-writeback.md`](design-writeback.md). Its exit code never blocks `pr-flow`.

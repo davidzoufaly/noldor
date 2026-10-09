@@ -1,6 +1,6 @@
 # /noldor-gate — fast-track
 
-Read by `fast-track` sessions at Step 2. Holds the scaffold, the roadmap-entry retirement, and the doc-impact check Step 4 runs before the push-gate preflight.
+Read by `fast-track` sessions at Step 2. Holds the scaffold, the roadmap-entry retirement, and the feature proof test and doc-impact check Step 4 runs before the push-gate preflight.
 
 ## Scaffold
 
@@ -23,6 +23,10 @@ The CLI is idempotent — an absent slug prints `nothing to do` and exits 0 (re-
 The second `git add` is allowed to fail silently: when the map file does not exist (the removed block carried no `- id:`, or the repo has never retired one), `git add` on that pathspec exits 128. Staging first and gating on `--cached` keeps the commit alive in every case. The `-- <paths>` limiter on the gate is what keeps the commit **scoped**: without it the gate fires on any staged content, so unrelated pre-staged work would land under a retirement subject. `git diff --cached --quiet -- <existing> <missing>` exits 0 rather than fatalling on the absent map (only the pathspec-less `git diff <path>` form exits 128), so the limiter is safe in the no-map case too.
 
 The `prepare-commit-msg` hook injects `Noldor-Path: fast-track` from the session marker — and, when the marker carries a `slug`, a `Noldor-FD: <slug>` trailer too (the hook injects from `slug` unconditionally; the commit-msg validator ignores it on fast-track, where no FD file is required). The block is removed on the feature branch and lands on `main` when the fast-track PR merges — keeping retirement atomic with the shipped change rather than a separate edit on `main`.
+
+## Feature proof test (Step 4)
+
+Before the doc-impact check. Run `pnpm noldor checks ui-proof-spec`. Exit 1 names each UI surface whose `consumer.uiProof.<surface>.featureSpec` test this branch has not written. Write it at the printed path: it drives the new UI, shoots it into `NOLDOR_PROOF_OUT`, and skips itself when that is unset. Commit it. `pr-flow` runs only that test; without it the PR carries a `no feature proof` note.
 
 ## Doc-impact check (Step 4)
 

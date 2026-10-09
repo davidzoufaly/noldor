@@ -251,6 +251,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** when pencil MCP keeps answering `A file needs to be open in the editor` even though a `.pen` is open — that message cannot distinguish a closed editor from a server pinned to a different app, and this check names the second case (repair: set `--app` to `visual_studio_code` in the block the report names, then restart Claude Code — the server reads the flag once, at startup). Also when the pencil tools are absent altogether, which has no error message to match on: the harness row names that case, and its only repair is to redo the step from terminal Claude Code.
 - **Source:** [`src/checks/check-pen-bridge.ts`](../../src/checks/check-pen-bridge.ts)
 
+### `check:ui-proof-spec`
+
+- **Trigger:** `pnpm noldor checks ui-proof-spec [--base <ref>]` (default `origin/main`). Run by `/noldor-gate` Step 4 on fast-track and FD paths, before the code-stage review.
+- **Inputs:** the branch's commits since `--base` (touched files and `Noldor-UI-Proof` trailers), the branch name, `consumer.uiPaths` / `uiSurfaces` / `uiProof`, and the session FD's `design:` field.
+- **Outputs:** one line per touched UI surface whose `uiProof.<surface>.featureSpec` test the branch has not added or changed, naming the path with `{slug}` replaced by the branch's last segment. Exit 0 when every such surface has its test, when no touched surface sets `featureSpec`, on a declared UI-proof skip, or with no `.noldor/config.json`; 1 when any test is missing; 2 on usage error.
+- **When to use:** before shipping a UI change on a repo that opted in to feature proof. Repair by writing the named test so it drives the new UI and shoots it into `NOLDOR_PROOF_OUT`.
+- **Source:** [`src/checks/check-ui-proof-spec.ts`](../../src/checks/check-ui-proof-spec.ts)
+
 ### Other validators
 
 | Command                              | Source                                                            | Purpose                                                                    |

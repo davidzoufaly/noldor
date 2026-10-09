@@ -124,6 +124,10 @@ so the prompt stays a thin pointer and no second rendering exists to drift.
 
 - Mark the session autonomous immediately after the session marker exists:
   `pnpm noldor noldor set-autonomous` — never ask autonomous-vs-interactive.
+- Feature proof test (fast-track entries), before the doc-impact check: run
+  `pnpm noldor checks ui-proof-spec`; on exit 1 write and commit the test at
+  each printed path, so it drives the new UI and shoots it into
+  `NOLDOR_PROOF_OUT`.
 - Doc-impact check (fast-track entries), before the push-gate preflight:
   `pnpm noldor features owners --base origin/main` lists the FDs owning the
   changed files; a `candidate` is done with a written Usage. For each candidate
@@ -324,7 +328,8 @@ Differences from the roadmap path:
   1. Refresh the FD body — User Story and Usage from the spec, the code and
      the tests (in Claude Code:
      `/noldor-draft-feature-md <slug> --refresh --yes`; elsewhere by hand).
-     Stage nothing yet.
+     Stage nothing yet. Then run `pnpm noldor checks ui-proof-spec`; on exit 1
+     write and commit the test at each printed path, as above.
   2. Assert the index is empty (`git diff --cached --quiet`), then run
      `pnpm noldor design archive`: it moves this session's spec and plan into
      `archive/` and leaves the moves staged.

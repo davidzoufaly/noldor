@@ -12,7 +12,7 @@ import { promisify } from 'node:util';
 
 import { minimatch } from 'minimatch';
 
-import type { UiCaptureRecipe } from './consumer-config.js';
+import type { UiProofRecipe } from './consumer-config.js';
 import { errMessage } from './err-message.js';
 import type { UiProofLink } from './pr-flow.js';
 import type { runCapture } from './run-capture.js';
@@ -93,21 +93,88 @@ async function validPngs(files: readonly string[], notes: string[]): Promise<str
   return kept;
 }
 
-/** `{out}` substituted as one single-quoted shell token; `null` when the path itself holds a quote. */
-function substituteOut(template: string, outDir: string): string | null {
-  if (!template.includes('{out}')) return template;
-  if (outDir.includes("'")) return null;
-  return template.replaceAll('{out}', `'${outDir}'`);
+/**
+ * The branch's proof slug: its last segment, sanitized. Unlike the FD slug it
+ * is unique per branch on every path — attach enhancements share their parent
+ * FD — and it equals the worktree folder name.
+ */
+export function proofSlug(branch: string): string {
+  return sanitizeSurfaceName(branch.split('/').pop() ?? branch);
+}
+
+/** The note that marks a feature-proof surface whose branch carries no proof test of its own. */
+export const NO_FEATURE_PROOF = 'no feature proof';
+
+/**
+ * Whether the branch's own proof test counts: it must be in the shipped tree
+ * and the branch must have added or changed it. A spec left by an earlier
+ * branch with the same slug is in the tree but not in `branchFiles`.
+ */
+export async function featureSpecOnBranch(
+  cwd: string,
+  spec: string,
+  branchFiles: readonly string[],
+): Promise<boolean> {
+  if (!branchFiles.includes(spec)) return false;
+  return (await git(cwd, ['ls-tree', '--name-only', 'HEAD', '--', spec])) !== '';
+}
+
+/**
+ * The feature-proof surfaces the branch touched whose proof test it has not
+ * added or changed, each with the path it should write. Empty when no touched
+ * surface sets `featureSpec`. A declared UI-proof skip is the caller's call.
+ */
+export async function missingFeatureSpecs(opts: {
+  cwd: string;
+  branch: string;
+  branchFiles: readonly string[];
+  config: UiConfig & { uiProof?: Record<string, UiProofRecipe> };
+}): Promise<{ surface: string; spec: string }[]> {
+  const slug = proofSlug(opts.branch);
+  const missing: { surface: string; spec: string }[] = [];
+  for (const surface of uiProofSurfaces(opts.branchFiles, opts.config)) {
+    const template = opts.config.uiProof?.[surface]?.featureSpec;
+    if (template === undefined) continue;
+    const spec = template.replaceAll('{slug}', slug);
+    if (!(await featureSpecOnBranch(opts.cwd, spec, opts.branchFiles))) {
+      missing.push({ surface, spec });
+    }
+  }
+  return missing;
+}
+
+/**
+ * Each `{name}` in the template substituted as one single-quoted shell token.
+ * Returns the name whose value holds a quote instead, since no quoting is safe then.
+ */
+function substitute(
+  template: string,
+  values: Readonly<Record<string, string>>,
+): { command: string } | { refused: string } {
+  let command = template;
+  for (const [name, value] of Object.entries(values)) {
+    if (!command.includes(`{${name}}`)) continue;
+    if (value.includes("'")) return { refused: `{${name}} contains a single quote (${value})` };
+    command = command.replaceAll(`{${name}}`, `'${value}'`);
+  }
+  return { command };
 }
 
 async function runProofCommand(opts: {
   cwd: string;
   slug: string;
+  proofSlug: string;
+  branchFiles: readonly string[];
   surface: string;
-  recipe: UiCaptureRecipe;
+  recipe: UiProofRecipe;
   capture: typeof runCapture;
   notes: string[];
 }): Promise<string[]> {
+  const spec = opts.recipe.featureSpec?.replaceAll('{slug}', opts.proofSlug);
+  if (spec !== undefined && !(await featureSpecOnBranch(opts.cwd, spec, opts.branchFiles))) {
+    opts.notes.push(`${NO_FEATURE_PROOF}: ${spec} is not added or changed on this branch`);
+    return [];
+  }
   const outDir = join(
     opts.cwd,
     '.noldor',
@@ -118,13 +185,20 @@ async function runProofCommand(opts: {
   );
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
-  const command = substituteOut(opts.recipe.command, outDir);
-  if (command === null) {
-    opts.notes.push(`proof command not run: the output path contains a single quote (${outDir})`);
+  const values = {
+    out: outDir,
+    slug: opts.proofSlug,
+    ...(spec === undefined ? {} : { spec }),
+  };
+  const sub = substitute(opts.recipe.command, values);
+  if ('refused' in sub) {
+    opts.notes.push(`proof command not run: ${sub.refused}`);
     return [];
   }
-  const cap = await opts.capture(command, opts.cwd, opts.recipe.timeoutMs, {
+  const cap = await opts.capture(sub.command, opts.cwd, opts.recipe.timeoutMs, {
     NOLDOR_PROOF_OUT: outDir,
+    NOLDOR_PROOF_SLUG: opts.proofSlug,
+    ...(spec === undefined ? {} : { NOLDOR_PROOF_SPEC: spec }),
   });
   if (cap.timedOut) {
     opts.notes.push(`proof command timed out after ${opts.recipe.timeoutMs} ms`);
@@ -189,13 +263,16 @@ async function renderCompareShot(opts: {
 /**
  * One item per surface: the proof command's images when one is configured and
  * succeeds, else the render-compare shot. A failed proof command keeps its
- * note even when the fallback supplies an image.
+ * note even when the fallback supplies an image; so does a feature-proof
+ * surface whose branch carries no proof test, whose command is not run.
  */
 export async function collectUiProof(opts: {
   cwd: string;
   slug: string;
+  proofSlug: string;
+  branchFiles: readonly string[];
   surfaces: readonly string[];
-  recipes: Readonly<Record<string, UiCaptureRecipe>>;
+  recipes: Readonly<Record<string, UiProofRecipe>>;
   headTree: string | null;
   capture: typeof runCapture;
 }): Promise<UiProofItem[]> {
@@ -344,7 +421,7 @@ export function uiProofStep(opts: {
   fdDesign: unknown;
   /** Every `Noldor-UI-Proof` trailer value on the branch's commits. */
   trailerValues: readonly string[];
-  config: UiConfig & { uiProof?: Record<string, UiCaptureRecipe> };
+  config: UiConfig & { uiProof?: Record<string, UiProofRecipe> };
   capture: typeof runCapture;
 }): (() => Promise<readonly UiProofLink[]>) | undefined {
   const surfaces = uiProofSurfaces(opts.branchFiles, opts.config);
@@ -374,15 +451,22 @@ export function uiProofStep(opts: {
     const items = await collectUiProof({
       cwd: opts.cwd,
       slug: opts.slug,
+      proofSlug: proofSlug(opts.branch),
+      branchFiles: opts.branchFiles,
       surfaces,
       recipes: opts.config.uiProof ?? {},
       headTree,
       capture: opts.capture,
     });
     const links = await hostUiProof({ ...opts, items });
-    for (const l of links.filter((x) => x.imageUrls.length === 0)) {
+    // A missing feature proof warns even when a fallback image filled the gap.
+    const warned = links.filter(
+      (x) => x.imageUrls.length === 0 || x.notes.some((n) => n.startsWith(NO_FEATURE_PROOF)),
+    );
+    for (const l of warned) {
+      const what = l.imageUrls.length === 0 ? 'no UI proof screenshot' : NO_FEATURE_PROOF;
       process.stderr.write(
-        `pr-flow: warning — no UI proof screenshot for surface '${l.surface}'` +
+        `pr-flow: warning — ${what} for surface '${l.surface}'` +
           `${l.notes.length > 0 ? `: ${l.notes.join('; ')}` : ''}\n`,
       );
     }

@@ -615,6 +615,30 @@ describe('consumer.uiProof', () => {
     });
   });
 
+  it('accepts a featureSpec path template holding {slug}', () => {
+    const cfg = ConsumerConfigSchema.parse({
+      ...MINIMAL_CONSUMER,
+      uiPaths: ['apps/web/**'],
+      uiProof: {
+        app: { command: 'pnpm test:e2e {spec}', featureSpec: 'e2e/proof/{slug}.spec.ts' },
+      },
+    });
+    expect(cfg.uiProof?.app?.featureSpec).toBe('e2e/proof/{slug}.spec.ts');
+  });
+
+  it.each([
+    ['without {slug}', 'e2e/proof/one.spec.ts', '{slug}'],
+    ['absolute', '/e2e/proof/{slug}.spec.ts', 'repo-relative'],
+    ['with a .. segment', '../e2e/{slug}.spec.ts', '..'],
+  ])('rejects a featureSpec %s', (_label, featureSpec, needle) => {
+    const r = ConsumerConfigSchema.safeParse({
+      ...MINIMAL_CONSUMER,
+      uiPaths: ['apps/web/**'],
+      uiProof: { app: { command: 'pnpm proof', featureSpec } },
+    });
+    expect(messages(r).some((m) => m.startsWith('featureSpec') && m.includes(needle))).toBe(true);
+  });
+
   it('rejects a proof command for an undeclared surface', () => {
     const r = ConsumerConfigSchema.safeParse({
       ...MINIMAL_CONSUMER,

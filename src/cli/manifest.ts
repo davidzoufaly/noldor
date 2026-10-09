@@ -429,6 +429,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'checks/check-pen-bridge.ts',
         desc: 'Harness + pencil MCP --app pin + pen.dev extension presence; exit 1 on an unsupported harness, mismatch or missing extension',
       },
+      'ui-proof-spec': {
+        src: 'checks/check-ui-proof-spec.ts',
+        desc: 'Name each touched feature-proof surface whose branch lacks its own proof test; exit 1 when any is missing',
+      },
     },
   },
   graphify: {
