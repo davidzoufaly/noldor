@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-10-08 by `pnpm sdd:report`.
+Generated: 2026-10-09 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
@@ -12,12 +12,12 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 - Total features: 103
 - Untriaged ideas: 0
-- Backlog entries: 42
-- Gap categories with issues: 5 / 15
+- Backlog entries: 46
+- Gap categories with issues: 3 / 15
 
 ## Code clones
 
-- 214 clone group(s), 5.80% duplicated tokens across 481 file(s)
+- 218 clone group(s), 5.79% duplicated tokens across 487 file(s)
 - src/dashboard/views.ts:758-767 and src/dashboard/views.ts:1023-1032 (252 tokens)
 - src/features/phase-flip-done-cli.ts:13-46 and src/features/phase-revert-cli.ts:13-46 (230 tokens)
 - src/dashboard/views.ts:887-910 and src/dashboard/views.ts:1061-1136 (176 tokens)
@@ -26,11 +26,11 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ## Dead code
 
-- 388 finding(s) from knip
+- 387 finding(s) from knip
 - 0 outside the baseline
 - exports: 223
 - files: 2
-- types: 162
+- types: 161
 - unresolved: 1
 
 ## Gate compliance
@@ -42,6 +42,18 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Override usage (last 30 days)
 
+- `d716d58` — ci-graph-refresh machine-written graph regeneration
+- `c2b9f27` — ci-graph-refresh machine-written graph regeneration
+- `ce1a783` — ci-graph-refresh machine-written graph regeneration
+- `bd8ea3c` — ci-graph-refresh machine-written graph regeneration
+- `59b2c3c` — ci-graph-refresh machine-written graph regeneration
+- `8d77c38` — ci-graph-refresh machine-written graph regeneration
+- `a2783ce` — ci-graph-refresh machine-written graph regeneration
+- `397fc0f` — ci-graph-refresh machine-written graph regeneration
+- `bea50ea` — ci-graph-refresh machine-written graph regeneration
+- `2766d93` — ci-graph-refresh machine-written graph regeneration
+- `3231fb8` — ci-graph-refresh machine-written graph regeneration
+- `da5aabe` — ci-graph-refresh machine-written graph regeneration
 - `1301d84` — ci-graph-refresh machine-written graph regeneration
 - `bfd4914` — ci-graph-refresh machine-written graph regeneration
 - `379b00c` — ci-graph-refresh machine-written graph regeneration
@@ -118,7 +130,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 131
+Gated commits missing `Noldor-Reviewed` trailer: 147
 
 ## Metrics
 
@@ -126,10 +138,10 @@ Gated commits missing `Noldor-Reviewed` trailer: 131
 
 ```json
 {
-  "medianDays": 20.6,
+  "medianDays": 18.8,
   "p90Days": 52.6,
   "medianByPath": {
-    "unknown": 9.9,
+    "unknown": 8.9,
     "full-new": 20.6,
     "specs-only-new": 25.8
   },
@@ -185,13 +197,13 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
 ```json
 {
   "lastRun": {
-    "shipped": 3,
-    "skipped": 0,
-    "retried": 0
+    "shipped": 8,
+    "skipped": 4,
+    "retried": 2
   },
   "history": {
     "salvaged": 2,
-    "escalatedTotal": 19,
+    "escalatedTotal": 21,
     "escalatedBySlug": {
       "trailer-scope-alias-map": 2,
       "prefix-skills-with-noldor": 2,
@@ -203,9 +215,11 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "roadmap-has-block-predicate": 1,
       "spec-lint-prior-art-requirement": 1,
       "mandatory-codex-review-round": 1,
-      "clones-ratchet-and-clone-group-check-disagree-on-attribution": 2
+      "clones-ratchet-and-clone-group-check-disagree-on-attribution": 2,
+      "charuy-adopts-next-release": 1,
+      "refactor-report-dead-code-section": 1
     },
-    "meanDurationMs": 634785
+    "meanDurationMs": 610989
   }
 }
 ```
@@ -331,7 +345,23 @@ blind spots: Only trailer-carrying overrides count; env-var bypasses (the releas
   "blockers-md-onblockers-default-prose": 14061,
   "fd-headers-for-five-ownerless-files": 14054,
   "gitignore-cache-backfill-backups": 24228,
-  "seed-missing-test-co-tags": 20716
+  "seed-missing-test-co-tags": 20716,
+  "milestone-skill-consumer-command-path": 45055,
+  "ui-proof-trailer-validation": 18485,
+  "release-sweep-installs-before-verify": 14999,
+  "arbitration-dispose-lists-blocker-ids": 29616,
+  "dead-code-guide-ignore-build-output": 10612,
+  "shared-lock-module": 37345,
+  "fill-links-skips-tag-built-fds": 35463,
+  "worktree-copies-local-env-files": 46396,
+  "dead-code-baseline-diffs-across-knip-drift": 19535,
+  "gate-cr-cleanup-after-merge": 35950,
+  "sdd-gaps-after-v1160": 13508,
+  "readme-config-blocks-check": 18941,
+  "gate-load-budget-headroom": 30173,
+  "charuy-adopts-next-release": 9668,
+  "refactor-report-dead-code-section": 14926,
+  "ideas-md-writers-take-the-lock": 68353
 }
 ```
 
@@ -340,29 +370,14 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ## Gap details
 
-### Done features missing introduced
-
-- `dead-code-detection-with-knip` — Dead-Code Detection with knip is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `graph-and-main-freshness-before-coding` — Graph and Main Freshness Before Coding is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `ui-proof-screenshots-on-the-pr` — UI Proof Screenshots on the PR is phase=done but introduced is unset (release script should fill on next pnpm release)
-
 ### Stale backlog entries (>90 days)
 
-- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 118 days since 2026-06-12
+- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 119 days since 2026-06-12
 
 ### Code files not referenced by any feature
 
-- `src/migrations/1.16.0.ts` — src/migrations/1.16.0.ts is not referenced by any feature MD links.code — probable owner: version-aware-upgrade-and-migration-chain
-- `src/worktrees/code-freshness-cli.ts` — src/worktrees/code-freshness-cli.ts is not referenced by any feature MD links.code — probable owner: graphify-plan-of-edges-nodes-for-plans-specs
-- `src/worktrees/code-freshness.ts` — src/worktrees/code-freshness.ts is not referenced by any feature MD links.code — probable owner: graphify-plan-of-edges-nodes-for-plans-specs
+- `src/triage/ideas-lock-cli.ts` — src/triage/ideas-lock-cli.ts is not referenced by any feature MD links.code — probable owner: test-suites-read-live-repo-state-shifting-full-suite-failures, autonomous-queue-drain-runner, continuous-drain-daemon-and-escalation-inbox
 
 ### Tests with incomplete co-tag
 
-- `src/core/__tests__/pr-flow-ui-proof.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-pr-flow-agent-auto-merge
-- `src/core/__tests__/ui-proof.test.ts` — imports files owned by FDs missing from @tests: tag — add: pendev-ui-design-phase
-- `src/garden/__tests__/sdd-report-dead-code.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-script-sddreport-skip-if-only-count-line-changed
-- `src/worktrees/__tests__/code-freshness.test.ts` — imports files owned by FDs missing from @tests: tag — add: self-refreshing-compact-knowledge-graph
-
-### Done features without code
-
-- `graph-and-main-freshness-before-coding` — Graph and Main Freshness Before Coding (tooling) has no entries in links.code
+- `src/triage/__tests__/ideas-lock-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: test-suites-read-live-repo-state-shifting-full-suite-failures
