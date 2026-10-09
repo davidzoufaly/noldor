@@ -1,5 +1,47 @@
 # Changelog
 
+## v1.17.0 — 2026-10-09
+
+### Features
+
+- feat(core): UI proof runs the branch's own feature proof test ([4cb88b3](https://github.com/davidzoufaly/noldor/commit/4cb88b3414430b7f6987977ddfdc19aa6970573e)) ([#721](https://github.com/davidzoufaly/noldor/pull/721))
+- feat(checks): readme check compares the config-block list with the schema ([2cb9b56](https://github.com/davidzoufaly/noldor/commit/2cb9b56ef8e6744b709411c22ee95faa690dffa4)) ([#715](https://github.com/davidzoufaly/noldor/pull/715))
+- feat(tooling): worktrees create copies the configured local env files ([e13723b](https://github.com/davidzoufaly/noldor/commit/e13723be23de748e7c885834c9c1f2e54aeea096)) ([#708](https://github.com/davidzoufaly/noldor/pull/708))
+- feat(core): let a session declare no visual change; test files never trigger UI proof ([21ac5da](https://github.com/davidzoufaly/noldor/commit/21ac5da920e0122843a5d75affc0d85d5c3178a4)) ([#693](https://github.com/davidzoufaly/noldor/pull/693))
+
+### Fixes
+
+- fix(triage): ideas.md writers hold the lock retro writes under ([3674043](https://github.com/davidzoufaly/noldor/commit/367404328e069f826a5f48d99f07c4a5660eb274)) ([#718](https://github.com/davidzoufaly/noldor/pull/718))
+- fix(gate): clear CR review state after the merge, not before pr-flow ([c9e428c](https://github.com/davidzoufaly/noldor/commit/c9e428ca094fe10811e3829f33e730662db690de)) ([#712](https://github.com/davidzoufaly/noldor/pull/712))
+- fix(checks): dead-code baseline diffs a baseline recorded under another knip ([037fd3a](https://github.com/davidzoufaly/noldor/commit/037fd3ae6bab8ddca7859ea25dc6d8d92d9c79c1)) ([#710](https://github.com/davidzoufaly/noldor/pull/710))
+- fix(features): fill-links --auto-high skips tag-built FDs ([381d4ab](https://github.com/davidzoufaly/noldor/commit/381d4ab12eb2bc83e04270c1b99640a7c79e3dbf)) ([#706](https://github.com/davidzoufaly/noldor/pull/706))
+- fix(cr): bare arbitration dispose lists the blocker ids and exits 0 ([7e4b878](https://github.com/davidzoufaly/noldor/commit/7e4b878ab4806692be523b1f8dffe35ec0762aa8)) ([#701](https://github.com/davidzoufaly/noldor/pull/701))
+- fix(tooling): refuse a Noldor-UI-Proof value other than skip at commit-msg ([220d917](https://github.com/davidzoufaly/noldor/commit/220d91785f433bfc2720bd8b49c530912eeae288)) ([#698](https://github.com/davidzoufaly/noldor/pull/698))
+- fix(tooling): run the milestone skill through pnpm noldor milestones ([de6009d](https://github.com/davidzoufaly/noldor/commit/de6009dc225836e2d61e63926548180482fa0e18)) ([#696](https://github.com/davidzoufaly/noldor/pull/696))
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift ([a5028ff](https://github.com/davidzoufaly/noldor/commit/a5028ff57310c57e9f3655b076e534c0f8cba277)) ([#723](https://github.com/davidzoufaly/noldor/pull/723))
+- chore(graph): refresh the committed knowledge graph ([d716d58](https://github.com/davidzoufaly/noldor/commit/d716d58e776773ed4252f44d1069028346415cd6)) ([#722](https://github.com/davidzoufaly/noldor/pull/722))
+- chore(triage): file Q-0365..Q-0369 and absorb lessons into gotchas ([dd8b331](https://github.com/davidzoufaly/noldor/commit/dd8b331dcc6ff07d85d4fabb6d81a043adef6f75)) ([#720](https://github.com/davidzoufaly/noldor/pull/720))
+- chore(graph): refresh the committed knowledge graph ([c2b9f27](https://github.com/davidzoufaly/noldor/commit/c2b9f27fa2f56d885513f02f9b892e1246ac507e)) ([#719](https://github.com/davidzoufaly/noldor/pull/719))
+- chore(gate): trim code-review.md to restore gate load headroom ([35d41df](https://github.com/davidzoufaly/noldor/commit/35d41dfd14a14b9365b1007a59814b42ed53b081)) ([#717](https://github.com/davidzoufaly/noldor/pull/717))
+- chore(graph): refresh the committed knowledge graph ([ce1a783](https://github.com/davidzoufaly/noldor/commit/ce1a7834fbdc969fd4222235dd83a7a25d5e547a)) ([#716](https://github.com/davidzoufaly/noldor/pull/716))
+- chore(tooling): close the SDD gaps left after the v1.16.0 garden pass ([3ef6721](https://github.com/davidzoufaly/noldor/commit/3ef6721a5aef0a107491563d616bb3350f3948c9)) ([#714](https://github.com/davidzoufaly/noldor/pull/714))
+- chore(graph): refresh the committed knowledge graph ([bd8ea3c](https://github.com/davidzoufaly/noldor/commit/bd8ea3c6cbced0e4e5f6109c88a5c63ff8124ceb)) ([#713](https://github.com/davidzoufaly/noldor/pull/713))
+- chore(graph): refresh the committed knowledge graph ([59b2c3c](https://github.com/davidzoufaly/noldor/commit/59b2c3cebf9621bb15faf0eb396d740f42731e57)) ([#711](https://github.com/davidzoufaly/noldor/pull/711))
+- chore(graph): refresh the committed knowledge graph ([8d77c38](https://github.com/davidzoufaly/noldor/commit/8d77c384a59a4cb35d3eab93998954c3159bf2b4)) ([#709](https://github.com/davidzoufaly/noldor/pull/709))
+- chore(graph): refresh the committed knowledge graph ([a2783ce](https://github.com/davidzoufaly/noldor/commit/a2783cecdbe1a62d89639f884129bad58b7cccb7)) ([#707](https://github.com/davidzoufaly/noldor/pull/707))
+- chore(graph): refresh the committed knowledge graph ([397fc0f](https://github.com/davidzoufaly/noldor/commit/397fc0fe95c20c4b8dd67293d612fc5bb6ada515)) ([#705](https://github.com/davidzoufaly/noldor/pull/705))
+- refactor(core): move the pid lock and its wait helper into src/core/pid-lock.ts ([d3b1170](https://github.com/davidzoufaly/noldor/commit/d3b117061776174d06bb61b3b93fab6729db8c9c)) ([#704](https://github.com/davidzoufaly/noldor/pull/704))
+- docs(noldor:adoption-guide): tell consumers to ignore build output in knip ([28d93ae](https://github.com/davidzoufaly/noldor/commit/28d93ae0c010bf476a385295d4fa940e80a47bb6)) ([#703](https://github.com/davidzoufaly/noldor/pull/703))
+- chore(graph): refresh the committed knowledge graph ([bea50ea](https://github.com/davidzoufaly/noldor/commit/bea50eae1fae9e6697bac1c5dda4e5a33d648d55)) ([#702](https://github.com/davidzoufaly/noldor/pull/702))
+- chore(tooling): install from the lockfile before the release sweep's first verify ([1ee46b9](https://github.com/davidzoufaly/noldor/commit/1ee46b945af72a0e853bbd016abca5073dc28e32)) ([#700](https://github.com/davidzoufaly/noldor/pull/700))
+- chore(graph): refresh the committed knowledge graph ([2766d93](https://github.com/davidzoufaly/noldor/commit/2766d9359ec0ab7e5541e57c375eabec2fceaf21)) ([#699](https://github.com/davidzoufaly/noldor/pull/699))
+- chore(graph): refresh the committed knowledge graph ([3231fb8](https://github.com/davidzoufaly/noldor/commit/3231fb83c1dad984d06c14282f651090ebccb0c4)) ([#697](https://github.com/davidzoufaly/noldor/pull/697))
+- chore(triage): triage 18 ideas from the v1.16.0 sessions (Q-0346..Q-0363) ([719fff1](https://github.com/davidzoufaly/noldor/commit/719fff11c8096fe46f8f49db19660c9ba8d3702a)) ([#695](https://github.com/davidzoufaly/noldor/pull/695))
+- chore(graph): refresh the committed knowledge graph ([da5aabe](https://github.com/davidzoufaly/noldor/commit/da5aabee9a4e4cbf90ca5be599c360703a131df4)) ([#694](https://github.com/davidzoufaly/noldor/pull/694))
+
 ## v1.16.0 — 2026-10-08
 
 ### Features

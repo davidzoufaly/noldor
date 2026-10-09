@@ -23,8 +23,8 @@ phase: done
 since: 2026-10-07T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.16.0
+updated: 1.17.0
 ---
-
 ## Summary
 
 When a feature touches UI, the PR should carry a screenshot of it working as proof — and when the feature is e2e-tested on the UI end, the screenshot comes from that run. Today a UI change ships with a text-only PR body, so a reviewer has to check out the branch to see the result. Capture screenshots from the e2e/verify run (or a dedicated capture step) and attach them to the PR body via `pr-flow`.
@@ -66,6 +66,16 @@ As a reviewer of a consumer PR that changes UI (human or agent), I want the PR b
 <!-- @prs-since-last-release: ui-proof-screenshots-on-the-pr -->
 
 ## Changelog
+
+### 1.17.0
+
+#### Summary
+
+UI proof now runs the branch's own feature proof test (#721).
+
+#### PRs
+
+- #721: UI proof runs the branch's own feature proof test ([link](https://github.com/davidzoufaly/noldor/pull/721))
 
 ### Initial Release (v1.16.0)
 

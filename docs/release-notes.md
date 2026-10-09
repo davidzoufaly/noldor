@@ -1,5 +1,15 @@
 # Release Notes
 
+## v1.17.0 — 2026-10-09
+
+### Tooling
+
+#### UI Proof Screenshots on the PR *(updated)*
+
+UI proof now runs the branch's own feature proof test (#721).
+
+[Feature page](/features/ui-proof-screenshots-on-the-pr)
+
 ## v1.16.0 — 2026-10-08
 
 ### Tooling
