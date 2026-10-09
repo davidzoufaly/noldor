@@ -144,20 +144,22 @@ export async function missingFeatureSpecs(opts: {
 }
 
 /**
- * Each `{name}` in the template substituted as one single-quoted shell token.
- * Returns the name whose value holds a quote instead, since no quoting is safe then.
+ * Each `{name}` in the template substituted as one single-quoted shell token,
+ * in one pass so an inserted value is never scanned again. Returns why it
+ * refused instead when a used value holds a quote, since no quoting is safe then.
  */
 function substitute(
   template: string,
   values: Readonly<Record<string, string>>,
 ): { command: string } | { refused: string } {
-  let command = template;
-  for (const [name, value] of Object.entries(values)) {
-    if (!command.includes(`{${name}}`)) continue;
-    if (value.includes("'")) return { refused: `{${name}} contains a single quote (${value})` };
-    command = command.replaceAll(`{${name}}`, `'${value}'`);
+  const names = Object.keys(values).filter((name) => template.includes(`{${name}}`));
+  const quoted = names.find((name) => values[name]?.includes("'"));
+  if (quoted !== undefined) {
+    return { refused: `{${quoted}} contains a single quote (${values[quoted]})` };
   }
-  return { command };
+  if (names.length === 0) return { command: template };
+  const pattern = new RegExp(`\\{(${names.join('|')})\\}`, 'g');
+  return { command: template.replace(pattern, (_, name: string) => `'${values[name]}'`) };
 }
 
 async function runProofCommand(opts: {

@@ -262,7 +262,17 @@ const uiProofRecipeSchema = uiCaptureRecipeSchema
       .superRefine(repoRelativeIssues('featureSpec'))
       .optional(),
   })
-  .strict();
+  .strict()
+  // A command that never names the branch's test would still run a fixed tour.
+  .refine(
+    (r) =>
+      r.featureSpec === undefined || /\{spec\}|\{slug\}|NOLDOR_PROOF_S(PEC|LUG)/.test(r.command),
+    {
+      message:
+        'a uiProof command with featureSpec must target the test: use {spec}, {slug}, NOLDOR_PROOF_SPEC or NOLDOR_PROOF_SLUG',
+      path: ['command'],
+    },
+  );
 
 export type UiProofRecipe = z.infer<typeof uiProofRecipeSchema>;
 

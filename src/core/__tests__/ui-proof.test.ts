@@ -1,6 +1,14 @@
 // @tests: ui-proof-screenshots-on-the-pr, pendev-ui-design-phase
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -262,6 +270,16 @@ describe('feature proof', () => {
     expect(readFileSync(join(out, 'args.txt'), 'utf8')).toBe(
       'x|e2e/proof/x.spec.ts|x|e2e/proof/x.spec.ts',
     );
+  });
+
+  it('never re-substitutes a placeholder that appears inside an inserted value', async () => {
+    const moved = join(root, 'repo-{slug}');
+    renameSync(repo, moved);
+    repo = moved;
+    const command = `printf '%s' {out} > "$NOLDOR_PROOF_OUT/args.txt" && ${WRITE_PNG('a.png')}`;
+    await collect({ app: { command, timeoutMs: 10_000 } });
+    const out = join(repo, '.noldor', 'cr', 'ui-proof', 'feat-slug', 'app');
+    expect(readFileSync(join(out, 'args.txt'), 'utf8')).toBe(out);
   });
 
   it('does not run the command and notes the missing proof when the spec is absent', async () => {
