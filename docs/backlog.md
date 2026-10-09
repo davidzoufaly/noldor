@@ -137,6 +137,8 @@ Routing a `Gap` into `sddGaps` blocks a release, and nothing at the push site sa
 
 Open question — does it make sense to introduce SQL into the framework? Explore use cases (dashboard queries, metrics, entry indexing) before committing.
 
+- the SDD report flags this entry as stale (118 days) — needs a garden/triage decision: scope it or drop it. (sdd-gaps-after-v1160 PR #714, 2026-10-08)
+
 ### Embeddings Infra for the Framework
 
 - id: Q-0032
@@ -474,6 +476,8 @@ The DOM→`.pen` capture harness is consumer code, but nothing in it is charuy-s
 
 Q-0244's lane rule only fires when an entry declares `Touches:`, and no entry in the roadmap or backlog does today, so it stays dormant until one does. `/noldor-triage` proposes area, size and impact per bullet but never a `Touches:` clause; for an XS/S bullet that names a skill or a doc page it could propose one, and that clause is what routes the entry to `micro-chore` at `/noldor-gate` Step 0. The catch: `isDrainEligible` (`src/autonomous/drain-eligibility.ts`) refuses every Touches-bearing entry as multi-scope residue, so writing the clause on a small *code* entry would also pull it out of the drain. Either triage writes it only when every path is on the micro-chore lane (those entries cannot drain anyway), or the drain rule learns to accept a single-scope clause. (found 2026-09-24 shipping Q-0244)
 
+- concrete case: the drain contract says children never bypass hooks, yet an S entry whose whole fix is `.claude/skills/**` prose can only commit from a `fast/<slug>` worktree under `NOLDOR_ALLOW_SHARED=1`. Either route such entries to micro-chore (declare `Touches:`) or name the override in `drain-mode.md`. (gate-load-budget-headroom PR #717, 2026-10-08)
+
 ### Review the Architecture Baseline .pen on the Canvas
 
 - id: Q-0311
@@ -578,5 +582,43 @@ Review lows and spec drift left by the session-retro work, filed so they are not
 - `triage retro` heading match trims any leading whitespace; CommonMark allows at most 3 spaces, and `## ` lines inside fenced or indented code blocks match too.
 - Gate Step 4.12 no longer says that on attach paths `--slug` is the enhancement slug (cut for the word budget).
 - Spec drift: the archived session-retro spec describes a separate `retro.md` gate branch file (it shipped folded into Step 4.12) and still shows `--lesson`/`--followup` argv flags (the shipped interface is `--file <notes>`).
+- the ideas.md lock is advisory: a hand edit in an editor that never runs `triage ideas-lock acquire` still races a retro, and nothing enforces that the triage/absorb skills call it. (ideas-md-writers-take-the-lock PR #718, 2026-10-08)
+- `triage retro` waits only 5s for the ideas.md lock, so a retro landing during a long `/noldor-triage` hold fails with "re-run once" instead of queuing; consider a longer wait when the holder is a hold. (PR #718)
 
 (session-retro-auto-capture PR #687, retro-notes-from-file PR #689, 2026-10-08)
+
+### CLI Router Prints Plain Error Messages
+
+- id: Q-0370
+- area: tooling
+- type: refactor
+- since: 2026-10-09
+- size: S
+- impact: low
+- confidence: med
+
+The router's top-level catch (`src/cli/index.ts` `main().catch`) prints the whole Error with its stack, so each leaf that throws a repository-state error has to catch it to print a clean message. A router-level "print the message only" for plain Errors would remove that per-leaf code. (milestone-skill-consumer-command-path PR #696, 2026-10-08)
+
+### Gate Router Word-Cap Headroom
+
+- id: Q-0371
+- area: tooling
+- type: chore
+- since: 2026-10-09
+- size: S
+- impact: med
+- confidence: med
+
+The gate router `SKILL.md` sits at 2927 of its 3000-word cap — the same no-headroom problem as the specs-only-new load budget PR #717 trimmed. The next router addition must trim first; free real headroom (move prose into branch files) before that becomes a blocker mid-session. (gate-load-budget-headroom PR #717, 2026-10-08)
+
+### Drain Open-Only CR State Cleanup
+
+- id: Q-0372
+- area: tooling
+- type: chore
+- since: 2026-10-09
+- size: XS
+- impact: low
+- confidence: low
+
+Under `NOLDOR_DRAIN_OPEN_ONLY=1` a drain child leaves its CR review state in the worktree, and nothing removes it once the coordinator merges — only the next per-slug worktree removal does. Decide whether the merge coordinator should run the same `rm -f`. (gate-cr-cleanup-after-merge PR #712, 2026-10-08)

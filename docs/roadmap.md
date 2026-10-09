@@ -16,6 +16,19 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### UI Proof Shows the Delivered Feature
+
+- id: Q-0365
+- area: tooling
+- type: feat
+- since: 2026-10-09
+- size: M
+- impact: high
+- confidence: med
+- parent: ui-proof-screenshots-on-the-pr
+
+UI proof shows a fixed tour, not what shipped: `consumer.uiProof.<surface>.command` runs one static `@proof` spec, so every PR posts the same shots (charuy's `apps/web/e2e/ui-proof.spec.ts` shoots the app opening and the feature-showcase house on every PR). Fix (operator pick): a UI-touching session writes a per-branch proof spec (e.g. `e2e/proof/<slug>.spec.ts`) that drives the new UI and shoots it; `pr-flow` passes the slug (`{slug}` / `NOLDOR_PROOF_SLUG`) so the command runs only that spec; no slug spec → a loud `no feature proof` note, plus a gate step (fast-track / fd-close) that asks for the spec. (operator, 2026-10-08)
+
 ### Charuy Adopts Next Release
 
 - id: Q-0358
@@ -27,6 +40,58 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 - confidence: med
 
 Roll the next release out to charuy: run `noldor upgrade` + `noldor init --update` there (its `ideas.md` has no `## Lessons`; the first retro scaffolds it), and add `animations: 'disabled'` + `test.use({ reducedMotion: 'reduce' })` to its proof tests, now that UI proof can be skipped with `Noldor-UI-Proof: skip`. (session-retro-auto-capture PR #687, ui-proof-skip PR #693, 2026-10-08)
+
+- charuy can drop its inline `.env.example` DATABASE_URL workaround (charuy PR #362) by setting `consumer.worktreeEnvFiles: [".env"]` once it runs the release that ships PR #708. (worktree-copies-local-env-files PR #708, 2026-10-08)
+
+### Copy Env Files Names the Failing Entry
+
+- id: Q-0366
+- area: tooling
+- type: fix
+- since: 2026-10-09
+- size: XS
+- impact: low
+- confidence: high
+
+`copyEnvFiles` in `src/worktrees/create-worktree.ts` lets a listed entry that is a directory or unreadable throw a raw EISDIR/EACCES after `git worktree add`, leaving a half-set-up tree (no install, no port) with no hint which entry failed. Catch per file and skip with a log line, or return a result naming the entry. (reviewer low, worktree-copies-local-env-files PR #708, 2026-10-08)
+
+### Arbitration Dispose Docs Wording
+
+- id: Q-0367
+- area: tooling
+- type: docs
+- since: 2026-10-09
+- size: XS
+- impact: low
+- confidence: high
+
+`docs/noldor/cr-pipeline.md` and `script-catalog.md` still say "without --blocker it lists the ids"; since PR #701 the listing form is "only --slug and --kind" (a `--disposition` or `--note` with no `--blocker` stays a usage error). Align the wording in both pages and their `templates/` twins. (arbitration-dispose-lists-blocker-ids PR #701, 2026-10-08)
+
+### README Config-Block Count Drift
+
+- id: Q-0368
+- area: tooling
+- type: fix
+- since: 2026-10-09
+- size: XS
+- impact: low
+- confidence: high
+
+`checks readme`'s config-block axis diffs the backticked names only, so the README's spelled-out count ("Ten optional blocks") can still drift when a block lands. Compare the number word too, or drop it from the README. (readme-config-blocks-check PR #715, 2026-10-08)
+
+### Fill-Links Dry Run Skips Tag-Built FDs
+
+- id: Q-0369
+- area: tooling
+- type: fix
+- since: 2026-10-09
+- size: S
+- impact: low
+- confidence: high
+
+The interactive `fill-links-code-gaps` dry-run proposal still assigns untagged files to tag-built FDs, which `sync code-links` then drops after `--apply`. Apply the same skip PR #706 added to `--auto-high`. (fill-links-skips-tag-built-fds PR #706, 2026-10-08)
+
+- `runAutoHigh`'s fail-closed branch (tag scan failure → warn and apply nothing) has no test; add one with an unreadable file under a scan root. (reviewer low, PR #706)
 
 ### Drain the Dead-Code Baseline
 

@@ -112,6 +112,28 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   paths must expect the trimmed form. noldor itself spans `bin/`, `scripts/` and
   `src/`, so its own paths stay full — a fixture that passes there can still
   surprise you in a one-folder repo. (PR #589)
+- **The first `// @fd: <slug>` header switches an FD's `links.code` to
+  tag-built.** Like `@tests:` for test links, one header flips `sync
+  code-links` (and the pre-commit `code-links-auto-high` job) into rebuilding
+  `links.code` from headers alone, and every hand-listed file is dropped.
+  Adding one header each to three FDs took the orphan count from 5 to 33. For
+  an FD with no headers yet, add the file to `links.code` by hand — or header
+  every file it already lists. (PR #677)
+- **`gate-skill-layout.test.ts` caps the specs-only-new skill load and has
+  almost no headroom.** It allows half the pre-split word count of the gate
+  router plus its branch files, and the slack was ~4 words. Any prose added to
+  `SKILL.md` or `code-review.md` must be offset in the same files. Unlike the
+  `skill-size` ratchet, this cap cannot be re-recorded. Two sessions that each
+  fit can collide after a rebase, so the red shows up only at the PR-conflict
+  stage — re-run it after every rebase that touches gate prose. (PRs #687,
+  #712)
+- **The capability-index test pins the REAL manifest's sub order.** It
+  asserts `milestones` lists "validate, show" in that order, so a new sub must
+  be appended after a group's existing ones. (PR #696)
+- **Moving an export breaks tests that import it by file URL.** Child
+  scripts spawned by a test (`suite-lock.test.ts` `lockChild`) import the
+  module through a string URL that typecheck never sees; only the test run
+  fails. Grep tests for the module's path before moving an export. (PR #704)
 
 ## Worktrees
 
@@ -132,6 +154,12 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   commit — which reads exactly like a lost CR receipt. Every post-commit check
   in a worktree session must use `git -C <worktree>` or an absolute path;
   never trust CWD persistence.
+- **A devDependency added from a feature worktree trips `checks
+  shared-files`.** `package.json` and `pnpm-lock.yaml` are blocked from
+  `.worktrees/`. When the dependency IS the feature, commit it there with
+  `NOLDOR_ALLOW_SHARED=1` — the documented override — rather than moving the
+  edit to main. Name the two files in the spec's files-touched list so the
+  override is expected, not discovered at commit. (PR #679)
 
 ## Dashboard
 
@@ -196,6 +224,12 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   micro-chore handoff stashes unrelated edits (`git stash push
   --include-untracked -m noldor-microchore`) before the reset and pops them
   after.
+- **An attach session marker that carries `slug` makes commit-msg refuse
+  with "FD does not exist: <slug>".** A `slug` key left in
+  `.noldor/session.json` from the `-new` path the gate started on sends
+  `validate-trailer` looking for an FD by that name. An attach marker holds
+  `parent` + `enhancement` only — delete `slug` when the session flips to
+  attach. (PRs #681, #687)
 
 ## Drain / headless sessions
 
@@ -214,6 +248,11 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   in between. Cause unknown. Check `git log` and `git status` *before* debugging
   a silent commit failure — the cheap retry is right more often than the
   investigation.
+- **A roadmap entry's slug comes from its `### Heading`, not from a field.**
+  There is no `- slug:` bullet, and the `[triaged → slug]` marker in
+  `ideas.md` need not match, so `grep <slug> docs/roadmap.md` finds nothing.
+  Find the entry by its `- id:` or heading, or read the slug from
+  `pnpm noldor next-priority --suggestions --json`. (PRs #704, #708)
 
 ## Shell & tooling traps
 
@@ -240,7 +279,11 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   `Unknown command: "checks template-sync"`, quoted, with no skew advice — but
   the call still fails. Use `${=c}`, or write one call per command. This is the
   `$var` word-splitting trap the `--include` bullet below refers to.
-  (architecture-design-phase)
+  The common form is a flag list: `F="--file a --file b"; pnpm noldor rules
+  brief $F` hands the CLI one argument, refused as "unknown flag" (hit by
+  `rules brief` and `worktrees freshness` in four sessions running). Keep
+  flag lists in an array — `F=(--file a --file b)`, then `$F`.
+  (architecture-design-phase, PRs #701-#718)
 - **`tsx -e` cannot top-level await** ("not supported with cjs output"). Write
   a `.mts` script file to the scratchpad and run `pnpm exec tsx <file>.mts`.
 - **`lsof -ti tcp:<port>` matches CLIENT sockets too** (undici keep-alive), so
@@ -317,7 +360,11 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   backtick-free prefix of its name — `--section 3` or `--section 'Unit 1 —
   isEntrypoint'` — so name the heading that way. For any other argument, call
   `node bin/noldor.mjs …` directly when a backtick is unavoidable. (Q-0261,
-  Q-0283)
+  Q-0283) To probe whether some path re-parses argv, the payload must print
+  by itself: `pnpm noldor --help '$(printf INJ%sPROBE ECTED >&2)'` shows
+  `INJECTEDPROBE` only when pnpm's `sh` expanded it. A payload that merely
+  becomes an argument never surfaces under `--help`, so it reads "safe" when
+  it is not. (PR #689)
 - **Piping ANY exit-code-bearing noldor command to `tail` reports `tail`'s
   status.** `cr aggregate … | tail -20` then `echo $?` prints `0` over text that
   says `ok=false` — during Q-0246 that turned a genuine red round into an
@@ -385,6 +432,25 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   `pnpm noldor design archive` cannot rewrite: it archives that one file,
   prints "fix by hand" and stops — a four-part plan archived only part 1.
   Rewrite `links.plan` as plain one-line items and re-run. (Q-0320)
+- **`git merge --ff-only --autostash` exits 0 when re-applying the stash
+  conflicts.** It leaves `UU` files behind a green status. Check
+  `git diff --name-only --diff-filter=U` after it, as `ffSyncMain` does.
+  (PR #687)
+- **The clones gate catches a shared block copied on purpose.** Splitting one
+  argv dispatcher into per-sub manifest leaves copied its refusal/try-catch
+  into every leaf; a new zod schema copying `UiGlobSchema`'s path refinements
+  did the same. Both went red at `checks push-gates`. Put the shared
+  write-or-exit helper in its own module, or share a label-taking
+  `superRefine`, from the start. (PRs #696, #708)
+- **`skill-size` needs a verb, and any skill growth reds pre-push.** Bare
+  `pnpm noldor skill-size` exits 2 (usage); the verbs are `skill-size check`
+  and `skill-size baseline`. Even two one-paragraph skill additions red the
+  ratchet: trim the prose first, then run `skill-size baseline` in the same
+  push. (PRs #700, #718)
+- **The dead-code ratchet flags an export only its own module uses.** The
+  push-gates `dead-code` step reds on any new `export` nothing else imports.
+  Export a helper only when a test or another module imports it, or un-export
+  it before the code-stage review. (PR #706)
 
 ## Pencil / UI design
 
