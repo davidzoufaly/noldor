@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### UI Proof Shows the Delivered Feature
-
-- id: Q-0365
-- area: tooling
-- type: feat
-- since: 2026-10-09
-- size: M
-- impact: high
-- confidence: med
-- parent: ui-proof-screenshots-on-the-pr
-
-UI proof shows a fixed tour, not what shipped: `consumer.uiProof.<surface>.command` runs one static `@proof` spec, so every PR posts the same shots (charuy's `apps/web/e2e/ui-proof.spec.ts` shoots the app opening and the feature-showcase house on every PR). Fix (operator pick): a UI-touching session writes a per-branch proof spec (e.g. `e2e/proof/<slug>.spec.ts`) that drives the new UI and shoots it; `pr-flow` passes the slug (`{slug}` / `NOLDOR_PROOF_SLUG`) so the command runs only that spec; no slug spec → a loud `no feature proof` note, plus a gate step (fast-track / fd-close) that asks for the spec. (operator, 2026-10-08)
-
 ### Charuy Adopts Next Release
 
 - id: Q-0358

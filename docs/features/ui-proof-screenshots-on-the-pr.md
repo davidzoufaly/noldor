@@ -17,12 +17,11 @@ links:
 name: UI Proof Screenshots on the PR
 packages:
   - package.json
-phase: done
+phase: in-progress
 since: 2026-10-07T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.16.0
 ---
-
 ## Summary
 
 When a feature touches UI, the PR should carry a screenshot of it working as proof — and when the feature is e2e-tested on the UI end, the screenshot comes from that run. Today a UI change ships with a text-only PR body, so a reviewer has to check out the branch to see the result. Capture screenshots from the e2e/verify run (or a dedicated capture step) and attach them to the PR body via `pr-flow`.
