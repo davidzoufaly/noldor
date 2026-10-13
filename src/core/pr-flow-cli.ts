@@ -6,7 +6,7 @@ import { isBookkeepingOnly } from './allowlist.js';
 import { discoverAddedFiles } from './branch-added.js';
 import { readFrontmatter } from './fd-load.js';
 import { stripTrailers } from './trailers.js';
-import { readSession, clearSession, type SessionMarker } from './session.js';
+import { readSession, clearSession, type Path, type SessionMarker } from './session.js';
 import { loadConfig, type NoldorConfig } from './config.js';
 import { promptSelect } from './prompt-stdin.js';
 import {
@@ -176,12 +176,28 @@ function loadFdDesign(cwd: string, slug: string): unknown {
   return parsed.ok ? parsed.data.design : undefined;
 }
 
-function loadFdSummary(cwd: string, slug: string): FdSummary | null {
+/**
+ * Gate paths that never carry an FD of their own: `session.slug` names a
+ * roadmap entry (or nothing), so `docs/features/<slug>.md` is absent by design
+ * and `composeSummary` already takes the body from the summary commit.
+ */
+const NO_FD_PATHS: ReadonlySet<Path> = new Set(['fast-track', 'micro-chore']);
+
+/**
+ * The FD's name + Summary, or `null` when the PR body has to come from the
+ * summary commit instead. Warns on every `null` except the expected one — a
+ * no-FD path whose FD file simply does not exist (PR #737 printed an ENOENT
+ * warning for exactly that case). Any other read failure still warns, on every
+ * path: it means a file is there and unreadable.
+ */
+export function loadFdSummary(cwd: string, slug: string, path: Path): FdSummary | null {
   const fdPath = join(cwd, 'docs', 'features', `${slug}.md`);
   let md: string;
   try {
     md = readFileSync(fdPath, 'utf8');
   } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' && NO_FD_PATHS.has(path)) return null;
     const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(
       `pnpm pr-flow: warning — could not read FD at ${fdPath}: ${message}. ` +
@@ -462,7 +478,7 @@ export async function runCli(cwd: string): Promise<number> {
   };
 
   const fdSlug = session.parent ?? session.slug;
-  const fd = fdSlug !== undefined ? loadFdSummary(cwd, fdSlug) : null;
+  const fd = fdSlug !== undefined ? loadFdSummary(cwd, fdSlug, session.path) : null;
   const verify = fdSlug !== undefined ? loadVerifyEvidence(cwd, fdSlug) : null;
   // `origin/main`, matching the `origin/main..HEAD` range every other read here
   // walks — the retired-ID delta has to be measured against the same base the

@@ -1,5 +1,5 @@
 // @tests: autonomous-plan-to-pr-merge, parallel-drain, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening, noldor
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -13,6 +13,7 @@ import {
   shouldPromptForPrApproval,
   clearMicroChoreSession,
   loadVerifyEvidence,
+  loadFdSummary,
   parseCommitFileLists,
   pickSummarySha,
   retiredIdsAdded,
@@ -184,6 +185,70 @@ describe('parseCrTrailersFromLog', () => {
       ],
       status: 'clean',
     });
+  });
+});
+
+describe('loadFdSummary', () => {
+  // Suppressor: a missing FD on a no-FD path is silent. Data-losing direction is
+  // over-fire — silencing a warning the operator needs — so each shape that must
+  // still warn gets its own row.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+  const run = (
+    path: Parameters<typeof loadFdSummary>[2],
+    fd?: string | 'dir',
+  ): { result: ReturnType<typeof loadFdSummary>; warned: string } => {
+    const dir = mkdtempSync(join(tmpdir(), 'prf-fd-'));
+    mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+    const fdPath = join(dir, 'docs', 'features', 'x.md');
+    if (fd === 'dir') mkdirSync(fdPath);
+    else if (fd !== undefined) writeFileSync(fdPath, fd);
+    let warned = '';
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      warned += String(chunk);
+      return true;
+    });
+    const result = loadFdSummary(dir, 'x', path);
+    return { result, warned };
+  };
+
+  describe('stays quiet when the FD is absent by design', () => {
+    it.each(['fast-track', 'micro-chore'] as const)('%s with no FD file', (path) => {
+      const { result, warned } = run(path);
+      expect(result).toBeNull();
+      expect(warned).toBe('');
+    });
+  });
+
+  describe('still warns', () => {
+    it.each(['specs-only-new', 'specs-only-attach', 'full-new', 'full-attach'] as const)(
+      '%s with no FD file',
+      (path) => {
+        const { result, warned } = run(path);
+        expect(result).toBeNull();
+        expect(warned).toContain('could not read FD');
+      },
+    );
+    it('fast-track whose FD path exists but cannot be read', () => {
+      const { result, warned } = run('fast-track', 'dir');
+      expect(result).toBeNull();
+      expect(warned).toContain('could not read FD');
+    });
+    it('fast-track whose FD exists but lacks a Summary', () => {
+      const { result, warned } = run('fast-track', '---\nname: X\n---\n\nno summary\n');
+      expect(result).toBeNull();
+      expect(warned).toContain('missing required fields');
+    });
+  });
+
+  it('returns the FD name and Summary when the FD is readable', () => {
+    const { result, warned } = run(
+      'specs-only-new',
+      '---\nname: X Feature\n---\n\n## Summary\n\nDoes X.\n\n## Usage\n',
+    );
+    expect(result).toEqual({ name: 'X Feature', summary: 'Does X.' });
+    expect(warned).toBe('');
   });
 });
 
