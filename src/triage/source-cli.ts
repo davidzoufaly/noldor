@@ -1,24 +1,18 @@
 // @fd: gate-flow-rework
 // `noldor triage source <slug> [--json]` — print the raw `ideas.md` bullet a roadmap
 // entry was triaged from, and say which of its backticked names the tree still holds.
-//
-// A promoted block paraphrases its bullet, and the paraphrase can be wrong: a block
-// stated the reverse of its bullet, another named an "info panel" no component is
-// called. Sessions that built from the block built the wrong thing, so the gate reads
-// the bullet before building and checks the names it cites against the code.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { relative } from 'node:path';
 
 import { isEntrypoint } from '../core/cli-entry.js';
+import { loadDocRoots } from '../core/doc-roots.js';
 import { mainCheckoutIdeas } from './retro-cli.js';
 
 const LABEL = 'triage source';
 const USAGE = 'usage: noldor triage source <slug> [--json]\n';
 const MARKER_RE = /\[triaged\s+(\d{4}-\d{2}-\d{2})\s+→([^\]]*)\]/g;
 const BACKTICK_RE = /`([^`\n]+)`/g;
-// The queue documents and the idea file quote the bullet's names themselves, so a hit
-// there proves nothing about the code.
-const GREP_EXCLUDES = [':!ideas.md', ':!docs/roadmap.md', ':!docs/backlog.md'];
 
 /** One `ideas.md` bullet whose `[triaged …]` marker names the slug. */
 export interface SourceBullet {
@@ -72,9 +66,14 @@ export function citedNames(text: string): string[] {
 }
 
 function countFiles(cwd: string, name: string): Result<number> {
-  const run = spawnSync('git', ['grep', '-l', '-F', '-e', name, '--', '.', ...GREP_EXCLUDES], {
+  // The queue documents and the idea file quote the bullet's names themselves, so a hit
+  // there proves nothing about the code.
+  const roots = loadDocRoots(cwd);
+  const excludes = [roots.ideas, roots.roadmap, roots.backlog].map((p) => `:!${relative(cwd, p)}`);
+  const run = spawnSync('git', ['grep', '-l', '-F', '-e', name, '--', '.', ...excludes], {
     cwd,
     encoding: 'utf8',
+    timeout: 30_000,
   });
   // `git grep` exits 1 for "no match", which is an answer, not a failure.
   if (run.status === 0)
