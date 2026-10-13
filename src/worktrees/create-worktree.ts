@@ -7,7 +7,7 @@
 // lefthook-postinstall tolerance, the consumer's bootstrap command, port
 // stamped into .env.local.
 
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { constants, existsSync } from 'node:fs';
 import { appendFile, copyFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -63,10 +63,78 @@ const LEFTHOOK_HOOKSPATH_RE = /core\.hooksPath is set locally/;
 export interface InstallResult {
   code: number;
   output: string;
+  /** The run hit its deadline and was killed; never tolerated as a cosmetic failure. */
+  timedOut?: boolean;
 }
 
 /** Injectable install step — tests stub this instead of running pnpm. */
 export type InstallRunner = (cwd: string) => Promise<InstallResult>;
+
+/**
+ * Default ceiling on each of the install and the bootstrap. Generous for a cold
+ * install plus a monorepo build; its job is to turn a hang into an error, so a
+ * drain child waiting on the create fails instead of sitting out its own timeout.
+ */
+export const SUBPROCESS_DEADLINE_MS = 10 * 60_000;
+
+/** Bytes of combined output kept for an error message. */
+const OUTPUT_TAIL_CAP = 64 * 1024;
+
+/** Exit code, combined output tail and deadline status of {@link runWithDeadline}. */
+export interface DeadlineResult {
+  code: number;
+  output: string;
+  timedOut: boolean;
+}
+
+/**
+ * Run `file args` in `cwd` and settle by `deadlineMs` at the latest. The child
+ * leads its own process group, so the deadline kills the whole tree: `sh -c` and
+ * `pnpm` both fork, and a bare child-pid kill leaves a grandchild holding the
+ * stdout pipe, which keeps `execFile`'s callback pending past its own `timeout`.
+ * For the same reason the result settles on `exit` plus a short drain grace,
+ * never on `close` alone.
+ *
+ * Never rejects: a spawn error resolves as `code: 1` with its message.
+ */
+export function runWithDeadline(
+  file: string,
+  args: readonly string[],
+  cwd: string,
+  deadlineMs: number,
+): Promise<DeadlineResult> {
+  return new Promise((settle) => {
+    const child = spawn(file, args, { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let tail = Buffer.alloc(0);
+    const collect = (chunk: Buffer): void => {
+      tail = Buffer.concat([tail, chunk]).subarray(-OUTPUT_TAIL_CAP);
+    };
+    child.stdout?.on('data', collect);
+    child.stderr?.on('data', collect);
+    const killGroup = (): void => {
+      if (child.pid === undefined) return;
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+      } catch {
+        /* group already gone */
+      }
+    };
+    let settled = false;
+    const finish = (code: number, timedOut: boolean, extra = ''): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      killGroup();
+      settle({ code, output: `${tail.toString('utf8')}${extra}`, timedOut });
+    };
+    const timer = setTimeout(() => {
+      finish(1, true, `\n${file} ${args.join(' ')} timed out after ${deadlineMs} ms`);
+    }, deadlineMs);
+    child.on('error', (err) => finish(1, false, `\n${err.message}`));
+    child.on('exit', (code) => setTimeout(() => finish(code ?? 1, false), 200));
+    child.on('close', (code) => finish(code ?? 1, false));
+  });
+}
 
 /** Options for {@link createWorktree}. */
 export interface CreateOptions {
@@ -87,6 +155,8 @@ export interface CreateOptions {
    * a build over missing dependencies can only fail.
    */
   bootstrap?: string;
+  /** Ceiling on each of the default install and the bootstrap; defaults to {@link SUBPROCESS_DEADLINE_MS}. */
+  deadlineMs?: number;
   log?: (line: string) => void;
 }
 
@@ -111,18 +181,9 @@ export interface CreateResult {
   bootstrapRan: string | null;
 }
 
-const defaultInstall: InstallRunner = async (cwd) => {
-  try {
-    const { stdout, stderr } = await execFileP('pnpm', ['install'], {
-      cwd,
-      maxBuffer: 16 * 1024 * 1024,
-    });
-    return { code: 0, output: `${stdout}\n${stderr}` };
-  } catch (err) {
-    const e = err as { code?: number; stdout?: string; stderr?: string };
-    return { code: e.code ?? 1, output: `${e.stdout ?? ''}\n${e.stderr ?? String(err)}` };
-  }
-};
+function defaultInstall(deadlineMs: number): InstallRunner {
+  return (cwd) => runWithDeadline('pnpm', ['install'], cwd, deadlineMs);
+}
 
 /**
  * Pick the commit a new worktree branches from: a freshly fetched `origin/main`.
@@ -154,15 +215,10 @@ async function resolveBase(cwd: string, log: (line: string) => void): Promise<st
  * the command's output: a tree whose packages never built fails every test
  * that imports them, and that red would pass for a real one.
  */
-async function runBootstrap(path: string, command: string): Promise<void> {
-  try {
-    await execFileP('sh', ['-c', command], { cwd: path, maxBuffer: 16 * 1024 * 1024 });
-  } catch (err) {
-    const e = err as { stdout?: string; stderr?: string };
-    throw new Error(
-      `worktree bootstrap failed in ${path} (${command}):\n${e.stdout ?? ''}\n${e.stderr ?? ''}`,
-      { cause: err },
-    );
+async function runBootstrap(path: string, command: string, deadlineMs: number): Promise<void> {
+  const res = await runWithDeadline('sh', ['-c', command], path, deadlineMs);
+  if (res.code !== 0) {
+    throw new Error(`worktree bootstrap failed in ${path} (${command}):\n${res.output}`);
   }
 }
 
@@ -262,6 +318,7 @@ export async function createWorktree(
 ): Promise<{ ok: true; result: CreateResult } | { ok: false; error: CreateRefusal }> {
   const cwd = resolve(opts.cwd ?? process.cwd());
   const log = opts.log ?? (() => {});
+  const deadlineMs = opts.deadlineMs ?? SUBPROCESS_DEADLINE_MS;
 
   // Parse before the first git call: every step below is keyed on the slug, and
   // `git rev-parse` is already a subprocess launch from this working directory.
@@ -307,11 +364,11 @@ export async function createWorktree(
 
   let installWarning: string | null = null;
   if (opts.install !== false) {
-    const run = opts.installRunner ?? defaultInstall;
+    const run = opts.installRunner ?? defaultInstall(deadlineMs);
     const res = await run(path);
     if (res.code !== 0) {
       const binPopulated = existsSync(join(path, 'node_modules', '.bin'));
-      if (binPopulated && LEFTHOOK_HOOKSPATH_RE.test(res.output)) {
+      if (res.timedOut !== true && binPopulated && LEFTHOOK_HOOKSPATH_RE.test(res.output)) {
         installWarning =
           'lefthook postinstall failed (core.hooksPath already targets the shared .git/hooks) — hooks remain active; continuing';
         log(`warning: ${installWarning}`);
@@ -327,7 +384,7 @@ export async function createWorktree(
   const bootstrap =
     opts.install === false ? undefined : (opts.bootstrap ?? loadWorktreeBootstrap(cwd));
   if (bootstrap !== undefined) {
-    await runBootstrap(path, bootstrap);
+    await runBootstrap(path, bootstrap, deadlineMs);
     bootstrapRan = bootstrap;
     log(`bootstrap ran: ${bootstrap}`);
   }
