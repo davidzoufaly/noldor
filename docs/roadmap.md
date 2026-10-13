@@ -83,18 +83,6 @@ Other `pnpm noldor` verbs still take free text on argv (`design log --decide/--b
 
 `/noldor-refactor` "Dead Code" report section: when `deadCode.enabled` is on, run `pnpm noldor dead-code check` after the refactor and list what it reports outside the baseline. Promised in the consumers spec; a `.claude/skills/**` edit plus its `templates/` twin, so it needs its own micro-chore PR. (dead-code-detection-with-knip consumers, PR #681, 2026-10-07)
 
-### Pr-Flow Fast-Track PR Body
-
-- id: Q-0390
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: S
-- impact: med
-- confidence: med
-
-On a fast-track session with no FD, pr-flow warns ENOENT on `docs/features/<slug>.md` and falls back to a "Micro-chore: <first commit subject>" PR body, even though the first non-doc commit carries Why/How/What. Take the fast-track PR body from that commit instead. (PR #737, 2026-10-13)
-
 ### Worktree Create Subprocess Deadline
 
 - id: Q-0391

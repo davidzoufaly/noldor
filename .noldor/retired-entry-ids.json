@@ -954,5 +954,9 @@
   "Q-0389": {
     "slug": "stale-docs-sweep",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0390": {
+    "slug": "pr-flow-fast-track-pr-body",
+    "retiredAt": "2026-10-13"
   }
 }
