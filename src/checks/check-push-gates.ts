@@ -1,3 +1,5 @@
+// @fd: gate-flow-rework
+
 // CLI: `noldor checks push-gates` — author-side replay of the REAL pre-push
 // hook chain, run by /noldor-gate Step 4 before the code-stage review.
 //

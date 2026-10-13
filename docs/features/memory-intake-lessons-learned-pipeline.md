@@ -7,6 +7,7 @@ links:
   code:
     - .claude/skills/noldor-absorb/SKILL.md
     - src/core/ff-sync.ts
+    - src/triage/ideas-lock-cli.ts
     - src/triage/retro-cli.ts
   tests:
     - src/core/__tests__/ff-sync.test.ts
@@ -73,6 +74,7 @@ As an operator or agent, I want to drop a hard-won lesson under `## Lessons` in 
 - **Code:**
   - [`.claude/skills/noldor-absorb/SKILL.md`](../../.claude/skills/noldor-absorb/SKILL.md)
   - [`src/core/ff-sync.ts`](../../src/core/ff-sync.ts)
+  - [`src/triage/ideas-lock-cli.ts`](../../src/triage/ideas-lock-cli.ts)
   - [`src/triage/retro-cli.ts`](../../src/triage/retro-cli.ts)
 - **Tests:**
   - [`src/core/__tests__/ff-sync.test.ts`](../../src/core/__tests__/ff-sync.test.ts)

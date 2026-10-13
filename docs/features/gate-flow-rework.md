@@ -7,9 +7,10 @@ links:
     - .claude/skills/noldor-gate/SKILL.md
     - docs/noldor/complexity-gating.md
     - docs/noldor/lifecycle.md
-    - src/core/next-priority.ts
     - src/checks/check-push-gates.ts
     - src/core/config-waiver-guard.ts
+    - src/core/next-priority.ts
+    - src/triage/source-cli.ts
   tests:
     - src/checks/__tests__/check-push-gates.test.ts
     - src/core/__tests__/config-waiver-guard.test.ts
@@ -73,9 +74,10 @@ The /noldor-gate flow was reworked with an overhaul of Step 0, Step 1.5, and Ste
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`docs/noldor/complexity-gating.md`](../../docs/noldor/complexity-gating.md)
   - [`docs/noldor/lifecycle.md`](../../docs/noldor/lifecycle.md)
-  - [`src/core/next-priority.ts`](../../src/core/next-priority.ts)
   - [`src/checks/check-push-gates.ts`](../../src/checks/check-push-gates.ts)
   - [`src/core/config-waiver-guard.ts`](../../src/core/config-waiver-guard.ts)
+  - [`src/core/next-priority.ts`](../../src/core/next-priority.ts)
+  - [`src/triage/source-cli.ts`](../../src/triage/source-cli.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-push-gates.test.ts`](../../src/checks/__tests__/check-push-gates.test.ts)
   - [`src/core/__tests__/config-waiver-guard.test.ts`](../../src/core/__tests__/config-waiver-guard.test.ts)
