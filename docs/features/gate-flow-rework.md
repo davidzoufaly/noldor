@@ -15,6 +15,7 @@ links:
     - src/core/__tests__/config-waiver-guard.test.ts
     - src/core/__tests__/next-priority.test.ts
     - src/core/__tests__/slug-guards.test.ts
+    - src/triage/__tests__/source-cli.test.ts
 name: Gate Flow Rework
 packages:
   - scripts
@@ -80,5 +81,6 @@ The /noldor-gate flow was reworked with an overhaul of Step 0, Step 1.5, and Ste
   - [`src/core/__tests__/config-waiver-guard.test.ts`](../../src/core/__tests__/config-waiver-guard.test.ts)
   - [`src/core/__tests__/next-priority.test.ts`](../../src/core/__tests__/next-priority.test.ts)
   - [`src/core/__tests__/slug-guards.test.ts`](../../src/core/__tests__/slug-guards.test.ts)
+  - [`src/triage/__tests__/source-cli.test.ts`](../../src/triage/__tests__/source-cli.test.ts)
 
 <!-- /generated: resources -->

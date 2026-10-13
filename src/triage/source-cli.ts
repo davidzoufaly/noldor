@@ -8,11 +8,9 @@
 // the bullet before building and checks the names it cites against the code.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname } from 'node:path';
 
 import { isEntrypoint } from '../core/cli-entry.js';
-import { loadDocRoots } from '../core/doc-roots.js';
-import { gitCommonDir } from './retro-cli.js';
+import { mainCheckoutIdeas } from './retro-cli.js';
 
 const LABEL = 'triage source';
 const USAGE = 'usage: noldor triage source <slug> [--json]\n';
@@ -30,7 +28,7 @@ export interface SourceBullet {
 }
 
 /** A backticked name from a bullet and how many tracked files contain it. */
-export interface NameCheck {
+interface NameCheck {
   name: string;
   files: number;
 }
@@ -116,12 +114,12 @@ export function main(argv: readonly string[], cwd = process.cwd()): number {
     process.stderr.write(USAGE);
     return 2;
   }
-  const common = gitCommonDir(cwd);
-  if (!common.success) {
-    process.stderr.write(`${LABEL}: not inside a git repository (${common.errors.join('; ')})\n`);
+  const checkout = mainCheckoutIdeas(cwd);
+  if (!checkout.success) {
+    process.stderr.write(`${LABEL}: ${checkout.errors.join('; ')}\n`);
     return 2;
   }
-  const path = loadDocRoots(dirname(common.data)).ideas;
+  const path = checkout.data.ideas;
   const bullets = existsSync(path) ? findSourceBullets(readFileSync(path, 'utf8'), slug) : [];
   if (bullets.length === 0) {
     process.stderr.write(
