@@ -544,18 +544,26 @@ describe('run (orchestrate)', () => {
       }),
       'utf8',
     );
-    const result = await run({
-      args: {
-        slug: 'x',
-        artifact: 'docs/x.md',
-        kind: 'spec',
-        lanes: ['reviewer'],
-        fullReview: false,
-        autonomous: true,
-      },
-      cwd: root,
-    });
-    expect(result.exitCode).toBe(0);
+    // With a TTY the guard would prompt, so only the flag can explain the archive.
+    const desc = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
+    Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
+    try {
+      const result = await run({
+        args: {
+          slug: 'x',
+          artifact: 'docs/x.md',
+          kind: 'spec',
+          lanes: ['reviewer'],
+          fullReview: false,
+          autonomous: true,
+        },
+        cwd: root,
+      });
+      expect(result.exitCode).toBe(0);
+    } finally {
+      if (desc) Object.defineProperty(process.stdin, 'isTTY', desc);
+      else delete (process.stdin as { isTTY?: boolean }).isTTY;
+    }
     const archive = await readdir(join(root, '.noldor', 'cr', 'archive'));
     expect(archive.length).toBe(1);
   });
