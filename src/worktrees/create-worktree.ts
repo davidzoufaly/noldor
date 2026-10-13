@@ -170,6 +170,9 @@ async function runBootstrap(path: string, command: string): Promise<void> {
  * Copy each local env file from the main workspace into the new tree. A file
  * the main workspace lacks is skipped, and so is one the checkout already holds:
  * a tracked file of that name is the branch's own and must not be overwritten.
+ * An entry that cannot be copied (a directory, an unreadable file) is skipped
+ * with a log line naming it: the worktree already exists by now, and a throw
+ * here would leave it without an install or a port.
  */
 async function copyEnvFiles(
   from: string,
@@ -187,8 +190,13 @@ async function copyEnvFiles(
       log(`env file skipped: ${file} (already in the worktree)`);
       continue;
     }
-    await mkdir(dirname(join(to, file)), { recursive: true });
-    await copyFile(join(from, file), join(to, file), constants.COPYFILE_EXCL);
+    try {
+      await mkdir(dirname(join(to, file)), { recursive: true });
+      await copyFile(join(from, file), join(to, file), constants.COPYFILE_EXCL);
+    } catch (err) {
+      log(`env file skipped: ${file} (${(err as Error).message})`);
+      continue;
+    }
     copied.push(file);
     log(`env file copied: ${file}`);
   }
