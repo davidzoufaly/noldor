@@ -1,5 +1,9 @@
 # Release Notes
 
+## v1.18.0 — 2026-10-13
+
+No user-facing feature changes in this release — internal work only.
+
 ## v1.17.0 — 2026-10-09
 
 ### Tooling
