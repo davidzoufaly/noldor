@@ -946,5 +946,9 @@
   "Q-0387": {
     "slug": "pr-flow-auto-merge-probe-fix",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0388": {
+    "slug": "gate-skill-wording-micro-chore",
+    "retiredAt": "2026-10-13"
   }
 }

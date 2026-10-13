@@ -24,6 +24,10 @@ The second `git add` is allowed to fail silently: when the map file does not exi
 
 The `prepare-commit-msg` hook injects `Noldor-Path: fast-track` from the session marker — and, when the marker carries a `slug`, a `Noldor-FD: <slug>` trailer too (the hook injects from `slug` unconditionally; the commit-msg validator ignores it on fast-track, where no FD file is required). The block is removed on the feature branch and lands on `main` when the fast-track PR merges — keeping retirement atomic with the shipped change rather than a separate edit on `main`.
 
+## Read the raw idea before editing
+
+When the marker carries a `slug`, run `pnpm noldor triage source <slug>` before the first edit. A roadmap block paraphrases its `ideas.md` bullet, and can get it wrong; the command prints the bullet (from the main checkout, so it works in a worktree) and marks each backticked name in it `found` or `MISSING`. Build from the bullet: where it and the block disagree, the bullet wins; grep for a `MISSING` name before coding. Exit 1 (no marker names the slug) is never a reason to stop — search `ideas.md` by the entry's wording, else build from the block. Same step as [`drain-mode.md`](../../../docs/noldor/drain-mode.md) § Read the raw idea before editing.
+
 ## Feature proof test (Step 4)
 
 Before the doc-impact check. Run `pnpm noldor checks ui-proof-spec`. Exit 1 names each UI surface whose `consumer.uiProof.<surface>.featureSpec` test this branch has not written. Write it at the printed path: it drives the new UI, shoots it into `NOLDOR_PROOF_OUT`, and skips itself when that is unset. Commit it. `pr-flow` runs only that test; without it the PR carries a `no feature proof` note.
