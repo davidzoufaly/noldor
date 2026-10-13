@@ -83,18 +83,6 @@ Other `pnpm noldor` verbs still take free text on argv (`design log --decide/--b
 
 `/noldor-refactor` "Dead Code" report section: when `deadCode.enabled` is on, run `pnpm noldor dead-code check` after the refactor and list what it reports outside the baseline. Promised in the consumers spec; a `.claude/skills/**` edit plus its `templates/` twin, so it needs its own micro-chore PR. (dead-code-detection-with-knip consumers, PR #681, 2026-10-07)
 
-### Sync Code-Links Branch Drift
-
-- id: Q-0392
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: S
-- impact: med
-- confidence: med
-
-Running `sync code-links` on a branch rewrites unrelated FDs (memory-intake-lessons-learned-pipeline gained `src/triage/ideas-lock-cli.ts` and lost a blank line), because that FD's `links.code` has drifted on main. Fix the drift on main and keep a branch run from touching FDs outside its scope. (PR #721, 2026-10-09)
-
 ### Fill-Links Dry-Run Hardening
 
 - id: Q-0393
