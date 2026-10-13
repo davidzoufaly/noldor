@@ -543,7 +543,7 @@ export interface SpawnResult {
 }
 /** `quiet` drops the child's stderr instead of inheriting it — for probes and
  *  best-effort steps whose failure pr-flow reads and reports itself. */
-export interface SpawnOpts {
+interface SpawnOpts {
   quiet?: boolean;
 }
 export type SpawnFn = (
