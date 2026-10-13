@@ -37,6 +37,9 @@ const writePrior = async (file: string, finishedAt: string | null = '2026-05-25T
   );
 };
 
+// The prompt paths need a human at the keyboard; without one the guard never prompts.
+const tty = { interactive: true };
+
 describe('guardLaneOverwrite', () => {
   it('returns lanes unchanged when no priors', async () => {
     const r = await guardLaneOverwrite(['manual'], { slug: 'x', kind: 'spec', cwd: root });
@@ -45,23 +48,27 @@ describe('guardLaneOverwrite', () => {
   it('prompts on completed prior + overwrite picks proceed', async () => {
     await writePrior('x-spec-manual.json');
     promptSelect.mockResolvedValueOnce('overwrite');
-    const r = await guardLaneOverwrite(['manual'], { slug: 'x', kind: 'spec', cwd: root });
+    const r = await guardLaneOverwrite(['manual'], { slug: 'x', kind: 'spec', cwd: root }, tty);
     expect(r).toEqual(['manual']);
   });
   it('keep-and-skip drops the lane', async () => {
     await writePrior('x-spec-manual.json');
     promptSelect.mockResolvedValueOnce('skip');
-    const r = await guardLaneOverwrite(['manual', 'reviewer'], {
-      slug: 'x',
-      kind: 'spec',
-      cwd: root,
-    });
+    const r = await guardLaneOverwrite(
+      ['manual', 'reviewer'],
+      {
+        slug: 'x',
+        kind: 'spec',
+        cwd: root,
+      },
+      tty,
+    );
     expect(r).toEqual(['reviewer']);
   });
   it('archive-and-overwrite copies prior to archive/', async () => {
     await writePrior('x-spec-manual.json');
     promptSelect.mockResolvedValueOnce('archive');
-    const r = await guardLaneOverwrite(['manual'], { slug: 'x', kind: 'spec', cwd: root });
+    const r = await guardLaneOverwrite(['manual'], { slug: 'x', kind: 'spec', cwd: root }, tty);
     expect(r).toEqual(['manual']);
     const archive = await readdir(join(root, '.noldor', 'cr', 'archive'));
     expect(archive).toHaveLength(1);
@@ -70,14 +77,14 @@ describe('guardLaneOverwrite', () => {
   it('never offers keep-and-skip for the mandatory reviewer lane on spec/plan', async () => {
     await writePrior('x-spec-reviewer.json');
     promptSelect.mockResolvedValueOnce('overwrite');
-    const r = await guardLaneOverwrite(['reviewer'], { slug: 'x', kind: 'spec', cwd: root });
+    const r = await guardLaneOverwrite(['reviewer'], { slug: 'x', kind: 'spec', cwd: root }, tty);
     expect(r).toEqual(['reviewer']);
     const offered = promptSelect.mock.calls[0][0].choices.map((c: { value: string }) => c.value);
     expect(offered).toEqual(['overwrite', 'archive']);
     // ...but code may still skip its reviewer lane (receipt trailer enforces there).
     promptSelect.mockResolvedValueOnce('overwrite');
     await writePrior('x-code-reviewer.json');
-    await guardLaneOverwrite(['reviewer'], { slug: 'x', kind: 'code', cwd: root });
+    await guardLaneOverwrite(['reviewer'], { slug: 'x', kind: 'code', cwd: root }, tty);
     const offeredForCode = promptSelect.mock.calls[1][0].choices.map(
       (c: { value: string }) => c.value,
     );
@@ -86,7 +93,7 @@ describe('guardLaneOverwrite', () => {
   it('keeps the mandatory reviewer lane even if a skip choice comes back anyway', async () => {
     await writePrior('x-plan-reviewer.json');
     promptSelect.mockResolvedValueOnce('skip');
-    const r = await guardLaneOverwrite(['reviewer'], { slug: 'x', kind: 'plan', cwd: root });
+    const r = await guardLaneOverwrite(['reviewer'], { slug: 'x', kind: 'plan', cwd: root }, tty);
     expect(r).toEqual(['reviewer']);
   });
   it('autonomous mode defaults to archive-and-overwrite without prompting', async () => {
@@ -98,6 +105,22 @@ describe('guardLaneOverwrite', () => {
     );
     expect(promptSelect).not.toHaveBeenCalled();
     expect(r).toEqual(['manual']);
+    const archive = await readdir(join(root, '.noldor', 'cr', 'archive'));
+    expect(archive).toHaveLength(1);
+    expect(archive[0]).toMatch(/x-spec-manual\.json$/);
+  });
+  it('without a TTY defaults to archive-and-overwrite instead of prompting', async () => {
+    await writePrior('x-spec-manual.json');
+    const desc = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
+    Object.defineProperty(process.stdin, 'isTTY', { value: undefined, configurable: true });
+    try {
+      const r = await guardLaneOverwrite(['manual'], { slug: 'x', kind: 'spec', cwd: root });
+      expect(r).toEqual(['manual']);
+    } finally {
+      if (desc) Object.defineProperty(process.stdin, 'isTTY', desc);
+      else delete (process.stdin as { isTTY?: boolean }).isTTY;
+    }
+    expect(promptSelect).not.toHaveBeenCalled();
     const archive = await readdir(join(root, '.noldor', 'cr', 'archive'));
     expect(archive).toHaveLength(1);
     expect(archive[0]).toMatch(/x-spec-manual\.json$/);

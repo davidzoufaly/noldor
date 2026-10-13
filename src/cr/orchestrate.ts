@@ -264,6 +264,8 @@ interface GuardCtx {
 
 interface GuardOpts {
   autonomous?: boolean;
+  /** Whether a human can answer the prompt; defaults to `process.stdin.isTTY`. */
+  interactive?: boolean;
 }
 
 /** Canonical sink path + any legacy-named path a pre-0.7.0 run may have written. */
@@ -384,14 +386,18 @@ export async function guardLaneOverwrite(
       { name: 'archive-and-overwrite', value: 'archive' },
     ];
     if (!unskippable) choices.push({ name: 'keep-and-skip', value: 'skip' });
-    const choice = opts.autonomous
-      ? ('archive' as const)
-      : await promptSelect({
-          message: unskippable
-            ? `${lane} sink already exists for ${ctx.slug}-${ctx.kind}; overwrite? (${lane} is mandatory for ${ctx.kind} — it cannot be skipped)`
-            : `${lane} sink already exists for ${ctx.slug}-${ctx.kind}; overwrite?`,
-          choices,
-        });
+    // No TTY means no one can answer: the prompt would die with ExitPromptError
+    // (Bash tool, background run, `</dev/null`), so take the autonomous default.
+    const interactive = opts.interactive ?? process.stdin.isTTY === true;
+    const choice =
+      opts.autonomous || !interactive
+        ? ('archive' as const)
+        : await promptSelect({
+            message: unskippable
+              ? `${lane} sink already exists for ${ctx.slug}-${ctx.kind}; overwrite? (${lane} is mandatory for ${ctx.kind} — it cannot be skipped)`
+              : `${lane} sink already exists for ${ctx.slug}-${ctx.kind}; overwrite?`,
+            choices,
+          });
     // A `skip` for an unskippable lane is ignored rather than honored — the
     // invariant must not depend on the prompt having withheld the choice.
     if (choice === 'skip' && !unskippable) continue;
