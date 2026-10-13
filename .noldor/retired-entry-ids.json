@@ -918,5 +918,9 @@
   "Q-0384": {
     "slug": "pr-flow-body-from-the-trailer-commit",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0385": {
+    "slug": "indirection-ratchet-names-the-edges",
+    "retiredAt": "2026-10-13"
   }
 }
