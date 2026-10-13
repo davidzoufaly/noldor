@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Pr-Flow Auto-Merge Probe Fix
-
-- id: Q-0387
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: S
-- impact: high
-- confidence: high
-
-pr-flow's auto-merge pre-check from PR #739 never fires: `probeAutoMergeAllowed` calls `gh repo view --json autoMergeAllowed`, which gh 2.87.3 rejects with "Unknown JSON field" and dumps the full field list to stderr on every run, so pr-flow still tries `gh pr merge --auto` and falls back to a direct squash. Read the setting through `gh api repos/<owner>/<repo> --jq .allow_auto_merge` instead, also skip `--auto` when the branch has no protection rules ("Protected branch rules not configured … (enablePullRequestAutoMerge)"), and silence git's inherited stderr on `git push --delete`. Confirm the "repo has auto-merge disabled" line on the first ship after the release. (PRs #739, #741, #743, #744, 2026-10-13)
-
 ### Gate Skill Wording Micro-Chore
 
 - id: Q-0388
