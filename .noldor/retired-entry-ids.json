@@ -930,5 +930,9 @@
   "Q-0367": {
     "slug": "arbitration-dispose-docs-wording",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0368": {
+    "slug": "readme-config-block-count-drift",
+    "retiredAt": "2026-10-13"
   }
 }

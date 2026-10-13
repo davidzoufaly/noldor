@@ -311,6 +311,8 @@ export function commandFindings(body: string, registry: Set<string>): Finding[] 
  * `.noldor/config.json` and says "optional block"; its backticked bare
  * identifiers are the listed blocks. A README without that paragraph — every
  * consumer's — yields nothing, so the check only binds where the list exists.
+ * A count the paragraph spells out ("Ten optional blocks") is held to the
+ * schema's key count too, since the name diff alone leaves it free to drift.
  *
  * Pure over its inputs; the caller supplies the schema keys.
  */
@@ -325,7 +327,15 @@ export function configBlockFindings(body: string, schemaKeys: readonly string[])
     [...paragraph.matchAll(/`([A-Za-z][A-Za-z0-9]*)`/g)].map((m) => m[1] ?? ''),
   );
   const keys = new Set(schemaKeys);
+  const count = statedBlockCount(paragraph);
   return [
+    ...(count !== undefined && count !== schemaKeys.length
+      ? [
+          {
+            message: `README.md Configuration section says ${count} optional config blocks, the schema has ${schemaKeys.length}`,
+          },
+        ]
+      : []),
     ...schemaKeys
       .filter((key) => !listed.has(key))
       .map((key) => ({
@@ -337,6 +347,43 @@ export function configBlockFindings(body: string, schemaKeys: readonly string[])
         message: `README.md Configuration section lists \`${name}\`, which is not a config block`,
       })),
   ];
+}
+
+const NUMBER_WORDS = [
+  'zero',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+  'ten',
+  'eleven',
+  'twelve',
+  'thirteen',
+  'fourteen',
+  'fifteen',
+  'sixteen',
+  'seventeen',
+  'eighteen',
+  'nineteen',
+  'twenty',
+];
+
+/**
+ * The count written right before "optional block(s)" — a digit run or a
+ * number word up to twenty — or `undefined` when the paragraph states none
+ * (or a word this table cannot read), so an unstated count never fires.
+ */
+function statedBlockCount(paragraph: string): number | undefined {
+  const word = /\b([A-Za-z]+|\d+)\s+optional\s+blocks?\b/i.exec(paragraph)?.[1]?.toLowerCase();
+  if (word === undefined) return undefined;
+  if (/^\d+$/.test(word)) return Number(word);
+  const n = NUMBER_WORDS.indexOf(word);
+  return n === -1 ? undefined : n;
 }
 
 export type ReadmeStatus = 'absent' | 'ok' | 'findings';

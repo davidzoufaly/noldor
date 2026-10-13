@@ -387,6 +387,32 @@ describe('configBlockFindings', () => {
     expect(configBlockFindings('# App\n\n## Configuration\n\nSet `PORT`.', keys)).toEqual([]);
     expect(configBlockFindings('# App\n\nNo config section.', keys)).toEqual([]);
   });
+
+  const counted = (count: string): string =>
+    [
+      '## Configuration',
+      '',
+      `One file, \`.noldor/config.json\`. ${count} optional blocks: \`crLanes\`, \`agents\`, \`deadCode\`.`,
+    ].join('\n');
+
+  it.each([
+    ['a number word', 'Two', 2],
+    ['a capitalised number word past ten', 'Eleven', 11],
+    ['a digit run', '4', 4],
+  ])('flags a stated count that differs from the schema: %s', (_shape, count, n) => {
+    expect(configBlockFindings(counted(count), keys).map((f) => f.message)).toEqual([
+      `README.md Configuration section says ${n} optional config blocks, the schema has 3`,
+    ]);
+  });
+
+  it.each([
+    ['a matching number word', counted('Three')],
+    ['a matching digit run', counted('3')],
+    ['a word that is not a number', counted('The')],
+    ['no stated count', readme('`crLanes`, `agents`, `deadCode`')],
+  ])('stays quiet on %s', (_shape, body) => {
+    expect(configBlockFindings(body, keys)).toEqual([]);
+  });
 });
 
 describe('checkReadme config-block validation', () => {
