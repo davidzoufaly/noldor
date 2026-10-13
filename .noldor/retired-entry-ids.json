@@ -882,5 +882,9 @@
   "Q-0374": {
     "slug": "gate-reads-the-raw-idea-before-building",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0375": {
+    "slug": "worktree-bootstrap-command",
+    "retiredAt": "2026-10-13"
   }
 }

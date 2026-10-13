@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Worktree Bootstrap Command
-
-- id: Q-0375
-- area: tooling
-- type: feat
-- since: 2026-10-13
-- size: S
-- impact: high
-- confidence: med
-- parent: per-task-dev-environment-bootstrap
-
-`worktrees create` should run a consumer-declared bootstrap (e.g. `consumer.worktreeBootstrap: "pnpm build && pnpm build:samples"`): in charuy every fresh worktree fails all vitest suites with "Failed to resolve import @charuy/…" until a build runs — logged 8 times in one week of drains, and a red that only proves a missing build passes as a TDD red. (from charuy ideas.md Lessons, 2026-10-13)
-
 ### UI Proof Tests the Developed Feature
 
 - id: Q-0376
