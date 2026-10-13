@@ -649,7 +649,93 @@ describe('the --slug filter', () => {
   });
 });
 
+describe('the --files scope', () => {
+  const code = (name: string, slug?: string): void =>
+    writeFileSync(
+      join(repo, 'src', name),
+      slug === undefined ? 'x\n' : `// @fd: ${slug}\n`,
+      'utf8',
+    );
+  const adapter = (): LinkAdapter => rooted(codeAdapter, ['src'], 'default');
+
+  beforeEach(() => {
+    // A bystander whose links.code drifted before this commit: an unscoped run
+    // would rewrite it, which is the churn the scope exists to keep out.
+    writeFd('bystander', { code: ['src/old-bystander.ts'] });
+    code('bystander.ts', 'bystander');
+  });
+
+  it('writes the FD a listed file tags and leaves a drifted bystander byte-identical', async () => {
+    writeFd('feat', { code: ['src/old.ts'] });
+    code('new.ts', 'feat');
+    const bystanderMd = join(repo, 'docs', 'features', 'bystander.md');
+    const before = readFileSync(bystanderMd, 'utf8');
+
+    const exit = await runProjection(adapter(), { cwd: repo, files: ['src/new.ts'] });
+
+    expect(exit).toBe(0);
+    await expect(cachedFor('feat', 'code')).resolves.toEqual(['src/new.ts']);
+    expect(readFileSync(bystanderMd, 'utf8')).toBe(before);
+    expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain('(scoped to feat)');
+  });
+
+  it('reaches the FD that still lists a file whose tag was removed', async () => {
+    writeFd('feat', { code: ['src/kept.ts', 'src/untagged.ts'] });
+    code('kept.ts', 'feat');
+    code('untagged.ts');
+
+    await runProjection(adapter(), { cwd: repo, files: ['src/untagged.ts'] });
+
+    await expect(cachedFor('feat', 'code')).resolves.toEqual(['src/kept.ts']);
+  });
+
+  it('accepts a ./-prefixed path as the same file', async () => {
+    writeFd('feat', { code: [] });
+    code('new.ts', 'feat');
+
+    await runProjection(adapter(), { cwd: repo, files: ['./src/new.ts'] });
+
+    await expect(cachedFor('feat', 'code')).resolves.toEqual(['src/new.ts']);
+  });
+
+  it('exits 0 and writes nothing when no listed file bears on any FD', async () => {
+    code('loose.ts');
+    const bystanderMd = join(repo, 'docs', 'features', 'bystander.md');
+    const before = readFileSync(bystanderMd, 'utf8');
+
+    const exit = await runProjection(adapter(), { cwd: repo, files: ['src/loose.ts'] });
+
+    expect(exit).toBe(0);
+    expect(readFileSync(bystanderMd, 'utf8')).toBe(before);
+  });
+
+  it('keeps a drifted bystander out of the --check verdict', async () => {
+    writeFd('feat', { code: ['src/new.ts'] });
+    code('new.ts', 'feat');
+
+    const scoped = await runProjection(adapter(), {
+      cwd: repo,
+      check: true,
+      files: ['src/new.ts'],
+    });
+    const whole = await runProjection(adapter(), { cwd: repo, check: true });
+
+    expect(scoped).toBe(0);
+    expect(whole).toBe(1);
+  });
+});
+
 describe('parseRunOptions', () => {
+  it('reads every path after --files up to the next flag', () => {
+    const opts = parseRunOptions(['--quiet', '--files', 'src/a.ts', 'src/b.ts', '--stage']);
+    expect(opts.files).toEqual(['src/a.ts', 'src/b.ts']);
+    expect(opts.stage).toBe(true);
+  });
+
+  it('leaves the file scope absent when the flag is not given', () => {
+    expect(parseRunOptions(['--quiet', '--stage']).files).toBeUndefined();
+  });
+
   it('reads the filter repeated and comma-separated as one set', () => {
     expect(parseRunOptions(['--slug', 'a,b', '--slug', 'c']).slugs).toEqual(['a', 'b', 'c']);
   });
