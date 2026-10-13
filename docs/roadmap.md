@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Stale Docs Sweep
-
-- id: Q-0389
-- area: tooling
-- type: docs
-- since: 2026-10-13
-- size: XS
-- impact: low
-- confidence: high
-
-Two doc drifts: (a) grep `drop-lane` / `standalone-in-progress` across `docs/` — the cr-pipeline.md gotcha named a guard that no longer exists in src/, and other pages may still name it; (b) `docs/noldor/worktree-discipline.md` and `docs/noldor/adoption-guide.md` (worktreeEnvFiles) list only the "main workspace lacks it" and "branch tracks it" skips — add the uncopyable-entry skip from PR #748. (PRs #725, #748, 2026-10-13)
-
 ### Charuy Adopts Next Release
 
 - id: Q-0358
