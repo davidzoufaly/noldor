@@ -938,5 +938,9 @@
   "Q-0369": {
     "slug": "fill-links-dry-run-skips-tag-built-fds",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0394": {
+    "slug": "ui-proof-config-reader-hardening",
+    "retiredAt": "2026-10-13"
   }
 }

@@ -294,6 +294,13 @@ describe('feature proof', () => {
     expect(readFileSync(join(out, 'args.txt'), 'utf8')).toBe(out);
   });
 
+  it('leaves a placeholder with no value as written, prototype names included', async () => {
+    const command = `printf '%s|%s' {nope} {constructor} > {out}/args.txt && ${WRITE_PNG('a.png')}`;
+    await collect({ app: { command, timeoutMs: 10_000 } });
+    const out = join(repo, '.noldor', 'cr', 'ui-proof', 'feat-slug', 'app');
+    expect(readFileSync(join(out, 'args.txt'), 'utf8')).toBe('{nope}|{constructor}');
+  });
+
   it('does not run the command and notes the missing proof when the spec is absent', async () => {
     writeShot('app', git(repo, 'rev-parse', 'HEAD^{tree}'));
     const [item] = await collect(
@@ -352,6 +359,25 @@ describe('feature proof', () => {
       }),
     ).toEqual([]);
   });
+
+  it('missingFeatureSpecs ignores a featureSpec inherited from the prototype', async () => {
+    const config = {
+      uiPaths: ['apps/**'],
+      uiSurfaces: { app: ['apps/web/**'] },
+      uiProof: Object.create({ app: { command: 'x', timeoutMs: 1, featureSpec: SPEC } }) as Record<
+        string,
+        { command: string; timeoutMs: number; featureSpec?: string }
+      >,
+    };
+    expect(
+      await missingFeatureSpecs({
+        cwd: repo,
+        branch: 'feat/x',
+        branchFiles: ['apps/web/a.tsx'],
+        config,
+      }),
+    ).toEqual([]);
+  });
 });
 
 describe('fixedScreenSurfaces', () => {
@@ -369,6 +395,14 @@ describe('fixedScreenSurfaces', () => {
       'docs',
       'site',
     ]);
+  });
+
+  it('reads only own recipes, never one inherited from the prototype', () => {
+    const inherited = {
+      ...config,
+      uiProof: Object.create({ app: config.uiProof.app }) as typeof config.uiProof,
+    };
+    expect(fixedScreenSurfaces(['apps/web/a.tsx'], inherited)).toEqual(['app']);
   });
 
   it('leaves out feature-proof surfaces and untouched surfaces', () => {
