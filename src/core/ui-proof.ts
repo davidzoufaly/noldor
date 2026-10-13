@@ -109,6 +109,17 @@ export const NO_FEATURE_PROOF = 'no feature proof';
 export const FIXED_SCREENS = 'fixed screens, not this feature';
 
 /**
+ * The surface's own `uiProof` recipe, never one inherited from the prototype:
+ * a surface named `constructor` or `toString` has no recipe unless it sets one.
+ */
+function ownRecipe(
+  recipes: Readonly<Record<string, UiProofRecipe>> | undefined,
+  surface: string,
+): UiProofRecipe | undefined {
+  return recipes !== undefined && Object.hasOwn(recipes, surface) ? recipes[surface] : undefined;
+}
+
+/**
  * The touched surfaces whose `uiProof` recipe sets no `featureSpec`, so their
  * images, if any, show the same screens on every branch.
  */
@@ -117,7 +128,7 @@ export function fixedScreenSurfaces(
   config: UiConfig & { uiProof?: Record<string, UiProofRecipe> },
 ): string[] {
   return uiProofSurfaces(branchFiles, config).filter(
-    (surface) => config.uiProof?.[surface]?.featureSpec === undefined,
+    (surface) => ownRecipe(config.uiProof, surface)?.featureSpec === undefined,
   );
 }
 
@@ -153,7 +164,7 @@ export async function missingFeatureSpecs(opts: {
   const slug = proofSlug(opts.branch);
   const missing: { surface: string; spec: string }[] = [];
   for (const surface of uiProofSurfaces(opts.branchFiles, opts.config)) {
-    const template = opts.config.uiProof?.[surface]?.featureSpec;
+    const template = ownRecipe(opts.config.uiProof, surface)?.featureSpec;
     if (template === undefined) continue;
     const spec = template.replaceAll('{slug}', slug);
     if (!(await featureSpecOnBranch(opts.cwd, spec, opts.branchFiles))) {
@@ -177,9 +188,11 @@ function substitute(
   if (quoted !== undefined) {
     return { refused: `{${quoted}} contains a single quote (${values[quoted]})` };
   }
-  if (names.length === 0) return { command: template };
-  const pattern = new RegExp(`\\{(${names.join('|')})\\}`, 'g');
-  return { command: template.replace(pattern, (_, name: string) => `'${values[name]}'`) };
+  return {
+    command: template.replace(/\{(\w+)\}/g, (token, name: string) =>
+      Object.hasOwn(values, name) ? `'${values[name]}'` : token,
+    ),
+  };
 }
 
 async function runProofCommand(opts: {
@@ -302,7 +315,7 @@ export async function collectUiProof(opts: {
   const items: UiProofItem[] = [];
   for (const surface of opts.surfaces) {
     const notes: string[] = [];
-    const recipe = Object.hasOwn(opts.recipes, surface) ? opts.recipes[surface] : undefined;
+    const recipe = ownRecipe(opts.recipes, surface);
     const fixed = recipe?.featureSpec === undefined;
     const e2e =
       recipe === undefined
