@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Worktree Env Fills Keys From Env Example
-
-- id: Q-0378
-- area: tooling
-- type: feat
-- since: 2026-10-13
-- size: S
-- impact: med
-- confidence: high
-
-`worktrees create` copies `.env` from main but not keys that only `.env.example` defines (charuy's `DB_SMOKE_URL`), so every live DB suite silently skips and a green run proves nothing. Fill missing keys from `.env.example`, or have doctor / the verifier warn when a smoke URL is absent. (from charuy ideas.md Lessons, 2026-10-13)
-
 ### FD Writers Keep the Blank Line After Frontmatter
 
 - id: Q-0379
