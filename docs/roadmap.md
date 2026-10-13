@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### UI-Proof Config Reader Hardening
-
-- id: Q-0394
-- area: tooling
-- type: refactor
-- since: 2026-10-13
-- size: XS
-- impact: low
-- confidence: med
-
-In `src/core/ui-proof.ts`: `fixedScreenSurfaces` and `missingFeatureSpecs` read `config.uiProof?.[surface]` with a plain lookup while `collectUiProof` guards with `Object.hasOwn` — make the three readers agree so a prototype-key surface name cannot read an inherited value; and `substitute` builds a RegExp from names without `RegExp.escape` — a `/\{(\w+)\}/g` callback would drop the dynamic regex. (CR lows, PRs #721, #731)
-
 ### Pr-Flow Auto-Merge Probe Fix
 
 - id: Q-0387
