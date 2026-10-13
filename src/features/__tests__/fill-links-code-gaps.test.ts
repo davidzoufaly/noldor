@@ -21,11 +21,17 @@ import {
   generateProposal,
   parseLlmResponse,
   parseProposal,
+  resolveByLlm,
   resolveByPath,
   runAutoHigh,
   runDryRun,
 } from '../fill-links-code-gaps.js';
 import type { FeatureFrontmatter } from '../../core/feature-schema.js';
+
+const { spawnAgent } = vi.hoisted(() => ({
+  spawnAgent: vi.fn(async () => ({ exitCode: 1, stdout: '', timedOut: false })),
+}));
+vi.mock('../../core/agent-runner/registry.js', () => ({ spawnAgent }));
 
 type FeatureRow = { slug: string; frontmatter: FeatureFrontmatter };
 
@@ -232,6 +238,38 @@ describe('parseLlmResponse', () => {
     expect(
       parseLlmResponse('{"chosen_fd_slug": "foo", "confidence": "extreme", "reason": "x"}'),
     ).toBeNull();
+  });
+});
+
+describe('resolveByLlm', () => {
+  const candidates = [
+    { slug: 'manifold-wasm-integration', name: 'Manifold WASM', summary: '' },
+    { slug: 'boolean-operations', name: 'Boolean Operations', summary: '' },
+  ];
+  const answer = (slug: string) => {
+    spawnAgent.mockResolvedValueOnce({
+      exitCode: 0,
+      stdout: JSON.stringify({ chosen_fd_slug: slug, confidence: 'high', reason: 'x' }),
+      timedOut: false,
+    });
+  };
+  const file = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fill-links-llm-'));
+    const path = join(dir, 'src.ts');
+    writeFileSync(path, 'export const x = 1;\n');
+    return path;
+  };
+
+  it('returns the pick when it is one of the candidates', async () => {
+    answer('boolean-operations');
+    expect((await resolveByLlm(file(), candidates))?.fdSlug).toBe('boolean-operations');
+  });
+
+  // Regression (PR #753 follow-up): a hallucinated, unknown or tag-built slug
+  // the LLM was never shown landed in the proposal unchecked.
+  it('rejects a pick outside the candidates', async () => {
+    answer('tag-built-fd');
+    expect(await resolveByLlm(file(), candidates)).toBeNull();
   });
 });
 
@@ -545,15 +583,19 @@ describe('runAutoHigh', () => {
     });
   });
 
-  it('applies nothing when the tag scan cannot read a file', async () => {
-    const dir = makeTagBuiltRepo();
-    chmodSync(join(dir, 'packages', 'money', 'src', 'build.ts'), 0o000);
-    await inRepo(dir, async (output) => {
-      await runAutoHigh();
-      expect(readCode(dir, 'plain-fd')).not.toContain('packages/plain/src/plain.ts');
-      expect(output()).toContain('tag-built FDs are unknown');
-    });
-  });
+  // chmod 0o000 does not stop root from reading, so the file stays readable.
+  it.skipIf(process.getuid?.() === 0)(
+    'applies nothing when the tag scan cannot read a file',
+    async () => {
+      const dir = makeTagBuiltRepo();
+      chmodSync(join(dir, 'packages', 'money', 'src', 'build.ts'), 0o000);
+      await inRepo(dir, async (output) => {
+        await runAutoHigh();
+        expect(readCode(dir, 'plain-fd')).not.toContain('packages/plain/src/plain.ts');
+        expect(output()).toContain('tag-built FDs are unknown');
+      });
+    },
+  );
 });
 
 describe('runDryRun', () => {
@@ -570,14 +612,17 @@ describe('runDryRun', () => {
     });
   });
 
-  it('writes no proposal when the tag scan cannot read a file', async () => {
-    const dir = makeTagBuiltRepo();
-    chmodSync(join(dir, 'packages', 'money', 'src', 'build.ts'), 0o000);
-    await inRepo(dir, async (output) => {
-      await runDryRun();
-      expect(process.exitCode).toBe(1);
-      expect(existsSync(join(dir, 'docs', '.backfill-links-code.proposal.md'))).toBe(false);
-      expect(output()).toContain('tag-built FDs are unknown');
-    });
-  });
+  it.skipIf(process.getuid?.() === 0)(
+    'writes no proposal when the tag scan cannot read a file',
+    async () => {
+      const dir = makeTagBuiltRepo();
+      chmodSync(join(dir, 'packages', 'money', 'src', 'build.ts'), 0o000);
+      await inRepo(dir, async (output) => {
+        await runDryRun();
+        expect(process.exitCode).toBe(1);
+        expect(existsSync(join(dir, 'docs', '.backfill-links-code.proposal.md'))).toBe(false);
+        expect(output()).toContain('tag-built FDs are unknown');
+      });
+    },
+  );
 });

@@ -247,7 +247,8 @@ export function parseLlmResponse(raw: string): CandidateMatch | null {
  *
  * @param filePath - Code file to attribute
  * @param candidates - Pre-filtered FD candidates from path-only resolver
- * @returns CandidateMatch from LLM, or null if call/parse fails
+ * @returns CandidateMatch from LLM, or null if call/parse fails or the LLM
+ *   picks a slug outside `candidates` (a hallucinated, unknown or struck FD)
  */
 export async function resolveByLlm(
   filePath: string,
@@ -281,7 +282,9 @@ ${candidates.map((c) => `- ${c.slug}: ${c.name} — ${c.summary.slice(0, 200)}`)
   } catch {
     return null;
   }
-  return parseLlmResponse(raw);
+  const match = parseLlmResponse(raw);
+  if (!match || !candidates.some((c) => c.slug === match.fdSlug)) return null;
+  return match;
 }
 
 /**
