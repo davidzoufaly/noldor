@@ -91,6 +91,7 @@ pnpm noldor sync <kind>-links --force  # clear entries a tagless scan would othe
 pnpm noldor sync <kind>-links --quiet  # suppress the tagless-kept report (used by the hooks)
 pnpm noldor sync <kind>-links --stage  # git add every FD the run rewrote (used by the test-links hook)
 pnpm noldor sync <kind>-links --slug a --slug b,c   # act on these FDs only
+pnpm noldor sync <kind>-links --files src/a.ts src/b.ts   # act on the FDs these files bear on
 ```
 
 A run whose scan could not read a consumer-configured root clears nothing and exits
@@ -114,6 +115,13 @@ live in files anywhere in the repo. Every headline line names the scope it was t
 so a scoped clean check cannot read as a repo-wide all-clear. A filter that selects no
 feature MD — a typo, or a `--slug` that swallowed the next flag — exits 1 and writes
 nothing rather than silently widening back to the whole repo.
+
+`--files` scopes the same way, by file instead of slug: the run acts on the FDs the
+listed files tag, plus the FDs whose cached array already lists one, so a removed tag
+still leaves its FD. A list that bears on no FD exits 0 having written nothing. The
+`code-links` pre-commit job runs `sync code-links --quiet --stage --files {staged_files}`
+on every commit that stages a code file, so a new `// @fd:` tag reaches its FD in the
+same commit, and a commit never carries another FD's drift from `main`.
 
 <!-- generated: resources -->
 

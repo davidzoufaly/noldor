@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
-import { basename, join, relative } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 
 import matter from 'gray-matter';
 
@@ -613,6 +613,17 @@ export interface RunOptions {
    * prevent.
    */
   slugs?: readonly string[];
+  /**
+   * Restrict the run to the FDs these paths bear on: every slug a listed file
+   * tags now, plus every FD whose cached array already lists one — a removed tag
+   * or a deleted file still has to leave the FD that named it. Set by the
+   * pre-commit hook line with `{staged_files}`, so a commit syncs the FDs its own
+   * files touch and never carries another FD's drift from `main`.
+   *
+   * Unlike `slugs`, a selection of nothing is a clean no-op: a commit that
+   * touches only untagged files has no FD to sync. Paths are relative to `cwd`.
+   */
+  files?: readonly string[];
 }
 
 /**
@@ -645,6 +656,21 @@ function parseSlugFilter(argv: readonly string[]): string[] | undefined {
   return seen ? [...new Set(slugs)] : undefined;
 }
 
+/**
+ * Read the `--files` scope: every argument after the flag up to the next flag,
+ * the shape lefthook's `{staged_files}` expands to.
+ *
+ * @param argv - The raw argv slice
+ * @returns The listed paths, or `undefined` when the flag is absent
+ */
+function parseFileScope(argv: readonly string[]): string[] | undefined {
+  const at = argv.indexOf('--files');
+  if (at === -1) return undefined;
+  const rest = argv.slice(at + 1);
+  const end = rest.findIndex((arg) => arg.startsWith('-'));
+  return end === -1 ? [...rest] : rest.slice(0, end);
+}
+
 /** Parse the shared flag set from an argv slice. */
 export function parseRunOptions(argv: readonly string[]): RunOptions {
   return {
@@ -653,7 +679,35 @@ export function parseRunOptions(argv: readonly string[]): RunOptions {
     quiet: argv.includes('--quiet'),
     stage: argv.includes('--stage'),
     slugs: parseSlugFilter(argv),
+    files: parseFileScope(argv),
   };
+}
+
+/**
+ * The FDs a set of files bears on: the slugs those files tag, and the FDs whose
+ * cached array lists one of them.
+ *
+ * @param files - Paths relative to `cwd`
+ * @param cwd - The repo root the scan's paths are relative to
+ * @param tagged - The scan's files and their tags
+ * @param cached - slug → cached arrays, keyed by the FDs that exist
+ * @returns The affected slugs
+ */
+function slugsForFiles(
+  files: readonly string[],
+  cwd: string,
+  tagged: readonly TaggedFile[],
+  cached: ReadonlyMap<string, string[]>,
+): Set<string> {
+  const listed = new Set(files.map((f) => relative(cwd, resolve(cwd, f))));
+  const slugs = new Set<string>();
+  for (const { path, tags } of tagged) {
+    if (listed.has(path)) for (const slug of tags) slugs.add(slug);
+  }
+  for (const [slug, paths] of cached) {
+    if (paths.some((p) => listed.has(p))) slugs.add(slug);
+  }
+  return slugs;
 }
 
 /**
@@ -772,7 +826,7 @@ function stageWritten(featuresDir: string, written: string[], clean: Set<string>
  * set, so callers (CLI main, tests) decide.
  *
  * @param adapter - The kind to project
- * @param opts - check / force / quiet / stage / slugs plus root overrides
+ * @param opts - check / force / quiet / stage / slugs / files plus root overrides
  * @returns 0 when the run is clean, 1 when it found drift, could not trust its scan, was
  *   handed a `slugs` filter that selects no feature MD, or could not stage what it wrote
  */
@@ -799,7 +853,20 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
   // `cached` map still backs every comparison — `missingFdSlugs` asks which
   // scanned slugs name no FD at all, and a narrowed map would answer "all the
   // ones I was not asked about". So the results are filtered, not the inputs.
-  const only = opts.slugs === undefined ? undefined : new Set(opts.slugs);
+  const named = opts.slugs === undefined ? undefined : new Set(opts.slugs);
+  const only =
+    opts.files === undefined
+      ? named
+      : new Set(
+          [...slugsForFiles(opts.files, cwd, scan.tagged, cached)].filter(
+            (slug) => named === undefined || named.has(slug),
+          ),
+        );
+  if (only?.size === 0) {
+    // Only `files` can get here: an empty `slugs` was refused above.
+    if (!opts.quiet) console.log(`No feature MD's links.${adapter.key} bears on the listed files.`);
+    return 0;
+  }
   const inScope = (slug: string): boolean => only === undefined || only.has(slug);
   // A scoped run must not claim anything about the FDs it skipped, so every
   // headline line carries the scope it was true of.

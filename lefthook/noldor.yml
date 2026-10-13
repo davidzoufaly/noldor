@@ -8,13 +8,19 @@ pre-commit:
     - name: sync
       group:
         # Serial on purpose. Each of these projects onto the union of scanned and
-        # cached slugs, so all three read-modify-write every docs/features/*.md.
+        # cached slugs, so every one read-modify-writes docs/features/*.md.
         # atomic writes keep an individual file from tearing but do not make the
         # read-modify-write atomic across processes: run in parallel, the last
         # writer clobbers the others' fields and the loss resurfaces later as a
         # links drift gap. `sync spec-links` still writes non-atomically too.
         parallel: false
         jobs:
+          # Scoped to the FDs the staged files bear on: a repo-wide run would
+          # carry every other FD's links.code drift into this commit.
+          - name: code-links
+            glob: '*.{ts,tsx,js,jsx}'
+            run: pnpm noldor sync code-links --quiet --stage --files {staged_files}
+            stage_fixed: true
           - name: test-links
             glob: '**/*.test.ts'
             run: pnpm noldor sync test-links --quiet --stage

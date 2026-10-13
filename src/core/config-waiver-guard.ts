@@ -1,3 +1,5 @@
+// @fd: gate-flow-rework
+
 // src/core/config-waiver-guard.ts
 // Content guard for the one micro-chore-landable file that can silence a gate,
 // plus the single verdict both enforcement points ask for.
