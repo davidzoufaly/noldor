@@ -42,19 +42,6 @@ Roll the next release out to charuy: run `noldor upgrade` + `noldor init --updat
 
 render-compare and geometry-compare answer `cannot-review: page-ambiguous` — and the review stays green while those lanes check nothing — in two cases: (a) a feature .pen keeps a VARIANT page beside its FINAL pages; (b) a design holds several FINAL pages (charuy's bathroom-fixture-bath design, and the Build design's `FINAL:app: build …` pages). Ignore VARIANT pages when picking the compare page, pair each FINAL page with its own captured state, and fail the round rather than pass when no pairing is possible. (charuy PRs #367, #386, #389, 2026-10-08..12)
 
-### Indirection Ratchet Names the Edges
-
-- id: Q-0385
-- area: tooling
-- type: feat
-- since: 2026-10-13
-- size: S
-- impact: med
-- confidence: med
-- parent: abstraction-cost-ratchet
-
-The indirection ratchet reports only "+N excess". Name the import edge(s) and closure(s) that added it, and suggest the known fixes (mount from a parent whose closure already holds it, export beside the primitive, local structural type instead of a type-only import). Charuy hit it 6 times in a week. (from charuy ideas.md Lessons, 2026-10-13)
-
 ### Copy Env Files Names the Failing Entry
 
 - id: Q-0366

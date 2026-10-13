@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import { readCheckedState, writeJsonState } from '../core/state-file.js';
-import type { MeasuredIndirection } from './detect.js';
+import type { MeasuredIndirection, ModuleClosure } from './detect.js';
 
 /** Baseline location, relative to the repo root. Tracked, not transient. */
 export const BASELINE_FILE = '.noldor/indirection-baseline.json';
@@ -42,6 +42,13 @@ export const indirectionBaselineSchema = z
   .object({
     /** The ratchet number: total closure above the threshold. */
     excessSum: count,
+    /**
+     * Excess per flagged module, so a red can name the modules that moved the
+     * sum. Optional because this schema is `.strict()`: a required addition
+     * would read every baseline recorded before it as `unreadable` and take the
+     * ratchet down in every consumer repo (`state-file-schema-additive`).
+     */
+    perModule: z.record(z.string(), count).optional(),
     /** Recorded for the human reading the file; never compared. */
     flaggedModules: count,
     modulesScanned: count,
@@ -84,6 +91,7 @@ export function buildBaseline(
 ): IndirectionBaseline {
   return {
     excessSum: result.excessSum,
+    perModule: Object.fromEntries(result.flagged.map((m) => [m.source, m.excess])),
     flaggedModules: result.flagged.length,
     modulesScanned: result.modules.length,
     percentiles: result.percentiles,
@@ -196,6 +204,45 @@ function sameOptions(a: BaselineOptions, b: BaselineOptions): boolean {
   );
 }
 
+/**
+ * Caps on the named modules and edges per module: a refactor can move dozens of
+ * modules, and a wall of them buries the few that explain the number.
+ */
+const MODULE_CAP = 10;
+const EDGE_CAP = 3;
+
+function renderGrowth(
+  before: Readonly<Record<string, number>>,
+  flagged: readonly ModuleClosure[],
+): string {
+  const grown = flagged
+    .map((m) => ({ m, from: before[m.source] ?? 0 }))
+    .filter(({ m, from }) => m.excess > from)
+    .sort(
+      (a, b) =>
+        b.m.excess - b.from - (a.m.excess - a.from) || a.m.source.localeCompare(b.m.source, 'en'),
+    );
+  const lines: string[] = [];
+  for (const { m, from } of grown.slice(0, MODULE_CAP)) {
+    lines.push(
+      `    ${m.source} excess ${from} -> ${m.excess} (+${m.excess - from}), closure ${m.closure}`,
+    );
+    for (const e of (m.edges ?? []).slice(0, EDGE_CAP)) {
+      lines.push(`      imports ${e.to} - ${e.only} closure file(s) only through this edge`);
+    }
+  }
+  const hidden = grown.length - MODULE_CAP;
+  if (hidden > 0) lines.push(`    ... and ${hidden} more module(s)`);
+  // Never empty on a red: a module missing from `before` counts from 0, so a
+  // risen sum always has at least one flagged module whose excess rose.
+  return lines.join('\n');
+}
+
+const KNOWN_FIXES =
+  `  known fixes: mount the import from a parent whose closure already holds it; ` +
+  `export the helper beside the primitive it wraps; ` +
+  `use a local structural type instead of a type-only import`;
+
 export function compareToBaseline(
   result: MeasuredIndirection,
   baseline: IndirectionBaseline,
@@ -221,11 +268,18 @@ export function compareToBaseline(
   }
   const delta = result.excessSum - baseline.excessSum;
   if (delta > 0) {
+    // "+N excess" alone sends the operator diffing import graphs by hand; the
+    // modules that grew and the edges carrying their closure are the remedy.
+    const attribution =
+      baseline.perModule === undefined
+        ? `\n  baseline predates per-module attribution - re-record with ` +
+          `'noldor indirection baseline' so the next rise can name its modules`
+        : `\n  modules that moved the total:\n${renderGrowth(baseline.perModule, result.flagged)}`;
     return {
       kind: 'red',
       message:
         `indirection excess rose ${baseline.excessSum} -> ${result.excessSum} (+${delta}) ` +
-        `above the baseline recorded ${baseline.recordedAt}`,
+        `above the baseline recorded ${baseline.recordedAt}${attribution}\n${KNOWN_FIXES}`,
     };
   }
   return {

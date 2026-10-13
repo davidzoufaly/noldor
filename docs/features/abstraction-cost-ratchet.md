@@ -88,7 +88,10 @@ more than the duplication it removed.
 2. `pnpm noldor indirection check` — compares the excess sum against
    `.noldor/indirection-baseline.json`. Exit 0 clean, 1 when the number rose,
    3 when the gate could not run (no parser, unresolved relative import,
-   unreadable baseline).
+   unreadable baseline). A red names the modules whose excess grew, each with
+   its direct imports ranked by how many closure files only that edge brings in,
+   and lists the known fixes. A baseline recorded before this attribution still
+   reads; its red asks for a re-record instead.
 3. `pnpm noldor indirection baseline` — records the current number, naming the
    direction of the change. Run this when a rise is deliberate, and commit the
    baseline alongside the change that caused it.
