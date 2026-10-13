@@ -293,6 +293,14 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   `rules brief` and `worktrees freshness` in four sessions running). Keep
   flag lists in an array — `F=(--file a --file b)`, then `$F`.
   (architecture-design-phase, PRs #701-#718)
+- **`pnpm verify --force` does not force turbo.** pnpm appends extra args to
+  the script, so in a chain like `pnpm lint && … && pnpm test` the `--force`
+  lands on the LAST command only — `vitest` then rejects the unknown flag, or
+  the run still exits 1 after every turbo task came from cache. No task was
+  re-run either way. To prove an uncached run, run plain `pnpm verify` and read
+  turbo's `Cached:    N cached, M total` summary line (`0 cached` = everything
+  ran), or force the turbo step on its own: `pnpm exec turbo run test --force`.
+  (charuy PRs #386, #503)
 - **`tsx -e` cannot top-level await** ("not supported with cjs output"). Write
   a `.mts` script file to the scratchpad and run `pnpm exec tsx <file>.mts`.
 - **`lsof -ti tcp:<port>` matches CLIENT sockets too** (undici keep-alive), so
