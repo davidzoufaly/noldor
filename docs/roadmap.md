@@ -16,6 +16,104 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### CR Sink Guard Overwrites Without a TTY
+
+- id: Q-0373
+- area: tooling
+- type: fix
+- since: 2026-10-13
+- size: XS
+- impact: high
+- confidence: high
+
+`cr orchestrate`'s sink-overwrite guard (`guardLaneOverwrite` in `src/cr/orchestrate.ts`) still calls `promptSelect` when stdin is not a TTY, so every re-round under the Bash tool, a background run or `</dev/null` dies with ExitPromptError unless `--autonomous` is passed (piped answers do not work). It is documented in gotchas.md, yet five consumer sessions in a row hit it. Default to archive-and-overwrite when `!process.stdin.isTTY`. (charuy PRs #367, #376, #386, #387, #389, 2026-10-08..12)
+
+### Gate Reads the Raw Idea Before Building
+
+- id: Q-0374
+- area: tooling
+- type: feat
+- since: 2026-10-13
+- size: S
+- impact: high
+- confidence: med
+
+Promoted roadmap blocks paraphrase the ideas.md bullet lossily, and four charuy sessions built from a wrong claim: Q-0357's block said the reverse of its bullet; a block said group position/rotation are "always 0" (the engine applies them); Q-0370's "light-mode hover token" was a hard-coded `hover:bg-primary/80` class; a block named an "info panel" no component is called (it was FloorAreaCard). The gate should read the raw ideas.md bullet (via the `[triaged … → slug]` marker) and grep the named token/component before building. (charuy PRs #415, #423, #442, #467, 2026-10-12)
+
+### Worktree Bootstrap Command
+
+- id: Q-0375
+- area: tooling
+- type: feat
+- since: 2026-10-13
+- size: S
+- impact: high
+- confidence: med
+- parent: per-task-dev-environment-bootstrap
+
+`worktrees create` should run a consumer-declared bootstrap (e.g. `consumer.worktreeBootstrap: "pnpm build && pnpm build:samples"`): in charuy every fresh worktree fails all vitest suites with "Failed to resolve import @charuy/…" until a build runs — logged 8 times in one week of drains, and a red that only proves a missing build passes as a TDD red. (from charuy ideas.md Lessons, 2026-10-13)
+
+### UI Proof Tests the Developed Feature
+
+- id: Q-0376
+- area: tooling
+- type: fix
+- since: 2026-10-13
+- size: S
+- impact: high
+- confidence: low
+- parent: ui-proof-screenshots-on-the-pr
+
+Operator report: UI proof still doesn't test the developed feature. Check first — PR #721 (v1.17.0) made UI proof run the branch's own feature proof test via `uiProof.app.featureSpec`, and charuy has not adopted it yet (see Q-0358). If the gap remains after adoption, find which path still shoots a generic screen instead of the feature. (operator, 2026-10-13)
+
+### CR Delta Round Misreports Empty Delta
+
+- id: Q-0377
+- area: tooling
+- type: fix
+- since: 2026-10-13
+- size: S
+- impact: high
+- confidence: low
+
+The code-stage CR delta round reported "synthetic OK (empty delta)" for reviewer and verifier although `1fb20b2f..HEAD` changed 3 files, so only codex reviewed the fix. The empty-delta check computes the delta wrongly somewhere upstream — reproduce, then fix where the base is resolved. (charuy construction-knowledge-corpus, PR #387, 2026-10-12)
+
+### Worktree Env Fills Keys From Env Example
+
+- id: Q-0378
+- area: tooling
+- type: feat
+- since: 2026-10-13
+- size: S
+- impact: med
+- confidence: high
+
+`worktrees create` copies `.env` from main but not keys that only `.env.example` defines (charuy's `DB_SMOKE_URL`), so every live DB suite silently skips and a green run proves nothing. Fill missing keys from `.env.example`, or have doctor / the verifier warn when a smoke URL is absent. (from charuy ideas.md Lessons, 2026-10-13)
+
+### FD Writers Keep the Blank Line After Frontmatter
+
+- id: Q-0379
+- area: tooling
+- type: fix
+- since: 2026-10-13
+- size: XS
+- impact: low
+- confidence: high
+
+`phase-flip-done` and `sync test-links` still drop the blank line after an FD's frontmatter (fixed by hand twice in one session). Same loss as the earlier `sync code-links` bug; fix it once in the shared FD writer. (charuy build-section-phases-parts-and-materials-priced, PR #389, 2026-10-12)
+
+### PR Flow Skips Auto-Merge When the Repo Disables It
+
+- id: Q-0380
+- area: tooling
+- type: fix
+- since: 2026-10-13
+- size: XS
+- impact: low
+- confidence: high
+
+pr-flow always tries `gh pr merge --auto`, which consumer repos with auto-merge disabled refuse ("Auto merge is not allowed for this repository"), then falls back to a direct squash-merge every time — including on fast/* branches. Detect `enablePullRequestAutoMerge` once (`gh api repos/:owner/:repo`) and skip the attempt when it is off, or document enabling it as a consumer setup step. (charuy PRs #444, #455, 2026-10-12; also charuy backlog Q-0147)
+
 ### Charuy Adopts Next Release
 
 - id: Q-0358
@@ -29,6 +127,67 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 Roll the next release out to charuy: run `noldor upgrade` + `noldor init --update` there (its `ideas.md` has no `## Lessons`; the first retro scaffolds it), and add `animations: 'disabled'` + `test.use({ reducedMotion: 'reduce' })` to its proof tests, now that UI proof can be skipped with `Noldor-UI-Proof: skip`. (session-retro-auto-capture PR #687, ui-proof-skip PR #693, 2026-10-08)
 
 - charuy can drop its inline `.env.example` DATABASE_URL workaround (charuy PR #362) by setting `consumer.worktreeEnvFiles: [".env"]` once it runs the release that ships PR #708. (worktree-copies-local-env-files PR #708, 2026-10-08)
+
+### Drain Supervisor Reports Progress Every Minute
+
+- id: Q-0381
+- area: tooling
+- type: feat
+- since: 2026-10-13
+- size: S
+- impact: med
+- confidence: med
+
+In drain mode the main thread (the agent that started the drain) should poll the drain log about once a minute and tell the operator in text what finished, so progress is visible without asking. (operator, 2026-10-13)
+
+### Verify Force Reaches Turbo
+
+- id: Q-0382
+- area: tooling
+- type: fix
+- since: 2026-10-13
+- size: S
+- impact: med
+- confidence: med
+
+`pnpm verify --force` does not force turbo: pnpm appends the flag to the last chained script (`pnpm test`), which rejects it or exits 1 after a fully cached run. Give verify a real uncached mode, or document running plain `pnpm verify` and reading the `Cached:` line, or `pnpm exec turbo run test --force` separately. (charuy PRs #386, #503, 2026-10-11..13)
+
+### Compare Lanes Pair Each Final Page
+
+- id: Q-0383
+- area: tooling
+- type: fix
+- since: 2026-10-13
+- size: M
+- impact: high
+- confidence: med
+
+render-compare and geometry-compare answer `cannot-review: page-ambiguous` — and the review stays green while those lanes check nothing — in two cases: (a) a feature .pen keeps a VARIANT page beside its FINAL pages; (b) a design holds several FINAL pages (charuy's bathroom-fixture-bath design, and the Build design's `FINAL:app: build …` pages). Ignore VARIANT pages when picking the compare page, pair each FINAL page with its own captured state, and fail the round rather than pass when no pairing is possible. (charuy PRs #367, #386, #389, 2026-10-08..12)
+
+### PR Flow Body From the Trailer Commit
+
+- id: Q-0384
+- area: tooling
+- type: fix
+- since: 2026-10-13
+- size: S
+- impact: med
+- confidence: med
+
+pr-flow on a fast-track entry with no FD falls back to a "Micro-chore: <first commit subject>" PR body, and picks the first commit (often the roadmap-retirement commit) rather than the fix commit that carries Why/How/What. Build the body from the commit that carries the trailer sections, or from the retired roadmap block. Separately, after the squash merge its remote-branch delete failed with "cannot lock ref" (and on PR #455 tried to delete a branch already gone) — make the delete idempotent and quiet. (charuy PRs #402, #436, #455, 2026-10-12)
+
+### Indirection Ratchet Names the Edges
+
+- id: Q-0385
+- area: tooling
+- type: feat
+- since: 2026-10-13
+- size: S
+- impact: med
+- confidence: med
+- parent: abstraction-cost-ratchet
+
+The indirection ratchet reports only "+N excess". Name the import edge(s) and closure(s) that added it, and suggest the known fixes (mount from a parent whose closure already holds it, export beside the primitive, local structural type instead of a type-only import). Charuy hit it 6 times in a week. (from charuy ideas.md Lessons, 2026-10-13)
 
 ### Copy Env Files Names the Failing Entry
 

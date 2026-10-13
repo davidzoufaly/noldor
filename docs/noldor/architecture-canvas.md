@@ -55,3 +55,4 @@ Arrows that touch an external, container or store are checked only for resolving
 - **A module goes:** `--refresh` lists its box as gone. Delete it on the canvas.
 - **A design changes the architecture:** `/noldor-spec` step 1.6 copies the baseline, the design ends on a `FINAL:architecture: <name>` page, and gate Step 4 writes the approved change back onto the current baseline.
 - **Boxes moved:** arrows are loose paths, so re-run `design arch-route` after dragging.
+- **A page Copy+Delete flipped the arrows:** on a pen.dev canvas it can reverse the z-order of existing nodes, so arrows that ran behind a box now draw over it. Export and look after any page copy, then Move the box back to the end of its parent.

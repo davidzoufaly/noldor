@@ -91,7 +91,8 @@ so the prompt stays a thin pointer and no second rendering exists to drift.
 
 - Before the first `Edit`/`Write` to a file, run
   `pnpm noldor rules brief --file <path> --stage code` (repeat `--file` for a
-  known set — one call). The `ENFORCE` section is **binding** repo policy, not
+  known set — one call; in zsh keep the set in an array `F=(--file a --file b)`,
+  never a string — see [gotchas.md](gotchas.md#shell--tooling-traps)). The `ENFORCE` section is **binding** repo policy, not
   preference; `ADVISORY` is context.
 - `--file` is required. A file-scoped rule never matches a query without a file,
   so a stage-only brief reports "no rules match" however full the store is.

@@ -622,3 +622,15 @@ The gate router `SKILL.md` sits at 2927 of its 3000-word cap — the same no-hea
 - confidence: low
 
 Under `NOLDOR_DRAIN_OPEN_ONLY=1` a drain child leaves its CR review state in the worktree, and nothing removes it once the coordinator merges — only the next per-slug worktree removal does. Decide whether the merge coordinator should run the same `rm -f`. (gate-cr-cleanup-after-merge PR #712, 2026-10-08)
+
+### E2E Red on Main Check
+
+- id: Q-0386
+- area: tooling
+- type: feat
+- since: 2026-10-13
+- size: M
+- impact: med
+- confidence: low
+
+An "is this e2e red mine or already red on main?" helper: rerun the failing Playwright titles (by `-g "<title>"`, never by line number) on `origin/main` at the same `--workers`, and print which fail on both. Charuy sessions A/B'd this by hand repeatedly (121 fails at default parallelism, 24 at 3 workers, same set with the change reverted). (from charuy ideas.md Lessons, 2026-10-13)
