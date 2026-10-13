@@ -21,6 +21,7 @@ import { scanRoots } from '../core/repo-paths.js';
 
 import type { FeatureFrontmatter } from '../core/feature-schema.js';
 import { isEntrypoint } from '../core/cli-entry.js';
+import { stringifyWithFrontmatter } from '../core/frontmatter.js';
 import { extractTags } from '../sync/sync-test-links.js';
 import { codeAdapter } from '../sync/adapters/code.js';
 import { collectTaggedMany } from '../sync/projection.js';
@@ -407,7 +408,7 @@ export function applyProposal(parsed: Map<string, string[]>, featuresDir: string
     const merged = [...new Set([...existing, ...files])].toSorted();
     if (JSON.stringify(merged) === JSON.stringify(existing)) continue;
     fm.data.links = { ...links, code: merged };
-    const out = matter.stringify(fm.content, fm.data);
+    const out = stringifyWithFrontmatter(fm.content, fm.data);
     writeFileSync(path, out, 'utf8');
     modified += 1;
   }

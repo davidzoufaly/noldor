@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { stringifyWithFrontmatter } from './frontmatter.js';
+
 /**
  * Fill the `introduced` field on a Noldor page's frontmatter when missing.
  *
@@ -25,7 +27,7 @@ export function fillNoldorMarker(md: string, newVersion: string): string {
   }
 
   data.introduced = newVersion;
-  return matter.stringify(parsed.content.replace(/^\n/, ''), data);
+  return stringifyWithFrontmatter(parsed.content, data);
 }
 
 /** Noldor page roots the release stamps: the pages and their `templates/` twins. */

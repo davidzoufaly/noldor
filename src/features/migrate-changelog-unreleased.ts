@@ -5,6 +5,8 @@ import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import matter from 'gray-matter';
+
+import { stringifyWithFrontmatter } from '../core/frontmatter.js';
 import { isEntrypoint } from '../core/cli-entry.js';
 
 const CHANGELOG_HEADING = '## Changelog';
@@ -189,7 +191,7 @@ export async function migrateFeaturesDir(
     const result = migrateChangelogContent(parsed.content, { updated: fm.updated });
     results.push({ path, slug, action: result.action, warnings: result.warnings });
     if (!options.dryRun && result.action !== 'noop') {
-      const newContent = matter.stringify(result.newBody.replace(/^\n/, ''), parsed.data);
+      const newContent = stringifyWithFrontmatter(result.newBody, parsed.data);
       await writeFile(path, newContent, 'utf8');
     }
   }

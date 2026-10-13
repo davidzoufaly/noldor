@@ -6,6 +6,8 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { stringifyWithFrontmatter } from '../core/frontmatter.js';
+
 import { NOISE_TYPES, stripBang } from './release-noise-types.js';
 import { polishSummary } from './llm-polish-summary.js';
 import { commitsForFeature } from './release-fd-commits.js';
@@ -189,7 +191,7 @@ export async function generateFdChangelogs(
     if (!block) continue;
 
     const newBody = prependChangelogBlock(parsed.content, block);
-    await writeFile(path, matter.stringify(newBody.replace(/^\n/, ''), parsed.data), 'utf8');
+    await writeFile(path, stringifyWithFrontmatter(newBody, parsed.data), 'utf8');
     result.set(slug, block);
   }
   return result;

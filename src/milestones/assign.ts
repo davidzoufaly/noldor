@@ -2,6 +2,8 @@
 
 import matter from 'gray-matter';
 
+import { stringifyWithFrontmatter } from '../core/frontmatter.js';
+
 import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
 import { setBlockField } from '../utils/write-blocks.js';
 import type { Milestone } from './lib.js';
@@ -162,5 +164,5 @@ function setFeatureMilestone(md: string, milestone: string): string {
   const parsed = matter(md, {});
   const data = parsed.data as Record<string, unknown>;
   data.milestone = milestone;
-  return matter.stringify(parsed.content.replace(/^\n/, ''), data);
+  return stringifyWithFrontmatter(parsed.content, data);
 }

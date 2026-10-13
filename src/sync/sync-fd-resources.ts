@@ -8,6 +8,7 @@ import { ARCHIVE_DIR } from '../core/design-artifact-names.js';
 import { LOST_SENTINEL } from '../core/feature-schema.js';
 import { parseRunOptions } from './projection.js';
 import { isEntrypoint } from '../core/cli-entry.js';
+import { stringifyWithFrontmatter } from '../core/frontmatter.js';
 
 const START_MARKER = '<!-- generated: resources -->';
 const END_MARKER = '<!-- /generated: resources -->';
@@ -198,12 +199,8 @@ export async function syncFile(path: string): Promise<boolean> {
   const block = buildResourcesBlock(data as FdFrontmatter);
   const nextBody = applyBlock(parsed.content, block);
   if (!frontmatterChanged && nextBody === parsed.content) return false;
-  // oxfmt wants a blank line after the frontmatter close and exactly one
-  // trailing newline. `matter.stringify` concatenates `---\n${yaml}---\n` with
-  // the body verbatim, so we prepend `\n` to force the separator and collapse
-  // any trailing-newline accumulation back to a single `\n`.
-  const body = `\n${nextBody.replace(/^\n+/, '')}`;
-  const out = matter.stringify(body, data).replace(/\n+$/, '\n');
+  // oxfmt wants exactly one trailing newline: collapse any accumulation.
+  const out = stringifyWithFrontmatter(nextBody, data).replace(/\n+$/, '\n');
   await writeFile(path, out, 'utf8');
   return true;
 }

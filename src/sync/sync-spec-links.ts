@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { stringifyWithFrontmatter } from '../core/frontmatter.js';
+
 import { extractSpecSlug } from '../core/fd-load.js';
 import { isEntrypoint } from '../core/cli-entry.js';
 
@@ -58,7 +60,7 @@ export async function updateFeatureMd(featureMdPath: string, specPath: string): 
 
   links.spec = specPath;
   data.links = links;
-  const next = matter.stringify(parsed.content.replace(/^\n/, ''), data);
+  const next = stringifyWithFrontmatter(parsed.content, data);
   await writeFile(featureMdPath, next, 'utf8');
   return true;
 }

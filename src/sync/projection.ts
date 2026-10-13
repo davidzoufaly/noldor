@@ -7,6 +7,8 @@ import { basename, join, relative } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { stringifyWithFrontmatter } from '../core/frontmatter.js';
+
 import { atomicWriteFile } from '../core/atomic-write.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 
@@ -578,7 +580,7 @@ async function updateFeatureMd(
   }
   links[adapter.key] = next;
   data.links = links;
-  await atomicWriteFile(path, matter.stringify(parsed.content.replace(/^\n/, ''), data));
+  await atomicWriteFile(path, stringifyWithFrontmatter(parsed.content, data));
   return 'updated';
 }
 
