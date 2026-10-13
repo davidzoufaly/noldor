@@ -42,18 +42,6 @@ Roll the next release out to charuy: run `noldor upgrade` + `noldor init --updat
 
 render-compare and geometry-compare answer `cannot-review: page-ambiguous` — and the review stays green while those lanes check nothing — in two cases: (a) a feature .pen keeps a VARIANT page beside its FINAL pages; (b) a design holds several FINAL pages (charuy's bathroom-fixture-bath design, and the Build design's `FINAL:app: build …` pages). Ignore VARIANT pages when picking the compare page, pair each FINAL page with its own captured state, and fail the round rather than pass when no pairing is possible. (charuy PRs #367, #386, #389, 2026-10-08..12)
 
-### README Config-Block Count Drift
-
-- id: Q-0368
-- area: tooling
-- type: fix
-- since: 2026-10-09
-- size: XS
-- impact: low
-- confidence: high
-
-`checks readme`'s config-block axis diffs the backticked names only, so the README's spelled-out count ("Ten optional blocks") can still drift when a block lands. Compare the number word too, or drop it from the README. (readme-config-blocks-check PR #715, 2026-10-08)
-
 ### Fill-Links Dry Run Skips Tag-Built FDs
 
 - id: Q-0369
