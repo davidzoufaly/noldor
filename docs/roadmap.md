@@ -30,18 +30,6 @@ Roll the next release out to charuy: run `noldor upgrade` + `noldor init --updat
 
 - charuy can drop its inline `.env.example` DATABASE_URL workaround (charuy PR #362) by setting `consumer.worktreeEnvFiles: [".env"]` once it runs the release that ships PR #708. (worktree-copies-local-env-files PR #708, 2026-10-08)
 
-### Verify Force Reaches Turbo
-
-- id: Q-0382
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: S
-- impact: med
-- confidence: med
-
-`pnpm verify --force` does not force turbo: pnpm appends the flag to the last chained script (`pnpm test`), which rejects it or exits 1 after a fully cached run. Give verify a real uncached mode, or document running plain `pnpm verify` and reading the `Cached:` line, or `pnpm exec turbo run test --force` separately. (charuy PRs #386, #503, 2026-10-11..13)
-
 ### Compare Lanes Pair Each Final Page
 
 - id: Q-0383

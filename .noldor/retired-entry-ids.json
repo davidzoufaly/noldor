@@ -910,5 +910,9 @@
   "Q-0381": {
     "slug": "drain-supervisor-reports-progress-every-minute",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0382": {
+    "slug": "verify-force-reaches-turbo",
+    "retiredAt": "2026-10-13"
   }
 }
