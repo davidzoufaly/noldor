@@ -1,6 +1,6 @@
 # Domain Knowledge Graph — Summary (v3)
 # version: 3
-# 4608 nodes, 6567 edges (contains/imports_from omitted), 245 communities, directed=false
+# 4609 nodes, 6568 edges (contains/imports_from omitted), 234 communities, directed=false
 # Deep dive: graph.brainstorm.toon (TOC at top — use Read offset/limit per community)
 # Compact format used in brainstorm.toon:
 #   Rels: i=imports f=calls e=re_exports r=references m=method p=plan-of s=spec-of ?=other  (contains/imports_from omitted — derivable)
@@ -9,50 +9,50 @@
 #   Cross-edge row (this file + brainstorm.toon ## cross): <rel> <label>@c<src_comm>><label>@c<tgt_comm>
 
 ## community index (top 20 by size)
-  c0 (100): detectors
-  c1 (95): acquire() · acquireLock() · acquirePidLock()
-  c2 (80): allocatePorts() · attach-milestone-cli.ts · attach-milestone.test.ts
-  c3 (77): blockOf() · build-e2e.test.ts · build.test.ts
-  c4 (75): collect
-  c5 (67): detectors
-  c6 (65): ageBucket() · barTable() · cmpOrdinal()
-  c7 (60): assertConfig() · assertQueueSourceSynced() · assertQueueSourceSyncedAt()
-  c8 (59): detectors
-  c9 (58): detectors
-  c10 (56): dashboard-server.test.ts · dashboard-stale-install.test.ts · dashboard-worktrees.test.ts
-  c11 (55): .constructor() · .constructor() · LedgerParseError
-  c12 (55): detectors / adapters
-  c13 (53): detectors
-  c14 (53): .constructor() · .constructor() · .constructor()
-  c15 (52): rules / lanes
-  c16 (50): arbitration-cli.ts · args() · captureCitations()
-  c17 (48): lanes / geometry
-  c18 (46): addWorktree() · autoOpenEnabled() · boom()
-  c19 (45): buildPrompt() · commit() · commit()
+  c0 (97): detectors
+  c1 (87): amend-receipt.test.ts · amend-receipt.ts · amendSubagentReceipt()
+  c2 (85): detectors
+  c3 (81): rules
+  c4 (80): blockOf() · build-e2e.test.ts · build.test.ts
+  c5 (79): lanes
+  c6 (77): collect
+  c7 (72): acquire() · acquirePidLock() · appendToSection()
+  c8 (68): arbitration-cli.test.ts · arbitration-cli.ts · arbitration.test.ts
+  c9 (65): codePathOwnsFile() · countMatching() · countScriptFiles()
+  c10 (62): lanes
+  c11 (60): assessEntrySplit() · assessFdBreadth() · assessPlanSplit()
+  c12 (60): arch-draw.test.ts · arch-draw.ts · arch-pen.test.ts
+  c13 (60): activeExtensionDir() · ancestryVerdict() · blobAtHead()
+  c14 (59): .constructor() · .constructor() · LedgerParseError
+  c15 (58): detectors
+  c16 (57): approvalDirSegments() · approve() · archive-resolve.test.ts
+  c17 (57): ageBucket() · barTable() · cmpOrdinal()
+  c18 (55): geometry
+  c19 (54): detectors
 
 ## cross-community edges (top 25)
-  f activateMilestone!@c24>atomicWriteFileSync!@c122
-  f aggregate!@c91>readExpectedLanes!@c52
-  f annotateRound!@c11>writeJsonAtomic!@c44
-  f appendRound!@c11>writeJsonAtomic!@c44
-  f applyProposal!@c84>stringifyWithFrontmatter!@c66
-  f approve!@c45>errMessage!@c17
-  f approve!@c45>list!@c23
-  f approve!@c45>readPenPages!@c107
-  f arbitrationPath!@c33>slugKindJsonPath!@c52
-  f assessEntrySplit!@c87>countWords!@c157
-  f assessEntrySplit!@c87>extractTouches!@c104
-  f assessSpecSplit!@c87>countWords!@c157
-  f assessSpecSplit!@c87>readCriteria!@c139
-  f auditCodexCrOverrides!@c9>tally!@c60
-  f auditOverrides!@c9>commitOnlyTouchesReport!@c5
-  f auditOverrides!@c9>matchesExpectedOverride!@c5
-  f auditOverrides!@c9>parseTrailers!@c36
-  f autoBase!@c49>resolveDefaultBase!@c97
-  f autoOpenEnabled!@c18>loadConfigSync!@c7
-  f baselineStamp!@c57>blobIdOfWorktreeFile!@c45
-  f bootDevSurfaces!@c2>atomicWriteFile!@c89
-  f boundFile!@c45>loadDocRoots!@c9
-  f branchCarriesCode!@c14>touchesCode!@c143
-  f branchHasUnshippedWorkAt!@c7>branchHasUnshippedWork!@c63
-  f buildBlockedByGraph!@c8>parseBacklog!@c75
+  f acquireLock!@c109>tryAcquire!@c7
+  f activateMilestone!@c27>atomicWriteFileSync!@c79
+  f aggregate!@c77>inferLaneFromFilename!@c22
+  f annotateRound!@c14>writeJsonAtomic!@c89
+  f appendRound!@c14>writeJsonAtomic!@c89
+  f applyProposal!@c84>stringifyWithFrontmatter!@c40
+  f approvalRelPath!@c5>approvalDirSegments!@c16
+  f approve!@c16>errMessage!@c5
+  f approve!@c16>list!@c18
+  f arbitrationPath!@c8>slugKindJsonPath!@c14
+  f assessSpecSplit!@c11>readCriteria!@c83
+  f auditCodexCrOverrides!@c15>tally!@c2
+  f auditOverrides!@c19>parseTrailers!@c71
+  f autoBase!@c47>resolveDefaultBase!@c43
+  f autoOpenEnabled!@c26>loadConfigSync!@c137
+  f baselineStamp!@c32>blobIdOfWorktreeFile!@c16
+  f bootDevSurfaces!@c152>atomicWriteFile!@c90
+  f bootServer!@c5>waitForHttp200!@c152
+  f boundFile!@c16>loadDocRoots!@c15
+  f branchCarriesCode!@c20>touchesCode!@c42
+  f buildBlockedByGraph!@c66>parseBacklog!@c36
+  f buildGateComplianceSection!@c19>loadConfigSync!@c137
+  f buildGeometryExtractPrompt!@c38>finalPageJobs!@c29
+  f buildMergeCandidates!@c36>loadDocRoots!@c15
+  f buildMergeCandidates!@c36>loadSddFeatures!@c72
