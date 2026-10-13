@@ -974,5 +974,9 @@
   "Q-0362": {
     "slug": "refactor-report-dead-code-section",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0358": {
+    "slug": "charuy-adopts-next-release",
+    "retiredAt": "2026-10-13"
   }
 }
