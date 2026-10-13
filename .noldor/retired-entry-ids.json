@@ -874,5 +874,9 @@
     "slug": "ui-proof-shows-the-delivered-feature",
     "retiredInto": "ui-proof-screenshots-on-the-pr",
     "retiredAt": "2026-10-09"
+  },
+  "Q-0373": {
+    "slug": "cr-sink-guard-overwrites-without-a-tty",
+    "retiredAt": "2026-10-13"
   }
 }

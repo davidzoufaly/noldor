@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### CR Sink Guard Overwrites Without a TTY
-
-- id: Q-0373
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: XS
-- impact: high
-- confidence: high
-
-`cr orchestrate`'s sink-overwrite guard (`guardLaneOverwrite` in `src/cr/orchestrate.ts`) still calls `promptSelect` when stdin is not a TTY, so every re-round under the Bash tool, a background run or `</dev/null` dies with ExitPromptError unless `--autonomous` is passed (piped answers do not work). It is documented in gotchas.md, yet five consumer sessions in a row hit it. Default to archive-and-overwrite when `!process.stdin.isTTY`. (charuy PRs #367, #376, #386, #387, #389, 2026-10-08..12)
-
 ### Gate Reads the Raw Idea Before Building
 
 - id: Q-0374
