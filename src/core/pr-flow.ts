@@ -1121,17 +1121,48 @@ async function deleteRemoteBranchIfLingers(opts: {
   await deleteMergedRemoteBranch(opts);
 }
 
+/**
+ * Ask GitHub whether the PR's repo allows auto-merge. `false` only on an
+ * explicit `autoMergeAllowed: false`; any probe failure or odd shape is
+ * `undefined` (unknown), so the caller still tries `--auto` — the probe only
+ * saves a doomed attempt, it never decides a merge.
+ */
+async function probeAutoMergeAllowed(spawn: SpawnFn, prUrl: string): Promise<boolean | undefined> {
+  const repo = /github\.com\/([^/]+\/[^/]+)\/pull\//.exec(prUrl)?.[1];
+  const res = await spawn('gh', [
+    'repo',
+    'view',
+    ...(repo !== undefined ? [repo] : []),
+    '--json',
+    'autoMergeAllowed',
+  ]);
+  if (res.exitCode !== 0) return undefined;
+  try {
+    const parsed = JSON.parse(res.stdout) as { autoMergeAllowed?: unknown };
+    return typeof parsed.autoMergeAllowed === 'boolean' ? parsed.autoMergeAllowed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Merge an open PR: queue auto-merge and poll, falling back to a direct
- *  squash-merge when the repo has auto-merge disabled. Shared by the gate's
- *  `openAndAutoMerge` end-of-flow and `prep promote --ship` so promote batches
- *  land the same way the drain's PRs do. */
+ *  squash-merge when the repo has auto-merge disabled. A repo that reports
+ *  auto-merge off skips the `--auto` attempt and goes straight to the direct
+ *  merge. Shared by the gate's `openAndAutoMerge` end-of-flow and
+ *  `prep promote --ship` so promote batches land the same way the drain's PRs do. */
 export async function mergePrWithFallback(
   input: MergePrWithFallbackInput,
 ): Promise<{ mergedAt: string }> {
   const status = input.onStatus !== undefined ? { onStatus: input.onStatus } : {};
-  const merge = await input.spawn('gh', ['pr', 'merge', input.prUrl, '--auto', '--squash']);
+  const autoMergeAllowed = await probeAutoMergeAllowed(input.spawn, input.prUrl);
+  const merge =
+    autoMergeAllowed === false
+      ? undefined
+      : await input.spawn('gh', ['pr', 'merge', input.prUrl, '--auto', '--squash']);
+  const autoLeg =
+    merge === undefined ? 'skipped (repo disallows auto-merge)' : `failed: exit ${merge.exitCode}`;
 
-  if (merge.exitCode === 0) {
+  if (merge?.exitCode === 0) {
     const merged = await pollAutoMerge({
       prUrl: input.prUrl,
       spawn: input.spawn,
@@ -1157,7 +1188,9 @@ export async function mergePrWithFallback(
   // merge happens immediately, no polling needed. If both legs fail,
   // surface both exit codes.
   process.stderr.write(
-    'pr-flow: gh pr merge --auto failed; falling back to direct squash-merge.\n',
+    merge === undefined
+      ? 'pr-flow: repo has auto-merge disabled; using direct squash-merge.\n'
+      : 'pr-flow: gh pr merge --auto failed; falling back to direct squash-merge.\n',
   );
   // Unlike the --auto path (GitHub only merges when mergeStateStatus allows),
   // a direct `gh pr merge --squash` merges whatever is there — red CI included
@@ -1198,7 +1231,7 @@ export async function mergePrWithFallback(
   ]);
   if (view.exitCode !== 0) {
     throw new Error(
-      `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; gh pr view failed: exit ${view.exitCode} — ${input.prUrl}`,
+      `gh pr merge --auto ${autoLeg}; direct merge fallback exit ${directMerge.exitCode}; gh pr view failed: exit ${view.exitCode} — ${input.prUrl}`,
     );
   }
   let viewData: { mergedAt: string | null; state: string; headRefName?: string };
@@ -1215,7 +1248,7 @@ export async function mergePrWithFallback(
   }
   if (viewData.state !== 'MERGED' || !viewData.mergedAt) {
     throw new Error(
-      `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; PR state is "${viewData.state}" — ${input.prUrl}`,
+      `gh pr merge --auto ${autoLeg}; direct merge fallback exit ${directMerge.exitCode}; PR state is "${viewData.state}" — ${input.prUrl}`,
     );
   }
   if (inWorktree) {

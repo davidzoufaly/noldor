@@ -902,5 +902,9 @@
   "Q-0379": {
     "slug": "fd-writers-keep-the-blank-line-after-frontmatter",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0380": {
+    "slug": "pr-flow-skips-auto-merge-when-the-repo-disables-it",
+    "retiredAt": "2026-10-13"
   }
 }

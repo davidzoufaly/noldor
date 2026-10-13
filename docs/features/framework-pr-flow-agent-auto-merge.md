@@ -48,7 +48,7 @@ As an operator driving `/noldor-gate` (human or agent controlling the framework)
 
 1. With session marker active and worktree branch ready, signal "ready to ship" to `/noldor-gate`.
 2. Gate runs Claude review + `pnpm cr:codex` + retry loop until clean (max 3 codex retries; on `exhausted`, surfaces findings via AskUserQuestion).
-3. Gate invokes `src/core/pr-flow.ts openAndAutoMerge()` — pushes branch, opens PR via `gh pr create`, sets `gh pr merge --auto --squash`, polls `gh pr view` until merged (timeout 10min, 20min if PR enters `BEHIND` state).
+3. Gate invokes `src/core/pr-flow.ts openAndAutoMerge()` — pushes branch, opens PR via `gh pr create`, sets `gh pr merge --auto --squash` (or, when `gh repo view --json autoMergeAllowed` reports the repo disallows auto-merge, goes straight to a direct squash-merge after checks pass), polls `gh pr view` until merged (timeout 10min, 20min if PR enters `BEHIND` state).
 4. On merge: gate cleans up via `ExitWorktree` (worktree removed, local branch deleted), prints the PR URL, hands off to Step 5 next-priority handoff.
 
 **`/noldor-gate` micro-chore path (no worktree)**
