@@ -483,15 +483,50 @@ async function main(): Promise<void> {
     return;
   }
 
+  await runDryRun();
+}
+
+/**
+ * The FDs, their resolver rows and the unreferenced candidate files — the
+ * shared input of the interactive proposal and `--auto-high`.
+ */
+async function loadGapInputs(): Promise<{
+  features: Awaited<ReturnType<typeof loadSddFeatures>>;
+  featureRows: ResolverInput['features'];
+  candidateFiles: string[];
+}> {
   const features = await loadSddFeatures(FEATURES_DIR);
   const referenced = new Set<string>();
   for (const f of features) {
     for (const c of f.frontmatter.links.code) referenced.add(c);
   }
-
   const candidateFiles = await collectCandidateFiles(referenced);
-
   const featureRows = features.map((f) => ({ slug: f.slug, frontmatter: f.frontmatter }));
+  return { features, featureRows, candidateFiles };
+}
+
+/**
+ * Interactive proposal pass (`--dry-run`, the default): resolve every
+ * unreferenced file by path, then by LLM tie-break, and write the proposal
+ * for operator review.
+ *
+ * Tag-built FDs (see {@link collectTagBuiltSlugs}) are never proposed: a file
+ * written into one is dropped again by `sync code-links` after `--apply`. A
+ * high match onto one is skipped and counted, and they are struck from the
+ * candidates handed to the LLM. When the tag scan cannot read a root, nothing
+ * is written — a partial scan cannot tell which FDs are tag-built.
+ */
+export async function runDryRun(): Promise<void> {
+  const tagBuilt = await collectTagBuiltSlugs();
+  if (!tagBuilt.success) {
+    console.error(
+      `fill-links-code-gaps: no proposal written — the \`// @fd:\` tag scan could not read ${tagBuilt.errors.map((f) => f.root).join(', ')}, so tag-built FDs are unknown.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const { features, featureRows, candidateFiles } = await loadGapInputs();
   const testOwners = await collectTestOwners();
   const summaryByFd = new Map<string, string>();
   for (const f of features) {
@@ -501,9 +536,15 @@ async function main(): Promise<void> {
 
   const assignments: Assignment[] = [];
   const unassigned: Unassigned[] = [];
+  let tagged = 0;
 
   for (const file of candidateFiles) {
-    const matches = resolveByPath({ filePath: file, features: featureRows, testOwners });
+    const resolved = resolveByPath({ filePath: file, features: featureRows, testOwners });
+    const matches = resolved.filter((m) => !tagBuilt.data.has(m.fdSlug));
+    if (matches.length === 0 && resolved.length > 0) {
+      tagged += 1;
+      continue;
+    }
     if (matches.length === 1 && matches[0].confidence === 'high') {
       assignments.push({ filePath: file, match: matches[0] });
       continue;
@@ -528,12 +569,19 @@ async function main(): Promise<void> {
     }
   }
 
+  const taggedNote =
+    tagged > 0
+      ? ` Skipped ${tagged} file(s) matched only to a tag-built FD (add a \`// @fd:\` tag to the file instead).`
+      : '';
+
   if (assignments.length === 0 && unassigned.every((u) => u.candidates.length === 0)) {
     if (unassigned.length > 0) {
       console.error(
-        `fill-links-code-gaps: no candidate FD for any of ${unassigned.length} unreferenced file(s) — no path, sibling, or test-import signal matched, so no proposal was written. Assign them by hand, or tag their tests with \`// @tests: <slug>\` and re-run.`,
+        `fill-links-code-gaps: no candidate FD for any of ${unassigned.length} unreferenced file(s) — no path, sibling, or test-import signal matched, so no proposal was written. Assign them by hand, or tag their tests with \`// @tests: <slug>\` and re-run.${taggedNote}`,
       );
       process.exitCode = 1;
+    } else if (tagged > 0) {
+      console.log(`fill-links-code-gaps: nothing to propose.${taggedNote}`);
     } else {
       console.log(
         'fill-links-code-gaps: every code file is already referenced — nothing to propose.',
@@ -545,7 +593,7 @@ async function main(): Promise<void> {
   const md = generateProposal({ assignments, unassigned });
   writeFileSync(PROPOSAL_PATH, md, 'utf8');
   console.log(
-    `Proposal written to ${PROPOSAL_PATH}. ${assignments.length} assigned, ${unassigned.length} unassigned. Review + edit, then run --apply.`,
+    `Proposal written to ${PROPOSAL_PATH}. ${assignments.length} assigned, ${unassigned.length} unassigned. Review + edit, then run --apply.${taggedNote}`,
   );
 }
 
@@ -614,15 +662,7 @@ export async function runAutoHigh(): Promise<void> {
     return;
   }
 
-  const features = await loadSddFeatures(FEATURES_DIR);
-  const referenced = new Set<string>();
-  for (const f of features) {
-    for (const c of f.frontmatter.links.code) referenced.add(c);
-  }
-
-  const candidateFiles = await collectCandidateFiles(referenced);
-
-  const featureRows = features.map((f) => ({ slug: f.slug, frontmatter: f.frontmatter }));
+  const { featureRows, candidateFiles } = await loadGapInputs();
   const proposal = new Map<string, string[]>();
   let skipped = 0;
   let tagged = 0;

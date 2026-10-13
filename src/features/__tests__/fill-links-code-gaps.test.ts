@@ -2,7 +2,15 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -15,6 +23,7 @@ import {
   parseProposal,
   resolveByPath,
   runAutoHigh,
+  runDryRun,
 } from '../fill-links-code-gaps.js';
 import type { FeatureFrontmatter } from '../../core/feature-schema.js';
 
@@ -486,36 +495,89 @@ function readCode(dir: string, slug: string): string {
   return readFileSync(join(dir, 'docs', 'features', `${slug}.md`), 'utf8');
 }
 
+/** A repo with a tag-built `money-fd` and a hand-kept `plain-fd`, each with one unlinked file. */
+function makeTagBuiltRepo(): string {
+  const dir = makeStandaloneRepo();
+  mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+  for (const pkg of ['money', 'plain']) {
+    mkdirSync(join(dir, 'packages', pkg, 'src'), { recursive: true });
+  }
+  writeFileSync(
+    join(dir, 'packages', 'money', 'src', 'build.ts'),
+    '// @fd: money-fd\nexport {};\n',
+  );
+  writeFileSync(join(dir, 'packages', 'money', 'src', 'money.ts'), 'export {};\n');
+  writeFileSync(join(dir, 'packages', 'plain', 'src', 'plain.ts'), 'export {};\n');
+  writeFd(dir, 'money-fd', 'money', ['packages/money/src/build.ts']);
+  writeFd(dir, 'plain-fd', 'plain', []);
+  return dir;
+}
+
+/** Run `body` inside `dir` with console output captured, then remove `dir`. */
+async function inRepo(dir: string, body: (output: () => string) => Promise<void>): Promise<void> {
+  const spies = (['log', 'warn', 'error'] as const).map((m) =>
+    vi.spyOn(console, m).mockImplementation(() => {}),
+  );
+  const previousCwd = process.cwd();
+  const previousExitCode = process.exitCode;
+  process.chdir(dir);
+  try {
+    await body(() => spies.flatMap((s) => s.mock.calls.flat()).join('\n'));
+  } finally {
+    process.chdir(previousCwd);
+    process.exitCode = previousExitCode;
+    for (const s of spies) s.mockRestore();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 describe('runAutoHigh', () => {
   // Regression (charuy, PR #362): the pass wrote an untagged file into an FD
   // whose links.code `sync code-links` builds from `// @fd:` tags, and the sync
   // dropped it again — so every commit left that FD dirty.
   it('skips a high match onto a tag-built FD and still applies the others', async () => {
-    const dir = makeStandaloneRepo();
-    mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
-    for (const pkg of ['money', 'plain']) {
-      mkdirSync(join(dir, 'packages', pkg, 'src'), { recursive: true });
-    }
-    writeFileSync(
-      join(dir, 'packages', 'money', 'src', 'build.ts'),
-      '// @fd: money-fd\nexport {};\n',
-    );
-    writeFileSync(join(dir, 'packages', 'money', 'src', 'money.ts'), 'export {};\n');
-    writeFileSync(join(dir, 'packages', 'plain', 'src', 'plain.ts'), 'export {};\n');
-    writeFd(dir, 'money-fd', 'money', ['packages/money/src/build.ts']);
-    writeFd(dir, 'plain-fd', 'plain', []);
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const previousCwd = process.cwd();
-    process.chdir(dir);
-    try {
+    const dir = makeTagBuiltRepo();
+    await inRepo(dir, async (output) => {
       await runAutoHigh();
       expect(readCode(dir, 'money-fd')).not.toContain('packages/money/src/money.ts');
       expect(readCode(dir, 'plain-fd')).toContain('packages/plain/src/plain.ts');
-      expect(log.mock.calls.flat().join('\n')).toContain('skipped 1 matched to a tag-built FD');
-    } finally {
-      process.chdir(previousCwd);
-      log.mockRestore();
-      rmSync(dir, { recursive: true, force: true });
-    }
+      expect(output()).toContain('skipped 1 matched to a tag-built FD');
+    });
+  });
+
+  it('applies nothing when the tag scan cannot read a file', async () => {
+    const dir = makeTagBuiltRepo();
+    chmodSync(join(dir, 'packages', 'money', 'src', 'build.ts'), 0o000);
+    await inRepo(dir, async (output) => {
+      await runAutoHigh();
+      expect(readCode(dir, 'plain-fd')).not.toContain('packages/plain/src/plain.ts');
+      expect(output()).toContain('tag-built FDs are unknown');
+    });
+  });
+});
+
+describe('runDryRun', () => {
+  // Regression (PR #706 follow-up): the proposal still assigned untagged files
+  // to tag-built FDs, which `sync code-links` dropped again after `--apply`.
+  it('never proposes a file for a tag-built FD', async () => {
+    const dir = makeTagBuiltRepo();
+    await inRepo(dir, async (output) => {
+      await runDryRun();
+      const proposal = readFileSync(join(dir, 'docs', '.backfill-links-code.proposal.md'), 'utf8');
+      expect(proposal).toContain('packages/plain/src/plain.ts');
+      expect(proposal).not.toContain('packages/money/src/money.ts');
+      expect(output()).toContain('Skipped 1 file(s) matched only to a tag-built FD');
+    });
+  });
+
+  it('writes no proposal when the tag scan cannot read a file', async () => {
+    const dir = makeTagBuiltRepo();
+    chmodSync(join(dir, 'packages', 'money', 'src', 'build.ts'), 0o000);
+    await inRepo(dir, async (output) => {
+      await runDryRun();
+      expect(process.exitCode).toBe(1);
+      expect(existsSync(join(dir, 'docs', '.backfill-links-code.proposal.md'))).toBe(false);
+      expect(output()).toContain('tag-built FDs are unknown');
+    });
   });
 });
