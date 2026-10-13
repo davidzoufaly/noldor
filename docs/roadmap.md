@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### FD Writers Keep the Blank Line After Frontmatter
-
-- id: Q-0379
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: XS
-- impact: low
-- confidence: high
-
-`phase-flip-done` and `sync test-links` still drop the blank line after an FD's frontmatter (fixed by hand twice in one session). Same loss as the earlier `sync code-links` bug; fix it once in the shared FD writer. (charuy build-section-phases-parts-and-materials-priced, PR #389, 2026-10-12)
-
 ### PR Flow Skips Auto-Merge When the Repo Disables It
 
 - id: Q-0380
