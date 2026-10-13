@@ -178,10 +178,24 @@ async function isEmptyDiffDefault(
   headSha: string,
   artifact: string,
 ): Promise<boolean> {
+  // The gate passes `--artifact <code-paths>`, so a caller hands over a list. As ONE pathspec
+  // `a,b` matches no file and the diff reads empty — a synthetic OK over an unreviewed fix
+  // (Q-0377). Split on commas and whitespace; an empty list falls back to the whole tree.
+  const pathspecs = artifact.split(/[\s,]+/).filter((p) => p !== '');
   try {
-    await execAsync('git', ['diff', '--quiet', `${baseSha}..${headSha}`, '--', artifact], {
-      cwd: repoRoot,
-    });
+    await execAsync(
+      'git',
+      [
+        'diff',
+        '--quiet',
+        `${baseSha}..${headSha}`,
+        '--',
+        ...(pathspecs.length > 0 ? pathspecs : ['.']),
+      ],
+      {
+        cwd: repoRoot,
+      },
+    );
     return true; // exit 0 = no diff
   } catch {
     return false; // exit 1 = diff present
