@@ -384,10 +384,10 @@ export function clearMicroChoreSession(cwd: string, session: SessionMarker): voi
 }
 
 export function nodeSpawn(opts?: { cwd?: string }): SpawnFn {
-  return async (cmd, args, stdin) => {
+  return async (cmd, args, stdin, spawnOpts) => {
     return new Promise((resolve, reject) => {
       const child = spawn(cmd, args, {
-        stdio: ['pipe', 'pipe', 'inherit'],
+        stdio: ['pipe', 'pipe', spawnOpts?.quiet === true ? 'ignore' : 'inherit'],
         ...(opts?.cwd !== undefined ? { cwd: opts.cwd } : {}),
       });
       let stdout = '';

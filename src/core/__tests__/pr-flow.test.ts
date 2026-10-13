@@ -725,7 +725,9 @@ describe('openAndAutoMerge', () => {
       'git push',
       'gh pr list',
       'gh pr create',
-      'gh repo',
+      // auto-merge probes: repo setting, then the PR's base ref (both unanswered here)
+      'gh api',
+      'gh api',
       'gh pr merge',
       'gh pr view',
     ]);
@@ -1018,7 +1020,9 @@ describe('openAndAutoMerge', () => {
       'git push',
       'gh pr list',
       'gh pr edit',
-      'gh repo',
+      // auto-merge probes: repo setting, then the PR's base ref (both unanswered here)
+      'gh api',
+      'gh api',
       'gh pr merge',
       'gh pr view',
     ]);
@@ -1479,72 +1483,117 @@ describe('mergePrWithFallback', () => {
     expect(mergeCalls[1].args).not.toContain('--auto');
   });
 
-  it('skips the --auto attempt when the repo reports auto-merge disabled', async () => {
-    const calls: Array<{ cmd: string; args: string[] }> = [];
-    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
-      calls.push({ cmd, args });
-      if (cmd === 'gh' && args[0] === 'repo' && args[1] === 'view')
-        return { stdout: JSON.stringify({ autoMergeAllowed: false }), exitCode: 0 };
-      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 0 };
-      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'view') {
-        return {
-          stdout: JSON.stringify({ mergedAt: '2026-07-02T12:06:00Z', state: 'MERGED' }),
-          exitCode: 0,
-        };
+  /** A spawn whose `gh api` probes answer from `api` (path → jq stdout; a
+   *  missing path fails the call) and whose merge legs answer as given. */
+  function probeSpawn(
+    api: Record<string, string>,
+    mergeExit: number,
+    view: { mergedAt: string | null; state: string },
+  ): {
+    spawn: SpawnFn;
+    calls: Array<{ cmd: string; args: string[]; quiet: boolean }>;
+  } {
+    const calls: Array<{ cmd: string; args: string[]; quiet: boolean }> = [];
+    const spawn: SpawnFn = vi.fn(async (cmd, args, _stdin, opts) => {
+      calls.push({ cmd, args, quiet: opts?.quiet === true });
+      if (cmd === 'gh' && args[0] === 'api') {
+        const out = api[args[1]];
+        return out === undefined
+          ? { stdout: '', exitCode: 1 }
+          : { stdout: `${out}\n`, exitCode: 0 };
       }
+      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: mergeExit };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'view')
+        return { stdout: JSON.stringify(view), exitCode: 0 };
       return { stdout: '', exitCode: 1 };
     });
+    return { spawn, calls };
+  }
+  const merged = { mergedAt: '2026-07-02T12:06:00Z', state: 'MERGED' };
+  const repoPath = 'repos/davidzoufaly/acme';
+  const pullPath = 'repos/davidzoufaly/acme/pulls/9';
+  const branchPath = 'repos/davidzoufaly/acme/branches/main';
+
+  it('skips the --auto attempt when the repo reports auto-merge disabled', async () => {
+    const { spawn, calls } = probeSpawn({ [repoPath]: 'false' }, 0, merged);
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const result = await mergePrWithFallback({ prUrl, spawn });
+    const lines = stderr.mock.calls.map((c) => String(c[0]));
+    stderr.mockRestore();
     expect(result.mergedAt).toBe('2026-07-02T12:06:00Z');
-    const probe = calls.find((c) => c.args[0] === 'repo');
-    expect(probe?.args).toEqual([
-      'repo',
-      'view',
-      'davidzoufaly/acme',
-      '--json',
-      'autoMergeAllowed',
-    ]);
+    expect(calls[0]).toEqual({
+      cmd: 'gh',
+      args: ['api', repoPath, '--jq', '.allow_auto_merge'],
+      quiet: true,
+    });
     const mergeCalls = calls.filter((c) => c.args[1] === 'merge');
     expect(mergeCalls).toHaveLength(1);
     expect(mergeCalls[0].args).not.toContain('--auto');
     expect(mergeCalls[0].args).toContain('--squash');
+    expect(lines).toContain(
+      'pr-flow: auto-merge unavailable (repo disallows auto-merge); using direct squash-merge.\n',
+    );
+  });
+
+  it('skips the --auto attempt when the base branch has no protection rules', async () => {
+    const { spawn, calls } = probeSpawn(
+      { [repoPath]: 'true', [pullPath]: 'main', [branchPath]: 'false' },
+      0,
+      merged,
+    );
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    await mergePrWithFallback({ prUrl, spawn });
+    const lines = stderr.mock.calls.map((c) => String(c[0]));
+    stderr.mockRestore();
+    const probes = calls.filter((c) => c.args[0] === 'api');
+    expect(probes.map((c) => c.args)).toEqual([
+      ['api', repoPath, '--jq', '.allow_auto_merge'],
+      ['api', pullPath, '--jq', '.base.ref'],
+      ['api', branchPath, '--jq', '.protected'],
+    ]);
+    expect(probes.every((c) => c.quiet)).toBe(true);
+    const mergeCalls = calls.filter((c) => c.args[1] === 'merge');
+    expect(mergeCalls).toHaveLength(1);
+    expect(mergeCalls[0].args).not.toContain('--auto');
+    expect(lines).toContain(
+      'pr-flow: auto-merge unavailable (base branch main has no protection rules); using direct squash-merge.\n',
+    );
   });
 
   it('names the skipped --auto leg when the direct merge fails on a disallowing repo', async () => {
-    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
-      if (cmd === 'gh' && args[0] === 'repo' && args[1] === 'view')
-        return { stdout: JSON.stringify({ autoMergeAllowed: false }), exitCode: 0 };
-      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 1 };
-      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'view') {
-        return { stdout: JSON.stringify({ mergedAt: null, state: 'OPEN' }), exitCode: 0 };
-      }
-      return { stdout: '', exitCode: 1 };
-    });
+    const { spawn } = probeSpawn({ [repoPath]: 'false' }, 1, { mergedAt: null, state: 'OPEN' });
     await expect(mergePrWithFallback({ prUrl, spawn })).rejects.toThrow(
       /gh pr merge --auto skipped \(repo disallows auto-merge\); direct merge fallback exit 1/,
     );
   });
 
-  it('still tries --auto when the repo reports auto-merge allowed', async () => {
-    const calls: Array<{ cmd: string; args: string[] }> = [];
-    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
-      calls.push({ cmd, args });
-      if (cmd === 'gh' && args[0] === 'repo' && args[1] === 'view')
-        return { stdout: JSON.stringify({ autoMergeAllowed: true }), exitCode: 0 };
-      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 0 };
-      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'view') {
-        return {
-          stdout: JSON.stringify({ mergedAt: '2026-07-02T12:07:00Z', state: 'MERGED' }),
-          exitCode: 0,
-        };
-      }
-      return { stdout: '', exitCode: 1 };
-    });
+  // Over-fire direction: every probe answer short of an explicit `false` must
+  // still try --auto — one row per answer shape.
+  it.each([
+    [
+      'repo allows, branch protected',
+      { [repoPath]: 'true', [pullPath]: 'main', [branchPath]: 'true' },
+    ],
+    ['repo probe fails, branch protected', { [pullPath]: 'main', [branchPath]: 'true' }],
+    ['repo probe answers null', { [repoPath]: 'null', [pullPath]: 'main', [branchPath]: 'true' }],
+    ['base ref probe fails', { [repoPath]: 'true' }],
+    ['base ref empty', { [repoPath]: 'true', [pullPath]: '' }],
+    ['branch probe fails', { [repoPath]: 'true', [pullPath]: 'main' }],
+    ['branch probe answers null', { [repoPath]: 'true', [pullPath]: 'main', [branchPath]: 'null' }],
+  ])('still tries --auto when %s', async (_name, api) => {
+    const { spawn, calls } = probeSpawn(api, 0, merged);
     const result = await mergePrWithFallback({ prUrl, spawn });
-    expect(result.mergedAt).toBe('2026-07-02T12:07:00Z');
+    expect(result.mergedAt).toBe('2026-07-02T12:06:00Z');
     const mergeCalls = calls.filter((c) => c.args[1] === 'merge');
     expect(mergeCalls).toHaveLength(1);
     expect(mergeCalls[0].args).toContain('--auto');
+  });
+
+  it('skips the probes and tries --auto when the PR URL is not a GitHub pull URL', async () => {
+    const { spawn, calls } = probeSpawn({}, 0, merged);
+    await mergePrWithFallback({ prUrl: 'https://example.com/pr/9', spawn });
+    expect(calls.some((c) => c.args[0] === 'api')).toBe(false);
+    expect(calls.find((c) => c.args[1] === 'merge')?.args).toContain('--auto');
   });
 
   it('throws with both exit codes when both merge legs fail and PR stays open', async () => {
@@ -1713,6 +1762,21 @@ describe('mergePrWithFallback', () => {
     expect(directMerge[0].args).not.toContain('--delete-branch');
     expect(calls).toContainEqual({ cmd: 'git', args: ['push', 'origin', '--delete', 'fast/x'] });
     expect(lines.some((l) => l.includes('deleted remote branch fast/x'))).toBe(true);
+  });
+
+  it("drops git's own stderr on the remote delete — pr-flow reports the outcome itself", async () => {
+    const { spawn: inner } = fallbackSpawn({
+      gitDirs: WORKTREE_DIRS,
+      headRefName: 'fast/x',
+      lsRemote: PRESENT,
+    });
+    const deletes: Array<boolean> = [];
+    const spawn: SpawnFn = async (cmd, args, stdin, opts) => {
+      if (cmd === 'git' && args.includes('--delete')) deletes.push(opts?.quiet === true);
+      return inner(cmd, args, stdin, opts);
+    };
+    await mergePrWithFallback({ prUrl, spawn });
+    expect(deletes).toEqual([true]);
   });
 
   it('keeps --delete-branch when run from the main checkout', async () => {

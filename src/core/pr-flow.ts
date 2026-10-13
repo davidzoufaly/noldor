@@ -541,7 +541,17 @@ export interface SpawnResult {
   stdout: string;
   exitCode: number;
 }
-export type SpawnFn = (cmd: string, args: string[], stdin?: string) => Promise<SpawnResult>;
+/** `quiet` drops the child's stderr instead of inheriting it — for probes and
+ *  best-effort steps whose failure pr-flow reads and reports itself. */
+interface SpawnOpts {
+  quiet?: boolean;
+}
+export type SpawnFn = (
+  cmd: string,
+  args: string[],
+  stdin?: string,
+  opts?: SpawnOpts,
+) => Promise<SpawnResult>;
 
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_TIMEOUT_MS = 10 * 60_000; // 10 min
@@ -1081,7 +1091,11 @@ async function pushRemoteDelete(opts: {
   reason: string;
   onStatus?: (line: string) => void;
 }): Promise<void> {
-  const del = await opts.spawn('git', ['push', 'origin', '--delete', opts.branch]);
+  // git's own `cannot lock ref` / `remote ref does not exist` line would print
+  // for a delete this function then reports as done — the remote is the verdict.
+  const del = await opts.spawn('git', ['push', 'origin', '--delete', opts.branch], undefined, {
+    quiet: true,
+  });
   if (del.exitCode !== 0 && (await probeRemoteBranch(opts.spawn, opts.branch)) !== 'absent') {
     process.stderr.write(
       `pr-flow: remote branch ${opts.branch} not deleted (exit ${del.exitCode}) and still on ` +
@@ -1154,46 +1168,67 @@ async function deleteRemoteBranchIfLingers(opts: {
   await pushRemoteDelete({ ...opts, branch: opts.branch });
 }
 
-/**
- * Ask GitHub whether the PR's repo allows auto-merge. `false` only on an
- * explicit `autoMergeAllowed: false`; any probe failure or odd shape is
- * `undefined` (unknown), so the caller still tries `--auto` — the probe only
- * saves a doomed attempt, it never decides a merge.
- */
-async function probeAutoMergeAllowed(spawn: SpawnFn, prUrl: string): Promise<boolean | undefined> {
-  const repo = /github\.com\/([^/]+\/[^/]+)\/pull\//.exec(prUrl)?.[1];
-  const res = await spawn('gh', [
-    'repo',
-    'view',
-    ...(repo !== undefined ? [repo] : []),
-    '--json',
-    'autoMergeAllowed',
-  ]);
+/** Run `gh api <path> --jq <expr>` quietly and read a JSON boolean from it;
+ *  anything but a literal `true`/`false` (a failed call, `null`) is unknown. */
+async function ghApiBoolean(
+  spawn: SpawnFn,
+  path: string,
+  jq: string,
+): Promise<boolean | undefined> {
+  const res = await spawn('gh', ['api', path, '--jq', jq], undefined, { quiet: true });
   if (res.exitCode !== 0) return undefined;
-  try {
-    const parsed = JSON.parse(res.stdout) as { autoMergeAllowed?: unknown };
-    return typeof parsed.autoMergeAllowed === 'boolean' ? parsed.autoMergeAllowed : undefined;
-  } catch {
-    return undefined;
-  }
+  const out = res.stdout.trim();
+  return out === 'true' ? true : out === 'false' ? false : undefined;
+}
+
+/**
+ * Say why `gh pr merge --auto` is doomed for this PR, or `undefined` when it
+ * may work. GitHub refuses auto-merge when the repo disallows it
+ * (`allow_auto_merge`) and when the PR's base branch has no protection rules
+ * ("Protected branch rules not configured … (enablePullRequestAutoMerge)").
+ * Reads both through `gh api` — `gh repo view --json autoMergeAllowed` is an
+ * unknown field to gh 2.87 and dumped gh's whole field list on every run.
+ * Only an explicit `false` skips: any failed or odd probe is unknown, so the
+ * caller still tries `--auto` — the probe only saves a doomed attempt, it never
+ * decides a merge.
+ */
+async function probeAutoMergeBlocker(spawn: SpawnFn, prUrl: string): Promise<string | undefined> {
+  const pr = /github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)/.exec(prUrl);
+  if (pr === null) return undefined;
+  const [, repo, number] = pr;
+  if ((await ghApiBoolean(spawn, `repos/${repo}`, '.allow_auto_merge')) === false)
+    return 'repo disallows auto-merge';
+  const base = await spawn(
+    'gh',
+    ['api', `repos/${repo}/pulls/${number}`, '--jq', '.base.ref'],
+    undefined,
+    {
+      quiet: true,
+    },
+  );
+  const ref = base.exitCode === 0 ? base.stdout.trim() : '';
+  if (ref.length === 0) return undefined;
+  const branchPath = `repos/${repo}/branches/${encodeURIComponent(ref)}`;
+  if ((await ghApiBoolean(spawn, branchPath, '.protected')) === false)
+    return `base branch ${ref} has no protection rules`;
+  return undefined;
 }
 
 /** Merge an open PR: queue auto-merge and poll, falling back to a direct
  *  squash-merge when the repo has auto-merge disabled. A repo that reports
- *  auto-merge off skips the `--auto` attempt and goes straight to the direct
- *  merge. Shared by the gate's `openAndAutoMerge` end-of-flow and
+ *  auto-merge off, or an unprotected base branch, skips the `--auto` attempt and
+ *  goes straight to the direct merge. Shared by the gate's `openAndAutoMerge` end-of-flow and
  *  `prep promote --ship` so promote batches land the same way the drain's PRs do. */
 export async function mergePrWithFallback(
   input: MergePrWithFallbackInput,
 ): Promise<{ mergedAt: string }> {
   const status = input.onStatus !== undefined ? { onStatus: input.onStatus } : {};
-  const autoMergeAllowed = await probeAutoMergeAllowed(input.spawn, input.prUrl);
+  const blocker = await probeAutoMergeBlocker(input.spawn, input.prUrl);
   const merge =
-    autoMergeAllowed === false
+    blocker !== undefined
       ? undefined
       : await input.spawn('gh', ['pr', 'merge', input.prUrl, '--auto', '--squash']);
-  const autoLeg =
-    merge === undefined ? 'skipped (repo disallows auto-merge)' : `failed: exit ${merge.exitCode}`;
+  const autoLeg = merge === undefined ? `skipped (${blocker})` : `failed: exit ${merge.exitCode}`;
 
   if (merge?.exitCode === 0) {
     const merged = await pollAutoMerge({
@@ -1222,7 +1257,7 @@ export async function mergePrWithFallback(
   // surface both exit codes.
   process.stderr.write(
     merge === undefined
-      ? 'pr-flow: repo has auto-merge disabled; using direct squash-merge.\n'
+      ? `pr-flow: auto-merge unavailable (${blocker}); using direct squash-merge.\n`
       : 'pr-flow: gh pr merge --auto failed; falling back to direct squash-merge.\n',
   );
   // Unlike the --auto path (GitHub only merges when mergeStateStatus allows),
