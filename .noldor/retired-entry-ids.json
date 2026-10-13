@@ -970,5 +970,9 @@
   "Q-0393": {
     "slug": "fill-links-dry-run-hardening",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0362": {
+    "slug": "refactor-report-dead-code-section",
+    "retiredAt": "2026-10-13"
   }
 }

@@ -159,7 +159,13 @@ If none: "No breaking changes. All public API preserved."]
 ### Dead Code
 
 [List any functions, types, or constants orphaned by this refactoring.
-If none: "No dead code introduced."]
+If none: "No dead code introduced."
+When `.noldor/config.json` sets `deadCode.enabled: true`, run
+`pnpm noldor dead-code check` after the refactor and list each finding it
+names outside the baseline (exit 1). Exit 0 means none: say "dead-code check:
+no findings outside the baseline". Exit 3 means it could not judge (knip
+missing, or the baseline absent or stale): say so, never "none". With the
+knob off, skip the check and fill this section by hand.]
 
 ### Complexity Delta
 
