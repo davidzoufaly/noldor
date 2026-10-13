@@ -1,5 +1,7 @@
 import matter from 'gray-matter';
 
+import { stringifyWithFrontmatter } from './frontmatter.js';
+
 /**
  * Flip an FD's `phase` from `in-progress` to `done` for the final commit
  * before merge in the feature PR. Pure function — takes the raw MD string,
@@ -24,5 +26,5 @@ export function flipPhaseToDone(md: string): string {
   const data = parsed.data as Record<string, unknown>;
   if (data.phase !== 'in-progress') return md;
   data.phase = 'done';
-  return matter.stringify(parsed.content.replace(/^\n/, ''), data);
+  return stringifyWithFrontmatter(parsed.content, data);
 }

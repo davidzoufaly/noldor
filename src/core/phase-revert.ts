@@ -1,5 +1,7 @@
 import matter from 'gray-matter';
 
+import { stringifyWithFrontmatter } from './frontmatter.js';
+
 /**
  * Revert an FD's `phase` from `done` to `in-progress` for an attach session.
  * Pure function — takes the raw MD string, returns the (possibly updated) MD
@@ -19,5 +21,5 @@ export function revertPhaseForAttach(md: string): string {
   const data = parsed.data as Record<string, unknown>;
   if (data.phase !== 'done') return md;
   data.phase = 'in-progress';
-  return matter.stringify(parsed.content.replace(/^\n/, ''), data);
+  return stringifyWithFrontmatter(parsed.content, data);
 }

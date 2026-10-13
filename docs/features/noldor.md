@@ -70,6 +70,7 @@ links:
     - src/core/__tests__/config-waiver-guard.test.ts
     - src/core/__tests__/extract-touches.test.ts
     - src/core/__tests__/fmt-guard.test.ts
+    - src/core/__tests__/frontmatter.test.ts
     - src/core/__tests__/init-gitignore.test.ts
     - src/core/__tests__/lint-plan-snippets.test.ts
     - src/core/__tests__/next-priority.test.ts
@@ -304,6 +305,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/core/__tests__/config-waiver-guard.test.ts`](../../src/core/__tests__/config-waiver-guard.test.ts)
   - [`src/core/__tests__/extract-touches.test.ts`](../../src/core/__tests__/extract-touches.test.ts)
   - [`src/core/__tests__/fmt-guard.test.ts`](../../src/core/__tests__/fmt-guard.test.ts)
+  - [`src/core/__tests__/frontmatter.test.ts`](../../src/core/__tests__/frontmatter.test.ts)
   - [`src/core/__tests__/init-gitignore.test.ts`](../../src/core/__tests__/init-gitignore.test.ts)
   - [`src/core/__tests__/lint-plan-snippets.test.ts`](../../src/core/__tests__/lint-plan-snippets.test.ts)
   - [`src/core/__tests__/next-priority.test.ts`](../../src/core/__tests__/next-priority.test.ts)

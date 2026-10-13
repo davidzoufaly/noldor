@@ -898,5 +898,9 @@
   "Q-0378": {
     "slug": "worktree-env-fills-keys-from-env-example",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0379": {
+    "slug": "fd-writers-keep-the-blank-line-after-frontmatter",
+    "retiredAt": "2026-10-13"
   }
 }

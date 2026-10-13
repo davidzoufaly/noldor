@@ -2,6 +2,8 @@ import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import matter from 'gray-matter';
+
+import { stringifyWithFrontmatter } from '../core/frontmatter.js';
 import { isEntrypoint } from '../core/cli-entry.js';
 
 /** Inputs to {@link fillMarkers}. */
@@ -70,7 +72,7 @@ export function fillMarkers(md: string, opts: FillOptions): string {
   //       OR release replay (introduced === newVersion) → no markers set.
 
   if (!changed) return md;
-  return matter.stringify(parsed.content.replace(/^\n/, ''), data);
+  return stringifyWithFrontmatter(parsed.content, data);
 }
 
 /**
