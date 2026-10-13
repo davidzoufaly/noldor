@@ -185,7 +185,7 @@ function loadFdSummary(cwd: string, slug: string): FdSummary | null {
     const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(
       `pnpm pr-flow: warning — could not read FD at ${fdPath}: ${message}. ` +
-        `PR body will fall back to "Micro-chore: <first commit subject>".\n`,
+        `PR body will fall back to the first code commit's subject and body.\n`,
     );
     return null;
   }
@@ -195,7 +195,7 @@ function loadFdSummary(cwd: string, slug: string): FdSummary | null {
     process.stderr.write(
       `pnpm pr-flow: warning — FD at ${fdPath} is missing required fields ` +
         `(name frontmatter or ## Summary section). PR body will fall back to ` +
-        `"Micro-chore: <first commit subject>".\n`,
+        `the first code commit's subject and body.\n`,
     );
     return null;
   }

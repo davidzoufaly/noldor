@@ -42,18 +42,6 @@ Roll the next release out to charuy: run `noldor upgrade` + `noldor init --updat
 
 render-compare and geometry-compare answer `cannot-review: page-ambiguous` — and the review stays green while those lanes check nothing — in two cases: (a) a feature .pen keeps a VARIANT page beside its FINAL pages; (b) a design holds several FINAL pages (charuy's bathroom-fixture-bath design, and the Build design's `FINAL:app: build …` pages). Ignore VARIANT pages when picking the compare page, pair each FINAL page with its own captured state, and fail the round rather than pass when no pairing is possible. (charuy PRs #367, #386, #389, 2026-10-08..12)
 
-### PR Flow Body From the Trailer Commit
-
-- id: Q-0384
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: S
-- impact: med
-- confidence: med
-
-pr-flow on a fast-track entry with no FD falls back to a "Micro-chore: <first commit subject>" PR body, and picks the first commit (often the roadmap-retirement commit) rather than the fix commit that carries Why/How/What. Build the body from the commit that carries the trailer sections, or from the retired roadmap block. Separately, after the squash merge its remote-branch delete failed with "cannot lock ref" (and on PR #455 tried to delete a branch already gone) — make the delete idempotent and quiet. (charuy PRs #402, #436, #455, 2026-10-12)
-
 ### Indirection Ratchet Names the Edges
 
 - id: Q-0385

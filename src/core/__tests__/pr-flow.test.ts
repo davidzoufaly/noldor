@@ -1651,22 +1651,28 @@ describe('mergePrWithFallback', () => {
 
   /** Shared mock for the fallback leg: auto-merge unavailable, no checks, PR merges.
    *  `gitDirs` is the two-line `git rev-parse` payload that decides worktree context;
-   *  `headRefName` is omitted from the `gh pr view` payload when passed `undefined`. */
+   *  `headRefName` is omitted from the `gh pr view` payload when passed `undefined`.
+   *  `lsRemote` answers each `ls-remote` probe in turn (the last answer repeats), and
+   *  `deleteExit` is the `git push --delete` exit code. */
   function fallbackSpawn(opts: {
     gitDirs: string;
     headRefName?: string;
-    lsRemote?: { stdout: string; exitCode: number };
+    lsRemote?: { stdout: string; exitCode: number } | Array<{ stdout: string; exitCode: number }>;
+    deleteExit?: number;
   }): {
     spawn: SpawnFn;
     calls: Array<{ cmd: string; args: string[] }>;
   } {
     const calls: Array<{ cmd: string; args: string[] }> = [];
+    const probes = [opts.lsRemote ?? { stdout: '', exitCode: 0 }].flat();
+    let probeCount = 0;
     const spawn: SpawnFn = vi.fn(async (cmd, args) => {
       calls.push({ cmd, args });
       if (cmd === 'git' && args[0] === 'rev-parse') return { stdout: opts.gitDirs, exitCode: 0 };
       if (cmd === 'git' && args[0] === 'ls-remote')
-        return opts.lsRemote ?? { stdout: '', exitCode: 0 };
-      if (cmd === 'git' && args.includes('--delete')) return { stdout: '', exitCode: 0 };
+        return probes[Math.min(probeCount++, probes.length - 1)];
+      if (cmd === 'git' && args.includes('--delete'))
+        return { stdout: '', exitCode: opts.deleteExit ?? 0 };
       if (cmd === 'gh' && args[1] === 'merge' && args.includes('--auto'))
         return { stdout: '', exitCode: 1 };
       if (cmd === 'gh' && args[1] === 'view' && args.includes('statusCheckRollup'))
@@ -1690,8 +1696,15 @@ describe('mergePrWithFallback', () => {
   const WORKTREE_DIRS = '/repo/.git/worktrees/fast-x\n/repo/.git\n';
   const MAIN_DIRS = '/repo/.git\n/repo/.git\n';
 
+  const PRESENT = { stdout: 'deadbeef\trefs/heads/fast/x\n', exitCode: 0 };
+  const ABSENT = { stdout: '', exitCode: 0 };
+
   it('withholds --delete-branch and deletes the remote ref when run from a linked worktree', async () => {
-    const { spawn, calls } = fallbackSpawn({ gitDirs: WORKTREE_DIRS, headRefName: 'fast/x' });
+    const { spawn, calls } = fallbackSpawn({
+      gitDirs: WORKTREE_DIRS,
+      headRefName: 'fast/x',
+      lsRemote: PRESENT,
+    });
     const lines: string[] = [];
     const result = await mergePrWithFallback({ prUrl, spawn, onStatus: (l) => lines.push(l) });
     expect(result.mergedAt).toBe('2026-08-06T09:00:00Z');
@@ -1752,10 +1765,70 @@ describe('mergePrWithFallback', () => {
     expect(calls.some((c) => c.cmd === 'git' && c.args.includes('--delete'))).toBe(false);
   });
 
-  it('does not probe the remote in worktree context — it deletes the ref itself', async () => {
-    const { spawn, calls } = fallbackSpawn({ gitDirs: WORKTREE_DIRS, headRefName: 'fast/x' });
+  it('skips the push in worktree context when the head is already gone (PR #455)', async () => {
+    const warn = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    try {
+      const { spawn, calls } = fallbackSpawn({
+        gitDirs: WORKTREE_DIRS,
+        headRefName: 'fast/x',
+        lsRemote: ABSENT,
+      });
+      const lines: string[] = [];
+      await mergePrWithFallback({ prUrl, spawn, onStatus: (l) => lines.push(l) });
+      expect(calls.some((c) => c.cmd === 'git' && c.args.includes('--delete'))).toBe(false);
+      expect(lines.some((l) => l.includes('fast/x already gone'))).toBe(true);
+      expect(warn.mock.calls.some(([m]) => String(m).includes('fast/x'))).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('still pushes the delete in worktree context when the probe itself fails', async () => {
+    const { spawn, calls } = fallbackSpawn({
+      gitDirs: WORKTREE_DIRS,
+      headRefName: 'fast/x',
+      lsRemote: { stdout: '', exitCode: 128 },
+    });
     await mergePrWithFallback({ prUrl, spawn });
-    expect(calls.some((c) => c.cmd === 'git' && c.args[0] === 'ls-remote')).toBe(false);
+    expect(calls).toContainEqual({ cmd: 'git', args: ['push', 'origin', '--delete', 'fast/x'] });
+  });
+
+  it('reads a failed push as deleted when the remote ref is gone after it (cannot lock ref)', async () => {
+    const warn = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    try {
+      // git deleted the remote ref, then failed to update the local tracking ref.
+      const { spawn } = fallbackSpawn({
+        gitDirs: WORKTREE_DIRS,
+        headRefName: 'fast/x',
+        lsRemote: [PRESENT, ABSENT],
+        deleteExit: 1,
+      });
+      const lines: string[] = [];
+      await mergePrWithFallback({ prUrl, spawn, onStatus: (l) => lines.push(l) });
+      expect(lines.some((l) => l.includes('deleted remote branch fast/x'))).toBe(true);
+      expect(warn.mock.calls.some(([m]) => String(m).includes('fast/x'))).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('warns when a failed push leaves the remote ref in place', async () => {
+    const warn = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    try {
+      const { spawn } = fallbackSpawn({
+        gitDirs: WORKTREE_DIRS,
+        headRefName: 'fast/x',
+        lsRemote: PRESENT,
+        deleteExit: 1,
+      });
+      const lines: string[] = [];
+      await mergePrWithFallback({ prUrl, spawn, onStatus: (l) => lines.push(l) });
+      const line = warn.mock.calls.map(([m]) => String(m)).find((l) => l.includes('fast/x'));
+      expect(line).toContain('still on origin');
+      expect(lines.some((l) => l.includes('deleted remote branch'))).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('still reports the merge when gh pr view omits headRefName in worktree context', async () => {
