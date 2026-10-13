@@ -112,6 +112,55 @@ describe('compareToBaseline', () => {
   });
 });
 
+describe('red attribution', () => {
+  const withFlagged = (flagged: MeasuredIndirection['flagged']): MeasuredIndirection => ({
+    ...measured(flagged.reduce((n, m) => n + m.excess, 0)),
+    flagged,
+  });
+  const steady = { source: 'src/steady.ts', closure: 40, excess: 10, edges: [] };
+  const before = buildBaseline(withFlagged([steady]), opts, AT);
+
+  it('records each flagged module excess in the baseline', () => {
+    expect(before.perModule).toEqual({ 'src/steady.ts': 10 });
+  });
+
+  it('names the modules that grew, the edges carrying them, and the known fixes', () => {
+    const grown = {
+      source: 'src/page.ts',
+      closure: 36,
+      excess: 6,
+      edges: [
+        { to: 'src/ui/picker.ts', only: 5 },
+        { to: 'src/types.ts', only: 1 },
+      ],
+    };
+    const v = compareToBaseline(withFlagged([steady, grown]), before, opts);
+    expect(v.kind).toBe('red');
+    expect(v.message).toContain('src/page.ts excess 0 -> 6 (+6), closure 36');
+    expect(v.message).toContain(
+      'imports src/ui/picker.ts - 5 closure file(s) only through this edge',
+    );
+    expect(v.message).toContain('imports src/types.ts - 1 closure file(s)');
+    // A module whose excess did not move is not an offender.
+    expect(v.message).not.toContain('src/steady.ts');
+    expect(v.message).toContain('mount the import from a parent');
+    expect(v.message).toContain('local structural type instead of a type-only import');
+  });
+
+  it('reads a baseline recorded before per-module attribution and asks for a re-record', () => {
+    inTmp((dir) => {
+      const path = join(dir, 'baseline.json');
+      const { perModule: _, ...legacy } = before;
+      writeFileSync(path, JSON.stringify(legacy));
+      const read = readBaseline(path);
+      if (read.kind !== 'ok') throw new Error(read.kind);
+      const v = compareToBaseline(measured(99), read.baseline, opts);
+      expect(v.kind).toBe('red');
+      expect(v.message).toContain('baseline predates per-module attribution');
+    });
+  });
+});
+
 describe('seedBaselineIfAbsent', () => {
   const inTmpAsync = async (fn: (dir: string) => Promise<void>): Promise<void> => {
     const dir = mkdtempSync(join(tmpdir(), 'indirection-seed-'));

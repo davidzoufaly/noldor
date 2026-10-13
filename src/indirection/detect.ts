@@ -32,10 +32,24 @@ import { stripJsonc } from '../invariants/toolchain-floor.js';
  */
 export const INDIRECTION_CLOSURE_THRESHOLD = 30;
 
+/**
+ * One direct import of a flagged module and how many closure files ONLY it
+ * brings in — the files that leave the closure when that one edge is cut.
+ */
+export interface EdgeCut {
+  readonly to: string;
+  readonly only: number;
+}
+
 export interface ModuleClosure {
   readonly source: string;
   readonly closure: number;
   readonly excess: number;
+  /**
+   * Flagged modules only, largest cut first, zero cuts dropped: the edges a red
+   * names so the operator knows which import to move instead of diffing graphs.
+   */
+  readonly edges?: readonly EdgeCut[];
 }
 
 export interface Percentiles {
@@ -709,13 +723,16 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
   const packageRoots = findPackageRoots(base, roots);
   const pkgOf = new Map(measured.map((m) => [m.source, packageOf(m.source, packageRoots)]));
 
-  const closureOf = (id: string): number => {
+  // `skip` drops one direct edge out of `id`, which is how a flagged module's
+  // edge cuts are measured below.
+  const closureOf = (id: string, skip?: string): Set<string> => {
     const home = pkgOf.get(id);
     const seen = new Set<string>();
     const stack = [id];
     while (stack.length > 0) {
       const cur = stack.pop()!;
       for (const d of byId.get(cur)?.dependencies ?? []) {
+        if (cur === id && d.resolved === skip) continue;
         if (!byId.has(d.resolved) || seen.has(d.resolved)) continue;
         seen.add(d.resolved);
         // Count the crossing, then stop: a file in another workspace package is
@@ -724,13 +741,24 @@ export async function measureIndirection(opts: MeasureOptions): Promise<Indirect
       }
     }
     seen.delete(id);
-    return seen.size;
+    return seen;
   };
 
-  const modules = measured
+  // Only flagged modules pay for cuts: one extra traversal per direct import.
+  const edgeCuts = (id: string, closure: number): EdgeCut[] =>
+    [...new Set((byId.get(id)?.dependencies ?? []).map((d) => d.resolved))]
+      .filter((to) => byId.has(to) && to !== id)
+      .map((to) => ({ to, only: closure - closureOf(id, to).size }))
+      .filter((e) => e.only > 0)
+      .sort((a, b) => b.only - a.only || a.to.localeCompare(b.to, 'en'));
+
+  const modules: ModuleClosure[] = measured
     .map((m) => {
-      const closure = closureOf(m.source);
-      return { source: m.source, closure, excess: Math.max(0, closure - threshold) };
+      const closure = closureOf(m.source).size;
+      const excess = Math.max(0, closure - threshold);
+      return excess > 0
+        ? { source: m.source, closure, excess, edges: edgeCuts(m.source, closure) }
+        : { source: m.source, closure, excess };
     })
     .sort((a, b) => b.closure - a.closure || a.source.localeCompare(b.source, 'en'));
 

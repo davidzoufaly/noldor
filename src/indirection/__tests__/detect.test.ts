@@ -106,6 +106,28 @@ describe('cycles', () => {
   });
 });
 
+describe('edge cuts', () => {
+  it('names each direct import of a flagged module by the files only it brings in', async () => {
+    const r = await measureIndirection({ ...tree('diamond'), threshold: 1 });
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    const top = r.modules.find((m) => m.source === 'top.ts');
+    expect(top?.closure).toBe(5);
+    // shared.ts is reached through both left and right, so neither edge owns
+    // it; solo owns itself and deep.
+    expect(top?.edges).toEqual([
+      { to: 'solo.ts', only: 2 },
+      { to: 'left.ts', only: 1 },
+      { to: 'right.ts', only: 1 },
+    ]);
+  });
+
+  it('computes no cuts for a module under the threshold', async () => {
+    const r = await measureIndirection({ ...tree('diamond'), threshold: 1 });
+    if (r.kind !== 'measured') throw new Error(r.kind);
+    expect(r.modules.find((m) => m.source === 'left.ts')?.edges).toBeUndefined();
+  });
+});
+
 describe('deterministic ordering', () => {
   it('breaks a closure tie by path ascending', async () => {
     // The chain fixture cannot prove this — every closure there differs, so
