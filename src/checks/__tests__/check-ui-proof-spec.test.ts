@@ -78,10 +78,21 @@ describe('checks ui-proof-spec', () => {
     expect(await main(['--base', base], repo)).toBe(0);
   });
 
-  it('exits 0 when the touched surface does not opt in to feature proof', async () => {
+  it('exits 0 but says the PR shows fixed screens when the touched surface does not opt in to feature proof', async () => {
     writeConfig({ app: { command: 'pnpm proof' } });
     commit('apps/web/bar.tsx');
     expect(await main(['--base', base], repo)).toBe(0);
+    expect(out.join('\n')).toContain(
+      'app: no featureSpec — the PR shows the same screens on every branch',
+    );
+  });
+
+  it('prints no fixed-screens line for a feature-proof surface', async () => {
+    writeConfig(FEATURE);
+    commit('apps/web/bar.tsx');
+    commit('e2e/proof/new-bar.spec.ts');
+    await main(['--base', base], repo);
+    expect(out.join('\n')).not.toContain('no featureSpec');
   });
 
   it('exits 0 on a declared UI-proof skip', async () => {

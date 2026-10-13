@@ -12,7 +12,12 @@ import { runIfDirect } from '../core/cli-entry.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { readFrontmatter } from '../core/fd-load.js';
 import { readSession } from '../core/session.js';
-import { missingFeatureSpecs, UI_PROOF_TRAILER, uiProofSkipReason } from '../core/ui-proof.js';
+import {
+  fixedScreenSurfaces,
+  missingFeatureSpecs,
+  UI_PROOF_TRAILER,
+  uiProofSkipReason,
+} from '../core/ui-proof.js';
 
 function git(cwd: string, args: string[]): string {
   return execFileSync('git', ['-c', 'core.quotePath=false', ...args], {
@@ -53,20 +58,28 @@ export async function main(argv: readonly string[] = [], cwd = process.cwd()): P
     console.log(`ui-proof-spec: skipped (${skip})`);
     return 0;
   }
+  const branchFiles = [
+    ...new Set(
+      git(cwd, ['log', '--format=', '--name-only', range])
+        .split('\n')
+        .filter((f) => f !== ''),
+    ),
+  ];
+  const config = loadConsumerConfig(cwd);
   const missing = await missingFeatureSpecs({
     cwd,
     branch: git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']),
-    branchFiles: [
-      ...new Set(
-        git(cwd, ['log', '--format=', '--name-only', range])
-          .split('\n')
-          .filter((f) => f !== ''),
-      ),
-    ],
-    config: loadConsumerConfig(cwd),
+    branchFiles,
+    config,
   });
   for (const m of missing) {
     console.log(`  ${m.surface}: write ${m.spec} — it should drive the new UI and shoot it`);
+  }
+  // Advisory only: a repo may choose fixed screens, but it should know the PR shows nothing new.
+  for (const surface of fixedScreenSurfaces(branchFiles, config)) {
+    console.log(
+      `  ${surface}: no featureSpec — the PR shows the same screens on every branch, not this feature; set consumer.uiProof.${surface}.featureSpec`,
+    );
   }
   console.log(
     missing.length === 0
