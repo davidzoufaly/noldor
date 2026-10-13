@@ -906,5 +906,9 @@
   "Q-0380": {
     "slug": "pr-flow-skips-auto-merge-when-the-repo-disables-it",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0381": {
+    "slug": "drain-supervisor-reports-progress-every-minute",
+    "retiredAt": "2026-10-13"
   }
 }

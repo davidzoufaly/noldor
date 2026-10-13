@@ -30,18 +30,6 @@ Roll the next release out to charuy: run `noldor upgrade` + `noldor init --updat
 
 - charuy can drop its inline `.env.example` DATABASE_URL workaround (charuy PR #362) by setting `consumer.worktreeEnvFiles: [".env"]` once it runs the release that ships PR #708. (worktree-copies-local-env-files PR #708, 2026-10-08)
 
-### Drain Supervisor Reports Progress Every Minute
-
-- id: Q-0381
-- area: tooling
-- type: feat
-- since: 2026-10-13
-- size: S
-- impact: med
-- confidence: med
-
-In drain mode the main thread (the agent that started the drain) should poll the drain log about once a minute and tell the operator in text what finished, so progress is visible without asking. (operator, 2026-10-13)
-
 ### Verify Force Reaches Turbo
 
 - id: Q-0382
