@@ -878,5 +878,9 @@
   "Q-0373": {
     "slug": "cr-sink-guard-overwrites-without-a-tty",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0374": {
+    "slug": "gate-reads-the-raw-idea-before-building",
+    "retiredAt": "2026-10-13"
   }
 }

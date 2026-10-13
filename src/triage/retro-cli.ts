@@ -125,6 +125,24 @@ export function gitCommonDir(cwd: string): Parsed<string> {
   }
 }
 
+/**
+ * The main checkout's `ideas.md` and git's common dir, from any worktree. Fails when
+ * `cwd` is outside a git repository.
+ */
+export function mainCheckoutIdeas(cwd: string): Parsed<{ commonDir: string; ideas: string }> {
+  const common = gitCommonDir(cwd);
+  if (!common.success) {
+    return {
+      success: false,
+      errors: [`not inside a git repository (${common.errors.join('; ')})`],
+    };
+  }
+  return {
+    success: true,
+    data: { commonDir: common.data, ideas: loadDocRoots(dirname(common.data)).ideas },
+  };
+}
+
 function isH1orH2(line: string): boolean {
   const text = line.trimStart();
   return text.startsWith('# ') || text.startsWith('## ');
@@ -227,13 +245,13 @@ export async function main(argv: readonly string[], ctx: RetroContext = {}): Pro
     return 2;
   }
   const today = ctx.today ?? new Date().toISOString().slice(0, 10);
-  const common = gitCommonDir(cwd);
-  if (!common.success) {
-    process.stderr.write(`${LABEL}: not inside a git repository (${common.errors.join('; ')})\n`);
+  const checkout = mainCheckoutIdeas(cwd);
+  if (!checkout.success) {
+    process.stderr.write(`${LABEL}: ${checkout.errors.join('; ')}\n`);
     return 1;
   }
-  const target = loadDocRoots(dirname(common.data)).ideas;
-  const lockPath = join(common.data, IDEAS_LOCK_FILE);
+  const target = checkout.data.ideas;
+  const lockPath = join(checkout.data.commonDir, IDEAS_LOCK_FILE);
   const self = { pid: process.pid, startedAt: new Date().toISOString() };
   const lock = await acquirePidLock(lockPath, self, { timeoutMs: 5_000, pollMs: 50 });
   if (lock.kind === 'timed-out' || lock.kind === 'failed') {
