@@ -950,5 +950,9 @@
   "Q-0388": {
     "slug": "gate-skill-wording-micro-chore",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0389": {
+    "slug": "stale-docs-sweep",
+    "retiredAt": "2026-10-13"
   }
 }
