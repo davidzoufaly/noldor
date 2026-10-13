@@ -82,15 +82,3 @@ Other `pnpm noldor` verbs still take free text on argv (`design log --decide/--b
 - parent: dead-code-detection-with-knip
 
 `/noldor-refactor` "Dead Code" report section: when `deadCode.enabled` is on, run `pnpm noldor dead-code check` after the refactor and list what it reports outside the baseline. Promised in the consumers spec; a `.claude/skills/**` edit plus its `templates/` twin, so it needs its own micro-chore PR. (dead-code-detection-with-knip consumers, PR #681, 2026-10-07)
-
-### Fill-Links Dry-Run Hardening
-
-- id: Q-0393
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: S
-- impact: med
-- confidence: med
-
-Two fill-links-code-gaps follow-ups: (a) `runDryRun` trusts the LLM tie-break's `chosen_fd_slug` unchecked — `parseLlmResponse` accepts any slug, so a hallucinated tag-built or unknown FD could land in the proposal; validate it against the shown candidates; (b) the unreadable-file tests (`runAutoHigh`, `runDryRun`) rely on `chmodSync(…, 0o000)`, which does not hold under root (some CI containers); `skipIf` on `process.getuid?.() === 0`. (PR #753, 2026-10-13)
