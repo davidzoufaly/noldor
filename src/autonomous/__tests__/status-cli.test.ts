@@ -126,6 +126,21 @@ describe('formatStatus', () => {
     expect(out).toContain('retries: alpha=2');
   });
 
+  it('names the shipped slugs after the count when the heartbeat carries them', () => {
+    const out = formatStatus({
+      running: true,
+      lockPid: 123,
+      stateIsLive: true,
+      state: state({ pid: 123, shipped: 2, shippedSlugs: ['alpha', 'beta'] }),
+    });
+    expect(out).toContain('shipped: 2 (alpha, beta)\n');
+  });
+
+  it('prints the bare count for a heartbeat written before shippedSlugs existed', () => {
+    const out = formatStatus({ running: false, lockPid: null, stateIsLive: false, state: state() });
+    expect(out).toContain('shipped: 2\n');
+  });
+
   it('labels dead-run state as last-run and empty collections as none', () => {
     const out = formatStatus({
       running: false,

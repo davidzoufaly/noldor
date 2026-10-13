@@ -19,6 +19,12 @@ export interface DrainState {
   /** Back-compat projection for readers written against the sequential heartbeat: `inFlight[0]?.slug`. */
   currentSlug: string | null;
   shipped: number;
+  /**
+   * Slugs shipped this run, in ship order — what `autonomous status` names so a
+   * supervising session can say WHAT finished, not just how many. Optional: a
+   * heartbeat written before this field existed carries only the count.
+   */
+  shippedSlugs?: string[];
   skip: string[];
   retries: Record<string, number>;
   /**
@@ -39,6 +45,7 @@ export interface DrainStateSnapshot {
   inFlight: InFlight[];
   merging: string | null;
   shipped: number;
+  shippedSlugs: string[];
   skip: string[];
   retries: Record<string, number>;
   /** pgids of the gate children currently in flight — the orphan-reap carrier. */
@@ -64,6 +71,7 @@ export function projectDrainState(
     merging: s.merging,
     currentSlug: s.inFlight[0]?.slug ?? null, // back-compat projection
     shipped: s.shipped,
+    shippedSlugs: s.shippedSlugs,
     skip: s.skip,
     retries: s.retries,
     agentPgids: s.agentPgids,

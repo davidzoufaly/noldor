@@ -81,8 +81,9 @@ clean — parked items are operator-owned.
 ## Pause / resume / stop
 
 - `pnpm noldor autonomous status` — runner liveness (lock pid + `kill -0`) plus
-  shipped / skip / in-flight from the drain-state heartbeat (`--json` for machines);
-  no more reading `.noldor/drain-state.json` + `.noldor/drain.lock` by hand.
+  shipped (with the slugs, in ship order) / skip / in-flight from the drain-state heartbeat
+  (`--json` for machines); no more reading `.noldor/drain-state.json` + `.noldor/drain.lock`
+  by hand.
 - `touch .noldor/drain.pause` — honored mid-cycle (between iterations) and at cycle start.
   The daemon holds and re-checks each interval; `--once` exits 0.
 - `rm .noldor/drain.pause` — resume. A **tripped** watcher writes this file itself: triage the
@@ -90,6 +91,24 @@ clean — parked items are operator-owned.
 - `touch .noldor/drain-stop` — one-shot stop (exit 130), exactly as for `autonomous run`.
 - The watcher and an operator share `main` via `syncMainCleanState` — when working in the same
   repo, pause the watcher first. `drain.pause` is the "I'm working here" switch.
+
+## Reporting progress from the launching session
+
+An agent session that starts a drain (`autonomous run` or `watch --detach`) is the operator's only
+window onto it, so it reports progress unasked, about once a minute, until the runner exits:
+
+1. Note the current count: `pnpm noldor autonomous status --json` → `state.shipped`.
+2. Wait up to a minute for it to move:
+   `pnpm noldor wait .noldor/drain-state.json --until 'shipped!=<count>' --timeout-ms 60000 --quiet`.
+   It returns early when an entry ships and otherwise times out; either way, go on to step 3.
+3. Run `pnpm noldor autonomous status` and tell the operator, in one or two plain lines, what
+   changed since the last report: the newly shipped slugs (the `shipped:` line names them), any new
+   `skip:` entry, and what is in flight now. When nothing changed, one line is enough: still
+   building `<slug>`.
+4. Stop when the status reads `runner: not running`, with a final line: shipped, skipped, and where
+   the escalation inbox stands (`pnpm noldor autonomous inbox`).
+
+Use the framework's `wait`, not a harness monitor: a codex or opencode session has none.
 
 ## Salvage (stale-base clean room)
 

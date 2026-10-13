@@ -44,7 +44,9 @@ export function formatStatus(s: AutonomousStatus): string {
   const inFlight = s.state.inFlight.map((f) => `${f.slug} (${f.phase})`).join(', ');
   lines.push(`in-flight: ${inFlight || 'none'}`);
   lines.push(`merging: ${s.state.merging ?? 'none'}`);
-  lines.push(`shipped: ${s.state.shipped}`);
+  // A heartbeat from before `shippedSlugs` existed has only the count — print it bare.
+  const names = s.state.shippedSlugs ?? [];
+  lines.push(`shipped: ${s.state.shipped}${names.length > 0 ? ` (${names.join(', ')})` : ''}`);
   lines.push(`skip: ${s.state.skip.join(', ') || 'none'}`);
   const retries = Object.entries(s.state.retries)
     .map(([slug, n]) => `${slug}=${n}`)

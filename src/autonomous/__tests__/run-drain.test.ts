@@ -470,6 +470,16 @@ describe('finish mode: committed-but-undelivered work', () => {
     expect(h.deps.mergePr).not.toHaveBeenCalled(); // no PR was ever opened
   });
 
+  it('names each shipped slug in the heartbeat, in ship order, matching the count', async () => {
+    // `autonomous status` reads this list so a session supervising the drain can say WHAT
+    // finished; a skipped entry must not appear in it.
+    const h = harness(['a', 'b', 'c'], { ships: (s) => s !== 'b' });
+    await runDrain(h.deps, opts);
+    const last = h.deps.writeState.mock.calls.at(-1)?.[0];
+    expect(last?.shippedSlugs).toEqual(['a', 'c']);
+    expect(last?.shipped).toBe(2);
+  });
+
   it('(size-1) scales the per-entry budget off the candidate size — S gets double the XS base', async () => {
     const h = harness(['xs-one', 's-one'], {
       sizeFor: (slug) => (slug === 's-one' ? 'S' : 'XS'),

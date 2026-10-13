@@ -146,10 +146,12 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
   const retries = new Map<string, number>();
   const skipReasons: Record<string, string> = {};
   const planned: string[] = [];
-  let shipped = 0;
+  // Slugs shipped this run, in ship order. The count everywhere below is its length, never a
+  // second counter that could drift from it.
+  const shippedSlugs: string[] = [];
   let spawns = 0;
   const result = (exitCode: 0 | 1 | 130, error?: string): DrainResult => ({
-    shipped,
+    shipped: shippedSlugs.length,
     skipped: [...skip],
     ...(Object.keys(skipReasons).length > 0 ? { skipReasons } : {}),
     ...(planned.length > 0 ? { planned } : {}),
@@ -198,7 +200,8 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       phase: merging !== null ? 'awaiting-merge' : inFlight.length > 0 ? 'spawning' : 'idle',
       inFlight,
       merging,
-      shipped,
+      shipped: shippedSlugs.length,
+      shippedSlugs: [...shippedSlugs],
       skip: [...skip],
       retries: Object.fromEntries(retries),
       agentPgids: [...livePgids],
@@ -289,7 +292,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       deps.syncMainCleanState(); // today's inline authority: advance local main, then read the oracle
       const stillPresent = deps.source.parseAll().includes(slug);
       if (!stillPresent) {
-        shipped += 1;
+        shippedSlugs.push(slug);
         settle(slug);
         return false;
       }
@@ -306,7 +309,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       // is never reused; if that ever breaks, scope this to a run-relative
       // `mergedAt` window.
       if (deps.mergedPrExistsFor?.(slug, branch)) {
-        shipped += 1;
+        shippedSlugs.push(slug);
         settle(slug);
         skip.add(slug);
         skipReasons[slug] = 'already-merged (fast-track ship left the roadmap entry in place)';
@@ -326,7 +329,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
     // entry behind has a MERGED (not open) PR, so the open-only handoff below would miss it and fall
     // through to a retry re-spawn. Count it shipped; the worker settles it (coordinator never sees it).
     if (deps.mergedPrExistsFor?.(slug, branch)) {
-      shipped += 1;
+      shippedSlugs.push(slug);
       settle(slug);
       skip.add(slug);
       skipReasons[slug] = 'already-merged (fast-track ship left the roadmap entry in place)';
@@ -356,12 +359,12 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
     for (;;) {
       if (abortRef.current || deps.stopRequested()) return;
       // ---- selection critical section (synchronous, no await) ----
-      if (shipped + dispatched.size >= opts.maxFeatures) return; // cap counts in-flight + awaiting-merge
+      if (shippedSlugs.length + dispatched.size >= opts.maxFeatures) return; // cap counts in-flight + awaiting-merge
       const candidate = deps.source.nextItem(new Set([...skip, ...dispatched]));
       if (candidate === null) return;
       const d = decideNext({
         candidate,
-        shipped,
+        shipped: shippedSlugs.length,
         maxFeatures: opts.maxFeatures,
         spawns,
         maxSpawns: opts.maxSpawns,
@@ -433,14 +436,13 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
           recordRetryOrSkip(candidate.slug);
         } else abortRef.current = e instanceof Error ? e : new Error(String(e));
       } finally {
-        if (childPgid !== null) {
-          livePgids.delete(childPgid); // child settled — drop its pgid
-          // Re-emit so the heartbeat never carries a settled child's pgid into the
-          // idle tail (a long-lived watcher's SIGTERM group-kill would otherwise
-          // fire at a stale — possibly recycled — pgid many minutes later).
-          emitState();
-        }
+        if (childPgid !== null) livePgids.delete(childPgid); // child settled — drop its pgid
         if (!handedToCoordinator) dispatched.delete(candidate.slug);
+        // Re-emit once the slug settles, so the heartbeat never carries a settled child's pgid
+        // into the idle tail (a long-lived watcher's SIGTERM group-kill would otherwise fire at a
+        // stale — possibly recycled — pgid many minutes later), and so a ship shows in
+        // `autonomous status` now rather than when the next entry dispatches.
+        emitState();
       }
       if (abortRef.current) return;
     }
@@ -468,7 +470,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
           deps.syncMainCleanState(); // advance local main so parseAll() reflects the squash before the oracle
           const stillPresent = deps.source.parseAll().includes(next.slug);
           if (!stillPresent) {
-            shipped += 1;
+            shippedSlugs.push(next.slug);
             settle(next.slug);
           } else {
             // Merged, yet the oracle still sees the entry (a fast-track ship leaves the roadmap block
