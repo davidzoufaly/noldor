@@ -42,18 +42,6 @@ Roll the next release out to charuy: run `noldor upgrade` + `noldor init --updat
 
 render-compare and geometry-compare answer `cannot-review: page-ambiguous` — and the review stays green while those lanes check nothing — in two cases: (a) a feature .pen keeps a VARIANT page beside its FINAL pages; (b) a design holds several FINAL pages (charuy's bathroom-fixture-bath design, and the Build design's `FINAL:app: build …` pages). Ignore VARIANT pages when picking the compare page, pair each FINAL page with its own captured state, and fail the round rather than pass when no pairing is possible. (charuy PRs #367, #386, #389, 2026-10-08..12)
 
-### Arbitration Dispose Docs Wording
-
-- id: Q-0367
-- area: tooling
-- type: docs
-- since: 2026-10-09
-- size: XS
-- impact: low
-- confidence: high
-
-`docs/noldor/cr-pipeline.md` and `script-catalog.md` still say "without --blocker it lists the ids"; since PR #701 the listing form is "only --slug and --kind" (a `--disposition` or `--note` with no `--blocker` stays a usage error). Align the wording in both pages and their `templates/` twins. (arbitration-dispose-lists-blocker-ids PR #701, 2026-10-08)
-
 ### README Config-Block Count Drift
 
 - id: Q-0368
