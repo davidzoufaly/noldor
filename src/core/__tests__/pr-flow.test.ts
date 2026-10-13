@@ -725,6 +725,7 @@ describe('openAndAutoMerge', () => {
       'git push',
       'gh pr list',
       'gh pr create',
+      'gh repo',
       'gh pr merge',
       'gh pr view',
     ]);
@@ -1017,6 +1018,7 @@ describe('openAndAutoMerge', () => {
       'git push',
       'gh pr list',
       'gh pr edit',
+      'gh repo',
       'gh pr merge',
       'gh pr view',
     ]);
@@ -1475,6 +1477,74 @@ describe('mergePrWithFallback', () => {
     expect(mergeCalls[1].args).toContain('--squash');
     expect(mergeCalls[1].args).toContain('--delete-branch');
     expect(mergeCalls[1].args).not.toContain('--auto');
+  });
+
+  it('skips the --auto attempt when the repo reports auto-merge disabled', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      calls.push({ cmd, args });
+      if (cmd === 'gh' && args[0] === 'repo' && args[1] === 'view')
+        return { stdout: JSON.stringify({ autoMergeAllowed: false }), exitCode: 0 };
+      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'view') {
+        return {
+          stdout: JSON.stringify({ mergedAt: '2026-07-02T12:06:00Z', state: 'MERGED' }),
+          exitCode: 0,
+        };
+      }
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await mergePrWithFallback({ prUrl, spawn });
+    expect(result.mergedAt).toBe('2026-07-02T12:06:00Z');
+    const probe = calls.find((c) => c.args[0] === 'repo');
+    expect(probe?.args).toEqual([
+      'repo',
+      'view',
+      'davidzoufaly/acme',
+      '--json',
+      'autoMergeAllowed',
+    ]);
+    const mergeCalls = calls.filter((c) => c.args[1] === 'merge');
+    expect(mergeCalls).toHaveLength(1);
+    expect(mergeCalls[0].args).not.toContain('--auto');
+    expect(mergeCalls[0].args).toContain('--squash');
+  });
+
+  it('names the skipped --auto leg when the direct merge fails on a disallowing repo', async () => {
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      if (cmd === 'gh' && args[0] === 'repo' && args[1] === 'view')
+        return { stdout: JSON.stringify({ autoMergeAllowed: false }), exitCode: 0 };
+      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 1 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'view') {
+        return { stdout: JSON.stringify({ mergedAt: null, state: 'OPEN' }), exitCode: 0 };
+      }
+      return { stdout: '', exitCode: 1 };
+    });
+    await expect(mergePrWithFallback({ prUrl, spawn })).rejects.toThrow(
+      /gh pr merge --auto skipped \(repo disallows auto-merge\); direct merge fallback exit 1/,
+    );
+  });
+
+  it('still tries --auto when the repo reports auto-merge allowed', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      calls.push({ cmd, args });
+      if (cmd === 'gh' && args[0] === 'repo' && args[1] === 'view')
+        return { stdout: JSON.stringify({ autoMergeAllowed: true }), exitCode: 0 };
+      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'view') {
+        return {
+          stdout: JSON.stringify({ mergedAt: '2026-07-02T12:07:00Z', state: 'MERGED' }),
+          exitCode: 0,
+        };
+      }
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await mergePrWithFallback({ prUrl, spawn });
+    expect(result.mergedAt).toBe('2026-07-02T12:07:00Z');
+    const mergeCalls = calls.filter((c) => c.args[1] === 'merge');
+    expect(mergeCalls).toHaveLength(1);
+    expect(mergeCalls[0].args).toContain('--auto');
   });
 
   it('throws with both exit codes when both merge legs fail and PR stays open', async () => {
