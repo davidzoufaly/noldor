@@ -42,18 +42,6 @@ Roll the next release out to charuy: run `noldor upgrade` + `noldor init --updat
 
 render-compare and geometry-compare answer `cannot-review: page-ambiguous` — and the review stays green while those lanes check nothing — in two cases: (a) a feature .pen keeps a VARIANT page beside its FINAL pages; (b) a design holds several FINAL pages (charuy's bathroom-fixture-bath design, and the Build design's `FINAL:app: build …` pages). Ignore VARIANT pages when picking the compare page, pair each FINAL page with its own captured state, and fail the round rather than pass when no pairing is possible. (charuy PRs #367, #386, #389, 2026-10-08..12)
 
-### Copy Env Files Names the Failing Entry
-
-- id: Q-0366
-- area: tooling
-- type: fix
-- since: 2026-10-09
-- size: XS
-- impact: low
-- confidence: high
-
-`copyEnvFiles` in `src/worktrees/create-worktree.ts` lets a listed entry that is a directory or unreadable throw a raw EISDIR/EACCES after `git worktree add`, leaving a half-set-up tree (no install, no port) with no hint which entry failed. Catch per file and skip with a log line, or return a result naming the entry. (reviewer low, worktree-copies-local-env-files PR #708, 2026-10-08)
-
 ### Arbitration Dispose Docs Wording
 
 - id: Q-0367

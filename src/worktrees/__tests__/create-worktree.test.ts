@@ -198,6 +198,28 @@ describe('createWorktree', () => {
       expect(existsSync(join(res.path, '.env.missing'))).toBe(false);
     });
 
+    it('skips an entry it cannot copy, names it, and still finishes the tree', async () => {
+      await mkdir(join(root, 'secrets.env'), { recursive: true });
+      await writeFile(join(root, '.env'), 'X=1\n');
+      const lines: string[] = [];
+      const res = unwrap(
+        await createWorktree({
+          slug: 'dir-env',
+          cwd: root,
+          installRunner: okInstall,
+          envFiles: ['secrets.env', '.env'],
+          log: (line) => lines.push(line),
+        }),
+      );
+      expect(res.envFilesCopied).toEqual(['.env']);
+      // copyfile on a directory is EISDIR on Linux, ENOTSUP on macOS.
+      expect(lines).toContainEqual(
+        expect.stringMatching(/^env file skipped: secrets\.env \((EISDIR|ENOTSUP):/),
+      );
+      expect(existsSync(join(res.path, 'secrets.env'))).toBe(false);
+      expect(await readFile(join(res.path, '.env.local'), 'utf-8')).toMatch(/^PORT=\d+$/m);
+    });
+
     it('never overwrites a file the branch already tracks', async () => {
       await writeFile(join(root, 'config.env'), 'TRACKED=1\n');
       git(['add', 'config.env'], root);
