@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Gate Reads the Raw Idea Before Building
-
-- id: Q-0374
-- area: tooling
-- type: feat
-- since: 2026-10-13
-- size: S
-- impact: high
-- confidence: med
-
-Promoted roadmap blocks paraphrase the ideas.md bullet lossily, and four charuy sessions built from a wrong claim: Q-0357's block said the reverse of its bullet; a block said group position/rotation are "always 0" (the engine applies them); Q-0370's "light-mode hover token" was a hard-coded `hover:bg-primary/80` class; a block named an "info panel" no component is called (it was FloorAreaCard). The gate should read the raw ideas.md bullet (via the `[triaged … → slug]` marker) and grep the named token/component before building. (charuy PRs #415, #423, #442, #467, 2026-10-12)
-
 ### Worktree Bootstrap Command
 
 - id: Q-0375
