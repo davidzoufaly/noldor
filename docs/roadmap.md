@@ -42,20 +42,6 @@ Roll the next release out to charuy: run `noldor upgrade` + `noldor init --updat
 
 render-compare and geometry-compare answer `cannot-review: page-ambiguous` — and the review stays green while those lanes check nothing — in two cases: (a) a feature .pen keeps a VARIANT page beside its FINAL pages; (b) a design holds several FINAL pages (charuy's bathroom-fixture-bath design, and the Build design's `FINAL:app: build …` pages). Ignore VARIANT pages when picking the compare page, pair each FINAL page with its own captured state, and fail the round rather than pass when no pairing is possible. (charuy PRs #367, #386, #389, 2026-10-08..12)
 
-### Fill-Links Dry Run Skips Tag-Built FDs
-
-- id: Q-0369
-- area: tooling
-- type: fix
-- since: 2026-10-09
-- size: S
-- impact: low
-- confidence: high
-
-The interactive `fill-links-code-gaps` dry-run proposal still assigns untagged files to tag-built FDs, which `sync code-links` then drops after `--apply`. Apply the same skip PR #706 added to `--auto-high`. (fill-links-skips-tag-built-fds PR #706, 2026-10-08)
-
-- `runAutoHigh`'s fail-closed branch (tag scan failure → warn and apply nothing) has no test; add one with an unreadable file under a scan root. (reviewer low, PR #706)
-
 ### Drain the Dead-Code Baseline
 
 - id: Q-0360

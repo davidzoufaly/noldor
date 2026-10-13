@@ -934,5 +934,9 @@
   "Q-0368": {
     "slug": "readme-config-block-count-drift",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0369": {
+    "slug": "fill-links-dry-run-skips-tag-built-fds",
+    "retiredAt": "2026-10-13"
   }
 }
