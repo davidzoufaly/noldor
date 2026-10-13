@@ -16,21 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Charuy Adopts Next Release
-
-- id: Q-0358
-- area: tooling
-- type: chore
-- since: 2026-10-08
-- size: S
-- impact: med
-- confidence: med
-
-Roll the next release out to charuy: run `noldor upgrade` + `noldor init --update` there (its `ideas.md` has no `## Lessons`; the first retro scaffolds it), and add `animations: 'disabled'` + `test.use({ reducedMotion: 'reduce' })` to its proof tests, now that UI proof can be skipped with `Noldor-UI-Proof: skip`. (session-retro-auto-capture PR #687, ui-proof-skip PR #693, 2026-10-08)
-
-- charuy can drop its inline `.env.example` DATABASE_URL workaround (charuy PR #362) by setting `consumer.worktreeEnvFiles: [".env"]` once it runs the release that ships PR #708. (worktree-copies-local-env-files PR #708, 2026-10-08)
-- charuy has no `consumer.uiProof.app.featureSpec`, so every charuy PR shows the `fixed screens, not this feature` note — set `uiProof.app.featureSpec` (e.g. `apps/web/e2e/proof/{slug}.spec.ts`) plus a command naming `{spec}` once it runs the release carrying PRs #721/#731. (PRs #721, #731, 2026-10-13)
-
 ### Compare Lanes Pair Each Final Page
 
 - id: Q-0383
