@@ -87,6 +87,22 @@ so the prompt stays a thin pointer and no second rendering exists to drift.
   marker, `set-autonomous` and `pr-flow` included — from inside that
   worktree.
 
+## Read the raw idea before editing
+
+- A roadmap block paraphrases the `ideas.md` bullet it was triaged from, and
+  the paraphrase can be wrong: blocks have stated the reverse of their bullet
+  and named components no file defines. Before the first edit, run
+  `pnpm noldor triage source <slug>`. It prints the bullet whose
+  `[triaged … → <slug>]` marker names the entry — read from the main
+  checkout's `ideas.md`, so it works from the worktree — and lists each
+  backticked name in it as `found` or `MISSING` in the code.
+- Build from the bullet. Where it and the block disagree, the bullet wins. A
+  `MISSING` name is a claim to grep for before coding: find what the bullet
+  meant, or ship the smaller change the code supports.
+- Exit 1 means no marker names the slug — triage may have stamped a shorthand
+  slug, so search `ideas.md` by the entry's wording, and otherwise build from
+  the block, checking each name it cites. Never a reason to stop.
+
 ## Rule brief before editing
 
 - Before the first `Edit`/`Write` to a file, run

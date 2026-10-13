@@ -210,6 +210,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'triage/retro-cli.ts',
         desc: "Write a session's lessons + follow-ups into the main checkout's ideas.md (never commits)",
       },
+      source: {
+        src: 'triage/source-cli.ts',
+        desc: 'Print the raw ideas.md bullet an entry was triaged from + which of its backticked names the code holds (<slug> [--json])',
+      },
       'ideas-lock': {
         src: 'triage/ideas-lock-cli.ts',
         desc: 'Hold or drop the ideas.md lock retro writes under (acquire [--minutes <n>] | release)',
