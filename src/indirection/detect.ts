@@ -36,7 +36,7 @@ export const INDIRECTION_CLOSURE_THRESHOLD = 30;
  * One direct import of a flagged module and how many closure files ONLY it
  * brings in — the files that leave the closure when that one edge is cut.
  */
-export interface EdgeCut {
+interface EdgeCut {
   readonly to: string;
   readonly only: number;
 }
