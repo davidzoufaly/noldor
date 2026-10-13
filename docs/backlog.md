@@ -634,3 +634,75 @@ Under `NOLDOR_DRAIN_OPEN_ONLY=1` a drain child leaves its CR review state in the
 - confidence: low
 
 An "is this e2e red mine or already red on main?" helper: rerun the failing Playwright titles (by `-g "<title>"`, never by line number) on `origin/main` at the same `--workers`, and print which fail on both. Charuy sessions A/B'd this by hand repeatedly (121 fails at default parallelism, 24 at 3 workers, same set with the change reverted). (from charuy ideas.md Lessons, 2026-10-13)
+
+### Triage Source Fallback Matching
+
+- id: Q-0395
+- area: tooling
+- type: feat
+- since: 2026-10-13
+- size: S
+- impact: low
+- confidence: med
+
+`triage source` matches only an exact marker slug, so a `[triaged … → shorthand]` marker that differs from the heading slug exits 1 and the session falls back to the block; fall back to matching by entry id or heading words. Also add a test for a consumer whose docRoots move ideas.md/roadmap/backlog — only the default layout is exercised. (PR #727, 2026-10-13)
+
+### CR Artifact Pathspec Follow-Ups
+
+- id: Q-0396
+- area: tooling
+- type: fix
+- since: 2026-10-13
+- size: S
+- impact: low
+- confidence: med
+
+After PR #733: (a) when the unscoped `git diff --quiet base..head` is non-empty but the artifact pathspec excludes the changed files, the delta round still returns a synthetic OK — print a warning naming the out-of-scope files so a too-narrow artifact is visible; (b) other `--artifact` pathspec consumers (review-with-codex.ts spec/plan branch, `readIfExists`) take the string whole — a shared splitter would keep code and spec/plan in step. (PR #733, 2026-10-13)
+
+### Doctor Warns on Missing Smoke URL
+
+- id: Q-0397
+- area: tooling
+- type: feat
+- since: 2026-10-13
+- size: S
+- impact: low
+- confidence: med
+
+doctor or the verifier could warn when a smoke URL the suites gate on is absent — this also catches a main workspace with no `.env` at all, since the env-example fill only runs on a copied file. (PR #735, 2026-10-13)
+
+### Verify Fresh Uncached Mode
+
+- id: Q-0398
+- area: tooling
+- type: feat
+- since: 2026-10-13
+- size: S
+- impact: low
+- confidence: med
+
+Give a consumer's `verify` script a real uncached mode, e.g. a `verify:fresh` template script running `turbo run … --force`. Noldor has no turbo, so PR #743 shipped only a gotchas bullet. (PR #743, 2026-10-13)
+
+### Indirection Red Names New Edges
+
+- id: Q-0399
+- area: tooling
+- type: feat
+- since: 2026-10-13
+- size: S
+- impact: low
+- confidence: med
+
+The indirection red names a module's direct-import cuts but not which edge is new versus the baseline, because the baseline stores per-module excess only. Record each flagged module's edge list so the red can say "new edge" outright. (PR #746, 2026-10-13)
+
+### Stated Block Count Number Words
+
+- id: Q-0400
+- area: tooling
+- type: fix
+- since: 2026-10-13
+- size: XS
+- impact: low
+- confidence: med
+
+`statedBlockCount` reads number words only up to twenty and only the word directly before "optional block(s)"; "twenty-one" stays silent. Widen it if the config schema ever passes twenty keys. (PR #751, 2026-10-13)
