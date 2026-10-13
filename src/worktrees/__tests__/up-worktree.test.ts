@@ -12,6 +12,7 @@ function deps(overrides = {}) {
         port: 5174,
         installWarning: null,
         envFilesCopied: [],
+        bootstrapRan: null,
       },
     })),
     existsImpl: vi.fn(() => false),

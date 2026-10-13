@@ -414,6 +414,12 @@ export const ConsumerConfigSchema = z
      */
     worktreeEnvFiles: z.array(WorktreeEnvFileSchema).optional(),
     /**
+     * Shell command `worktrees create` runs in each new tree after the install
+     * (e.g. `pnpm build`), for a repo whose tests resolve workspace packages
+     * through build output a fresh checkout lacks. Absent ⇒ nothing runs.
+     */
+    worktreeBootstrap: z.string().min(1).optional(),
+    /**
      * Globs naming this consumer's UI source (e.g. `src/dashboard/app/**`).
      * Drives the UI-design-stage predicate (`src/core/ui-predicate.ts`).
      * Absent or empty ⇒ the design stage never fires for this consumer.
@@ -578,6 +584,15 @@ const CONFIG_FILE = '.noldor/config.json';
 export function loadWorktreeEnvFiles(cwd: string): readonly string[] {
   if (!existsSync(join(cwd, CONFIG_FILE))) return [];
   return loadConsumerConfig(cwd).worktreeEnvFiles ?? [];
+}
+
+/**
+ * The consumer's `worktreeBootstrap` command, or `undefined` when no consumer
+ * config file exists or it declares none. A present-but-invalid file throws.
+ */
+export function loadWorktreeBootstrap(cwd: string): string | undefined {
+  if (!existsSync(join(cwd, CONFIG_FILE))) return undefined;
+  return loadConsumerConfig(cwd).worktreeBootstrap;
 }
 
 /**

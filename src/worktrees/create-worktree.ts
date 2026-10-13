@@ -3,7 +3,8 @@
 // Vendored worktree mechanics from docs/noldor/worktree-discipline.md:
 // .worktrees/<slug> on feat/<slug> (or --branch) cut from a freshly fetched
 // origin/main, configured local env files copied in, pnpm install with the
-// lefthook-postinstall tolerance, port stamped into .env.local.
+// lefthook-postinstall tolerance, the consumer's bootstrap command, port
+// stamped into .env.local.
 
 import { execFile } from 'node:child_process';
 import { constants, existsSync } from 'node:fs';
@@ -11,7 +12,7 @@ import { copyFile, mkdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
-import { loadWorktreeEnvFiles } from '../core/consumer-config.js';
+import { loadWorktreeBootstrap, loadWorktreeEnvFiles } from '../core/consumer-config.js';
 import { parseSlug } from '../core/slug.js';
 import { worktreePath } from './worktree-paths.js';
 import { resolveErrorMessage, type ResolveError } from '../core/slug-paths.js';
@@ -79,6 +80,12 @@ export interface CreateOptions {
   /** Run `pnpm install` in the new tree (default true). */
   install?: boolean;
   installRunner?: InstallRunner;
+  /**
+   * Shell command run in the tree after the install; defaults to
+   * `consumer.worktreeBootstrap`. Skipped with the install (`install: false`):
+   * a build over missing dependencies can only fail.
+   */
+  bootstrap?: string;
   log?: (line: string) => void;
 }
 
@@ -90,6 +97,8 @@ export interface CreateResult {
   installWarning: string | null;
   /** The `envFiles` entries that were copied into the tree. */
   envFilesCopied: string[];
+  /** The bootstrap command that ran, or `null` when none did. */
+  bootstrapRan: string | null;
 }
 
 const defaultInstall: InstallRunner = async (cwd) => {
@@ -131,6 +140,23 @@ async function resolveBase(cwd: string, log: (line: string) => void): Promise<st
 }
 
 /**
+ * Run the consumer's bootstrap command in the new tree. A failure throws with
+ * the command's output: a tree whose packages never built fails every test
+ * that imports them, and that red would pass for a real one.
+ */
+async function runBootstrap(path: string, command: string): Promise<void> {
+  try {
+    await execFileP('sh', ['-c', command], { cwd: path, maxBuffer: 16 * 1024 * 1024 });
+  } catch (err) {
+    const e = err as { stdout?: string; stderr?: string };
+    throw new Error(
+      `worktree bootstrap failed in ${path} (${command}):\n${e.stdout ?? ''}\n${e.stderr ?? ''}`,
+      { cause: err },
+    );
+  }
+}
+
+/**
  * Copy each local env file from the main workspace into the new tree. A file
  * the main workspace lacks is skipped, and so is one the checkout already holds:
  * a tracked file of that name is the branch's own and must not be overwritten.
@@ -161,8 +187,8 @@ async function copyEnvFiles(
 
 /**
  * Create `.worktrees/<slug>` on a fresh branch from `origin/main` (see {@link resolveBase}),
- * copy the configured local env files in (see {@link copyEnvFiles}), install dependencies (tolerating the known lefthook hooksPath failure), and
- * stamp a dev-server port into the tree's `.env.local`.
+ * copy the configured local env files in (see {@link copyEnvFiles}), install dependencies (tolerating the known lefthook hooksPath failure),
+ * run the bootstrap command (see {@link runBootstrap}), and stamp a dev-server port into the tree's `.env.local`.
  *
  * @param opts - See {@link CreateOptions}.
  * @returns Path, branch, assigned port, and any tolerated-install warning.
@@ -232,6 +258,15 @@ export async function createWorktree(
     }
   }
 
+  let bootstrapRan: string | null = null;
+  const bootstrap =
+    opts.install === false ? undefined : (opts.bootstrap ?? loadWorktreeBootstrap(cwd));
+  if (bootstrap !== undefined) {
+    await runBootstrap(path, bootstrap);
+    bootstrapRan = bootstrap;
+    log(`bootstrap ran: ${bootstrap}`);
+  }
+
   const porcelain = (await execFileP('git', ['worktree', 'list', '--porcelain'], { cwd })).stdout;
   const trees = parseWorktreeList(porcelain).filter((t) => resolve(t.path) !== cwd);
   const inputs = await Promise.all(
@@ -243,7 +278,10 @@ export async function createWorktree(
   }
   const port = await readPort(path);
 
-  return { ok: true, result: { path, branch, port, installWarning, envFilesCopied } };
+  return {
+    ok: true,
+    result: { path, branch, port, installWarning, envFilesCopied, bootstrapRan },
+  };
 }
 
 function parseArgs(argv: string[]): { slug: string | null; branch?: string; install: boolean } {

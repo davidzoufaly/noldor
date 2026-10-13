@@ -250,6 +250,78 @@ describe('createWorktree', () => {
     });
   });
 
+  describe('bootstrap command', () => {
+    it('runs the command inside the new tree after the install', async () => {
+      const res = unwrap(
+        await createWorktree({
+          slug: 'boot',
+          cwd: root,
+          installRunner: okInstall,
+          bootstrap: 'mkdir -p dist && echo built > dist/marker',
+        }),
+      );
+      expect(res.bootstrapRan).toBe('mkdir -p dist && echo built > dist/marker');
+      expect(await readFile(join(res.path, 'dist', 'marker'), 'utf-8')).toBe('built\n');
+      expect(existsSync(join(root, 'dist'))).toBe(false);
+    });
+
+    it('reads the command from consumer.worktreeBootstrap when none is passed', async () => {
+      await mkdir(join(root, '.noldor'), { recursive: true });
+      await writeFile(
+        join(root, '.noldor', 'config.json'),
+        JSON.stringify({
+          consumer: {
+            name: 'c',
+            repoUrl: 'https://example.com/c',
+            lockstepPackages: ['package.json'],
+            e2ePrefix: 'e2e/',
+            samplesPath: 'samples',
+            packagePrefix: '@c/',
+            appPathPrefix: 'src',
+            worktreeBootstrap: 'touch bootstrapped',
+          },
+        }),
+      );
+      const res = unwrap(
+        await createWorktree({ slug: 'cfg-boot', cwd: root, installRunner: okInstall }),
+      );
+      expect(res.bootstrapRan).toBe('touch bootstrapped');
+      expect(existsSync(join(res.path, 'bootstrapped'))).toBe(true);
+    });
+
+    it('runs nothing when the repo has no config', async () => {
+      const res = unwrap(
+        await createWorktree({ slug: 'no-boot', cwd: root, installRunner: okInstall }),
+      );
+      expect(res.bootstrapRan).toBeNull();
+    });
+
+    it('throws with the command output when the command fails', async () => {
+      await expect(
+        createWorktree({
+          slug: 'boot-fail',
+          cwd: root,
+          installRunner: okInstall,
+          bootstrap: 'echo cannot resolve @c/core >&2; exit 3',
+        }),
+      ).rejects.toThrow(/worktree bootstrap failed[\s\S]*cannot resolve @c\/core/);
+    });
+
+    it('skips the command when install: false', async () => {
+      const res = unwrap(
+        await createWorktree({
+          slug: 'boot-restore',
+          cwd: root,
+          install: false,
+          installRunner: okInstall,
+          bootstrap: 'touch bootstrapped',
+        }),
+      );
+      expect(res.bootstrapRan).toBeNull();
+      expect(existsSync(join(res.path, 'bootstrapped'))).toBe(false);
+    });
+  });
+
   it('skips install when install: false', async () => {
     const spy = vi.fn(okInstall);
     const res = unwrap(

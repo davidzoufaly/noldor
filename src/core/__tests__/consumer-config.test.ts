@@ -7,6 +7,7 @@ import {
   loadConsumerConfig,
   loadScopeAliases,
   loadVerifyCommands,
+  loadWorktreeBootstrap,
   loadWorktreeEnvFiles,
   ConsumerConfigSchema,
   BoundaryRuleSchema,
@@ -595,6 +596,28 @@ describe('consumer.worktreeEnvFiles', () => {
     } finally {
       rmSync(empty, { recursive: true, force: true });
       rmSync(bad, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('consumer.worktreeBootstrap', () => {
+  it('rejects an empty command', () => {
+    expect(
+      ConsumerConfigSchema.safeParse({ ...MINIMAL_CONSUMER, worktreeBootstrap: '' }).success,
+    ).toBe(false);
+  });
+
+  it('loads the command, and undefined with no config file', () => {
+    const empty = mkdtempSync(join(tmpdir(), 'noldor-consumer-cfg-'));
+    const repo = makeTmpRepo({
+      consumer: { ...MINIMAL_CONSUMER, worktreeBootstrap: 'pnpm build' },
+    });
+    try {
+      expect(loadWorktreeBootstrap(empty)).toBeUndefined();
+      expect(loadWorktreeBootstrap(repo)).toBe('pnpm build');
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 });
