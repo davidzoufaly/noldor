@@ -91,7 +91,7 @@ export interface CreateOptions {
 }
 
 /** Keys appended to one copied env file from the tree's `<file>.example`. */
-export interface EnvKeysFilled {
+interface EnvKeysFilled {
   file: string;
   from: string;
   keys: string[];
