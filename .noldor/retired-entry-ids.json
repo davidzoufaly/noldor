@@ -886,5 +886,9 @@
   "Q-0375": {
     "slug": "worktree-bootstrap-command",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0376": {
+    "slug": "ui-proof-tests-the-developed-feature",
+    "retiredAt": "2026-10-13"
   }
 }
