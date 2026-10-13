@@ -890,5 +890,9 @@
   "Q-0376": {
     "slug": "ui-proof-tests-the-developed-feature",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0377": {
+    "slug": "cr-delta-round-misreports-empty-delta",
+    "retiredAt": "2026-10-13"
   }
 }

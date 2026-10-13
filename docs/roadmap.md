@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### CR Delta Round Misreports Empty Delta
-
-- id: Q-0377
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: S
-- impact: high
-- confidence: low
-
-The code-stage CR delta round reported "synthetic OK (empty delta)" for reviewer and verifier although `1fb20b2f..HEAD` changed 3 files, so only codex reviewed the fix. The empty-delta check computes the delta wrongly somewhere upstream — reproduce, then fix where the base is resolved. (charuy construction-knowledge-corpus, PR #387, 2026-10-12)
-
 ### Worktree Env Fills Keys From Env Example
 
 - id: Q-0378

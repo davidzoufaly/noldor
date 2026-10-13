@@ -184,3 +184,57 @@ describe('implicit branch base (Q-0267)', () => {
     expect(branchBaseCalls).toEqual([]);
   });
 });
+
+describe('path-list artifact (Q-0377)', () => {
+  // The gate's code-stage command takes `--artifact <code-paths>`, so a caller passes a list.
+  // Handed to git as ONE pathspec, `a.txt,b.txt` matches no file: the check read "no change",
+  // and every lane with a green prior sink got a synthetic OK over a fix nobody reviewed.
+  it.each(['a.txt,b.txt', 'a.txt b.txt', 'a.txt, b.txt'])(
+    'sees the change behind %j instead of minting a synthetic OK',
+    async (artifact) => {
+      const git = (...a: string[]) =>
+        execFileSync('git', a, { cwd: root, encoding: 'utf8' }).trim();
+      git('init', '-q', '-b', 'main');
+      git('config', 'user.email', 't@t');
+      git('config', 'user.name', 't');
+      git('config', 'commit.gpgsign', 'false');
+      await writeFile(join(root, '.gitignore'), '.noldor/\n');
+      await writeFile(join(root, 'a.txt'), 'a\n');
+      await writeFile(join(root, 'b.txt'), 'b\n');
+      git('add', '.');
+      git('commit', '-q', '--no-verify', '-m', 'last green tip');
+      const greenTip = git('rev-parse', 'HEAD');
+      await writeFile(join(root, 'b.txt'), 'b fixed\n');
+      git('commit', '-q', '--no-verify', '-am', 'the fix');
+      await writeFile(
+        join(root, '.noldor', 'cr', 'x-code-manual.json'),
+        JSON.stringify({
+          lane: 'manual',
+          artifact,
+          kind: 'code',
+          slug: 'x',
+          blockers: [],
+          suggestions: [],
+          summary: 'prior',
+          startedAt: '2026-05-25T00:00:00.000Z',
+          finishedAt: '2026-05-25T00:01:00.000Z',
+        }),
+        'utf8',
+      );
+
+      const r = await run({
+        args: {
+          slug: 'x',
+          artifact,
+          kind: 'code',
+          lanes: ['manual'],
+          baseSha: greenTip,
+          fullReview: false,
+          autonomous: true,
+        },
+        cwd: root,
+      });
+      expect(r.syntheticOks).toEqual([]);
+    },
+  );
+});
