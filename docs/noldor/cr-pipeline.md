@@ -835,15 +835,13 @@ More sink/receipt traps:
   `--lanes` overrides a PRESENT one — both land on reviewer-only, neither says
   so. (2026-08-24, Q-0158; 2026-09-24, Q-0270)
 - **Re-running `cr orchestrate` over an existing sink without `--autonomous`
-  dies instantly in any non-TTY runner.** `guardLaneOverwrite` fires an
-  interactive prompt, which throws
+  used to die instantly in any non-TTY runner.** `guardLaneOverwrite` fired an
+  interactive prompt, which threw
   `ExitPromptError: User force closed the prompt` under the Claude Code Bash
   tool and every other headless runner — indistinguishable from a real
-  dispatch failure. The delta-re-earn recipe shows the command without the
-  flag, so it is a trap on the second pass by construction: always add
-  `--autonomous` (it defaults the overwrite guard to `archive-and-overwrite`
-  and the standalone-in-progress guard to `drop-lane`) when re-running.
-  (2026-08-24, Q-0158)
+  dispatch failure. It now prompts only when stdin is a TTY; without one it
+  takes the `--autonomous` default, `archive-and-overwrite`.
+  (2026-08-24, Q-0158; 2026-10-13, Q-0373)
 - **Budget a whole extra dispatch to re-earn the receipt after a cap-round
   fix.** The re-round cap governs *arbitration* rounds; the
   `Noldor-Reviewed-Subagent` receipt is separately bound to `HEAD^{tree}`, so
