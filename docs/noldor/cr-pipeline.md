@@ -1056,7 +1056,8 @@ pnpm noldor cr arbitration dispose --slug <slug> --kind <kind> \
 ```
 
 `--note` is required here, because it is the reason every later lane is shown.
-Run the command without `--blocker` to list the standing blockers and their ids.
+Run it with only `--slug` and `--kind` to list the standing blockers and their ids;
+a `--disposition` or `--note` with no `--blocker` is a usage error, not a listing.
 The ruling cites the lines its finding points at, read through git at the head
 the round reviewed, and it holds while those lines are unchanged. A finding with
 no citable line holds for the rest of the series. Disposing the same id again

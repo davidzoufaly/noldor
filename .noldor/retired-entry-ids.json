@@ -926,5 +926,9 @@
   "Q-0366": {
     "slug": "copy-env-files-names-the-failing-entry",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0367": {
+    "slug": "arbitration-dispose-docs-wording",
+    "retiredAt": "2026-10-13"
   }
 }
