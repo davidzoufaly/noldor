@@ -966,5 +966,9 @@
   "Q-0392": {
     "slug": "sync-code-links-branch-drift",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0393": {
+    "slug": "fill-links-dry-run-hardening",
+    "retiredAt": "2026-10-13"
   }
 }
