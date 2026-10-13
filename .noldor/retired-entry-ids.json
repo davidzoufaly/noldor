@@ -958,5 +958,9 @@
   "Q-0390": {
     "slug": "pr-flow-fast-track-pr-body",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0391": {
+    "slug": "worktree-create-subprocess-deadline",
+    "retiredAt": "2026-10-13"
   }
 }

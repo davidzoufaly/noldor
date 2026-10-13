@@ -83,18 +83,6 @@ Other `pnpm noldor` verbs still take free text on argv (`design log --decide/--b
 
 `/noldor-refactor` "Dead Code" report section: when `deadCode.enabled` is on, run `pnpm noldor dead-code check` after the refactor and list what it reports outside the baseline. Promised in the consumers spec; a `.claude/skills/**` edit plus its `templates/` twin, so it needs its own micro-chore PR. (dead-code-detection-with-knip consumers, PR #681, 2026-10-07)
 
-### Worktree Create Subprocess Deadline
-
-- id: Q-0391
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: S
-- impact: med
-- confidence: med
-
-`worktrees create` runs `consumer.worktreeBootstrap` and `pnpm install` with no timeout, so a hung build hangs the create and any drain child waiting on it. Add a deadline to both subprocess waits. (CR low, PR #729, 2026-10-13)
-
 ### Sync Code-Links Branch Drift
 
 - id: Q-0392

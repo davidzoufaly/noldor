@@ -7,7 +7,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createWorktree } from '../create-worktree.js';
+import { createWorktree, runWithDeadline } from '../create-worktree.js';
 
 import type { CreateResult, InstallRunner } from '../create-worktree.js';
 
@@ -411,6 +411,20 @@ describe('createWorktree', () => {
       ).rejects.toThrow(/worktree bootstrap failed[\s\S]*cannot resolve @c\/core/);
     });
 
+    it('throws once the command passes its deadline', async () => {
+      const started = Date.now();
+      await expect(
+        createWorktree({
+          slug: 'boot-hang',
+          cwd: root,
+          installRunner: okInstall,
+          bootstrap: 'echo building; sleep 30',
+          deadlineMs: 300,
+        }),
+      ).rejects.toThrow(/worktree bootstrap failed[\s\S]*building[\s\S]*timed out after 300 ms/);
+      expect(Date.now() - started).toBeLessThan(10_000);
+    });
+
     it('skips the command when install: false', async () => {
       const res = unwrap(
         await createWorktree({
@@ -426,6 +440,16 @@ describe('createWorktree', () => {
     });
   });
 
+  it('hard-fails a timed-out install even when its output looks tolerable', async () => {
+    const timedOut: InstallRunner = async (cwd) => {
+      await mkdir(join(cwd, 'node_modules', '.bin'), { recursive: true });
+      return { code: 1, output: 'core.hooksPath is set locally', timedOut: true };
+    };
+    await expect(
+      createWorktree({ slug: 'install-hang', cwd: root, installRunner: timedOut }),
+    ).rejects.toThrow(/pnpm install failed/);
+  });
+
   it('skips install when install: false', async () => {
     const spy = vi.fn(okInstall);
     const res = unwrap(
@@ -438,5 +462,26 @@ describe('createWorktree', () => {
     );
     expect(spy).not.toHaveBeenCalled();
     expect(res.installWarning).toBeNull();
+  });
+});
+
+describe('runWithDeadline', () => {
+  it('returns the exit code and combined output of a finished run', async () => {
+    const res = await runWithDeadline('sh', ['-c', 'echo out; echo err >&2; exit 3'], root, 5_000);
+    expect(res).toMatchObject({ code: 3, timedOut: false });
+    expect(res.output).toMatch(/out[\s\S]*err|err[\s\S]*out/);
+  });
+
+  it('settles at the deadline even when a grandchild holds the output pipe', async () => {
+    const started = Date.now();
+    const res = await runWithDeadline('sh', ['-c', 'sleep 30 & wait'], root, 300);
+    expect(res.timedOut).toBe(true);
+    expect(res.code).not.toBe(0);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it('resolves a spawn error instead of rejecting', async () => {
+    const res = await runWithDeadline('no-such-binary-noldor', [], root, 5_000);
+    expect(res).toMatchObject({ code: 1, timedOut: false });
   });
 });
