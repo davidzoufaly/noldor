@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### UI Proof Tests the Developed Feature
-
-- id: Q-0376
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: S
-- impact: high
-- confidence: low
-- parent: ui-proof-screenshots-on-the-pr
-
-Operator report: UI proof still doesn't test the developed feature. Check first — PR #721 (v1.17.0) made UI proof run the branch's own feature proof test via `uiProof.app.featureSpec`, and charuy has not adopted it yet (see Q-0358). If the gap remains after adoption, find which path still shoots a generic screen instead of the feature. (operator, 2026-10-13)
-
 ### CR Delta Round Misreports Empty Delta
 
 - id: Q-0377

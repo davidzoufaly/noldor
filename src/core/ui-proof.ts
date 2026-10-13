@@ -105,6 +105,26 @@ export function proofSlug(branch: string): string {
 /** The note that marks a feature-proof surface whose branch carries no proof test of its own. */
 export const NO_FEATURE_PROOF = 'no feature proof';
 
+/** The note that marks images from a surface with no `featureSpec`: the same screens every PR shows. */
+export const FIXED_SCREENS = 'fixed screens, not this feature';
+
+/**
+ * The touched surfaces whose `uiProof` recipe sets no `featureSpec`, so their
+ * images, if any, show the same screens on every branch.
+ */
+export function fixedScreenSurfaces(
+  branchFiles: readonly string[],
+  config: UiConfig & { uiProof?: Record<string, UiProofRecipe> },
+): string[] {
+  return uiProofSurfaces(branchFiles, config).filter(
+    (surface) => config.uiProof?.[surface]?.featureSpec === undefined,
+  );
+}
+
+function fixedScreensNote(surface: string): string {
+  return `${FIXED_SCREENS}: set \`consumer.uiProof.${surface}.featureSpec\` to prove what this branch built`;
+}
+
 /**
  * Whether the branch's own proof test counts: it must be in the shipped tree
  * and the branch must have added or changed it. A spec left by an earlier
@@ -266,7 +286,8 @@ async function renderCompareShot(opts: {
  * One item per surface: the proof command's images when one is configured and
  * succeeds, else the render-compare shot. A failed proof command keeps its
  * note even when the fallback supplies an image; so does a feature-proof
- * surface whose branch carries no proof test, whose command is not run.
+ * surface whose branch carries no proof test, whose command is not run. An
+ * image from a surface without `featureSpec` is noted as fixed screens.
  */
 export async function collectUiProof(opts: {
   cwd: string;
@@ -282,6 +303,7 @@ export async function collectUiProof(opts: {
   for (const surface of opts.surfaces) {
     const notes: string[] = [];
     const recipe = Object.hasOwn(opts.recipes, surface) ? opts.recipes[surface] : undefined;
+    const fixed = recipe?.featureSpec === undefined;
     const e2e =
       recipe === undefined
         ? []
@@ -290,10 +312,12 @@ export async function collectUiProof(opts: {
             return [];
           });
     if (e2e.length > 0) {
+      if (fixed) notes.push(fixedScreensNote(surface));
       items.push({ surface, source: 'e2e', files: e2e, notes });
       continue;
     }
     const shot = await renderCompareShot({ ...opts, surface, notes });
+    if (fixed && shot.length > 0) notes.push(fixedScreensNote(surface));
     items.push({
       surface,
       source: shot.length > 0 ? 'render-compare' : null,
@@ -461,12 +485,13 @@ export function uiProofStep(opts: {
       capture: opts.capture,
     });
     const links = await hostUiProof({ ...opts, items });
-    // A missing feature proof warns even when a fallback image filled the gap.
-    const warned = links.filter(
-      (x) => x.imageUrls.length === 0 || x.notes.some((n) => n.startsWith(NO_FEATURE_PROOF)),
-    );
+    // A missing feature proof warns even when a fallback image filled the gap,
+    // and so do fixed screens: an image that does not show the feature.
+    const notFeature = (x: UiProofLink): string | undefined =>
+      [NO_FEATURE_PROOF, FIXED_SCREENS].find((p) => x.notes.some((n) => n.startsWith(p)));
+    const warned = links.filter((x) => x.imageUrls.length === 0 || notFeature(x) !== undefined);
     for (const l of warned) {
-      const what = l.imageUrls.length === 0 ? 'no UI proof screenshot' : NO_FEATURE_PROOF;
+      const what = l.imageUrls.length === 0 ? 'no UI proof screenshot' : notFeature(l);
       process.stderr.write(
         `pr-flow: warning — ${what} for surface '${l.surface}'` +
           `${l.notes.length > 0 ? `: ${l.notes.join('; ')}` : ''}\n`,

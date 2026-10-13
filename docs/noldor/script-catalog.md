@@ -255,7 +255,7 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 
 - **Trigger:** `pnpm noldor checks ui-proof-spec [--base <ref>]` (default `origin/main`). Run by `/noldor-gate` Step 4 on fast-track and FD paths, before the code-stage review.
 - **Inputs:** the branch's commits since `--base` (touched files and `Noldor-UI-Proof` trailers), the branch name, `consumer.uiPaths` / `uiSurfaces` / `uiProof`, and the session FD's `design:` field.
-- **Outputs:** one line per touched UI surface whose `uiProof.<surface>.featureSpec` test the branch has not added or changed, naming the path with `{slug}` replaced by the branch's last segment. Exit 0 when every such surface has its test, when no touched surface sets `featureSpec`, on a declared UI-proof skip, or with no `.noldor/config.json`; 1 when any test is missing; 2 on usage error.
+- **Outputs:** one line per touched UI surface whose `uiProof.<surface>.featureSpec` test the branch has not added or changed, naming the path with `{slug}` replaced by the branch's last segment; plus one advisory line per touched surface with no `featureSpec`, whose PR images are the same screens on every branch. Exit 0 when every such surface has its test, when no touched surface sets `featureSpec`, on a declared UI-proof skip, or with no `.noldor/config.json`; 1 when any test is missing; 2 on usage error.
 - **When to use:** before shipping a UI change on a repo that opted in to feature proof. Repair by writing the named test so it drives the new UI and shoots it into `NOLDOR_PROOF_OUT`.
 - **Source:** [`src/checks/check-ui-proof-spec.ts`](../../src/checks/check-ui-proof-spec.ts)
 

@@ -17,8 +17,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCapture } from '../run-capture.js';
 import {
   UI_PROOF_BRANCH,
+  FIXED_SCREENS,
   NO_FEATURE_PROOF,
   collectUiProof,
+  fixedScreenSurfaces,
   hostUiProof,
   missingFeatureSpecs,
   proofSlug,
@@ -131,7 +133,9 @@ describe('collectUiProof', () => {
     const [item] = await collect({ app: { command, timeoutMs: 10_000 } });
     expect(item?.source).toBe('e2e');
     expect(item?.files.map((f) => f.split('/').at(-1))).toEqual(['a.png', 'b.png', 'c.png']);
-    expect(item?.notes).toEqual([]);
+    expect(item?.notes).toEqual([
+      'fixed screens, not this feature: set `consumer.uiProof.app.featureSpec` to prove what this branch built',
+    ]);
   });
 
   it('hands the output folder to the command through NOLDOR_PROOF_OUT too', async () => {
@@ -161,11 +165,18 @@ describe('collectUiProof', () => {
     expect(item?.notes.join('\n')).toContain('exited 3');
   });
 
-  it('uses the render-compare shot when no proof command is configured', async () => {
+  it('uses the render-compare shot when no proof command is configured, noted as fixed screens', async () => {
     writeShot('app', git(repo, 'rev-parse', 'HEAD^{tree}'));
     const [item] = await collect({});
     expect(item?.source).toBe('render-compare');
     expect(item?.files).toHaveLength(1);
+    expect(item?.notes.filter((n) => n.startsWith(FIXED_SCREENS))).toHaveLength(1);
+  });
+
+  it('adds no fixed-screens note when no image was produced', async () => {
+    const [item] = await collect({ app: { command: 'exit 3', timeoutMs: 10_000 } });
+    expect(item?.files).toEqual([]);
+    expect(item?.notes.some((n) => n.startsWith(FIXED_SCREENS))).toBe(false);
   });
 
   it.each([
@@ -270,6 +281,7 @@ describe('feature proof', () => {
     expect(readFileSync(join(out, 'args.txt'), 'utf8')).toBe(
       'x|e2e/proof/x.spec.ts|x|e2e/proof/x.spec.ts',
     );
+    expect(item?.notes).toEqual([]);
   });
 
   it('never re-substitutes a placeholder that appears inside an inserted value', async () => {
@@ -293,6 +305,7 @@ describe('feature proof', () => {
     expect(item?.source).toBe('render-compare');
     expect(item?.notes.some((n) => n.startsWith(NO_FEATURE_PROOF))).toBe(true);
     expect(item?.notes.join('\n')).toContain('e2e/proof/x.spec.ts');
+    expect(item?.notes.some((n) => n.startsWith(FIXED_SCREENS))).toBe(false);
   });
 
   it('does not count a spec in the tree that this branch did not change', async () => {
@@ -338,6 +351,29 @@ describe('feature proof', () => {
         config,
       }),
     ).toEqual([]);
+  });
+});
+
+describe('fixedScreenSurfaces', () => {
+  const config = {
+    uiPaths: ['apps/**'],
+    uiSurfaces: { app: ['apps/web/**'], site: ['apps/site/**'], docs: ['apps/docs/**'] },
+    uiProof: {
+      app: { command: 'x', timeoutMs: 1, featureSpec: 'e2e/{slug}.spec.ts' },
+      site: { command: 'x', timeoutMs: 1 },
+    },
+  };
+
+  it('names touched surfaces with no featureSpec, with or without a recipe', () => {
+    expect(fixedScreenSurfaces(['apps/site/a.tsx', 'apps/docs/b.tsx'], config)).toEqual([
+      'docs',
+      'site',
+    ]);
+  });
+
+  it('leaves out feature-proof surfaces and untouched surfaces', () => {
+    expect(fixedScreenSurfaces(['apps/web/a.tsx'], config)).toEqual([]);
+    expect(fixedScreenSurfaces(['src/core/x.ts'], config)).toEqual([]);
   });
 });
 
@@ -532,6 +568,35 @@ describe('uiProofStep', () => {
       const written = stderr.mock.calls.map((c) => String(c[0])).join('');
       expect(written).toContain(NO_FEATURE_PROOF);
       expect(written).toContain('e2e/proof/x.spec.ts');
+    } finally {
+      stderr.mockRestore();
+    }
+  });
+
+  it('warns on stderr when the images are fixed screens, not the feature', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const step = uiProofStep({
+        cwd: repo,
+        slug: 'feat-slug',
+        branch: 'feat/x',
+        headSha: 'abc',
+        repoUrl: 'https://github.com/o/r',
+        branchFiles: ['apps/web/App.tsx'],
+        fdDesign: undefined,
+        trailerValues: [],
+        config: {
+          uiPaths: ['apps/web/**'],
+          uiProof: { app: { command: WRITE_PNG('home.png'), timeoutMs: 10_000 } },
+        },
+        capture: runCapture,
+      });
+      const links = await step?.();
+      expect(links?.[0]?.imageUrls).toHaveLength(1);
+      const written = stderr.mock.calls.map((c) => String(c[0])).join('');
+      expect(written).toContain(
+        "pr-flow: warning — fixed screens, not this feature for surface 'app'",
+      );
     } finally {
       stderr.mockRestore();
     }
