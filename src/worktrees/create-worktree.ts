@@ -2,13 +2,14 @@
 //
 // Vendored worktree mechanics from docs/noldor/worktree-discipline.md:
 // .worktrees/<slug> on feat/<slug> (or --branch) cut from a freshly fetched
-// origin/main, configured local env files copied in, pnpm install with the
+// origin/main, configured local env files copied in (keys only the tracked
+// `<file>.example` defines appended), pnpm install with the
 // lefthook-postinstall tolerance, the consumer's bootstrap command, port
 // stamped into .env.local.
 
 import { execFile } from 'node:child_process';
 import { constants, existsSync } from 'node:fs';
-import { copyFile, mkdir } from 'node:fs/promises';
+import { appendFile, copyFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -89,6 +90,13 @@ export interface CreateOptions {
   log?: (line: string) => void;
 }
 
+/** Keys appended to one copied env file from the tree's `<file>.example`. */
+export interface EnvKeysFilled {
+  file: string;
+  from: string;
+  keys: string[];
+}
+
 /** Result of {@link createWorktree}. */
 export interface CreateResult {
   path: string;
@@ -97,6 +105,8 @@ export interface CreateResult {
   installWarning: string | null;
   /** The `envFiles` entries that were copied into the tree. */
   envFilesCopied: string[];
+  /** Keys appended to a copied file because only its tracked `.example` defined them. */
+  envKeysFilled: EnvKeysFilled[];
   /** The bootstrap command that ran, or `null` when none did. */
   bootstrapRan: string | null;
 }
@@ -185,9 +195,55 @@ async function copyEnvFiles(
   return copied;
 }
 
+const ENV_KEY_RE = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/;
+
+function envKeyOf(line: string): string | undefined {
+  return ENV_KEY_RE.exec(line)?.[1];
+}
+
+/**
+ * Append to each copied env file the keys only its tracked `<file>.example`
+ * defines. A main-workspace `.env` older than the example lacks them, and a
+ * suite gated on one (a smoke DB URL) then skips in every worktree, so its green
+ * run proves nothing. The example's line is appended verbatim; the main
+ * workspace's file is never touched.
+ */
+async function fillKeysFromExamples(
+  tree: string,
+  copied: readonly string[],
+  log: (line: string) => void,
+): Promise<EnvKeysFilled[]> {
+  const filled: EnvKeysFilled[] = [];
+  for (const file of copied) {
+    const from = `${file}.example`;
+    if (!existsSync(join(tree, from))) continue;
+    const current = await readFile(join(tree, file), 'utf-8');
+    const present = new Set(current.split('\n').map(envKeyOf));
+    const missing = (await readFile(join(tree, from), 'utf-8'))
+      .split('\n')
+      .map((line) => ({ line, key: envKeyOf(line) }))
+      .filter(
+        (entry): entry is { line: string; key: string } =>
+          entry.key !== undefined && !present.has(entry.key),
+      );
+    if (missing.length === 0) continue;
+    const lead = current === '' || current.endsWith('\n') ? '' : '\n';
+    const lines = missing.map((entry) => entry.line).join('\n');
+    await appendFile(
+      join(tree, file),
+      `${lead}\n# filled from ${from} by noldor worktrees create\n${lines}\n`,
+    );
+    const keys = missing.map((entry) => entry.key);
+    filled.push({ file, from, keys });
+    log(`env keys filled: ${file} <- ${from} (${keys.join(', ')})`);
+  }
+  return filled;
+}
+
 /**
  * Create `.worktrees/<slug>` on a fresh branch from `origin/main` (see {@link resolveBase}),
- * copy the configured local env files in (see {@link copyEnvFiles}), install dependencies (tolerating the known lefthook hooksPath failure),
+ * copy the configured local env files in (see {@link copyEnvFiles}) and fill the keys only
+ * their tracked examples define (see {@link fillKeysFromExamples}), install dependencies (tolerating the known lefthook hooksPath failure),
  * run the bootstrap command (see {@link runBootstrap}), and stamp a dev-server port into the tree's `.env.local`.
  *
  * @param opts - See {@link CreateOptions}.
@@ -239,6 +295,7 @@ export async function createWorktree(
   await execFileP('git', ['worktree', 'add', path, '-b', branch, base], { cwd });
   log(`worktree created: .worktrees/${parsed.slug} on ${branch} from ${base}`);
   const envFilesCopied = await copyEnvFiles(cwd, path, envFiles, log);
+  const envKeysFilled = await fillKeysFromExamples(path, envFilesCopied, log);
 
   let installWarning: string | null = null;
   if (opts.install !== false) {
@@ -280,7 +337,15 @@ export async function createWorktree(
 
   return {
     ok: true,
-    result: { path, branch, port, installWarning, envFilesCopied, bootstrapRan },
+    result: {
+      path,
+      branch,
+      port,
+      installWarning,
+      envFilesCopied,
+      envKeysFilled,
+      bootstrapRan,
+    },
   };
 }
 

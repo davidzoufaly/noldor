@@ -240,6 +240,88 @@ describe('createWorktree', () => {
       expect(await readFile(join(res.path, '.env'), 'utf-8')).toBe('FROM_CONFIG=1\n');
     });
 
+    describe('keys only the tracked example defines', () => {
+      async function trackExample(name: string, body: string): Promise<void> {
+        await writeFile(join(root, name), body);
+        git(['add', name], root);
+        git(['commit', '-q', '-m', `track ${name}`], root);
+      }
+
+      it('appends each missing key to the copy, leaving the main workspace file alone', async () => {
+        await trackExample(
+          '.env.example',
+          '# local db\nDATABASE_URL=postgres://example\nexport DB_SMOKE_URL=postgres://smoke\n\nAPI_KEY=\n',
+        );
+        await writeFile(join(root, '.env'), 'DATABASE_URL=postgres://local');
+        const res = unwrap(
+          await createWorktree({
+            slug: 'fill-keys',
+            cwd: root,
+            installRunner: okInstall,
+            envFiles: ['.env'],
+          }),
+        );
+        expect(res.envKeysFilled).toEqual([
+          { file: '.env', from: '.env.example', keys: ['DB_SMOKE_URL', 'API_KEY'] },
+        ]);
+        expect(await readFile(join(res.path, '.env'), 'utf-8')).toBe(
+          'DATABASE_URL=postgres://local\n' +
+            '\n# filled from .env.example by noldor worktrees create\n' +
+            'export DB_SMOKE_URL=postgres://smoke\nAPI_KEY=\n',
+        );
+        expect(await readFile(join(root, '.env'), 'utf-8')).toBe('DATABASE_URL=postgres://local');
+      });
+
+      it('fills nothing when the copy already defines every example key', async () => {
+        await trackExample('.env.example', 'DATABASE_URL=postgres://example\n');
+        await writeFile(join(root, '.env'), '# mine\nexport DATABASE_URL=postgres://local\n');
+        const res = unwrap(
+          await createWorktree({
+            slug: 'all-keys',
+            cwd: root,
+            installRunner: okInstall,
+            envFiles: ['.env'],
+          }),
+        );
+        expect(res.envKeysFilled).toEqual([]);
+        expect(await readFile(join(res.path, '.env'), 'utf-8')).toBe(
+          '# mine\nexport DATABASE_URL=postgres://local\n',
+        );
+      });
+
+      it('fills nothing when no example sits beside the copied file', async () => {
+        await trackExample('.env.sample', 'DB_SMOKE_URL=postgres://smoke\n');
+        await writeFile(join(root, '.env'), 'DATABASE_URL=postgres://local\n');
+        const res = unwrap(
+          await createWorktree({
+            slug: 'no-example',
+            cwd: root,
+            installRunner: okInstall,
+            envFiles: ['.env'],
+          }),
+        );
+        expect(res.envKeysFilled).toEqual([]);
+        expect(await readFile(join(res.path, '.env'), 'utf-8')).toBe(
+          'DATABASE_URL=postgres://local\n',
+        );
+      });
+
+      it('never fills a file the branch tracks', async () => {
+        await trackExample('config.env.example', 'DB_SMOKE_URL=postgres://smoke\n');
+        await trackExample('config.env', 'TRACKED=1\n');
+        const res = unwrap(
+          await createWorktree({
+            slug: 'tracked-fill',
+            cwd: root,
+            installRunner: okInstall,
+            envFiles: ['config.env'],
+          }),
+        );
+        expect(res.envKeysFilled).toEqual([]);
+        expect(await readFile(join(res.path, 'config.env'), 'utf-8')).toBe('TRACKED=1\n');
+      });
+    });
+
     it('copies nothing when the repo has no config', async () => {
       await writeFile(join(root, '.env'), 'X=1\n');
       const res = unwrap(
