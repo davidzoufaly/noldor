@@ -1050,13 +1050,59 @@ export async function isLinkedWorktree(spawn: SpawnFn): Promise<boolean> {
 }
 
 /**
- * Delete the merged PR's remote head branch by hand. Called directly on the
- * worktree-context path, where `gh pr merge --delete-branch` is withheld (see
- * {@link mergePrWithFallback}) and would otherwise have deleted it, and via
- * {@link deleteRemoteBranchIfLingers} on the legs where gh or GitHub owned the
- * delete and left the ref behind. Best-effort and never throws: the merge already
- * succeeded server-side, so a failed branch delete is cosmetic cleanup, not a
- * ship failure. `reason` names why pr-flow, not gh, did the delete.
+ * Where the merged PR's head branch stands on `origin`: `present`, `absent`, or
+ * `unknown` when `ls-remote` itself failed. The full `refs/heads/<branch>` — a
+ * bare branch name is a tail-matching pattern to `ls-remote`, so `foo` would
+ * also match `refs/heads/nested/foo`.
+ */
+async function probeRemoteBranch(
+  spawn: SpawnFn,
+  branch: string,
+): Promise<'present' | 'absent' | 'unknown'> {
+  const ls = await spawn('git', ['ls-remote', '--heads', 'origin', `refs/heads/${branch}`]);
+  if (ls.exitCode !== 0) return 'unknown';
+  return ls.stdout.trim().length > 0 ? 'present' : 'absent';
+}
+
+/**
+ * Push the remote delete, judged by the remote rather than by git's exit code.
+ *
+ * `git push origin --delete` also updates the local `refs/remotes/origin/<branch>`
+ * tracking ref, and that local step can fail — `cannot lock ref` — after the
+ * remote ref is already gone, so git exits non-zero for a delete that happened.
+ * It also exits non-zero when the ref vanished between the probe and the push
+ * (the repo's auto-delete-head-branches setting racing us). Both are success:
+ * the branch is gone. Only a ref still present after a failed push earns the
+ * "delete it by hand" warning (charuy PRs #402, #436, #455).
+ */
+async function pushRemoteDelete(opts: {
+  spawn: SpawnFn;
+  branch: string;
+  reason: string;
+  onStatus?: (line: string) => void;
+}): Promise<void> {
+  const del = await opts.spawn('git', ['push', 'origin', '--delete', opts.branch]);
+  if (del.exitCode !== 0 && (await probeRemoteBranch(opts.spawn, opts.branch)) !== 'absent') {
+    process.stderr.write(
+      `pr-flow: remote branch ${opts.branch} not deleted (exit ${del.exitCode}) and still on ` +
+        'origin. Delete it by hand.\n',
+    );
+    return;
+  }
+  opts.onStatus?.(`pr-flow: deleted remote branch ${opts.branch} (${opts.reason}).`);
+}
+
+/**
+ * Delete the merged PR's remote head branch by hand on the worktree-context
+ * path, where `gh pr merge --delete-branch` is withheld (see
+ * {@link mergePrWithFallback}) and would otherwise have deleted it. `reason`
+ * names why pr-flow, not gh, did the delete.
+ *
+ * Idempotent: a head the repo's auto-delete-head-branches setting already
+ * removed is a no-op, not a failed push. A failed probe still pushes — pr-flow
+ * owns this delete, and an unanswered `ls-remote` is no evidence the ref is gone.
+ * Best-effort and never throws: the merge already succeeded server-side, so a
+ * failed branch delete is cosmetic cleanup, not a ship failure.
  */
 async function deleteMergedRemoteBranch(opts: {
   spawn: SpawnFn;
@@ -1072,16 +1118,11 @@ async function deleteMergedRemoteBranch(opts: {
     );
     return;
   }
-  const del = await opts.spawn('git', ['push', 'origin', '--delete', opts.branch]);
-  if (del.exitCode !== 0) {
-    process.stderr.write(
-      `pr-flow: remote branch ${opts.branch} not deleted (exit ${del.exitCode}); ` +
-        "it may already be gone via the repo's auto-delete-head-branches setting. " +
-        'Delete it by hand if it lingers.\n',
-    );
+  if ((await probeRemoteBranch(opts.spawn, opts.branch)) === 'absent') {
+    opts.onStatus?.(`pr-flow: remote branch ${opts.branch} already gone — nothing to delete.`);
     return;
   }
-  opts.onStatus?.(`pr-flow: deleted remote branch ${opts.branch} (${opts.reason}).`);
+  await pushRemoteDelete({ ...opts, branch: opts.branch });
 }
 
 /**
@@ -1109,16 +1150,8 @@ async function deleteRemoteBranchIfLingers(opts: {
   onStatus?: (line: string) => void;
 }): Promise<void> {
   if (opts.branch === undefined || opts.branch.length === 0) return;
-  // Full `refs/heads/<branch>` — a bare branch name is a tail-matching pattern to
-  // `ls-remote`, so `foo` would also match `refs/heads/nested/foo`.
-  const ls = await opts.spawn('git', [
-    'ls-remote',
-    '--heads',
-    'origin',
-    `refs/heads/${opts.branch}`,
-  ]);
-  if (ls.exitCode !== 0 || ls.stdout.trim().length === 0) return;
-  await deleteMergedRemoteBranch(opts);
+  if ((await probeRemoteBranch(opts.spawn, opts.branch)) !== 'present') return;
+  await pushRemoteDelete({ ...opts, branch: opts.branch });
 }
 
 /**
