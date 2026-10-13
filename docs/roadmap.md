@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### PR Flow Skips Auto-Merge When the Repo Disables It
-
-- id: Q-0380
-- area: tooling
-- type: fix
-- since: 2026-10-13
-- size: XS
-- impact: low
-- confidence: high
-
-pr-flow always tries `gh pr merge --auto`, which consumer repos with auto-merge disabled refuse ("Auto merge is not allowed for this repository"), then falls back to a direct squash-merge every time — including on fast/* branches. Detect `enablePullRequestAutoMerge` once (`gh api repos/:owner/:repo`) and skip the attempt when it is off, or document enabling it as a consumer setup step. (charuy PRs #444, #455, 2026-10-12; also charuy backlog Q-0147)
-
 ### Charuy Adopts Next Release
 
 - id: Q-0358
