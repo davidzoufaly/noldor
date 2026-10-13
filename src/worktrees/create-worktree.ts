@@ -75,7 +75,7 @@ export type InstallRunner = (cwd: string) => Promise<InstallResult>;
  * install plus a monorepo build; its job is to turn a hang into an error, so a
  * drain child waiting on the create fails instead of sitting out its own timeout.
  */
-export const SUBPROCESS_DEADLINE_MS = 10 * 60_000;
+const SUBPROCESS_DEADLINE_MS = 10 * 60_000;
 
 /** Bytes of combined output kept for an error message. */
 const OUTPUT_TAIL_CAP = 64 * 1024;
