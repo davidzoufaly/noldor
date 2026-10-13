@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-10-09 by `pnpm sdd:report`.
+Generated: 2026-10-13 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
@@ -12,12 +12,12 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 - Total features: 103
 - Untriaged ideas: 0
-- Backlog entries: 46
+- Backlog entries: 53
 - Gap categories with issues: 3 / 15
 
 ## Code clones
 
-- 218 clone group(s), 5.79% duplicated tokens across 487 file(s)
+- 220 clone group(s), 5.75% duplicated tokens across 489 file(s)
 - src/dashboard/views.ts:758-767 and src/dashboard/views.ts:1023-1032 (252 tokens)
 - src/features/phase-flip-done-cli.ts:13-46 and src/features/phase-revert-cli.ts:13-46 (230 tokens)
 - src/dashboard/views.ts:887-910 and src/dashboard/views.ts:1061-1136 (176 tokens)
@@ -26,11 +26,11 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ## Dead code
 
-- 387 finding(s) from knip
+- 385 finding(s) from knip
 - 0 outside the baseline
-- exports: 223
+- exports: 222
 - files: 2
-- types: 161
+- types: 160
 - unresolved: 1
 
 ## Gate compliance
@@ -42,6 +42,26 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Override usage (last 30 days)
 
+- `7494d95` — ci-graph-refresh machine-written graph regeneration
+- `85ec76a` — ci-graph-refresh machine-written graph regeneration
+- `3bd8240` — ci-graph-refresh machine-written graph regeneration
+- `0b2eb4d` — ci-graph-refresh machine-written graph regeneration
+- `5dd1a8b` — ci-graph-refresh machine-written graph regeneration
+- `4468580` — ci-graph-refresh machine-written graph regeneration
+- `460a0d2` — ci-graph-refresh machine-written graph regeneration
+- `dadbd20` — ci-graph-refresh machine-written graph regeneration
+- `e26a2d5` — ci-graph-refresh machine-written graph regeneration
+- `e94ecd2` — ci-graph-refresh machine-written graph regeneration
+- `c7f1956` — ci-graph-refresh machine-written graph regeneration
+- `7c76b50` — ci-graph-refresh machine-written graph regeneration
+- `5ff0f93` — ci-graph-refresh machine-written graph regeneration
+- `cb784f7` — ci-graph-refresh machine-written graph regeneration
+- `a7b075a` — ci-graph-refresh machine-written graph regeneration
+- `9a1b5f3` — ci-graph-refresh machine-written graph regeneration
+- `82c98f2` — ci-graph-refresh machine-written graph regeneration
+- `a1b5be0` — ci-graph-refresh machine-written graph regeneration
+- `aa318ce` — ci-graph-refresh machine-written graph regeneration
+- `3a845ca` — ci-graph-refresh machine-written graph regeneration
 - `d716d58` — ci-graph-refresh machine-written graph regeneration
 - `c2b9f27` — ci-graph-refresh machine-written graph regeneration
 - `ce1a783` — ci-graph-refresh machine-written graph regeneration
@@ -130,7 +150,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 147
+Gated commits missing `Noldor-Reviewed` trailer: 171
 
 ## Metrics
 
@@ -198,12 +218,12 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
 {
   "lastRun": {
     "shipped": 8,
-    "skipped": 4,
-    "retried": 2
+    "skipped": 3,
+    "retried": 0
   },
   "history": {
     "salvaged": 2,
-    "escalatedTotal": 21,
+    "escalatedTotal": 23,
     "escalatedBySlug": {
       "trailer-scope-alias-map": 2,
       "prefix-skills-with-noldor": 2,
@@ -216,10 +236,10 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "spec-lint-prior-art-requirement": 1,
       "mandatory-codex-review-round": 1,
       "clones-ratchet-and-clone-group-check-disagree-on-attribution": 2,
-      "charuy-adopts-next-release": 1,
-      "refactor-report-dead-code-section": 1
+      "charuy-adopts-next-release": 2,
+      "refactor-report-dead-code-section": 2
     },
-    "meanDurationMs": 610989
+    "meanDurationMs": 594440
   }
 }
 ```
@@ -361,7 +381,31 @@ blind spots: Only trailer-carrying overrides count; env-var bypasses (the releas
   "gate-load-budget-headroom": 30173,
   "charuy-adopts-next-release": 9668,
   "refactor-report-dead-code-section": 14926,
-  "ideas-md-writers-take-the-lock": 68353
+  "ideas-md-writers-take-the-lock": 68353,
+  "cr-sink-guard-overwrites-without-a-tty": 22895,
+  "gate-reads-the-raw-idea-before-building": 47052,
+  "worktree-bootstrap-command": 30968,
+  "ui-proof-tests-the-developed-feature": 31298,
+  "cr-delta-round-misreports-empty-delta": 36600,
+  "worktree-env-fills-keys-from-env-example": 30272,
+  "fd-writers-keep-the-blank-line-after-frontmatter": 28785,
+  "pr-flow-skips-auto-merge-when-the-repo-disables-it": 27672,
+  "drain-supervisor-reports-progress-every-minute": 42311,
+  "verify-force-reaches-turbo": 12477,
+  "pr-flow-body-from-the-trailer-commit": 34439,
+  "indirection-ratchet-names-the-edges": 43710,
+  "copy-env-files-names-the-failing-entry": 25010,
+  "arbitration-dispose-docs-wording": 8737,
+  "readme-config-block-count-drift": 20304,
+  "fill-links-dry-run-skips-tag-built-fds": 20120,
+  "ui-proof-config-reader-hardening": 15340,
+  "pr-flow-auto-merge-probe-fix": 45336,
+  "gate-skill-wording-micro-chore": 32605,
+  "stale-docs-sweep": 11369,
+  "pr-flow-fast-track-pr-body": 23862,
+  "worktree-create-subprocess-deadline": 23655,
+  "sync-code-links-branch-drift": 56562,
+  "fill-links-dry-run-hardening": 14804
 }
 ```
 
@@ -372,11 +416,13 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Stale backlog entries (>90 days)
 
-- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 119 days since 2026-06-12
+- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 123 days since 2026-06-12
+- `Embeddings Infra for the Framework` — Embeddings Infra for the Framework (tooling) has been in backlog for 94 days since 2026-07-11
+- `E2E Test Support` — E2E Test Support (testing) has been in backlog for 94 days since 2026-07-11
 
 ### Code files not referenced by any feature
 
-- `src/triage/ideas-lock-cli.ts` — src/triage/ideas-lock-cli.ts is not referenced by any feature MD links.code — probable owner: test-suites-read-live-repo-state-shifting-full-suite-failures, autonomous-queue-drain-runner, continuous-drain-daemon-and-escalation-inbox
+- `src/core/frontmatter.ts` — src/core/frontmatter.ts is not referenced by any feature MD links.code — probable owner: framework-pr-flow-agent-auto-merge, noldor, framework-script-test-migration-cleanup
 
 ### Tests with incomplete co-tag
 
