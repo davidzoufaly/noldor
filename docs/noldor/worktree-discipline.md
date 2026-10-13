@@ -126,7 +126,8 @@ See [release-sweep-process-hardening](../features/release-sweep-process-hardenin
   divergence. Step 0 variant: `next-priority` reads main's dirty working copy
   while a worktree branches from `origin/main`, so re-read the roadmap inside the
   worktree before any `promote` edit; if the picked entry is absent, abort +
-  reconcile main rather than carrying the block in by hand.
+  reconcile main rather than carrying the block in by hand — land main's
+  uncommitted triage as its own micro-chore PR first, then start the gate.
 - **Manual fast-track/sweep in a worktree: write `.noldor/session.json` FIRST.**
   Skipping the gate scaffold fails the commit. The hooks name the cause —
   `no .noldor/session.json — did you skip the gate scaffold?` — from both the

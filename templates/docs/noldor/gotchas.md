@@ -134,6 +134,11 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   scripts spawned by a test (`suite-lock.test.ts` `lockChild`) import the
   module through a string URL that typecheck never sees; only the test run
   fails. Grep tests for the module's path before moving an export. (PR #704)
+- **A test for name-by-name placeholder substitution passes on the broken
+  code unless an inserted value holds a later placeholder.** Swapping `{a}`
+  then `{b}` one at a time rewrites a `{b}` that came in inside `{a}`'s value
+  (e.g. a repo path). Make the test's inserted value contain the later
+  placeholder, or the regression test never goes red. (PR #721)
 
 ## Worktrees
 
@@ -160,6 +165,10 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   `NOLDOR_ALLOW_SHARED=1` — the documented override — rather than moving the
   edit to main. Name the two files in the spec's files-touched list so the
   override is expected, not discovered at commit. (PR #679)
+- **`noldor init --update` inside a worktree leaves untracked `.vscode/` and
+  `scripts/geometry-capture.mjs`.** Neither belongs in the commit — do not
+  `git add -A` them. They also make `git worktree remove` refuse at cleanup;
+  use `git worktree remove --force` once the branch is merged. (PR #721)
 
 ## Dashboard
 
@@ -451,6 +460,11 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   push-gates `dead-code` step reds on any new `export` nothing else imports.
   Export a helper only when a test or another module imports it, or un-export
   it before the code-stage review. (PR #706)
+- **`git stash apply $(…)` with an empty capture applies `stash@{0}` — another
+  session's stash.** Sessions on one repo share one stash list, so an empty
+  `$(git stash list | grep …)` silently applies (or `drop`s) someone else's
+  work. Check the captured sha is non-empty before `apply`/`drop`, or probe
+  with a temp commit instead of a stash. (charuy PR #425)
 
 ## Pencil / UI design
 
