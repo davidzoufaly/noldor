@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Gate Skill Wording Micro-Chore
-
-- id: Q-0388
-- area: tooling
-- type: docs
-- since: 2026-10-13
-- size: XS
-- impact: med
-- confidence: high
-
-Two `.claude/skills/noldor-gate/**` edits (plus `templates/` twins), which a fast-track worktree refuses, so they need their own micro-chore PR: (a) `fast-track.md` and the Step 0 entry pick should tell an interactive session to run `pnpm noldor triage source <slug>` before the first edit, as `drain-mode.md` already does; (b) `blockers.md` still says "(without --blocker it lists the ids)" for `cr arbitration dispose`; since PR #701 the listing form is "only --slug and --kind". (PRs #727, #750, 2026-10-13)
-
 ### Stale Docs Sweep
 
 - id: Q-0389
