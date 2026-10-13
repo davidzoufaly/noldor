@@ -894,5 +894,9 @@
   "Q-0377": {
     "slug": "cr-delta-round-misreports-empty-delta",
     "retiredAt": "2026-10-13"
+  },
+  "Q-0378": {
+    "slug": "worktree-env-fills-keys-from-env-example",
+    "retiredAt": "2026-10-13"
   }
 }
