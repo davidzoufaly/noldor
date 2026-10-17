@@ -327,6 +327,35 @@ describe('inspectBaseline', () => {
     ).toEqual(['unparseable']);
   });
 
+  it('reports a session tag left anywhere in the baseline, and names it', () => {
+    const tagged = (name: string) =>
+      pen({
+        children: [
+          page('rest', 'FINAL:app: rest', {
+            children: [
+              {
+                type: 'frame',
+                id: 'panel',
+                name: 'Panel',
+                children: [{ type: 'text', id: 't', name }],
+              },
+            ],
+          }),
+        ],
+      });
+    const findings = inspectBaseline(tagged('noldor:new pocket symbol'), {
+      schema: null,
+      surface: 'app',
+    });
+    const tags = findings.filter((f) => f.code === 'new-tag');
+    expect(tags).toHaveLength(1);
+    expect(tags[0]!.severity).toBe('red');
+    expect(tags[0]!.message).toContain('noldor:new pocket symbol');
+    expect(
+      codes(inspectBaseline(tagged('Pocket symbol'), { schema: null, surface: 'app' })),
+    ).not.toContain('new-tag');
+  });
+
   it('skips coverage for a surface that declares none', () => {
     expect(inspectBaseline(pen({ children: [] }), { schema: null, surface: 'app' })).toEqual([]);
   });

@@ -45,6 +45,7 @@ export type PenFindingCode =
   | 'missing-page'
   | 'duplicate-page'
   | 'undeclared-page'
+  | 'new-tag'
   | LayoutFindingCode;
 
 /**
@@ -252,6 +253,27 @@ export function checkCoverage(
 }
 
 /**
+ * The name prefix of a session tag: a red label a spec session puts beside each
+ * node it adds or changes in its feature `.pen`, so the operator sees at a glance
+ * what the session drew. A tag marks a feature design, never a baseline: the
+ * write-back strips them, and a baseline that still holds one is red.
+ */
+const NEW_TAG_PREFIX = 'noldor:new';
+
+/** The names of every session tag in a document, at any depth, in document order. */
+function newTags(doc: PenDocument): string[] {
+  const names: string[] = [];
+  const visit = (node: unknown): void => {
+    if (!isRecord(node)) return;
+    if (typeof node.name === 'string' && node.name.startsWith(NEW_TAG_PREFIX))
+      names.push(node.name);
+    if (Array.isArray(node.children)) node.children.forEach(visit);
+  };
+  doc.children.forEach(visit);
+  return names;
+}
+
+/**
  * Every finding for one surface's baseline: validity always; layout whenever
  * the bytes parse; coverage when, in addition, the surface declares it. The one
  * entry point the freshness check and `design capture` share, so the two cannot
@@ -268,5 +290,21 @@ export function inspectBaseline(
     opts.coverage === undefined
       ? []
       : checkCoverage(topLevelPages(parsed.doc), opts.coverage, opts.surface);
-  return [...validity, ...coverage, ...checkLayout(parsed.doc, { coverage: opts.coverage })];
+  const tags = newTags(parsed.doc);
+  const tagged: PenFinding[] =
+    tags.length === 0
+      ? []
+      : [
+          {
+            code: 'new-tag',
+            severity: 'red',
+            message: `holds ${String(tags.length)} session tag(s) a write-back should have stripped: ${tags.join(', ')}`,
+          },
+        ];
+  return [
+    ...validity,
+    ...coverage,
+    ...checkLayout(parsed.doc, { coverage: opts.coverage }),
+    ...tagged,
+  ];
 }
