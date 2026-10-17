@@ -8,6 +8,8 @@ introduced: 0.4.0
 Noldor ships 15 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
 
 > **Strict drift gate.** `pnpm noldor validate skill-catalog` (pre-commit, see [`garden-and-drift.md`](garden-and-drift.md) Detector 16) asserts that every `## /<slug>` heading on this page maps to a `<slug>.md` (or `<slug>/SKILL.md`) under `.claude/skills/`, and vice versa. Add or rename a skill → update this page in the same commit, or pre-commit blocks.
+>
+> **A consumer's own skills** go on a page the consumer owns, `docs/skill-catalog.md`, with the same `## /<slug>` headings. This page is templated: `checks template-sync` holds it to Noldor's copy, so a heading added here blocks the commit. The gate reads both pages.
 
 ## /noldor-promote
 
