@@ -1,7 +1,15 @@
 // @tests: noldor
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import { diffSkillSets, parseCatalogSlugs } from '../validate-skill-catalog.js';
+import {
+  diffSkillSets,
+  parseCatalogSlugs,
+  validateSkillCatalog,
+} from '../validate-skill-catalog.js';
 
 describe('parseCatalogSlugs', () => {
   it('extracts slugs from `## /<slug>` headings', () => {
@@ -77,6 +85,42 @@ describe('diffSkillSets', () => {
     const catalog = new Set<string>();
     expect(diffSkillSets(skills, catalog)).toEqual({
       missingFromCatalog: ['alpha', 'mu', 'zeta'],
+      missingFromSkills: [],
+    });
+  });
+});
+
+describe('validateSkillCatalog', () => {
+  async function repoWith(files: Record<string, string>): Promise<string> {
+    const root = await mkdtemp(join(tmpdir(), 'skill-catalog-'));
+    for (const [path, body] of Object.entries(files)) {
+      await mkdir(dirname(join(root, path)), { recursive: true });
+      await writeFile(join(root, path), body);
+    }
+    return root;
+  }
+
+  it('reads a consumer’s own skills from docs/skill-catalog.md beside the templated page', async () => {
+    const root = await repoWith({
+      '.claude/skills/noldor-gate/SKILL.md': '',
+      '.claude/skills/charuy-add-building-element/SKILL.md': '',
+      'docs/noldor/skill-catalog.md': '## /noldor-gate\n',
+      'docs/skill-catalog.md': '## /charuy-add-building-element\n',
+    });
+    expect(await validateSkillCatalog(root)).toEqual({
+      missingFromCatalog: [],
+      missingFromSkills: [],
+    });
+  });
+
+  it('works without a consumer page, and still flags a skill neither page lists', async () => {
+    const root = await repoWith({
+      '.claude/skills/noldor-gate/SKILL.md': '',
+      '.claude/skills/own-skill.md': '',
+      'docs/noldor/skill-catalog.md': '## /noldor-gate\n',
+    });
+    expect(await validateSkillCatalog(root)).toEqual({
+      missingFromCatalog: ['own-skill'],
       missingFromSkills: [],
     });
   });

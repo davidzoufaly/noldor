@@ -18,7 +18,7 @@ Periodic audit that detects framework drift: features without tests, plans witho
 | `pnpm noldor garden sdd-report --json`             | Machine-readable output (no file write)                                                                     |
 | `pnpm noldor garden sdd-report --release`          | Includes the Gate compliance section (override + tier + review-skip counter). Invoked by `pnpm release`.    |
 | `SDD_STALE_DAYS=120 pnpm noldor garden sdd-report` | Override the 90-day default for the stale-backlog detector                                                  |
-| `pnpm noldor validate skill-catalog`               | **Hard pre-commit gate** for the `.claude/skills/` ↔ `skill-catalog.md` 1:1 contract; missing/orphan = fail |
+| `pnpm noldor validate skill-catalog`               | **Hard pre-commit gate** for the `.claude/skills/` ↔ `skill-catalog.md` 1:1 contract (plus a consumer's own `docs/skill-catalog.md`); missing/orphan = fail |
 
 `pnpm release` regenerates `docs/sdd-report.md` as a precondition (commits the snapshot for trend visibility). Pre-commit does NOT run the report — too slow once features grow. The script is the source of truth — when this page disagrees with [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts), the script wins.
 
