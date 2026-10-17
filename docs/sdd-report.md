@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-10-13 by `pnpm sdd:report`.
+Generated: 2026-10-17 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
@@ -11,13 +11,13 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 ## Summary
 
 - Total features: 103
-- Untriaged ideas: 0
+- Untriaged ideas: 1
 - Backlog entries: 53
-- Gap categories with issues: 3 / 15
+- Gap categories with issues: 4 / 15
 
 ## Code clones
 
-- 220 clone group(s), 5.75% duplicated tokens across 489 file(s)
+- 220 clone group(s), 5.74% duplicated tokens across 489 file(s)
 - src/dashboard/views.ts:758-767 and src/dashboard/views.ts:1023-1032 (252 tokens)
 - src/features/phase-flip-done-cli.ts:13-46 and src/features/phase-revert-cli.ts:13-46 (230 tokens)
 - src/dashboard/views.ts:887-910 and src/dashboard/views.ts:1061-1136 (176 tokens)
@@ -42,6 +42,8 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Override usage (last 30 days)
 
+- `c49076a` — ci-graph-refresh machine-written graph regeneration
+- `22310da` — ci-graph-refresh machine-written graph regeneration
 - `7494d95` — ci-graph-refresh machine-written graph regeneration
 - `85ec76a` — ci-graph-refresh machine-written graph regeneration
 - `3bd8240` — ci-graph-refresh machine-written graph regeneration
@@ -145,12 +147,10 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 - `7279156` — cr-arbitration c48c29a83430 — reviewer lane returned approve with zero blockers; the one codex finding is fixed in this tip
 - `7576ab1` — verify lane malformed-output (Q-0137 class), not a code defect — reviewer lane approved; the verifier ran the acceptance set against a fake consumer and against real charuy (exit 0, zero non-portable rows) and emitted a pass verdict, but its evidence strings embed fenced code blocks (this change is about fenced blocks), which broke the fence parser in both rounds. Receipt withheld only because orchestrate exits non-zero on any red lane.
 - `00aabcd` — cr-arbitration c3e915b25538 — round cap spent after 4 red rounds; the one standing blocker was correct and is fixed in this commit, arbitrated as accepted with the fix unreviewed
-- `683b356` — cr-arbitration f523dc86756e — reviewer approved and verifier verified; both remaining codex blockers were fixed in this commit, not carried, and the round cap is spent
-- `5377b5d` — cr-arbitration 2613fe542270 — all 5 blockers accepted and fixed in this tree; the sinks predate it and every flagged sentence is grep-absent
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 171
+Gated commits missing `Noldor-Reviewed` trailer: 163
 
 ## Metrics
 
@@ -414,15 +414,19 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ## Gap details
 
+### Untriaged ideas in ideas.md
+
+- `ideas.md:116` — buuld some research pipeline into noldor / skill -> difficult tasks should be analyzed from the web first
+
 ### Stale backlog entries (>90 days)
 
-- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 123 days since 2026-06-12
-- `Embeddings Infra for the Framework` — Embeddings Infra for the Framework (tooling) has been in backlog for 94 days since 2026-07-11
-- `E2E Test Support` — E2E Test Support (testing) has been in backlog for 94 days since 2026-07-11
+- `Does SQL in a Framework Make Sense?` — Does SQL in a Framework Make Sense? (tooling) has been in backlog for 127 days since 2026-06-12
+- `Embeddings Infra for the Framework` — Embeddings Infra for the Framework (tooling) has been in backlog for 98 days since 2026-07-11
+- `E2E Test Support` — E2E Test Support (testing) has been in backlog for 98 days since 2026-07-11
 
 ### Code files not referenced by any feature
 
-- `src/core/frontmatter.ts` — src/core/frontmatter.ts is not referenced by any feature MD links.code — probable owner: framework-pr-flow-agent-auto-merge, noldor, framework-script-test-migration-cleanup
+- `src/core/frontmatter.ts` — src/core/frontmatter.ts is not referenced by any feature MD links.code — probable owner: framework-pr-flow-agent-auto-merge, dynamic-fd-changelog, framework-script-test-migration-cleanup
 
 ### Tests with incomplete co-tag
 
