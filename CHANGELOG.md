@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.19.0 — 2026-10-17
+
+### Features
+
+- feat(design): refuse a UI baseline that still holds a session's noldor:new tags ([9f58c07](https://github.com/davidzoufaly/noldor/commit/9f58c0776d9849e61da8ae3223549bb6f167c618)) ([#775](https://github.com/davidzoufaly/noldor/pull/775))
+- feat(validate): let a consumer list its own skills in docs/skill-catalog.md ([ed5cd60](https://github.com/davidzoufaly/noldor/commit/ed5cd60b087faeee62f45107fcc201697d6413cd)) ([#773](https://github.com/davidzoufaly/noldor/pull/773))
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift ([6126abd](https://github.com/davidzoufaly/noldor/commit/6126abd3ef21eb61b488bf8363ba2fa51d631d72)) ([#779](https://github.com/davidzoufaly/noldor/pull/779))
+- docs(ideas): file the retro ideas earlier sessions left uncommitted ([c081ef7](https://github.com/davidzoufaly/noldor/commit/c081ef7fba30fd4c71b040c4bfb6452f547ec8b7)) ([#778](https://github.com/davidzoufaly/noldor/pull/778))
+- docs(skills): tag a session's .pen additions red, strip the tags at write-back ([e22d3dd](https://github.com/davidzoufaly/noldor/commit/e22d3dd1f7b8548e6e66be0a08d9fa0d10d8ba84)) ([#777](https://github.com/davidzoufaly/noldor/pull/777))
+- chore(graph): refresh the committed knowledge graph ([c49076a](https://github.com/davidzoufaly/noldor/commit/c49076a0110a6f19453fd053dbb24954f3514f21)) ([#776](https://github.com/davidzoufaly/noldor/pull/776))
+- chore(graph): refresh the committed knowledge graph ([22310da](https://github.com/davidzoufaly/noldor/commit/22310da795b4e1de0d31f0257c1321c416516936)) ([#774](https://github.com/davidzoufaly/noldor/pull/774))
+
 ## v1.18.0 — 2026-10-13
 
 ### Features
